@@ -1,0 +1,222 @@
+<!-- ============================================================================
+     header.html  ·  Reusable Enterprise Top Navbar (partial)
+     ----------------------------------------------------------------------------
+     Injected into every page by layout.js. Contains ONLY markup — all styling
+     lives in navbar.css / layout.css / theme.css and all behaviour lives in
+     navbar.js / theme.js / layout.js. No inline CSS. No inline JS.
+
+     JS hooks used by the layout scripts:
+       [data-action="toggle-sidebar"]     -> sidebar.js  (open/collapse sidebar)
+       [data-action="toggle-search"]      -> navbar.js   (mobile search expand)
+       [data-action="toggle-fullscreen"]  -> navbar.js   (Fullscreen API)
+       [data-action="toggle-theme"]       -> theme.js    (light/dark)
+       [data-action="logout"]             -> navbar.js   (clear token -> "/")
+       #appBreadcrumb                      -> layout.js   (per-page trail)
+       #globalSearchInput                 -> navbar.js   (search + results)
+       [data-lang]                        -> navbar.js   (language selector)
+       #navUserName / #navUserTenant / #navUserAvatar -> layout.js (from JWT)
+     Placeholder data only — no hardcoded business data.
+     ============================================================================ -->
+
+<!-- Keyboard users: jump straight to the scrollable content region. -->
+<a class="app-skip-link visually-hidden-focusable" href="#appMainContent">Skip to main content</a>
+
+<header class="app-header" role="banner">
+  <div class="app-header__inner">
+
+    <!-- ---------------------------------------------------------------- -->
+    <!-- LEFT · sidebar toggle + brand + breadcrumb                        -->
+    <!-- ---------------------------------------------------------------- -->
+    <div class="app-header__section app-header__section--start">
+
+      <!-- Hamburger: collapses sidebar on desktop, opens offcanvas on mobile -->
+      <button class="app-header__icon-btn app-sidebar-toggle" type="button"
+              data-action="toggle-sidebar"
+              aria-label="Toggle navigation menu" aria-controls="appSidebar" aria-expanded="true">
+        <i class="bi bi-list" aria-hidden="true"></i>
+      </button>
+
+      <!-- Company logo + application name (reuses existing /favicon.svg) -->
+      <a class="app-brand" href="/dashboard.html" aria-label="StarSFA home">
+        <span class="app-brand__logo">
+          <img src="/favicon.svg" alt="" width="28" height="28" />
+        </span>
+        <span class="app-brand__text">
+          <span class="app-brand__name">StarSFA</span>
+          <span class="app-brand__tag">Enterprise Admin</span>
+        </span>
+      </a>
+
+      <!-- Breadcrumb trail — filled per page by layout.js -->
+      <nav class="app-breadcrumb d-none d-lg-flex" aria-label="Breadcrumb">
+        <ol class="breadcrumb mb-0" id="appBreadcrumb">
+          <li class="breadcrumb-item">
+            <a href="/dashboard.html"><i class="bi bi-house-door" aria-hidden="true"></i><span class="visually-hidden">Home</span></a>
+          </li>
+          <li class="breadcrumb-item active" aria-current="page">Dashboard</li>
+        </ol>
+      </nav>
+    </div>
+
+    <!-- ---------------------------------------------------------------- -->
+    <!-- CENTER · global search                                            -->
+    <!-- ---------------------------------------------------------------- -->
+    <div class="app-header__section app-header__section--search">
+      <form class="app-search" role="search" autocomplete="off">
+        <label class="visually-hidden" for="globalSearchInput">Search</label>
+        <i class="bi bi-search app-search__icon" aria-hidden="true"></i>
+        <input class="form-control app-search__input" id="globalSearchInput" type="search"
+               name="q" placeholder="Search pages, masters, reports…"
+               aria-label="Global search" aria-expanded="false" aria-controls="globalSearchResults" />
+        <kbd class="app-search__hint d-none d-xl-inline">Ctrl K</kbd>
+        <!-- Result list rendered by navbar.js -->
+        <ul class="app-search__results dropdown-menu" id="globalSearchResults" role="listbox" aria-label="Search results"></ul>
+      </form>
+    </div>
+
+    <!-- ---------------------------------------------------------------- -->
+    <!-- RIGHT · quick actions + account                                   -->
+    <!-- ---------------------------------------------------------------- -->
+    <div class="app-header__section app-header__section--end">
+
+      <!-- Mobile-only: reveal the search field -->
+      <button class="app-header__icon-btn d-md-none" type="button"
+              data-action="toggle-search" aria-label="Open search">
+        <i class="bi bi-search" aria-hidden="true"></i>
+      </button>
+
+      <!-- Notifications ------------------------------------------------- -->
+      <div class="dropdown app-header__item">
+        <button class="app-header__icon-btn" type="button"
+                data-bs-toggle="dropdown" data-bs-auto-close="outside"
+                aria-expanded="false" aria-label="Notifications, 3 unread">
+          <i class="bi bi-bell" aria-hidden="true"></i>
+          <span class="app-header__badge" aria-hidden="true">3</span>
+        </button>
+        <div class="dropdown-menu dropdown-menu-end app-menu app-menu--wide">
+          <div class="app-menu__head">
+            <span class="fw-semibold">Notifications</span>
+            <a href="#" class="app-menu__link">Mark all read</a>
+          </div>
+          <div class="app-menu__scroll">
+            <!-- Placeholder items -->
+            <a href="#" class="app-menu__row">
+              <span class="app-menu__avatar bg-primary-subtle text-primary"><i class="bi bi-box-seam"></i></span>
+              <span class="app-menu__body">
+                <span class="app-menu__title">New product added</span>
+                <span class="app-menu__meta">Catalogue updated · 5 min ago</span>
+              </span>
+            </a>
+            <a href="#" class="app-menu__row">
+              <span class="app-menu__avatar bg-success-subtle text-success"><i class="bi bi-people"></i></span>
+              <span class="app-menu__body">
+                <span class="app-menu__title">Client onboarded</span>
+                <span class="app-menu__meta">Route 12 · 40 min ago</span>
+              </span>
+            </a>
+            <a href="#" class="app-menu__row">
+              <span class="app-menu__avatar bg-warning-subtle text-warning"><i class="bi bi-exclamation-triangle"></i></span>
+              <span class="app-menu__body">
+                <span class="app-menu__title">Sync pending</span>
+                <span class="app-menu__meta">Area master · 2 hrs ago</span>
+              </span>
+            </a>
+          </div>
+          <a href="#" class="app-menu__foot">View all notifications</a>
+        </div>
+      </div>
+
+      <!-- Messages ------------------------------------------------------ -->
+      <div class="dropdown app-header__item">
+        <button class="app-header__icon-btn" type="button"
+                data-bs-toggle="dropdown" data-bs-auto-close="outside"
+                aria-expanded="false" aria-label="Messages, 2 unread">
+          <i class="bi bi-chat-left-text" aria-hidden="true"></i>
+          <span class="app-header__badge app-header__badge--accent" aria-hidden="true">2</span>
+        </button>
+        <div class="dropdown-menu dropdown-menu-end app-menu app-menu--wide">
+          <div class="app-menu__head">
+            <span class="fw-semibold">Messages</span>
+            <a href="#" class="app-menu__link">Inbox</a>
+          </div>
+          <div class="app-menu__scroll">
+            <a href="#" class="app-menu__row">
+              <span class="app-menu__avatar">AK</span>
+              <span class="app-menu__body">
+                <span class="app-menu__title">Anil Kumar</span>
+                <span class="app-menu__meta">Please review the route plan…</span>
+              </span>
+              <span class="app-menu__dot" aria-hidden="true"></span>
+            </a>
+            <a href="#" class="app-menu__row">
+              <span class="app-menu__avatar">SR</span>
+              <span class="app-menu__body">
+                <span class="app-menu__title">Sunita Rao</span>
+                <span class="app-menu__meta">Monthly report is ready.</span>
+              </span>
+              <span class="app-menu__dot" aria-hidden="true"></span>
+            </a>
+          </div>
+          <a href="#" class="app-menu__foot">Open all messages</a>
+        </div>
+      </div>
+
+      <!-- Fullscreen ---------------------------------------------------- -->
+      <button class="app-header__icon-btn d-none d-sm-inline-flex" type="button"
+              data-action="toggle-fullscreen" aria-label="Toggle fullscreen" aria-pressed="false">
+        <i class="bi bi-arrows-fullscreen" aria-hidden="true"></i>
+      </button>
+
+      <!-- Language selector -------------------------------------------- -->
+      <div class="dropdown app-header__item d-none d-sm-block">
+        <button class="app-header__icon-btn" type="button"
+                data-bs-toggle="dropdown" aria-expanded="false" aria-label="Select language">
+          <i class="bi bi-translate" aria-hidden="true"></i>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end app-menu">
+          <li><button class="dropdown-item active" type="button" data-lang="en"><i class="bi bi-check2 app-menu__check"></i> English</button></li>
+          <li><button class="dropdown-item" type="button" data-lang="hi"><i class="bi bi-check2 app-menu__check"></i> हिन्दी</button></li>
+          <li><button class="dropdown-item" type="button" data-lang="mr"><i class="bi bi-check2 app-menu__check"></i> मराठी</button></li>
+          <li><button class="dropdown-item" type="button" data-lang="ta"><i class="bi bi-check2 app-menu__check"></i> தமிழ்</button></li>
+        </ul>
+      </div>
+
+      <!-- Theme toggle -------------------------------------------------- -->
+      <button class="app-header__icon-btn app-theme-toggle" type="button"
+              data-action="toggle-theme" aria-label="Toggle light and dark theme" aria-pressed="false">
+        <i class="bi bi-sun app-theme-toggle__light" aria-hidden="true"></i>
+        <i class="bi bi-moon-stars app-theme-toggle__dark" aria-hidden="true"></i>
+      </button>
+
+      <!-- User profile + logout ---------------------------------------- -->
+      <div class="dropdown app-header__item app-header__user">
+        <button class="app-user" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Account menu">
+          <span class="app-user__avatar" id="navUserAvatar" aria-hidden="true">U</span>
+          <span class="app-user__meta d-none d-lg-flex">
+            <span class="app-user__name" id="navUserName">User</span>
+            <span class="app-user__tenant" id="navUserTenant">tenant</span>
+          </span>
+          <i class="bi bi-chevron-down app-user__caret d-none d-lg-inline" aria-hidden="true"></i>
+        </button>
+        <div class="dropdown-menu dropdown-menu-end app-menu">
+          <div class="app-menu__head app-menu__head--user">
+            <span class="app-user__avatar app-user__avatar--lg" aria-hidden="true">U</span>
+            <span class="app-menu__body">
+              <span class="app-menu__title" id="navUserNameFull">User</span>
+              <span class="app-menu__meta">Signed in · <span id="navUserTenantFull">tenant</span></span>
+            </span>
+          </div>
+          <div class="dropdown-divider"></div>
+          <a class="dropdown-item" href="/settings.html"><i class="bi bi-person-gear app-menu__icon"></i> My Profile</a>
+          <a class="dropdown-item" href="/settings.html"><i class="bi bi-sliders app-menu__icon"></i> Settings</a>
+          <a class="dropdown-item" href="#"><i class="bi bi-question-circle app-menu__icon"></i> Help &amp; Support</a>
+          <div class="dropdown-divider"></div>
+          <button class="dropdown-item text-danger" type="button" data-action="logout">
+            <i class="bi bi-box-arrow-right app-menu__icon"></i> Logout
+          </button>
+        </div>
+      </div>
+
+    </div><!-- /RIGHT -->
+  </div><!-- /.app-header__inner -->
+</header>

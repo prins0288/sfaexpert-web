@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StarSFA &middot; Client</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css" rel="stylesheet" />
+  <link href="/css/app.css" rel="stylesheet" />
+</head>
+<body>
+<div id="app" data-page="client" data-title="Client Master"></div>
+
+<template id="pageContent">
+  <div class="card">
+    <div class="card-header">
+      <i class="bi bi-people"></i> Clients
+      <div class="card-tools">
+        <select id="typeFilter" class="form-select form-select-sm" style="width:auto" onchange="clientFilter()">
+          <option value="">All Types</option>
+        </select>
+        <button class="btn btn-sm btn-primary" onclick="clientAdd()"><i class="bi bi-plus-lg"></i> Add Single</button>
+        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#clientUploadModal"><i class="bi bi-upload"></i> Bulk Upload</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table id="clientTable" class="table table-striped table-bordered nowrap" style="width:100%">
+          <thead><tr>
+            <th>S.No</th><th>Code</th><th>Type</th><th>Name</th><th>Area</th><th>Route</th>
+            <th>Mobile</th><th>Category</th><th>Status</th><th class="no-export">Actions</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="clientModal" tabindex="-1"><div class="modal-dialog modal-xl">
+    <form class="modal-content" onsubmit="clientSave(event)">
+      <div class="modal-header sfa-modal"><h5 class="modal-title" id="clientModalTitle">Add Client</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body"><div class="row g-3">
+        <input type="hidden" id="c_oid" />
+        <div class="col-md-3"><label class="form-label">Client Type <span class="required-star">*</span></label>
+          <select class="form-select" id="c_clientTypeOid" required></select></div>
+        <div class="col-md-3"><label class="form-label">Client Code <span class="required-star">*</span></label>
+          <input class="form-control" id="c_clientCode" required /></div>
+        <div class="col-md-2"><label class="form-label">Prefix</label>
+          <input class="form-control" id="c_prefix" placeholder="Dr./Mr." /></div>
+        <div class="col-md-4"><label class="form-label">Name <span class="required-star">*</span></label>
+          <input class="form-control" id="c_name" required /></div>
+
+        <div class="col-md-4"><label class="form-label">Firm Name</label>
+          <input class="form-control" id="c_firmName" /></div>
+        <div class="col-md-4"><label class="form-label">Qualification</label>
+          <select class="form-select" id="c_degreeOid"></select></div>
+        <div class="col-md-4"><label class="form-label">Speciality</label>
+          <select class="form-select" id="c_specialityOid"></select></div>
+
+        <div class="col-md-4"><label class="form-label">Category</label>
+          <select class="form-select" id="c_categoryOid"></select></div>
+        <div class="col-md-4"><label class="form-label">Route</label>
+          <select class="form-select" id="c_routeOid"></select></div>
+        <div class="col-md-4"><label class="form-label">Area</label>
+          <select class="form-select" id="c_areaOid"></select></div>
+
+        <div class="col-md-8"><label class="form-label">Address</label>
+          <input class="form-control" id="c_address" /></div>
+        <div class="col-md-4"><label class="form-label">City</label>
+          <input class="form-control" id="c_city" /></div>
+
+        <div class="col-md-3"><label class="form-label">Mobile</label>
+          <input class="form-control" id="c_mobile" /></div>
+        <div class="col-md-3"><label class="form-label">Email</label>
+          <input class="form-control" id="c_email" type="email" /></div>
+        <div class="col-md-3"><label class="form-label">DOB</label>
+          <input class="form-control" id="c_dob" type="date" /></div>
+        <div class="col-md-3"><label class="form-label">Anniversary</label>
+          <input class="form-control" id="c_anniversary" type="date" /></div>
+
+        <div class="col-md-4"><label class="form-label">Drug License No</label>
+          <input class="form-control" id="c_drugLicenseNo" /></div>
+        <div class="col-md-4"><label class="form-label">GST No</label>
+          <input class="form-control" id="c_gstNo" /></div>
+        <div class="col-md-4"><label class="form-label">Remarks</label>
+          <input class="form-control" id="c_remarks" /></div>
+      </div></div>
+      <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button></div>
+    </form>
+  </div></div>
+
+  <!-- Bulk Upload -->
+  <div class="modal fade" id="clientUploadModal" tabindex="-1"><div class="modal-dialog">
+    <form class="modal-content" onsubmit="clientUpload(event)">
+      <div class="modal-header sfa-modal"><h5 class="modal-title">Bulk Upload &middot; Clients</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <p class="text-muted small">Existing rows (matched by <b>client_code</b>) are updated; new codes inserted.
+          <b>client_type</b> accepts a type code (DOC) or name (Doctor); <b>area</b> a code or name.</p>
+        <button type="button" class="btn btn-sm btn-outline-secondary mb-3" onclick="SFA.download('/api/master/client/template','client_template.xlsx')">
+          <i class="bi bi-download"></i> Download Template</button>
+        <input type="file" class="form-control" id="clientFile" name="file" accept=".xlsx,.xls" required />
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-accent">Upload</button></div>
+    </form>
+  </div></div>
+</template>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="/js/app.js"></script>
+<script src="/js/shell.js"></script>
+<script>
+  let DT = null, MODAL = null, LK = {};
+
+  window.pageInit = async function () {
+    MODAL = new bootstrap.Modal('#clientModal');
+    try {
+      LK = await SFA.api('/api/lookups');
+      SFA.fillSelect(document.getElementById('c_clientTypeOid'), LK.clientTypes, '--');
+      SFA.fillSelect(document.getElementById('c_degreeOid'), LK.degrees);
+      SFA.fillSelect(document.getElementById('c_specialityOid'), LK.specialities);
+      SFA.fillSelect(document.getElementById('c_categoryOid'), LK.categories);
+      SFA.fillSelect(document.getElementById('c_routeOid'), LK.routes);
+      SFA.fillSelect(document.getElementById('c_areaOid'), LK.areas);
+      // filter dropdown
+      document.getElementById('typeFilter').innerHTML = '<option value="">All Types</option>' +
+        (LK.clientTypes || []).map(t => `<option value="${SFA.esc(t.label)}">${SFA.esc(t.label)}</option>`).join('');
+      await reload();
+    } catch (e) { SFA.toast(e.message, false); }
+  };
+
+  async function reload() {
+    const rows = await SFA.api('/api/master/client');
+    if (DT) { DT.destroy(); }
+    document.querySelector('#clientTable tbody').innerHTML = rows.map((r, i) => `
+      <tr>
+        <td>${i + 1}</td><td>${SFA.esc(r.clientCode)}</td>
+        <td><span class="badge bg-secondary">${SFA.esc(r.typeName)}</span></td>
+        <td>${SFA.esc(r.prefix)} ${SFA.esc(r.name)}${r.firmName ? '<br><small class="text-muted">' + SFA.esc(r.firmName) + '</small>' : ''}</td>
+        <td>${SFA.esc(r.areaName)}</td><td>${SFA.esc(r.routeName)}</td>
+        <td>${SFA.esc(r.mobile)}</td><td>${SFA.esc(r.categoryName)}</td>
+        <td>${SFA.statusBadge(r.status)}</td>
+        <td class="no-export">
+          <button class="btn btn-sm btn-outline-primary" onclick='clientEdit(${JSON.stringify(r)})'><i class="bi bi-pencil"></i></button>
+          ${r.status === 'Y'
+            ? `<button class="btn btn-sm btn-outline-danger" onclick="clientStatus(${r.oid},'N')"><i class="bi bi-slash-circle"></i></button>`
+            : `<button class="btn btn-sm btn-outline-success" onclick="clientStatus(${r.oid},'Y')"><i class="bi bi-check-circle"></i></button>`}
+        </td>
+      </tr>`).join('');
+    DT = sfaDataTable('#clientTable');
+  }
+
+  const CF = ['c_oid','c_clientCode','c_prefix','c_name','c_firmName','c_address','c_city','c_mobile','c_email','c_dob','c_anniversary','c_drugLicenseNo','c_gstNo','c_remarks'];
+  const CS = ['c_clientTypeOid','c_degreeOid','c_specialityOid','c_categoryOid','c_routeOid','c_areaOid'];
+
+  function clientAdd() {
+    CF.concat(CS).forEach(id => document.getElementById(id).value = '');
+    document.getElementById('clientModalTitle').textContent = 'Add Client';
+    MODAL.show();
+  }
+  function clientEdit(r) {
+    document.getElementById('c_oid').value = r.oid;
+    document.getElementById('c_clientTypeOid').value = r.clientTypeOid || '';
+    document.getElementById('c_clientCode').value = r.clientCode || '';
+    document.getElementById('c_prefix').value = r.prefix || '';
+    document.getElementById('c_name').value = r.name || '';
+    document.getElementById('c_firmName').value = r.firmName || '';
+    document.getElementById('c_degreeOid').value = r.degreeOid || '';
+    document.getElementById('c_specialityOid').value = r.specialityOid || '';
+    document.getElementById('c_categoryOid').value = r.categoryOid || '';
+    document.getElementById('c_routeOid').value = r.routeOid || '';
+    document.getElementById('c_areaOid').value = r.areaOid || '';
+    document.getElementById('c_address').value = r.address || '';
+    document.getElementById('c_city').value = r.city || '';
+    document.getElementById('c_mobile').value = r.mobile || '';
+    document.getElementById('c_email').value = r.email || '';
+    document.getElementById('c_dob').value = r.dob || '';
+    document.getElementById('c_anniversary').value = r.anniversary || '';
+    document.getElementById('c_drugLicenseNo').value = r.drugLicenseNo || '';
+    document.getElementById('c_gstNo').value = r.gstNo || '';
+    document.getElementById('c_remarks').value = r.remarks || '';
+    document.getElementById('clientModalTitle').textContent = 'Edit Client';
+    MODAL.show();
+  }
+  async function clientSave(ev) {
+    ev.preventDefault();
+    const v = id => { const x = document.getElementById(id).value; return x === '' ? null : x; };
+    const body = {
+      oid: v('c_oid'), clientTypeOid: v('c_clientTypeOid'), clientCode: v('c_clientCode'),
+      prefix: v('c_prefix'), name: v('c_name'), firmName: v('c_firmName'),
+      degreeOid: v('c_degreeOid'), specialityOid: v('c_specialityOid'), categoryOid: v('c_categoryOid'),
+      routeOid: v('c_routeOid'), areaOid: v('c_areaOid'), address: v('c_address'), city: v('c_city'),
+      mobile: v('c_mobile'), email: v('c_email'), dob: v('c_dob'), anniversary: v('c_anniversary'),
+      drugLicenseNo: v('c_drugLicenseNo'), gstNo: v('c_gstNo'), remarks: v('c_remarks')
+    };
+    try { await SFA.api('/api/master/client', { method: 'POST', body }); MODAL.hide(); await reload(); SFA.toast('Saved'); }
+    catch (e) { SFA.toast(e.message, false); }
+  }
+  async function clientStatus(oid, status) {
+    if (!confirm(status === 'N' ? 'Deactivate this client?' : 'Activate this client?')) return;
+    try { await SFA.api('/api/master/client/' + oid + '/status?status=' + status, { method: 'POST' }); await reload(); }
+    catch (e) { SFA.toast(e.message, false); }
+  }
+  function clientFilter() {
+    if (DT) { DT.column(2).search(document.getElementById('typeFilter').value).draw(); }
+  }
+
+  // ---- Bulk Upload ----
+  async function clientUpload(ev) {
+    ev.preventDefault();
+    const f = document.getElementById('clientFile').files[0];
+    if (!f) { SFA.toast('Choose a file', false); return; }
+    const fd = new FormData(); fd.append('file', f);
+    try {
+      const res = await SFA.api('/api/master/client/upload', { method: 'POST', body: fd });
+      bootstrap.Modal.getInstance(document.getElementById('clientUploadModal')).hide();
+      document.getElementById('clientFile').value = '';
+      await reload();
+      SFA.toast('Upload: ' + res.inserted + ' inserted, ' + res.updated + ' updated, ' + res.skipped + ' skipped');
+    } catch (e) { SFA.toast(e.message, false); }
+  }
+</script>
+</body>
+</html>

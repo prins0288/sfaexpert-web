@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StarSFA &middot; Client Type</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css" rel="stylesheet" />
+  <link href="/css/app.css" rel="stylesheet" />
+</head>
+<body>
+<div id="app" data-page="clienttype" data-title="Client Type Master"></div>
+
+<template id="pageContent">
+  <div class="card">
+    <div class="card-header">
+      <i class="bi bi-tags"></i> Client Types
+      <div class="card-tools">
+        <button class="btn btn-sm btn-primary" onclick="ctAdd()"><i class="bi bi-plus-lg"></i> Add Single</button>
+        <button class="btn btn-sm btn-outline-primary" onclick="ctMultiAdd()"><i class="bi bi-plus-square"></i> Add Multiple</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table id="ctTable" class="table table-striped table-bordered nowrap" style="width:100%">
+          <thead><tr>
+            <th>S.No</th><th>Code</th><th>Name</th><th>Singular</th><th>Plural</th><th>Status</th><th class="no-export">Actions</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="ctModal" tabindex="-1"><div class="modal-dialog">
+    <form class="modal-content" onsubmit="ctSave(event)">
+      <div class="modal-header sfa-modal"><h5 class="modal-title" id="ctModalTitle">Add Type</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body"><div class="row g-3">
+        <input type="hidden" id="t_oid" />
+        <div class="col-md-4"><label class="form-label">Type Code <span class="required-star">*</span></label>
+          <input class="form-control" id="t_typeCode" required /></div>
+        <div class="col-md-8"><label class="form-label">Type Name <span class="required-star">*</span></label>
+          <input class="form-control" id="t_typeName" required /></div>
+        <div class="col-md-6"><label class="form-label">Singular Label</label>
+          <input class="form-control" id="t_singularLabel" placeholder="Doctor" /></div>
+        <div class="col-md-6"><label class="form-label">Plural Label</label>
+          <input class="form-control" id="t_pluralLabel" placeholder="Doctors" /></div>
+      </div></div>
+      <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button></div>
+    </form>
+  </div></div>
+
+  <!-- Add Multiple -->
+  <div class="modal fade" id="ctMultiModal" tabindex="-1"><div class="modal-dialog modal-xl">
+    <form class="modal-content" onsubmit="ctSaveMultiple(event)">
+      <div class="modal-header sfa-modal"><h5 class="modal-title">Add Multiple &middot; Client Types</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <table class="table table-bordered multi-row-table" id="ctMultiTable">
+          <thead><tr><th style="width:40px">#</th><th>Code *</th><th>Name *</th><th>Singular</th><th>Plural</th><th style="width:60px"></th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="row-sno">1</td>
+              <td><input class="form-control" name="typeCode" /></td>
+              <td><input class="form-control" name="typeName" /></td>
+              <td><input class="form-control" name="singularLabel" /></td>
+              <td><input class="form-control" name="pluralLabel" /></td>
+              <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="sfaRemoveRow(this,'ctMultiTable')"><i class="bi bi-x"></i></button></td>
+            </tr>
+          </tbody>
+        </table>
+        <button type="button" class="btn btn-sm btn-outline-primary" onclick="sfaAddRow('ctMultiTable')"><i class="bi bi-plus"></i> Add Row</button>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button></div>
+    </form>
+  </div></div>
+</template>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="/js/app.js"></script>
+<script src="/js/shell.js"></script>
+<script>
+  let DT = null, MODAL = null, MULTI = null;
+
+  window.pageInit = async function () {
+    MODAL = new bootstrap.Modal('#ctModal');
+    MULTI = new bootstrap.Modal('#ctMultiModal');
+    try { await reload(); } catch (e) { SFA.toast(e.message, false); }
+  };
+
+  async function reload() {
+    const rows = await SFA.api('/api/master/client-type');
+    if (DT) { DT.destroy(); }
+    document.querySelector('#ctTable tbody').innerHTML = rows.map((r, i) => `
+      <tr>
+        <td>${i + 1}</td><td>${SFA.esc(r.typeCode)}</td><td>${SFA.esc(r.typeName)}</td>
+        <td>${SFA.esc(r.singularLabel)}</td><td>${SFA.esc(r.pluralLabel)}</td>
+        <td>${SFA.statusBadge(r.status)}</td>
+        <td class="no-export">
+          <button class="btn btn-sm btn-outline-primary" onclick='ctEdit(${JSON.stringify(r)})'><i class="bi bi-pencil"></i></button>
+          ${r.status === 'Y'
+            ? `<button class="btn btn-sm btn-outline-danger" onclick="ctStatus(${r.oid},'N')"><i class="bi bi-slash-circle"></i></button>`
+            : `<button class="btn btn-sm btn-outline-success" onclick="ctStatus(${r.oid},'Y')"><i class="bi bi-check-circle"></i></button>`}
+        </td>
+      </tr>`).join('');
+    DT = sfaDataTable('#ctTable');
+  }
+
+  function ctAdd() {
+    ['t_oid','t_typeCode','t_typeName','t_singularLabel','t_pluralLabel'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('ctModalTitle').textContent = 'Add Type';
+    MODAL.show();
+  }
+  function ctEdit(r) {
+    document.getElementById('t_oid').value = r.oid;
+    document.getElementById('t_typeCode').value = r.typeCode || '';
+    document.getElementById('t_typeName').value = r.typeName || '';
+    document.getElementById('t_singularLabel').value = r.singularLabel || '';
+    document.getElementById('t_pluralLabel').value = r.pluralLabel || '';
+    document.getElementById('ctModalTitle').textContent = 'Edit Type';
+    MODAL.show();
+  }
+  async function ctSave(ev) {
+    ev.preventDefault();
+    const v = id => { const x = document.getElementById(id).value; return x === '' ? null : x; };
+    const body = { oid: v('t_oid'), typeCode: v('t_typeCode'), typeName: v('t_typeName'),
+      singularLabel: v('t_singularLabel'), pluralLabel: v('t_pluralLabel') };
+    try { await SFA.api('/api/master/client-type', { method: 'POST', body }); MODAL.hide(); await reload(); SFA.toast('Saved'); }
+    catch (e) { SFA.toast(e.message, false); }
+  }
+  async function ctStatus(oid, status) {
+    if (!confirm(status === 'N' ? 'Deactivate this type?' : 'Activate this type?')) return;
+    try { await SFA.api('/api/master/client-type/' + oid + '/status?status=' + status, { method: 'POST' }); await reload(); }
+    catch (e) { SFA.toast(e.message, false); }
+  }
+
+  // ---- Add Multiple ----
+  function ctMultiAdd() {
+    const tb = document.querySelector('#ctMultiTable tbody');
+    const rows = tb.querySelectorAll('tr');
+    for (let i = rows.length - 1; i > 0; i--) rows[i].remove();
+    tb.querySelector('tr').querySelectorAll('input').forEach(x => x.value = '');
+    MULTI.show();
+  }
+  async function ctSaveMultiple(ev) {
+    ev.preventDefault();
+    const rows = collectRows('ctMultiTable', ['typeCode', 'typeName', 'singularLabel', 'pluralLabel']);
+    if (!rows.length) { SFA.toast('No rows to save', false); return; }
+    try {
+      const res = await SFA.api('/api/master/client-type/save-multiple', { method: 'POST', body: rows });
+      MULTI.hide(); await reload(); SFA.toast(res.saved + ' saved' + (res.skipped ? ', ' + res.skipped + ' skipped' : ''));
+    } catch (e) { SFA.toast(e.message, false); }
+  }
+  function collectRows(tableId, fields) {
+    const rows = [];
+    document.querySelectorAll('#' + tableId + ' tbody tr').forEach(tr => {
+      const o = {}; let any = false;
+      fields.forEach(f => {
+        const el = tr.querySelector('[name="' + f + '"]');
+        const val = el ? String(el.value).trim() : '';
+        o[f] = val === '' ? null : val;
+        if (val) any = true;
+      });
+      if (any) rows.push(o);
+    });
+    return rows;
+  }
+</script>
+</body>
+</html>

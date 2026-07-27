@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StarSFA &middot; Sign in</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <style>
+    body { background: linear-gradient(135deg,#12294d,#2a56a0); min-height:100vh;
+           display:flex; align-items:center; justify-content:center; font-family:"Segoe UI",Roboto,Arial,sans-serif; }
+    .login-card { width:380px; background:#fff; border-radius:14px; box-shadow:0 12px 40px rgba(0,0,0,.3); overflow:hidden; }
+    .login-head { background:#12294d; color:#fff; padding:22px; text-align:center; }
+    .login-head .brand { font-size:22px; font-weight:700; }
+    .login-head .brand i { color:#0aa3a3; }
+    .login-body { padding:26px; }
+    .form-label { font-weight:600; font-size:13px; }
+    .btn-login { background:#2a56a0; border:none; }
+  </style>
+</head>
+<body>
+<div class="login-card">
+  <div class="login-head">
+    <div class="brand"><i class="bi bi-graph-up-arrow"></i> StarSFA</div>
+    <div class="small">Sales Force Automation</div>
+  </div>
+  <div class="login-body">
+    <div id="error" class="alert alert-danger py-2 small" style="display:none"></div>
+    <form id="loginForm">
+      <div class="mb-3">
+        <label class="form-label">Username</label>
+        <input class="form-control" id="username" name="username" required autofocus placeholder="admin" value="acme" />
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Password</label>
+        <input class="form-control" id="password" name="password" type="password" required value="pass" />
+      </div>
+      <button class="btn btn-login btn-primary w-100" type="submit" id="submitBtn">Login</button>
+    </form>
+    <p class="text-muted small mt-3 mb-0 text-center">Demo: acme &middot; globex &middot; initech / pass</p>
+  </div>
+</div>
+
+<script>
+  // ---- multi-account store (Gmail-style /u/N) ----
+  const ACC_KEY = 'sfa_accounts';
+  const listAccounts = () => { try { return JSON.parse(localStorage.getItem(ACC_KEY)) || []; } catch (e) { return []; } };
+  const decodeJwt = t => { try { const p = t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'); return JSON.parse(decodeURIComponent(escape(atob(p)))); } catch (e) { return {}; } };
+  function addAccount(tok) {
+    const c = decodeJwt(tok);
+    const a = { token: tok, user: c.sub, tenant: c.tenant };
+    const arr = listAccounts();
+    const i = arr.findIndex(x => x.user === a.user && x.tenant === a.tenant); // same user+tenant => re-login
+    if (i >= 0) { arr[i] = a; } else { arr.push(a); }
+    localStorage.setItem(ACC_KEY, JSON.stringify(arr));
+    return i >= 0 ? i : arr.length - 1;
+  }
+
+  const params = new URLSearchParams(location.search);
+  const adding = params.has('add');
+  // Already signed in and not explicitly adding another? Jump to the first account.
+  if (listAccounts().length && !adding) { location.replace('/u/0/dashboard.html'); }
+  if (adding && listAccounts().length) {
+    const note = document.createElement('div');
+    note.className = 'alert alert-info py-2 small';
+    note.innerHTML = 'Adding another account (' + listAccounts().length + ' already signed in). Your other accounts stay logged in.';
+    document.querySelector('.login-body').prepend(note);
+  }
+
+  const form = document.getElementById('loginForm');
+  const errBox = document.getElementById('error');
+  const submitBtn = document.getElementById('submitBtn');
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errBox.style.display = 'none';
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Signing in…';
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: document.getElementById('username').value,
+          password: document.getElementById('password').value
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        errBox.textContent = data.message || data.error || ('Login failed (HTTP ' + res.status + ')');
+        errBox.style.display = 'block';
+        return;
+      }
+      const idx = addAccount(data.token);   // append (or replace same user+tenant), keep others
+      location.href = '/u/' + idx + '/dashboard.html';
+    } catch (err) {
+      errBox.textContent = 'Network error: ' + err.message;
+      errBox.style.display = 'block';
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Login';
+    }
+  });
+</script>
+</body>
+</html>

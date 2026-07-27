@@ -1,0 +1,50 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: multitenant-login
+  jpa:
+    open-in-view: false   # important: don't hold tenant connections across the view layer
+
+app:
+  # ---- COMMON database (users + tenant_config live here) ----
+  # These bind straight to the HikariDataSource (see CommonDataSourceConfig),
+  # so the common pool's HikariCP tuning lives HERE in application.yml.
+  # (Per-tenant Hikari settings, by contrast, live in the tenant_config table.)
+  datasource:
+    common:
+      jdbc-url: jdbc:mysql://localhost:3306/sfa_central?useSSL=false&serverTimezone=UTC
+      username: myroot
+      password:
+      driver-class-name: com.mysql.cj.jdbc.Driver
+      # ---- HikariCP config for the COMMON pool ----
+      pool-name: common-pool
+      maximum-pool-size: 10
+      # minimum-idle 0  => Hikari koi idle connection reserve nahi rakhta.
+      # Jab koi query nahi chal rahi, saare connections idle-timeout ke baad
+      # close ho jaate hain -> MySQL me zero "Sleep" connection. Zaroorat pe
+      # naya connection on-demand khulta hai (~few ms latency).
+      minimum-idle: 0
+      connection-timeout: 20000      # 20s
+      # idle-timeout 30 min: itni der tak use na hone par idle connection close.
+      # (idle-timeout < max-lifetime hona chahiye, warna Hikari ise disable kar deta hai.)
+      idle-timeout: 1800000          # 30 min -> "30 min tak request na aaye to pool khaali"
+      max-lifetime: 3600000          # 60 min
+      keepalive-time: 0              # 0 = disabled
+      auto-commit: true
+
+  # ---- JWT ----
+  jwt:
+    # MUST be at least 32 characters for HS256. Change in production.
+    secret: change-this-super-secret-key-please-min-32-bytes-0123456789
+    expiration-ms: 3600000        # 1 hour
+
+  # ---- Tenant pools ----
+  tenant:
+    idle-timeout-minutes: 30      # auto-close a tenant DS after this much inactivity
+
+logging:
+  level:
+    in.opt.sfa.tenant.datasource: INFO
+    in.opt.sfa.auth: INFO

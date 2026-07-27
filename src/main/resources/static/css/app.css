@@ -1,0 +1,138 @@
+/* ============================================================================
+   StarSFA custom Bootstrap 5 admin theme
+   Single theme for every master entry form and report.
+   ============================================================================ */
+:root {
+    --sfa-primary: #1b3a6b;
+    --sfa-primary-2: #2a56a0;
+    --sfa-accent: #0aa3a3;
+    --sfa-sidebar-w: 250px;
+    --sfa-sidebar-bg: #12294d;
+    --sfa-sidebar-fg: #c9d6ea;
+    --sfa-topbar-h: 56px;
+    --sfa-bg: #f2f4f8;
+    --sfa-border: #e3e7ee;
+}
+
+* { box-sizing: border-box; }
+body {
+    margin: 0;
+    background: var(--sfa-bg);
+    font-family: "Segoe UI", Roboto, Arial, sans-serif;
+    font-size: 14px;
+    color: #24303f;
+}
+
+.sfa-shell { display: flex; min-height: 100vh; }
+
+/* ---- Sidebar ---- */
+.sfa-sidebar {
+    width: var(--sfa-sidebar-w);
+    background: var(--sfa-sidebar-bg);
+    color: var(--sfa-sidebar-fg);
+    position: fixed; top: 0; left: 0; bottom: 0;
+    overflow-y: auto; z-index: 1030;
+    transition: transform .2s ease;
+}
+.sfa-brand {
+    height: var(--sfa-topbar-h);
+    display: flex; align-items: center; gap: 10px;
+    padding: 0 18px; font-size: 18px; font-weight: 700; color: #fff;
+    background: rgba(0,0,0,.18);
+}
+.sfa-brand i { color: var(--sfa-accent); font-size: 22px; }
+.sfa-nav { padding: 10px 0; }
+.sfa-nav a {
+    display: flex; align-items: center; gap: 12px;
+    padding: 11px 20px; color: var(--sfa-sidebar-fg);
+    text-decoration: none; font-size: 14px; border-left: 3px solid transparent;
+}
+.sfa-nav a i { width: 18px; text-align: center; font-size: 16px; }
+.sfa-nav a:hover { background: rgba(255,255,255,.06); color: #fff; }
+.sfa-nav a.active {
+    background: rgba(10,163,163,.16); color: #fff;
+    border-left-color: var(--sfa-accent);
+}
+.sfa-nav-group {
+    text-transform: uppercase; font-size: 11px; letter-spacing: .08em;
+    color: #7f93b5; padding: 16px 20px 6px;
+}
+
+/* ---- Main / topbar ---- */
+.sfa-main { flex: 1; margin-left: var(--sfa-sidebar-w); min-width: 0; }
+.sfa-topbar {
+    height: var(--sfa-topbar-h);
+    background: #fff; border-bottom: 1px solid var(--sfa-border);
+    display: flex; align-items: center; gap: 14px; padding: 0 18px;
+    position: sticky; top: 0; z-index: 1020;
+}
+.sfa-title { font-weight: 600; font-size: 16px; color: var(--sfa-primary); }
+.sfa-user { margin-left: auto; }
+.sfa-user > a { color: #33445c; text-decoration: none; font-weight: 600; }
+.sfa-avatar { width: 30px; height: 30px; border-radius: 50%; display: inline-grid; place-items: center;
+    color: #fff; font-size: 13px; font-weight: 700; flex: 0 0 auto; }
+.sfa-user .dropdown-item.active { background: #eef2f8; color: var(--sfa-primary); }
+.sfa-user i { font-size: 20px; vertical-align: middle; }
+.sfa-toggle { border: 1px solid var(--sfa-border); }
+.sfa-content { padding: 20px; }
+
+/* ---- Cards / sections ---- */
+.card {
+    border: 1px solid var(--sfa-border); border-radius: 10px;
+    box-shadow: 0 1px 2px rgba(20,40,80,.04);
+}
+.card-header {
+    background: #fff; border-bottom: 1px solid var(--sfa-border);
+    font-weight: 600; color: var(--sfa-primary);
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.card-header .card-tools { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+legend.sfa-legend {
+    font-size: 14px; font-weight: 600; color: var(--sfa-primary);
+    background: #eef2f8; border: 1px solid var(--sfa-border);
+    padding: 8px 12px; border-radius: 6px; margin-bottom: 14px;
+}
+
+/* ---- Buttons ---- */
+.btn-primary { background: var(--sfa-primary-2); border-color: var(--sfa-primary-2); }
+.btn-primary:hover { background: var(--sfa-primary); border-color: var(--sfa-primary); }
+.btn-accent { background: var(--sfa-accent); border-color: var(--sfa-accent); color:#fff; }
+.btn-accent:hover { filter: brightness(.94); color:#fff; }
+
+/* ---- Tables ---- */
+table.dataTable thead th {
+    background: #eef2f8; color: var(--sfa-primary);
+    font-size: 13px; white-space: nowrap;
+}
+.table td, .table th { vertical-align: middle; }
+.badge-active { background: #1a9d63; }
+.badge-inactive { background: #b0384a; }
+
+/* ---- Forms ---- */
+.form-label { font-weight: 600; font-size: 13px; color: #3a4a60; margin-bottom: 3px; }
+.required-star { color: #c0392b; }
+.form-control, .form-select { font-size: 14px; }
+.multi-row-table td { padding: 6px; }
+
+/* ---- Stat tiles (dashboard) ---- */
+.stat-tile {
+    background: #fff; border: 1px solid var(--sfa-border); border-radius: 10px;
+    padding: 16px 18px; display: flex; align-items: center; gap: 14px;
+}
+.stat-tile .icon {
+    width: 46px; height: 46px; border-radius: 10px; display: grid; place-items: center;
+    font-size: 22px; color: #fff; background: var(--sfa-primary-2);
+}
+.stat-tile .num { font-size: 24px; font-weight: 700; line-height: 1; }
+.stat-tile .lbl { color: #6b7a90; font-size: 13px; }
+
+/* ---- Responsive ---- */
+@media (max-width: 992px) {
+    .sfa-sidebar { transform: translateX(-100%); }
+    .sfa-shell.sidebar-open .sfa-sidebar { transform: translateX(0); }
+    .sfa-main { margin-left: 0; }
+}
+
+/* Modal header brand colour (matches legacy #000049 convention, modernised) */
+.modal-header.sfa-modal { background: var(--sfa-primary); color: #fff; }
+.modal-header.sfa-modal .btn-close { filter: invert(1); }

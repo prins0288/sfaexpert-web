@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StarSFA &middot; Route</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css" rel="stylesheet" />
+  <link href="/css/app.css" rel="stylesheet" />
+</head>
+<body>
+<div id="app" data-page="route" data-title="Route Master"></div>
+
+<template id="pageContent">
+  <div class="card">
+    <div class="card-header">
+      <i class="bi bi-signpost-2"></i> Routes
+      <div class="card-tools">
+        <button class="btn btn-sm btn-primary" onclick="routeAdd()"><i class="bi bi-plus-lg"></i> Add Single</button>
+        <button class="btn btn-sm btn-outline-primary" onclick="routeMultiAdd()"><i class="bi bi-plus-square"></i> Add Multiple</button>
+        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#routeUploadModal"><i class="bi bi-upload"></i> Bulk Upload</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table id="routeTable" class="table table-striped table-bordered nowrap" style="width:100%">
+          <thead><tr>
+            <th>S.No</th><th>Code</th><th>Name</th><th>Division</th><th>Zone</th>
+            <th>State</th><th>HQ</th><th>Distance (km)</th><th>Status</th><th class="no-export">Actions</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="routeModal" tabindex="-1"><div class="modal-dialog modal-lg">
+    <form class="modal-content" onsubmit="routeSave(event)">
+      <div class="modal-header sfa-modal"><h5 class="modal-title" id="routeModalTitle">Add Route</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body"><div class="row g-3">
+        <input type="hidden" id="r_oid" />
+        <div class="col-md-4"><label class="form-label">Route Code <span class="required-star">*</span></label>
+          <input class="form-control" id="r_routeCode" required /></div>
+        <div class="col-md-8"><label class="form-label">Route Name <span class="required-star">*</span></label>
+          <input class="form-control" id="r_routeName" required /></div>
+        <div class="col-md-4"><label class="form-label">Division</label>
+          <select class="form-select" id="r_divisionOid"></select></div>
+        <div class="col-md-4"><label class="form-label">Zone</label>
+          <select class="form-select" id="r_zoneOid"></select></div>
+        <div class="col-md-4"><label class="form-label">State</label>
+          <select class="form-select" id="r_stateOid"></select></div>
+        <div class="col-md-6"><label class="form-label">HQ</label>
+          <select class="form-select" id="r_hqOid"></select></div>
+        <div class="col-md-6"><label class="form-label">Distance (km)</label>
+          <input class="form-control" id="r_distanceKm" type="number" step="0.01" /></div>
+        <div class="col-12"><label class="form-label">Description</label>
+          <input class="form-control" id="r_description" /></div>
+      </div></div>
+      <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button></div>
+    </form>
+  </div></div>
+
+  <!-- Add Multiple -->
+  <div class="modal fade" id="routeMultiModal" tabindex="-1"><div class="modal-dialog modal-xl">
+    <form class="modal-content" onsubmit="routeSaveMultiple(event)">
+      <div class="modal-header sfa-modal"><h5 class="modal-title">Add Multiple &middot; Routes</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <table class="table table-bordered multi-row-table" id="routeMultiTable">
+          <thead><tr><th style="width:40px">#</th><th>Code *</th><th>Name *</th><th>HQ</th><th>Distance (km)</th><th style="width:60px"></th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="row-sno">1</td>
+              <td><input class="form-control" name="routeCode" /></td>
+              <td><input class="form-control" name="routeName" /></td>
+              <td><select class="form-select" name="hqOid" data-lk="hqs"></select></td>
+              <td><input class="form-control" name="distanceKm" type="number" step="0.01" /></td>
+              <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="sfaRemoveRow(this,'routeMultiTable')"><i class="bi bi-x"></i></button></td>
+            </tr>
+          </tbody>
+        </table>
+        <button type="button" class="btn btn-sm btn-outline-primary" onclick="routeAddRow()"><i class="bi bi-plus"></i> Add Row</button>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button></div>
+    </form>
+  </div></div>
+
+  <!-- Bulk Upload -->
+  <div class="modal fade" id="routeUploadModal" tabindex="-1"><div class="modal-dialog">
+    <form class="modal-content" onsubmit="routeUpload(event)">
+      <div class="modal-header sfa-modal"><h5 class="modal-title">Bulk Upload &middot; Routes</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <p class="text-muted small">Existing rows (matched by <b>route_code</b>) are updated; new codes inserted.</p>
+        <button type="button" class="btn btn-sm btn-outline-secondary mb-3" onclick="SFA.download('/api/master/route/template','route_template.xlsx')">
+          <i class="bi bi-download"></i> Download Template</button>
+        <input type="file" class="form-control" id="routeFile" name="file" accept=".xlsx,.xls" required />
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-accent">Upload</button></div>
+    </form>
+  </div></div>
+</template>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="/js/app.js"></script>
+<script src="/js/shell.js"></script>
+<script>
+  let DT = null, MODAL = null, MULTI = null, LK = {};
+
+  window.pageInit = async function () {
+    MODAL = new bootstrap.Modal('#routeModal');
+    MULTI = new bootstrap.Modal('#routeMultiModal');
+    try {
+      LK = await SFA.api('/api/lookups');
+      SFA.fillSelect(document.getElementById('r_divisionOid'), LK.divisions);
+      SFA.fillSelect(document.getElementById('r_zoneOid'), LK.zones);
+      SFA.fillSelect(document.getElementById('r_stateOid'), LK.states);
+      SFA.fillSelect(document.getElementById('r_hqOid'), LK.hqs);
+      await reload();
+    } catch (e) { SFA.toast(e.message, false); }
+  };
+
+  async function reload() {
+    const rows = await SFA.api('/api/master/route');
+    if (DT) { DT.destroy(); }
+    document.querySelector('#routeTable tbody').innerHTML = rows.map((r, i) => `
+      <tr>
+        <td>${i + 1}</td><td>${SFA.esc(r.routeCode)}</td><td>${SFA.esc(r.routeName)}</td>
+        <td>${SFA.esc(r.divisionName)}</td><td>${SFA.esc(r.zoneName)}</td>
+        <td>${SFA.esc(r.stateName)}</td><td>${SFA.esc(r.hqName)}</td>
+        <td>${r.distanceKm == null ? '' : r.distanceKm}</td>
+        <td>${SFA.statusBadge(r.status)}</td>
+        <td class="no-export">
+          <button class="btn btn-sm btn-outline-primary" onclick='routeEdit(${JSON.stringify(r)})'><i class="bi bi-pencil"></i></button>
+          ${r.status === 'Y'
+            ? `<button class="btn btn-sm btn-outline-danger" onclick="routeStatus(${r.oid},'N')"><i class="bi bi-slash-circle"></i></button>`
+            : `<button class="btn btn-sm btn-outline-success" onclick="routeStatus(${r.oid},'Y')"><i class="bi bi-check-circle"></i></button>`}
+        </td>
+      </tr>`).join('');
+    DT = sfaDataTable('#routeTable');
+  }
+
+  function routeAdd() {
+    ['r_oid','r_routeCode','r_routeName','r_distanceKm','r_description'].forEach(id => document.getElementById(id).value = '');
+    ['r_divisionOid','r_zoneOid','r_stateOid','r_hqOid'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('routeModalTitle').textContent = 'Add Route';
+    MODAL.show();
+  }
+  function routeEdit(r) {
+    document.getElementById('r_oid').value = r.oid;
+    document.getElementById('r_routeCode').value = r.routeCode || '';
+    document.getElementById('r_routeName').value = r.routeName || '';
+    document.getElementById('r_divisionOid').value = r.divisionOid || '';
+    document.getElementById('r_zoneOid').value = r.zoneOid || '';
+    document.getElementById('r_stateOid').value = r.stateOid || '';
+    document.getElementById('r_hqOid').value = r.hqOid || '';
+    document.getElementById('r_distanceKm').value = r.distanceKm == null ? '' : r.distanceKm;
+    document.getElementById('r_description').value = r.description || '';
+    document.getElementById('routeModalTitle').textContent = 'Edit Route';
+    MODAL.show();
+  }
+  async function routeSave(ev) {
+    ev.preventDefault();
+    const v = id => { const x = document.getElementById(id).value; return x === '' ? null : x; };
+    const body = {
+      oid: v('r_oid'), routeCode: v('r_routeCode'), routeName: v('r_routeName'),
+      divisionOid: v('r_divisionOid'), zoneOid: v('r_zoneOid'), stateOid: v('r_stateOid'),
+      hqOid: v('r_hqOid'), distanceKm: v('r_distanceKm'), description: v('r_description')
+    };
+    try { await SFA.api('/api/master/route', { method: 'POST', body }); MODAL.hide(); await reload(); SFA.toast('Saved'); }
+    catch (e) { SFA.toast(e.message, false); }
+  }
+  async function routeStatus(oid, status) {
+    if (!confirm(status === 'N' ? 'Deactivate this route?' : 'Activate this route?')) return;
+    try { await SFA.api('/api/master/route/' + oid + '/status?status=' + status, { method: 'POST' }); await reload(); }
+    catch (e) { SFA.toast(e.message, false); }
+  }
+
+  // ---- Add Multiple ----
+  function routeMultiAdd() {
+    const tb = document.querySelector('#routeMultiTable tbody');
+    const rows = tb.querySelectorAll('tr');
+    for (let i = rows.length - 1; i > 0; i--) rows[i].remove();
+    const first = tb.querySelector('tr');
+    first.querySelectorAll('input').forEach(x => x.value = '');
+    first.querySelectorAll('select[data-lk]').forEach(sel => SFA.fillSelect(sel, LK[sel.getAttribute('data-lk')]));
+    MULTI.show();
+  }
+  function routeAddRow() { sfaAddRow('routeMultiTable'); }
+  async function routeSaveMultiple(ev) {
+    ev.preventDefault();
+    const rows = collectRows('routeMultiTable', ['routeCode', 'routeName', 'hqOid', 'distanceKm']);
+    if (!rows.length) { SFA.toast('No rows to save', false); return; }
+    try {
+      const res = await SFA.api('/api/master/route/save-multiple', { method: 'POST', body: rows });
+      MULTI.hide(); await reload(); SFA.toast(res.saved + ' saved' + (res.skipped ? ', ' + res.skipped + ' skipped' : ''));
+    } catch (e) { SFA.toast(e.message, false); }
+  }
+
+  // ---- Bulk Upload ----
+  async function routeUpload(ev) {
+    ev.preventDefault();
+    const f = document.getElementById('routeFile').files[0];
+    if (!f) { SFA.toast('Choose a file', false); return; }
+    const fd = new FormData(); fd.append('file', f);
+    try {
+      const res = await SFA.api('/api/master/route/upload', { method: 'POST', body: fd });
+      bootstrap.Modal.getInstance(document.getElementById('routeUploadModal')).hide();
+      document.getElementById('routeFile').value = '';
+      await reload();
+      SFA.toast('Upload: ' + res.inserted + ' inserted, ' + res.updated + ' updated, ' + res.skipped + ' skipped');
+    } catch (e) { SFA.toast(e.message, false); }
+  }
+
+  // collect non-empty rows from a multi-row table into an array of objects
+  function collectRows(tableId, fields) {
+    const rows = [];
+    document.querySelectorAll('#' + tableId + ' tbody tr').forEach(tr => {
+      const o = {}; let any = false;
+      fields.forEach(f => {
+        const el = tr.querySelector('[name="' + f + '"]');
+        const val = el ? String(el.value).trim() : '';
+        o[f] = val === '' ? null : val;
+        if (val) any = true;
+      });
+      if (any) rows.push(o);
+    });
+    return rows;
+  }
+</script>
+</body>
+</html>
