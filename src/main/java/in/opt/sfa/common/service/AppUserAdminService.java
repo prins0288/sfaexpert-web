@@ -68,6 +68,32 @@ public class AppUserAdminService {
         return users.save(u);
     }
 
+    /** Link a login to an employee id if it isn't linked yet (so future JWTs carry it). */
+    @Transactional(transactionManager = "commonTransactionManager")
+    public void linkEmpId(String username, String empId) {
+        users.findByUsername(username).ifPresent(u -> {
+            if (u.getEmpId() == null || u.getEmpId().isBlank()) {
+                u.setEmpId(empId);
+                users.save(u);
+            }
+        });
+    }
+
+    /** Change the caller's OWN password after verifying the current one. */
+    @Transactional(transactionManager = "commonTransactionManager")
+    public void changeOwnPassword(String username, String currentRaw, String newRaw) {
+        AppUser u = users.findByUsername(username)
+                .orElseThrow(() -> new IllegalStateException("User not found: " + username));
+        if (currentRaw == null || !encoder.matches(currentRaw, u.getPassword())) {
+            throw new IllegalStateException("Current password is incorrect");
+        }
+        if (newRaw == null || newRaw.isBlank()) {
+            throw new IllegalStateException("New password is required");
+        }
+        u.setPassword(encoder.encode(newRaw));
+        users.save(u);
+    }
+
     @Transactional(transactionManager = "commonTransactionManager")
     public void setEnabled(String tenantId, String empId, boolean enabled) {
         users.findByEmpIdAndTenantId(empId, tenantId).ifPresent(u -> {

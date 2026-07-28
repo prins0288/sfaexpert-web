@@ -54,6 +54,10 @@ public class Employee {
 
     private LocalDate dob;
 
+    /** Profile photo as a base64 data URI (e.g. "data:image/png;base64,..."). */
+    @Column(columnDefinition = "MEDIUMTEXT")
+    private String photo;
+
     private String status = "Y";
 
     // ---- display-only (joined names) ----

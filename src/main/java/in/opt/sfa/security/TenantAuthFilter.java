@@ -30,9 +30,10 @@ public class TenantAuthFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getServletPath();
-        // Login has no token yet; anything outside /api/ (login page, static
+        // Login has no token yet; /api/public/** is intentionally open (e.g. the
+        // login page's default logo); anything outside /api/ (login page, static
         // assets, favicon) is public so the page itself can load.
-        return path.startsWith("/api/auth") || !path.startsWith("/api/");
+        return path.startsWith("/api/auth") || path.startsWith("/api/public") || !path.startsWith("/api/");
     }
 
     @Override

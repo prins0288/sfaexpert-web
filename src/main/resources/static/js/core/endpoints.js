@@ -23,6 +23,23 @@
       favorite: (id) => `/api/menu/favorites/${id}`,   // POST to add, DELETE to remove
     },
 
+    profile: {
+      get: "/api/profile",
+      save: "/api/profile",
+      photo: "/api/profile/photo",
+      password: "/api/profile/password",
+    },
+    company: {
+      get: "/api/company",
+      save: "/api/company",
+      logo: "/api/company/logo",
+    },
+    branding: {
+      get: "/api/branding",
+      publicGet: "/api/public/branding",   // no auth
+      defaultLogo: "/api/branding/logo",   // set app-wide default logo
+    },
+
     theme: {
       get: "/api/theme",
       update: "/api/theme",          // PUT

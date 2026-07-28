@@ -37,7 +37,7 @@
 <body>
 <div class="login-card">
   <div class="login-head">
-    <div class="brand"><i class="bi bi-graph-up-arrow"></i> StarSFA</div>
+    <div class="brand" id="loginBrand"><i class="bi bi-graph-up-arrow"></i> StarSFA</div>
     <div class="small">Sales Force Automation</div>
   </div>
   <div class="login-body">
@@ -62,6 +62,18 @@
 <script src="/js/core/http.js"></script>
 <script>
   // Uses the shared Session store + global Api client (same modules as the app).
+
+  // Show the app-wide default logo (public endpoint, no auth) if one is set.
+  Api.get(API.branding.publicGet).then((b) => {
+    if (b && b.defaultLogo) {
+      document.getElementById('loginBrand').innerHTML =
+        '<img src="' + b.defaultLogo + '" alt="" style="max-height:48px;max-width:210px;object-fit:contain" />';
+    } else if (b && b.appName) {
+      document.getElementById('loginBrand').innerHTML =
+        '<i class="bi bi-graph-up-arrow"></i> ' + b.appName;
+    }
+  }).catch(() => {});
+
   const params = new URLSearchParams(location.search);
   const adding = params.has('add');
 

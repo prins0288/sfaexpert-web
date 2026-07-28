@@ -233,6 +233,44 @@
   const avatarColors = ["#2a56a0", "#0aa3a3", "#1a9d63", "#b0384a", "#7c3aed", "#c2410c"];
   const initial = (s) => (s ? s.trim().charAt(0).toUpperCase() : "?");
 
+  // ---- identity: company/default logo (brand) + user photo (avatar) -------
+  function readIdentity() {
+    try { return JSON.parse(localStorage.getItem("sfa_identity")) || {}; } catch (e) { return {}; }
+  }
+  let IDENTITY = readIdentity();
+
+  async function loadIdentity() {
+    try {
+      const [b, p] = await Promise.all([
+        Api.get(API.branding.get).catch(() => ({})),
+        Api.get(API.profile.get).catch(() => ({})),
+      ]);
+      IDENTITY = { logo: b.logo || null, companyName: b.companyName || null, photo: (p && p.photo) || null };
+      try { localStorage.setItem("sfa_identity", JSON.stringify(IDENTITY)); } catch (e) {}
+    } catch (e) { /* keep whatever we had */ }
+  }
+
+  /** The avatar: the user's photo if set, else a coloured initial. */
+  function avatarMarkup(color, name, photo) {
+    return photo
+      ? `<img class="sfa-avatar" src="${photo}" alt="${esc(initial(name))}" />`
+      : `<span class="sfa-avatar" style="background:${color}">${esc(initial(name))}</span>`;
+  }
+
+  /** The brand: company/default logo if set, else the StarSFA icon. */
+  function brandInner() {
+    return IDENTITY.logo
+      ? `<img class="sfa-brand-logo" src="${IDENTITY.logo}" alt="" /><span>${esc(IDENTITY.companyName || "StarSFA")}</span>`
+      : `<i class="bi bi-graph-up-arrow"></i><span>StarSFA</span>`;
+  }
+
+  /** Re-render just the brand + header avatar after a photo/logo change. */
+  function applyIdentity() {
+    document.querySelectorAll(".sfa-brand").forEach((el) => { el.innerHTML = brandInner(); });
+    const ha = document.getElementById("sfaHeaderAvatar");
+    if (ha) ha.innerHTML = avatarMarkup(avatarColors[u % avatarColors.length], user, IDENTITY.photo);
+  }
+
   function accountMenu() {
     const rest = Session.currentRest();
     const items = Session.list().map((a, i) => {
@@ -248,6 +286,7 @@
     return `${items}
       <div class="dropdown-divider"></div>
       <a class="dropdown-item" href="/?add=1"><i class="bi bi-person-plus"></i> Add another account</a>
+      <a class="dropdown-item" href="${Session.uUrl(u, "settings/profile.html")}"><i class="bi bi-person-circle"></i> My Profile</a>
       <a class="dropdown-item" href="${Session.uUrl(u, "settings/appearance.html")}"><i class="bi bi-palette"></i> Appearance</a>
       <a class="dropdown-item" href="#" id="signOutThis"><i class="bi bi-box-arrow-right"></i> Sign out <b>${esc(user)}</b></a>
       <a class="dropdown-item text-danger" href="#" id="signOutAll"><i class="bi bi-power"></i> Sign out all accounts</a>`;
@@ -264,7 +303,7 @@
         <button class="sfa-icon-btn" id="sfaCustomize" title="Customize appearance"><i class="bi bi-palette"></i></button>
         <div class="sfa-user dropdown">
           <a href="#" class="dropdown-toggle d-flex align-items-center gap-2" data-bs-toggle="dropdown">
-            <span class="sfa-avatar" style="background:${color}">${esc(initial(user))}</span>
+            <span id="sfaHeaderAvatar">${avatarMarkup(color, user, IDENTITY.photo)}</span>
             <span class="d-none d-md-inline">${esc(user)}
               ${role ? `<span class="badge bg-secondary" style="font-size:10px">${esc(role)}</span>` : ""}
               <small class="text-muted">(${esc(tenant)} &middot; /u/${u})</small></span>
@@ -291,7 +330,7 @@
     const title = pageTitle();          // from the menu table (see pageTitle)
     const layout = currentLayout();
     const color = avatarColors[u % avatarColors.length];
-    const brand = `<div class="sfa-brand"><i class="bi bi-graph-up-arrow"></i><span>StarSFA</span></div>`;
+    const brand = `<div class="sfa-brand">${brandInner()}</div>`;
     const crumb = `<nav class="sfa-crumbbar" id="sfaCrumb">${crumbBarInner()}</nav>`;
     const footer = `<footer class="sfa-footer">
         <span>&copy; ${new Date().getFullYear()} StarSFA · Sales Force Automation</span>
@@ -542,6 +581,8 @@
   window.Shell = {
     rebuild() { build(); if (window.pageInit) { try { window.pageInit(); } catch (e) { /* re-init */ } } },
     refreshNav,
+    // re-fetch the logo + user photo and re-render the brand/avatar in place
+    async refreshIdentity() { await loadIdentity(); applyIdentity(); },
   };
 
   // ---- boot ---------------------------------------------------------------
@@ -551,6 +592,7 @@
     await Promise.all([
       (window.Theme && !Theme.state) ? Theme.load().catch(() => {}) : Promise.resolve(),
       loadMenu(),
+      loadIdentity(),
     ]);
     build();
     if (window.pageInit) { try { window.pageInit(); } catch (e) { console.error(e); } }

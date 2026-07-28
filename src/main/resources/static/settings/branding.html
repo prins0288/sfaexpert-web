@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StarSFA &middot; Branding</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="/css/app.css" rel="stylesheet" />
+  <script>
+    (function () {
+      try {
+        var d = document.documentElement, s = localStorage;
+        d.setAttribute('data-theme', s.getItem('sfa_mode') || 'light');
+        d.setAttribute('data-nav', s.getItem('sfa_nav') || 'vertical');
+        d.setAttribute('data-density', s.getItem('sfa_density') || 'comfortable');
+        var f = s.getItem('sfa_font'); if (f) d.style.setProperty('--sfa-font-scale', f);
+        var c = s.getItem('sfa_theme');
+        if (c) { c = JSON.parse(c); var t = (c.resolved && c.resolved[c.mode]) || {};
+          for (var k in t) d.style.setProperty('--sfa-' + k, t[k]); }
+      } catch (e) {}
+    })();
+  </script>
+  <style>
+    .logo-box { height: 120px; border: 1px dashed var(--sfa-border); border-radius: 10px;
+      display: grid; place-items: center; background: var(--sfa-surface-2); overflow: hidden; }
+    .logo-box img { max-height: 104px; max-width: 100%; object-fit: contain; }
+    .logo-box .none { color: var(--sfa-text-muted); font-size: 13px; }
+  </style>
+</head>
+<body>
+<div id="app" data-page="branding" data-title="Branding &amp; Logos"></div>
+
+<template id="pageContent">
+  <div class="row g-3">
+    <!-- company profile + logo -->
+    <div class="col-lg-7">
+      <div class="card">
+        <div class="card-header"><i class="bi bi-building"></i> Company profile &amp; logo
+          <div class="card-tools"><small class="text-muted">this tenant</small></div>
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label">Company logo</label>
+              <div class="logo-box mb-2" id="companyLogoBox"><span class="none">No logo</span></div>
+              <input type="file" id="companyFile" accept="image/*" class="form-control form-control-sm mb-2" />
+              <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-primary" onclick="uploadCompanyLogo()"><i class="bi bi-upload"></i> Upload</button>
+                <button class="btn btn-sm btn-outline-danger" onclick="removeCompanyLogo()"><i class="bi bi-trash"></i></button>
+              </div>
+            </div>
+            <div class="col-md-8">
+              <form onsubmit="saveCompany(event)"><div class="row g-2">
+                <div class="col-12"><label class="form-label">Company name</label>
+                  <input class="form-control" id="c_companyName" /></div>
+                <div class="col-md-8"><label class="form-label">Address</label>
+                  <input class="form-control" id="c_address" /></div>
+                <div class="col-md-4"><label class="form-label">City</label>
+                  <input class="form-control" id="c_city" /></div>
+                <div class="col-md-4"><label class="form-label">Phone</label>
+                  <input class="form-control" id="c_phone" /></div>
+                <div class="col-md-4"><label class="form-label">Email</label>
+                  <input class="form-control" id="c_email" /></div>
+                <div class="col-md-4"><label class="form-label">Website</label>
+                  <input class="form-control" id="c_website" /></div>
+                <div class="col-12 mt-2"><button class="btn btn-primary" type="submit"><i class="bi bi-save"></i> Save company</button></div>
+              </div></form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- default logo -->
+    <div class="col-lg-5">
+      <div class="card">
+        <div class="card-header"><i class="bi bi-image"></i> Default logo
+          <div class="card-tools"><small class="text-muted">app-wide fallback</small></div>
+        </div>
+        <div class="card-body">
+          <p class="text-muted small">Shown wherever a tenant has not set its own company logo (e.g. the sign-in page).</p>
+          <div class="logo-box mb-2" id="defaultLogoBox"><span class="none">No logo</span></div>
+          <input type="file" id="defaultFile" accept="image/*" class="form-control form-control-sm mb-2" />
+          <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-primary" onclick="uploadDefaultLogo()"><i class="bi bi-upload"></i> Upload</button>
+            <button class="btn btn-sm btn-outline-danger" onclick="removeDefaultLogo()"><i class="bi bi-trash"></i> Remove</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/js/core/session.js"></script>
+<script src="/js/core/endpoints.js"></script>
+<script src="/js/core/http.js"></script>
+<script src="/js/core/theme.js"></script>
+<script src="/js/app.js"></script>
+<script src="/js/shell.js"></script>
+<script>
+  let companyPending = undefined, defaultPending = undefined;
+
+  window.pageInit = async function () {
+    try {
+      const [company, branding] = await Promise.all([Api.get(API.company.get), Api.get(API.branding.get)]);
+      document.getElementById('c_companyName').value = company.companyName || '';
+      document.getElementById('c_address').value = company.address || '';
+      document.getElementById('c_city').value = company.city || '';
+      document.getElementById('c_phone').value = company.phone || '';
+      document.getElementById('c_email').value = company.email || '';
+      document.getElementById('c_website').value = company.website || '';
+      setBox('companyLogoBox', company.logo);
+      setBox('defaultLogoBox', branding.defaultLogo);
+    } catch (e) { SFA.toast(e.message, false); }
+  };
+
+  function setBox(boxId, dataUri) {
+    const box = document.getElementById(boxId);
+    box.innerHTML = dataUri ? `<img src="${dataUri}" alt="logo" />` : '<span class="none">No logo</span>';
+  }
+
+  function pickImage(fileId, boxId, assign) {
+    document.getElementById(fileId).addEventListener('change', function () {
+      const f = this.files[0]; if (!f) return;
+      if (f.size > 8 * 1024 * 1024) { SFA.toast('Please choose an image under 8 MB', false); this.value = ''; return; }
+      const r = new FileReader();
+      r.onload = () => { assign(r.result); setBox(boxId, r.result); };
+      r.readAsDataURL(f);
+    });
+  }
+  pickImage('companyFile', 'companyLogoBox', v => companyPending = v);
+  pickImage('defaultFile', 'defaultLogoBox', v => defaultPending = v);
+
+  async function uploadCompanyLogo() {
+    if (companyPending === undefined) { SFA.toast('Choose an image first', false); return; }
+    try { await Api.post(API.company.logo, { image: companyPending }); SFA.toast('Company logo updated'); refreshChrome(); }
+    catch (e) { SFA.toast(e.message, false); }
+  }
+  async function removeCompanyLogo() {
+    if (!confirm('Remove the company logo?')) return;
+    try { await Api.post(API.company.logo, { image: '' }); setBox('companyLogoBox', null); companyPending = undefined; SFA.toast('Removed'); refreshChrome(); }
+    catch (e) { SFA.toast(e.message, false); }
+  }
+  async function uploadDefaultLogo() {
+    if (defaultPending === undefined) { SFA.toast('Choose an image first', false); return; }
+    try { await Api.post(API.branding.defaultLogo, { image: defaultPending }); SFA.toast('Default logo updated'); refreshChrome(); }
+    catch (e) { SFA.toast(e.message, false); }
+  }
+  async function removeDefaultLogo() {
+    if (!confirm('Remove the default logo?')) return;
+    try { await Api.post(API.branding.defaultLogo, { image: '' }); setBox('defaultLogoBox', null); defaultPending = undefined; SFA.toast('Removed'); refreshChrome(); }
+    catch (e) { SFA.toast(e.message, false); }
+  }
+
+  async function saveCompany(ev) {
+    ev.preventDefault();
+    const v = id => { const x = document.getElementById(id).value; return x === '' ? null : x; };
+    const body = {
+      companyName: v('c_companyName'), address: v('c_address'), city: v('c_city'),
+      phone: v('c_phone'), email: v('c_email'), website: v('c_website')
+    };
+    try { await Api.post(API.company.save, body); SFA.toast('Company saved'); refreshChrome(); }
+    catch (e) { SFA.toast(e.message, false); }
+  }
+
+  function refreshChrome() { if (window.Shell && Shell.refreshIdentity) Shell.refreshIdentity(); }
+</script>
+</body>
+</html>

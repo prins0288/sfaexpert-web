@@ -299,6 +299,10 @@ body {
 .sfa-user > a { color: var(--sfa-header-fg); text-decoration: none; font-weight: 600; }
 .sfa-avatar { width: 30px; height: 30px; border-radius: 50%; display: inline-grid; place-items: center;
   color: #fff; font-size: 13px; font-weight: 700; flex: 0 0 auto; }
+img.sfa-avatar { object-fit: cover; }
+/* company / default logo shown in the brand strip */
+.sfa-brand-logo { height: 30px; max-width: 130px; object-fit: contain; border-radius: 4px;
+  background: #fff; padding: 2px; flex: 0 0 auto; }
 .sfa-user .dropdown-item.active { background: var(--sfa-primary-soft); color: var(--sfa-primary); }
 
 /* the ONLY scrolling region */

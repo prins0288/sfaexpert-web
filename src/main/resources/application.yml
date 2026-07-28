@@ -1,11 +1,22 @@
 server:
   port: 8081
+  # Allow large request headers (big JWTs / cookies) — 64 KB.
+  max-http-request-header-size: 65536
+  tomcat:
+    # Allow large uploads (multipart forms and big JSON/base64 bodies) — 500 MB.
+    max-http-form-post-size: 524288000     # 500 MB
+    max-swallow-size: 524288000            # 500 MB
 
 spring:
   application:
     name: multitenant-login
   jpa:
     open-in-view: false   # important: don't hold tenant connections across the view layer
+  # ---- File upload limits (max 500 MB) ----
+  servlet:
+    multipart:
+      max-file-size: 500MB
+      max-request-size: 500MB
 
 app:
   # ---- COMMON database (users + tenant_config live here) ----
