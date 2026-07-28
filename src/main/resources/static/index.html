@@ -7,16 +7,31 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="/css/app.css" rel="stylesheet" />
+  <script>
+    /* Login is pre-auth (no user theme yet): honour the OS light/dark setting so
+       the card matches the app the user is about to enter. */
+    (function () {
+      try {
+        var dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+      } catch (e) {}
+    })();
+  </script>
   <style>
-    body { background: linear-gradient(135deg,#12294d,#2a56a0); min-height:100vh;
-           display:flex; align-items:center; justify-content:center; font-family:"Segoe UI",Roboto,Arial,sans-serif; }
-    .login-card { width:380px; background:#fff; border-radius:14px; box-shadow:0 12px 40px rgba(0,0,0,.3); overflow:hidden; }
-    .login-head { background:#12294d; color:#fff; padding:22px; text-align:center; }
-    .login-head .brand { font-size:22px; font-weight:700; }
-    .login-head .brand i { color:#0aa3a3; }
-    .login-body { padding:26px; }
-    .form-label { font-weight:600; font-size:13px; }
-    .btn-login { background:#2a56a0; border:none; }
+    body { min-height: 100vh; display: flex; align-items: center; justify-content: center;
+           background: linear-gradient(135deg,
+             color-mix(in srgb, var(--sfa-primary) 82%, black),
+             var(--sfa-primary-hover)); }
+    .login-card { width: 380px; max-width: 92vw; background: var(--sfa-surface);
+      border-radius: 16px; box-shadow: 0 18px 50px rgba(0,0,0,.35); overflow: hidden; }
+    .login-head { background: var(--sfa-primary); color: #fff; padding: 24px; text-align: center; }
+    .login-head .brand { font-size: 22px; font-weight: 700; }
+    .login-head .brand i { color: var(--sfa-accent); }
+    .login-body { padding: 26px; }
+    .login-body .form-label { font-weight: 600; font-size: 13px; }
+    .btn-login { background: var(--sfa-primary-hover); border: none; color: var(--sfa-primary-contrast); }
+    .btn-login:hover { background: var(--sfa-primary); color: var(--sfa-primary-contrast); }
   </style>
 </head>
 <body>
@@ -36,35 +51,27 @@
         <label class="form-label">Password</label>
         <input class="form-control" id="password" name="password" type="password" required value="pass" />
       </div>
-      <button class="btn btn-login btn-primary w-100" type="submit" id="submitBtn">Login</button>
+      <button class="btn btn-login w-100" type="submit" id="submitBtn">Login</button>
     </form>
     <p class="text-muted small mt-3 mb-0 text-center">Demo: acme &middot; globex &middot; initech / pass</p>
   </div>
 </div>
 
+<script src="/js/core/session.js"></script>
+<script src="/js/core/endpoints.js"></script>
+<script src="/js/core/http.js"></script>
 <script>
-  // ---- multi-account store (Gmail-style /u/N) ----
-  const ACC_KEY = 'sfa_accounts';
-  const listAccounts = () => { try { return JSON.parse(localStorage.getItem(ACC_KEY)) || []; } catch (e) { return []; } };
-  const decodeJwt = t => { try { const p = t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'); return JSON.parse(decodeURIComponent(escape(atob(p)))); } catch (e) { return {}; } };
-  function addAccount(tok) {
-    const c = decodeJwt(tok);
-    const a = { token: tok, user: c.sub, tenant: c.tenant };
-    const arr = listAccounts();
-    const i = arr.findIndex(x => x.user === a.user && x.tenant === a.tenant); // same user+tenant => re-login
-    if (i >= 0) { arr[i] = a; } else { arr.push(a); }
-    localStorage.setItem(ACC_KEY, JSON.stringify(arr));
-    return i >= 0 ? i : arr.length - 1;
-  }
-
+  // Uses the shared Session store + global Api client (same modules as the app).
   const params = new URLSearchParams(location.search);
   const adding = params.has('add');
+
   // Already signed in and not explicitly adding another? Jump to the first account.
-  if (listAccounts().length && !adding) { location.replace('/u/0/dashboard.html'); }
-  if (adding && listAccounts().length) {
+  if (Session.list().length && !adding) { location.replace('/u/0/dashboard.html'); }
+  if (adding && Session.list().length) {
     const note = document.createElement('div');
     note.className = 'alert alert-info py-2 small';
-    note.innerHTML = 'Adding another account (' + listAccounts().length + ' already signed in). Your other accounts stay logged in.';
+    note.innerHTML = 'Adding another account (' + Session.list().length +
+      ' already signed in). Your other accounts stay logged in.';
     document.querySelector('.login-body').prepend(note);
   }
 
@@ -78,24 +85,14 @@
     submitBtn.disabled = true;
     submitBtn.textContent = 'Signing in…';
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: document.getElementById('username').value,
-          password: document.getElementById('password').value
-        })
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        errBox.textContent = data.message || data.error || ('Login failed (HTTP ' + res.status + ')');
-        errBox.style.display = 'block';
-        return;
-      }
-      const idx = addAccount(data.token);   // append (or replace same user+tenant), keep others
+      const data = await Api.post(API.auth.login, {
+        username: document.getElementById('username').value,
+        password: document.getElementById('password').value,
+      }, { noAuthRedirect: true });   // a bad-credentials 401 should show an error, not redirect
+      const idx = Session.add(data.token);   // append (or replace same user+tenant)
       location.href = '/u/' + idx + '/dashboard.html';
     } catch (err) {
-      errBox.textContent = 'Network error: ' + err.message;
+      errBox.textContent = err.message || 'Login failed';
       errBox.style.display = 'block';
     } finally {
       submitBtn.disabled = false;

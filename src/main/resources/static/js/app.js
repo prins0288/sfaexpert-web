@@ -7,10 +7,14 @@
         $(".sfa-shell").toggleClass("sidebar-open");
     });
 
-    // Initialise a standard master listing DataTable with export + fixed header.
+    // Initialise a standard master listing DataTable.
+    // scrollY + scrollCollapse give a FROZEN header whose column widths stay
+    // exactly aligned with the body while the rows scroll (DataTables computes
+    // and locks the column sizes); scrollX keeps wide tables horizontally
+    // scrollable. columns.adjust() re-syncs widths after layout/resize.
     window.sfaDataTable = function (selector, opts) {
         opts = opts || {};
-        return $(selector).DataTable($.extend({
+        var dt = $(selector).DataTable($.extend({
             dom: "Bfrtip",
             paging: true,
             pageLength: 25,
@@ -18,11 +22,18 @@
             ordering: true,
             responsive: false,
             scrollX: true,
+            scrollY: "56vh",
+            scrollCollapse: true,
+            autoWidth: true,
             buttons: [
                 { extend: "excelHtml5", text: '<i class="bi bi-file-earmark-excel"></i> Excel',
                   className: "btn btn-sm btn-accent", exportOptions: { columns: ":not(.no-export)" } }
             ]
         }, opts));
+        // keep header/body columns aligned after the shell finishes laying out
+        setTimeout(function () { dt.columns.adjust(); }, 60);
+        $(window).off("resize.sfadt").on("resize.sfadt", function () { dt.columns.adjust(); });
+        return dt;
     };
 
     // Initialise Select2 on any .sfa-select within a scope (default document/modal).

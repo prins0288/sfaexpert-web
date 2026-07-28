@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StarSFA &middot; Appearance</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="/css/app.css" rel="stylesheet" />
+  <script>
+    /* Apply the saved theme (mode / layout / density / colours) BEFORE first
+       paint so there is no flash. theme.js re-applies from the server after. */
+    (function () {
+      try {
+        var d = document.documentElement, s = localStorage;
+        d.setAttribute('data-theme', s.getItem('sfa_mode') || 'light');
+        d.setAttribute('data-nav', s.getItem('sfa_nav') || 'vertical');
+        d.setAttribute('data-density', s.getItem('sfa_density') || 'comfortable');
+        var f = s.getItem('sfa_font'); if (f) d.style.setProperty('--sfa-font-scale', f);
+        var c = s.getItem('sfa_theme');
+        if (c) { c = JSON.parse(c); var t = (c.resolved && c.resolved[c.mode]) || {};
+          for (var k in t) d.style.setProperty('--sfa-' + k, t[k]); }
+      } catch (e) {}
+    })();
+  </script>
+  <style>
+    /* the page hosts the customizer inline (same controls as the header panel) */
+    #czHost .sfa-cz-section:first-child { padding-top: 0; }
+  </style>
+</head>
+<body>
+<div id="app" data-page="appearance" data-title="Appearance"></div>
+
+<template id="pageContent">
+  <div class="row g-3">
+    <!-- customizer -->
+    <div class="col-lg-5">
+      <div class="card">
+        <div class="card-header"><i class="bi bi-palette"></i> Theme &amp; layout
+          <div class="card-tools"><small class="text-muted">saved to your profile</small></div>
+        </div>
+        <div class="card-body">
+          <p class="text-muted small mb-3">
+            Every colour, the navigation layout (vertical / horizontal), light &amp; dark mode,
+            density and font size are stored against your account — they follow you on every device.
+          </p>
+          <div id="czHost"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- live preview -->
+    <div class="col-lg-7">
+      <div class="card mb-3">
+        <div class="card-header"><i class="bi bi-eye"></i> Live preview
+          <div class="card-tools"><span class="badge" style="background:var(--sfa-accent);color:var(--sfa-accent-contrast)">updates instantly</span></div>
+        </div>
+        <div class="card-body">
+          <div class="row g-3 mb-3">
+            <div class="col-6 col-md-3"><div class="stat-tile"><div class="icon"><i class="bi bi-signpost-2"></i></div>
+              <div><div class="num">128</div><div class="lbl">Routes</div></div></div></div>
+            <div class="col-6 col-md-3"><div class="stat-tile"><div class="icon" style="background:var(--sfa-accent)"><i class="bi bi-geo-alt"></i></div>
+              <div><div class="num">64</div><div class="lbl">Areas</div></div></div></div>
+            <div class="col-6 col-md-3"><div class="stat-tile"><div class="icon" style="background:var(--sfa-success)"><i class="bi bi-people"></i></div>
+              <div><div class="num">312</div><div class="lbl">Clients</div></div></div></div>
+            <div class="col-6 col-md-3"><div class="stat-tile"><div class="icon" style="background:var(--sfa-danger)"><i class="bi bi-box-seam"></i></div>
+              <div><div class="num">27</div><div class="lbl">Products</div></div></div></div>
+          </div>
+
+          <div class="d-flex flex-wrap gap-2 mb-3">
+            <button class="btn btn-primary btn-sm">Primary</button>
+            <button class="btn btn-outline-primary btn-sm">Outline</button>
+            <button class="btn btn-accent btn-sm">Accent</button>
+            <span class="badge badge-active align-self-center">Active</span>
+            <span class="badge badge-inactive align-self-center">Inactive</span>
+          </div>
+
+          <div class="row g-2 mb-3">
+            <div class="col-md-6">
+              <label class="form-label">Sample field <span class="required-star">*</span></label>
+              <input class="form-control" placeholder="Type here…" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Sample select</label>
+              <select class="form-select"><option>Option A</option><option>Option B</option></select>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="table table-striped table-bordered mb-0">
+              <thead><tr><th>S.No</th><th>Code</th><th>Name</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr><td>1</td><td>RT-001</td><td>North Ring</td><td><span class="badge badge-active">Active</span></td></tr>
+                <tr><td>2</td><td>RT-002</td><td>Harbour Line</td><td><span class="badge badge-active">Active</span></td></tr>
+                <tr><td>3</td><td>RT-003</td><td>Old Town</td><td><span class="badge badge-inactive">Inactive</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/js/core/session.js"></script>
+<script src="/js/core/endpoints.js"></script>
+<script src="/js/core/http.js"></script>
+<script src="/js/core/theme.js"></script>
+<script src="/js/app.js"></script>
+<script src="/js/shell.js"></script>
+<script>
+  window.pageInit = function () {
+    const host = document.getElementById('czHost');
+    if (window.Theme && Theme.state) {
+      Theme.buildCustomizer(host);
+      // re-render this page's inline customizer whenever the theme changes elsewhere
+      Theme.onChange(() => { if (document.getElementById('czHost')) Theme.buildCustomizer(host); });
+    } else if (window.Theme) {
+      Theme.load().then(() => Theme.buildCustomizer(host)).catch((e) => SFA.toast(e.message, false));
+    }
+  };
+</script>
+</body>
+</html>

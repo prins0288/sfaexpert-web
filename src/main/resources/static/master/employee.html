@@ -10,6 +10,22 @@
   <link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet" />
   <link href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css" rel="stylesheet" />
   <link href="/css/app.css" rel="stylesheet" />
+  <script>
+    /* Apply the saved theme (mode / layout / density / colours) BEFORE first
+       paint so there is no flash. theme.js re-applies from the server after. */
+    (function () {
+      try {
+        var d = document.documentElement, s = localStorage;
+        d.setAttribute('data-theme', s.getItem('sfa_mode') || 'light');
+        d.setAttribute('data-nav', s.getItem('sfa_nav') || 'vertical');
+        d.setAttribute('data-density', s.getItem('sfa_density') || 'comfortable');
+        var f = s.getItem('sfa_font'); if (f) d.style.setProperty('--sfa-font-scale', f);
+        var c = s.getItem('sfa_theme');
+        if (c) { c = JSON.parse(c); var t = (c.resolved && c.resolved[c.mode]) || {};
+          for (var k in t) d.style.setProperty('--sfa-' + k, t[k]); }
+      } catch (e) {}
+    })();
+  </script>
 </head>
 <body>
 <div id="app" data-page="employee" data-title="Employee Master"></div>
@@ -84,6 +100,10 @@
 <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
 <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="/js/core/session.js"></script>
+<script src="/js/core/endpoints.js"></script>
+<script src="/js/core/http.js"></script>
+<script src="/js/core/theme.js"></script>
 <script src="/js/app.js"></script>
 <script src="/js/shell.js"></script>
 <script>
@@ -92,7 +112,7 @@
   window.pageInit = async function () {
     MODAL = new bootstrap.Modal('#empModal');
     try {
-      LK = await SFA.api('/api/lookups');
+      LK = await Api.get(API.lookups);
       SFA.fillSelect(document.getElementById('e_designationOid'), LK.designations);
       SFA.fillSelect(document.getElementById('e_stateOid'), LK.states);
       SFA.fillSelect(document.getElementById('e_districtOid'), LK.districts);
@@ -101,7 +121,7 @@
   };
 
   async function reload() {
-    const rows = await SFA.api('/api/master/employee');
+    const rows = await Api.get(API.master.employee.list);
     if (DT) { DT.destroy(); }
     document.querySelector('#empTable tbody').innerHTML = rows.map((r, i) => `
       <tr>
@@ -158,12 +178,12 @@
       role: v('e_role'), designationOid: v('e_designationOid'), stateOid: v('e_stateOid'),
       districtOid: v('e_districtOid'), dob: v('e_dob'), mobile: v('e_mobile'), email: v('e_email')
     };
-    try { await SFA.api('/api/master/employee', { method: 'POST', body }); MODAL.hide(); await reload(); SFA.toast('Saved'); }
+    try { await Api.post(API.master.employee.save, body); MODAL.hide(); await reload(); SFA.toast('Saved'); }
     catch (e) { SFA.toast(e.message, false); }
   }
   async function empStatus(oid, status) {
     if (!confirm(status === 'N' ? 'Deactivate this employee and disable their login?' : 'Activate and enable login?')) return;
-    try { await SFA.api('/api/master/employee/' + oid + '/status?status=' + status, { method: 'POST' }); await reload(); }
+    try { await Api.post(API.master.employee.status(oid), null, { query: { status } }); await reload(); }
     catch (e) { SFA.toast(e.message, false); }
   }
 </script>

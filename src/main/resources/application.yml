@@ -14,7 +14,7 @@ app:
   # (Per-tenant Hikari settings, by contrast, live in the tenant_config table.)
   datasource:
     common:
-      jdbc-url: jdbc:mysql://localhost:3306/sfa_central?useSSL=false&serverTimezone=UTC
+      jdbc-url: jdbc:mysql://localhost:3306/sfa_central?useSSL=false&serverTimezone=UTC&characterEncoding=UTF-8&useUnicode=true
       username: myroot
       password:
       driver-class-name: com.mysql.cj.jdbc.Driver

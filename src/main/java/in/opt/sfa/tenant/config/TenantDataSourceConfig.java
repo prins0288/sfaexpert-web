@@ -31,7 +31,7 @@ import java.util.Map;
  */
 @Configuration
 @EnableJpaRepositories(
-        basePackages = "in.opt.sfa.tenant.repository",
+        basePackages = { "in.opt.sfa.tenant.repository", "in.opt.sfa.menu.repository" },
         entityManagerFactoryRef = "tenantEntityManagerFactory",
         transactionManagerRef = "tenantTransactionManager"
 )
@@ -58,7 +58,7 @@ public class TenantDataSourceConfig {
 
         return builder
                 .dataSource(dataSource)
-                .packages("in.opt.sfa.tenant.entity")
+                .packages("in.opt.sfa.tenant.entity", "in.opt.sfa.menu.entity")
                 .persistenceUnit("tenant")
                 .properties(props)
                 .build();

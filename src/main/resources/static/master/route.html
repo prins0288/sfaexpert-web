@@ -10,6 +10,22 @@
   <link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet" />
   <link href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css" rel="stylesheet" />
   <link href="/css/app.css" rel="stylesheet" />
+  <script>
+    /* Apply the saved theme (mode / layout / density / colours) BEFORE first
+       paint so there is no flash. theme.js re-applies from the server after. */
+    (function () {
+      try {
+        var d = document.documentElement, s = localStorage;
+        d.setAttribute('data-theme', s.getItem('sfa_mode') || 'light');
+        d.setAttribute('data-nav', s.getItem('sfa_nav') || 'vertical');
+        d.setAttribute('data-density', s.getItem('sfa_density') || 'comfortable');
+        var f = s.getItem('sfa_font'); if (f) d.style.setProperty('--sfa-font-scale', f);
+        var c = s.getItem('sfa_theme');
+        if (c) { c = JSON.parse(c); var t = (c.resolved && c.resolved[c.mode]) || {};
+          for (var k in t) d.style.setProperty('--sfa-' + k, t[k]); }
+      } catch (e) {}
+    })();
+  </script>
 </head>
 <body>
 <div id="app" data-page="route" data-title="Route Master"></div>
@@ -98,7 +114,7 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
       <div class="modal-body">
         <p class="text-muted small">Existing rows (matched by <b>route_code</b>) are updated; new codes inserted.</p>
-        <button type="button" class="btn btn-sm btn-outline-secondary mb-3" onclick="SFA.download('/api/master/route/template','route_template.xlsx')">
+        <button type="button" class="btn btn-sm btn-outline-secondary mb-3" onclick="Api.download(API.master.route.template,'route_template.xlsx')">
           <i class="bi bi-download"></i> Download Template</button>
         <input type="file" class="form-control" id="routeFile" name="file" accept=".xlsx,.xls" required />
       </div>
@@ -116,6 +132,10 @@
 <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
 <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="/js/core/session.js"></script>
+<script src="/js/core/endpoints.js"></script>
+<script src="/js/core/http.js"></script>
+<script src="/js/core/theme.js"></script>
 <script src="/js/app.js"></script>
 <script src="/js/shell.js"></script>
 <script>
@@ -125,7 +145,7 @@
     MODAL = new bootstrap.Modal('#routeModal');
     MULTI = new bootstrap.Modal('#routeMultiModal');
     try {
-      LK = await SFA.api('/api/lookups');
+      LK = await Api.get(API.lookups);
       SFA.fillSelect(document.getElementById('r_divisionOid'), LK.divisions);
       SFA.fillSelect(document.getElementById('r_zoneOid'), LK.zones);
       SFA.fillSelect(document.getElementById('r_stateOid'), LK.states);
@@ -135,7 +155,7 @@
   };
 
   async function reload() {
-    const rows = await SFA.api('/api/master/route');
+    const rows = await Api.get(API.master.route.list);
     if (DT) { DT.destroy(); }
     document.querySelector('#routeTable tbody').innerHTML = rows.map((r, i) => `
       <tr>
@@ -181,12 +201,12 @@
       divisionOid: v('r_divisionOid'), zoneOid: v('r_zoneOid'), stateOid: v('r_stateOid'),
       hqOid: v('r_hqOid'), distanceKm: v('r_distanceKm'), description: v('r_description')
     };
-    try { await SFA.api('/api/master/route', { method: 'POST', body }); MODAL.hide(); await reload(); SFA.toast('Saved'); }
+    try { await Api.post(API.master.route.save, body); MODAL.hide(); await reload(); SFA.toast('Saved'); }
     catch (e) { SFA.toast(e.message, false); }
   }
   async function routeStatus(oid, status) {
     if (!confirm(status === 'N' ? 'Deactivate this route?' : 'Activate this route?')) return;
-    try { await SFA.api('/api/master/route/' + oid + '/status?status=' + status, { method: 'POST' }); await reload(); }
+    try { await Api.post(API.master.route.status(oid), null, { query: { status } }); await reload(); }
     catch (e) { SFA.toast(e.message, false); }
   }
 
@@ -206,7 +226,7 @@
     const rows = collectRows('routeMultiTable', ['routeCode', 'routeName', 'hqOid', 'distanceKm']);
     if (!rows.length) { SFA.toast('No rows to save', false); return; }
     try {
-      const res = await SFA.api('/api/master/route/save-multiple', { method: 'POST', body: rows });
+      const res = await Api.post(API.master.route.saveMultiple, rows);
       MULTI.hide(); await reload(); SFA.toast(res.saved + ' saved' + (res.skipped ? ', ' + res.skipped + ' skipped' : ''));
     } catch (e) { SFA.toast(e.message, false); }
   }
@@ -218,7 +238,7 @@
     if (!f) { SFA.toast('Choose a file', false); return; }
     const fd = new FormData(); fd.append('file', f);
     try {
-      const res = await SFA.api('/api/master/route/upload', { method: 'POST', body: fd });
+      const res = await Api.post(API.master.route.upload, fd);
       bootstrap.Modal.getInstance(document.getElementById('routeUploadModal')).hide();
       document.getElementById('routeFile').value = '';
       await reload();

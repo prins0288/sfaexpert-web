@@ -29,7 +29,7 @@ import java.util.Map;
  */
 @Configuration
 @EnableJpaRepositories(
-        basePackages = "in.opt.sfa.common.repository",
+        basePackages = { "in.opt.sfa.common.repository", "in.opt.sfa.theme.repository" },
         entityManagerFactoryRef = "commonEntityManagerFactory",
         transactionManagerRef = "commonTransactionManager"
 )
@@ -54,7 +54,7 @@ public class CommonDataSourceConfig {
 
         return builder
                 .dataSource(dataSource)
-                .packages("in.opt.sfa.common.entity")
+                .packages("in.opt.sfa.common.entity", "in.opt.sfa.theme.entity")
                 .persistenceUnit("common")
                 .properties(props)
                 .build();

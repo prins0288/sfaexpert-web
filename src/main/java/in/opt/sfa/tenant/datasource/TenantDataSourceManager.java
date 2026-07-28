@@ -143,10 +143,23 @@ public class TenantDataSourceManager {
                 .append(cfg.getDbPort() != null ? cfg.getDbPort() : 3306)
                 .append('/')
                 .append(cfg.getDbName());
-        if (hasText(cfg.getDbParams())) {
-            url.append('?').append(cfg.getDbParams());
-        }
+
+        // Ensure UTF-8 on every tenant connection so multi-byte data (e.g. Hindi
+        // menu titles) round-trips instead of coming back garbled — regardless of
+        // what an individual tenant_config.db_params row happens to contain.
+        String params = hasText(cfg.getDbParams()) ? cfg.getDbParams() : "";
+        params = ensureParam(params, "characterEncoding", "UTF-8");
+        params = ensureParam(params, "useUnicode", "true");
+        url.append('?').append(params);
         return url.toString();
+    }
+
+    /** Append key=value to a JDBC query string unless the key is already present. */
+    private static String ensureParam(String params, String key, String value) {
+        if (params != null && params.toLowerCase().contains(key.toLowerCase() + "=")) {
+            return params;
+        }
+        return (params == null || params.isBlank()) ? key + "=" + value : params + "&" + key + "=" + value;
     }
 
     private static boolean hasText(String s) {

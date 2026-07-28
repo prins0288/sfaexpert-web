@@ -10,6 +10,22 @@
   <link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet" />
   <link href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css" rel="stylesheet" />
   <link href="/css/app.css" rel="stylesheet" />
+  <script>
+    /* Apply the saved theme (mode / layout / density / colours) BEFORE first
+       paint so there is no flash. theme.js re-applies from the server after. */
+    (function () {
+      try {
+        var d = document.documentElement, s = localStorage;
+        d.setAttribute('data-theme', s.getItem('sfa_mode') || 'light');
+        d.setAttribute('data-nav', s.getItem('sfa_nav') || 'vertical');
+        d.setAttribute('data-density', s.getItem('sfa_density') || 'comfortable');
+        var f = s.getItem('sfa_font'); if (f) d.style.setProperty('--sfa-font-scale', f);
+        var c = s.getItem('sfa_theme');
+        if (c) { c = JSON.parse(c); var t = (c.resolved && c.resolved[c.mode]) || {};
+          for (var k in t) d.style.setProperty('--sfa-' + k, t[k]); }
+      } catch (e) {}
+    })();
+  </script>
 </head>
 <body>
 <div id="app" data-page="area" data-title="Area Master"></div>
@@ -99,7 +115,7 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
       <div class="modal-body">
         <p class="text-muted small">Existing rows (matched by <b>area_code</b>) are updated; new codes inserted.</p>
-        <button type="button" class="btn btn-sm btn-outline-secondary mb-3" onclick="SFA.download('/api/master/area/template','area_template.xlsx')">
+        <button type="button" class="btn btn-sm btn-outline-secondary mb-3" onclick="Api.download(API.master.area.template,'area_template.xlsx')">
           <i class="bi bi-download"></i> Download Template</button>
         <input type="file" class="form-control" id="areaFile" name="file" accept=".xlsx,.xls" required />
       </div>
@@ -117,6 +133,10 @@
 <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
 <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="/js/core/session.js"></script>
+<script src="/js/core/endpoints.js"></script>
+<script src="/js/core/http.js"></script>
+<script src="/js/core/theme.js"></script>
 <script src="/js/app.js"></script>
 <script src="/js/shell.js"></script>
 <script>
@@ -126,7 +146,7 @@
     MODAL = new bootstrap.Modal('#areaModal');
     MULTI = new bootstrap.Modal('#areaMultiModal');
     try {
-      LK = await SFA.api('/api/lookups');
+      LK = await Api.get(API.lookups);
       SFA.fillSelect(document.getElementById('a_stateOid'), LK.states);
       SFA.fillSelect(document.getElementById('a_hqOid'), LK.hqs);
       await reload();
@@ -134,7 +154,7 @@
   };
 
   async function reload() {
-    const rows = await SFA.api('/api/master/area');
+    const rows = await Api.get(API.master.area.list);
     if (DT) { DT.destroy(); }
     document.querySelector('#areaTable tbody').innerHTML = rows.map((r, i) => `
       <tr>
@@ -179,12 +199,12 @@
       stateOid: v('a_stateOid'), hqOid: v('a_hqOid'), pincode: v('a_pincode'),
       areaType: v('a_areaType'), distanceKm: v('a_distanceKm')
     };
-    try { await SFA.api('/api/master/area', { method: 'POST', body }); MODAL.hide(); await reload(); SFA.toast('Saved'); }
+    try { await Api.post(API.master.area.save, body); MODAL.hide(); await reload(); SFA.toast('Saved'); }
     catch (e) { SFA.toast(e.message, false); }
   }
   async function areaStatus(oid, status) {
     if (!confirm(status === 'N' ? 'Deactivate this area?' : 'Activate this area?')) return;
-    try { await SFA.api('/api/master/area/' + oid + '/status?status=' + status, { method: 'POST' }); await reload(); }
+    try { await Api.post(API.master.area.status(oid), null, { query: { status } }); await reload(); }
     catch (e) { SFA.toast(e.message, false); }
   }
 
@@ -203,7 +223,7 @@
     const rows = collectRows('areaMultiTable', ['areaCode', 'areaName', 'city', 'hqOid', 'pincode']);
     if (!rows.length) { SFA.toast('No rows to save', false); return; }
     try {
-      const res = await SFA.api('/api/master/area/save-multiple', { method: 'POST', body: rows });
+      const res = await Api.post(API.master.area.saveMultiple, rows);
       MULTI.hide(); await reload(); SFA.toast(res.saved + ' saved' + (res.skipped ? ', ' + res.skipped + ' skipped' : ''));
     } catch (e) { SFA.toast(e.message, false); }
   }
@@ -215,7 +235,7 @@
     if (!f) { SFA.toast('Choose a file', false); return; }
     const fd = new FormData(); fd.append('file', f);
     try {
-      const res = await SFA.api('/api/master/area/upload', { method: 'POST', body: fd });
+      const res = await Api.post(API.master.area.upload, fd);
       bootstrap.Modal.getInstance(document.getElementById('areaUploadModal')).hide();
       document.getElementById('areaFile').value = '';
       await reload();
