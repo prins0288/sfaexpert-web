@@ -102,8 +102,6 @@
 <script src="/js/app.js"></script>
 <script src="/js/shell.js"></script>
 <script>
-  let companyPending = undefined, defaultPending = undefined;
-
   window.pageInit = async function () {
     try {
       const [company, branding] = await Promise.all([Api.get(API.company.get), Api.get(API.branding.get)]);
@@ -123,36 +121,47 @@
     box.innerHTML = dataUri ? `<img src="${dataUri}" alt="logo" />` : '<span class="none">No logo</span>';
   }
 
-  function pickImage(fileId, boxId, assign) {
-    document.getElementById(fileId).addEventListener('change', function () {
-      const f = this.files[0]; if (!f) return;
-      if (f.size > 8 * 1024 * 1024) { SFA.toast('Please choose an image under 8 MB', false); this.value = ''; return; }
+  function fileToDataUrl(file) {
+    return new Promise((resolve, reject) => {
       const r = new FileReader();
-      r.onload = () => { assign(r.result); setBox(boxId, r.result); };
-      r.readAsDataURL(f);
+      r.onload = () => resolve(r.result);
+      r.onerror = () => reject(new Error('Could not read the file'));
+      r.readAsDataURL(file);
     });
   }
-  pickImage('companyFile', 'companyLogoBox', v => companyPending = v);
-  pickImage('defaultFile', 'defaultLogoBox', v => defaultPending = v);
 
-  async function uploadCompanyLogo() {
-    if (companyPending === undefined) { SFA.toast('Choose an image first', false); return; }
-    try { await Api.post(API.company.logo, { image: companyPending }); SFA.toast('Company logo updated'); refreshChrome(); }
+  // Live preview when a file is chosen — DELEGATED on document so it works even
+  // though the inputs start life inside the shell's <template> (only injected
+  // into the live DOM later). A direct getElementById(...) at parse time is null.
+  document.addEventListener('change', async function (e) {
+    const box = { companyFile: 'companyLogoBox', defaultFile: 'defaultLogoBox' }[e.target && e.target.id];
+    if (!box) return;
+    const f = e.target.files[0]; if (!f) return;
+    if (f.size > 8 * 1024 * 1024) { SFA.toast('Please choose an image under 8 MB', false); e.target.value = ''; return; }
+    try { setBox(box, await fileToDataUrl(f)); } catch (_) {}
+  });
+
+  // Read the chosen file at CLICK time (robust — no reliance on a pre-read value).
+  async function uploadLogo(inputId, endpoint, label) {
+    const f = document.getElementById(inputId).files[0];
+    if (!f) { SFA.toast('Choose an image first', false); return; }
+    if (f.size > 8 * 1024 * 1024) { SFA.toast('Please choose an image under 8 MB', false); return; }
+    try { await Api.post(endpoint, { image: await fileToDataUrl(f) }); SFA.toast(label + ' updated'); refreshChrome(); }
     catch (e) { SFA.toast(e.message, false); }
   }
+  function uploadCompanyLogo() { return uploadLogo('companyFile', API.company.logo, 'Company logo'); }
+  function uploadDefaultLogo() { return uploadLogo('defaultFile', API.branding.defaultLogo, 'Default logo'); }
+
   async function removeCompanyLogo() {
     if (!confirm('Remove the company logo?')) return;
-    try { await Api.post(API.company.logo, { image: '' }); setBox('companyLogoBox', null); companyPending = undefined; SFA.toast('Removed'); refreshChrome(); }
-    catch (e) { SFA.toast(e.message, false); }
-  }
-  async function uploadDefaultLogo() {
-    if (defaultPending === undefined) { SFA.toast('Choose an image first', false); return; }
-    try { await Api.post(API.branding.defaultLogo, { image: defaultPending }); SFA.toast('Default logo updated'); refreshChrome(); }
+    try { await Api.post(API.company.logo, { image: '' }); setBox('companyLogoBox', null);
+      document.getElementById('companyFile').value = ''; SFA.toast('Removed'); refreshChrome(); }
     catch (e) { SFA.toast(e.message, false); }
   }
   async function removeDefaultLogo() {
     if (!confirm('Remove the default logo?')) return;
-    try { await Api.post(API.branding.defaultLogo, { image: '' }); setBox('defaultLogoBox', null); defaultPending = undefined; SFA.toast('Removed'); refreshChrome(); }
+    try { await Api.post(API.branding.defaultLogo, { image: '' }); setBox('defaultLogoBox', null);
+      document.getElementById('defaultFile').value = ''; SFA.toast('Removed'); refreshChrome(); }
     catch (e) { SFA.toast(e.message, false); }
   }
 
