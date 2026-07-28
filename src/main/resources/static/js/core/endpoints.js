@@ -85,6 +85,14 @@
         get: (oid) => `/api/master/employee/${oid}`,
         status: (oid) => `/api/master/employee/${oid}/status`,
       },
+      categoryMaster: {
+        base: "/api/master/category-master",
+        list: "/api/master/category-master",
+        save: "/api/master/category-master",
+        saveMultiple: "/api/master/category-master/save-multiple",
+        get: (oid) => `/api/master/category-master/${oid}`,
+        status: (oid) => `/api/master/category-master/${oid}/status`,
+      },
     },
   };
 

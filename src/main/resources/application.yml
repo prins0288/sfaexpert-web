@@ -44,6 +44,16 @@ app:
   tenant:
     idle-timeout-minutes: 30      # auto-close a tenant DS after this much inactivity
 
+# ---- Swagger / OpenAPI (springdoc) ----
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: alpha
+    tags-sorter: alpha
+    display-request-duration: true
+
 logging:
   level:
     in.opt.sfa.tenant.datasource: INFO
