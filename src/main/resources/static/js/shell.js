@@ -274,10 +274,16 @@
       </div>`;
   }
 
-  function currentLayout() {
+  // Saved preference vs the layout actually rendered. On narrow screens we always
+  // use the touch-friendly vertical drawer, because horizontal hover-dropdowns
+  // don't work on touch (same idea as a Bootstrap navbar collapsing on mobile).
+  const NAV_BREAKPOINT = 992;
+  function isNarrow() { return window.innerWidth <= NAV_BREAKPOINT; }
+  function savedLayout() {
     return (window.Theme && Theme.state && Theme.state.navLayout) ||
       localStorage.getItem("sfa_nav") || "vertical";
   }
+  function currentLayout() { return isNarrow() ? "vertical" : savedLayout(); }
 
   // ------------------------------------------------------------------------
   function build() {
@@ -312,7 +318,8 @@
             <div class="sfa-title">${esc(title)}</div>${headerActions(color)}
           </header>
           ${crumb}${content}${footer}
-        </div>`;
+        </div>
+        <div class="sfa-backdrop" id="sfaBackdrop"></div>`;
     }
 
     ensureOffcanvas();
@@ -370,6 +377,25 @@
         if (body) body.hidden = !open;
       });
     });
+    // horizontal menu: tap to open the L1 dropdown / L2 flyout (touch devices);
+    // CSS :hover still opens them on a desktop with a mouse.
+    document.querySelectorAll("#sfaNav .sfa-menu-top-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        const top = btn.closest(".sfa-menu-top");
+        const wasOpen = top.classList.contains("open");
+        document.querySelectorAll("#sfaNav .sfa-menu-top.open, #sfaNav .sfa-menu-item.open")
+          .forEach((el) => el.classList.remove("open"));
+        if (!wasOpen) top.classList.add("open");
+      });
+    });
+    document.querySelectorAll("#sfaNav .sfa-menu-sub-toggle").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault(); e.stopPropagation();
+        btn.closest(".sfa-menu-item").classList.toggle("open");
+      });
+    });
+    bindMenuOutsideClose();
     // favorite star toggles
     document.querySelectorAll(".sfa-fav-btn").forEach((btn) => {
       btn.addEventListener("click", async (e) => {
@@ -385,19 +411,55 @@
     });
   }
 
+  function closeDrawer() { document.getElementById("app").classList.remove("sidebar-open"); }
+
+  // Rebuild the chrome when the viewport crosses the mobile breakpoint and the
+  // effective layout flips (e.g. rotating a tablet, resizing a desktop window).
+  let _resizeBound = false;
+  function bindResize() {
+    if (_resizeBound) return;
+    _resizeBound = true;
+    let t = null;
+    window.addEventListener("resize", () => {
+      clearTimeout(t);
+      t = setTimeout(() => {
+        const app = document.getElementById("app");
+        if (app && currentLayout() !== app.getAttribute("data-layout")) Shell.rebuild();
+      }, 180);
+    });
+  }
+
+  // Close any open horizontal dropdown when tapping/clicking outside it.
+  let _menuCloseBound = false;
+  function bindMenuOutsideClose() {
+    if (_menuCloseBound) return;
+    _menuCloseBound = true;
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest(".sfa-menu-top")) {
+        document.querySelectorAll("#sfaNav .sfa-menu-top.open, #sfaNav .sfa-menu-item.open")
+          .forEach((el) => el.classList.remove("open"));
+      }
+    });
+  }
+
   function wireShell() {
     const toggle = document.getElementById("sfaToggle");
     if (toggle) toggle.addEventListener("click", () => {
       const app = document.getElementById("app");
-      if (window.matchMedia("(max-width: 992px)").matches) app.classList.toggle("sidebar-open");
+      if (isNarrow()) app.classList.toggle("sidebar-open");           // slide-in drawer
       else {
-        app.classList.toggle("sidebar-collapsed");
+        app.classList.toggle("sidebar-collapsed");                    // icon rail
         if (window.Theme && Theme.state) Theme.save({ sidebarCollapsed: app.classList.contains("sidebar-collapsed") }).catch(() => {});
       }
     });
-    if (window.Theme && Theme.state && Theme.state.sidebarCollapsed && currentLayout() !== "horizontal") {
+    // tap the dimmed backdrop to close the mobile drawer
+    const backdrop = document.getElementById("sfaBackdrop");
+    if (backdrop) backdrop.addEventListener("click", closeDrawer);
+    // remember the icon-rail choice only on desktop; mobile always uses the drawer
+    if (!isNarrow() && window.Theme && Theme.state && Theme.state.sidebarCollapsed && savedLayout() !== "horizontal") {
       document.getElementById("app").classList.add("sidebar-collapsed");
     }
+    bindResize();
 
     const so = document.getElementById("signOutThis");
     const soa = document.getElementById("signOutAll");
@@ -492,10 +554,13 @@
     ]);
     build();
     if (window.pageInit) { try { window.pageInit(); } catch (e) { console.error(e); } }
-    // background refresh (covers first-ever load where nothing was cached)
-    if (window.Theme) Theme.load().then((cfg) => {
+    // background refresh (covers first-ever load where nothing was cached).
+    // Compare against the EFFECTIVE layout (mobile-aware) — not the saved
+    // navLayout — otherwise a "horizontal" preference on a phone would keep
+    // triggering rebuilds against the forced "vertical" drawer.
+    if (window.Theme) Theme.load().then(() => {
       const app = document.getElementById("app");
-      if (app && cfg.navLayout !== app.getAttribute("data-layout")) Shell.rebuild();
+      if (app && currentLayout() !== app.getAttribute("data-layout")) Shell.rebuild();
     }).catch(() => {});
   });
 })(window);

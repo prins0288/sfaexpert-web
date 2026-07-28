@@ -2,10 +2,9 @@
 (function ($) {
     "use strict";
 
-    // Sidebar toggle (mobile)
-    $(document).on("click", "#sfaToggle", function () {
-        $(".sfa-shell").toggleClass("sidebar-open");
-    });
+    // NOTE: the sidebar / drawer toggle is owned by shell.js (#sfaToggle). The
+    // old jQuery handler that also lived here was removed — having both toggled
+    // `sidebar-open` twice per click, so the mobile drawer never opened.
 
     // Initialise a standard master listing DataTable.
     // scrollY + scrollCollapse give a FROZEN header whose column widths stay

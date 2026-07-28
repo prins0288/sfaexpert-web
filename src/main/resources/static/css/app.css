@@ -206,6 +206,9 @@ body {
 }
 .sfa-nav { padding: 8px 0 24px; }
 
+/* dimmed overlay behind the mobile slide-in drawer (shown only < breakpoint) */
+.sfa-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, .45); z-index: 1029; display: none; }
+
 .sfa-nav-link,
 .sfa-nav-toggle {
   display: flex; align-items: center; gap: 11px; width: 100%;
@@ -360,7 +363,8 @@ a.sfa-crumb:hover { color: var(--sfa-primary); text-decoration: underline; }
   display: none;
 }
 .sfa-menu-top:hover > .sfa-menu-dropdown,
-.sfa-menu-top:focus-within > .sfa-menu-dropdown { display: block; }
+.sfa-menu-top:focus-within > .sfa-menu-dropdown,
+.sfa-menu-top.open > .sfa-menu-dropdown { display: block; }   /* .open = tap on touch */
 
 .sfa-menu-item { position: relative; }
 .sfa-menu-item, .sfa-menu-sub-toggle, a.sfa-menu-leaf {
@@ -381,7 +385,8 @@ a.sfa-menu-leaf.active { background: var(--sfa-primary-soft); color: var(--sfa-p
   box-shadow: 0 14px 34px var(--sfa-shadow); padding: 6px; display: none;
 }
 .sfa-menu-item.has-sub:hover > .sfa-menu-flyout,
-.sfa-menu-item.has-sub:focus-within > .sfa-menu-flyout { display: block; }
+.sfa-menu-item.has-sub:focus-within > .sfa-menu-flyout,
+.sfa-menu-item.has-sub.open > .sfa-menu-flyout { display: block; }   /* .open = tap on touch */
 
 /* ========================================================================== */
 /*  CARDS / SECTIONS                                                           */
@@ -555,11 +560,26 @@ div.dataTables_scrollHead table.dataTable { margin-bottom: 0 !important; }
 /* ========================================================================== */
 /*  RESPONSIVE                                                                 */
 /* ========================================================================== */
+/* ---- tablet / mobile: nav becomes a slide-in drawer over a backdrop -------
+   On narrow screens shell.js always renders the vertical layout, so these
+   rules cover the horizontal preference too. */
 @media (max-width: 992px) {
-  .sfa-shell[data-layout="vertical"] .sfa-sidebar { transform: translateX(-100%); }
-  .sfa-shell[data-layout="vertical"].sidebar-open .sfa-sidebar { transform: translateX(0); }
-  .sfa-shell[data-layout="vertical"] .sfa-main { margin-left: 0; }
-  .sfa-shell.sidebar-collapsed .sfa-main { margin-left: 0; }
-  .sfa-search input { width: 130px; }
+  .sfa-sidebar { transform: translateX(-100%); box-shadow: 0 0 40px rgba(0, 0, 0, .35); }
+  .sfa-shell.sidebar-open .sfa-sidebar { transform: translateX(0); }
+  .sfa-main { margin-left: 0 !important; }
+  .sfa-shell.sidebar-open .sfa-backdrop { display: block; }
   .sfa-title { display: none; }
+  .sfa-search input { width: 150px; }
+}
+
+/* ---- phones: reclaim header space -------------------------------------- */
+@media (max-width: 576px) {
+  .sfa-topbar { gap: 8px; padding: 0 10px; }
+  .sfa-search { display: none; }              /* drawer nav is primary here */
+  .sfa-actions { gap: 6px; }
+  .sfa-content { padding: 14px; }
+  .sfa-crumbbar { padding: 7px 12px; }
+  .sfa-crumb-title { font-size: 13px; padding-left: 8px; }
+  .sfa-footer { padding: 10px 12px; font-size: 11.5px; }
+  .sfa-footer-right { display: none; }
 }
