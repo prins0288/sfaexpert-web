@@ -12,8 +12,10 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /** Client master — the main report (Doctors / Chemists / Stockists). Tenant-routed. */
+@Tag(name = "Client Master", description = "Clients (doctors / chemists / stockists)")
 @RestController
 @RequestMapping("/api/master/client")
 public class ClientController {

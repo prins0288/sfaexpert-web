@@ -8,11 +8,13 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * One call returns every dropdown list the master pages need, already filtered
  * to active (status='Y') rows and sorted. Tenant-routed automatically.
  */
+@Tag(name = "Lookups", description = "Dropdown lists for the master forms")
 @RestController
 @RequestMapping("/api/lookups")
 public class LookupController {

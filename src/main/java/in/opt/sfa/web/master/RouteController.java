@@ -13,8 +13,10 @@ import org.springframework.web.multipart.MultipartFile;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /** Route master — list / get / save / add-multiple / bulk-upload / soft-delete. Tenant-routed. */
+@Tag(name = "Route Master", description = "Routes — soft-delete, bulk add, Excel template/upload")
 @RestController
 @RequestMapping("/api/master/route")
 public class RouteController {

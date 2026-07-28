@@ -10,40 +10,37 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 /**
- * Category master (TENANT db) — a production-style master with a soft-delete
- * flag, an icon, and full audit columns.
- *
- * The audit fields are filled automatically by the JPA lifecycle callbacks
- * below (never trusted from the client): created_at/created_by on insert,
- * updated_at/updated_by on every update. "who" comes from the verified JWT
- * (UserContext), falling back to "system" for non-request writes (e.g. seeds).
+ * Speciality master (TENANT db) — same production shape as {@link CategoryMaster}:
+ * unique code, name, description, icon, a boolean (TINYINT 1/0) soft-delete
+ * status, and audit columns filled automatically by the JPA lifecycle callbacks
+ * (who = the verified JWT user, "system" fallback). Dates serialize as dd-MM-yyyy.
  */
 @Entity
-@Table(name = "category_master",
-        uniqueConstraints = @UniqueConstraint(name = "uq_category_master_code", columnNames = "category_code"))
+@Table(name = "speciality_master",
+        uniqueConstraints = @UniqueConstraint(name = "uq_speciality_master_code", columnNames = "speciality_code"))
 @Getter
 @Setter
-public class CategoryMaster {
+public class SpecialityMaster {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Schema(description = "Primary key", accessMode = Schema.AccessMode.READ_ONLY, example = "1")
     private Long oid;
 
-    @Column(name = "category_code", nullable = false, length = 64)
-    @Schema(description = "Unique short code", example = "CAT-PREM")
-    private String categoryCode;
+    @Column(name = "speciality_code", nullable = false, length = 64)
+    @Schema(description = "Unique short code", example = "SPEC-CARD")
+    private String specialityCode;
 
-    @Column(name = "category_name", nullable = false, length = 128)
-    @Schema(description = "Display name", example = "Premium")
-    private String categoryName;
+    @Column(name = "speciality_name", nullable = false, length = 128)
+    @Schema(description = "Display name", example = "Cardiology")
+    private String specialityName;
 
     @Column(length = 255)
-    @Schema(description = "Optional description", example = "High-value / key accounts")
+    @Schema(description = "Optional description", example = "Heart specialists")
     private String description;
 
     @Column(length = 128)
-    @Schema(description = "Bootstrap-icon name (no 'bi-' prefix) or an image URL", example = "star")
+    @Schema(description = "Bootstrap-icon name (no 'bi-' prefix) or an image URL", example = "heart-pulse")
     private String icon;
 
     /** Active flag stored as TINYINT(1): true = 1 (active), false = 0 (inactive). */
@@ -51,8 +48,7 @@ public class CategoryMaster {
     @Schema(description = "Active flag: true = active, false = inactive", example = "true")
     private Boolean status = true;
 
-    // ---- audit (server-managed; read-only to clients) ----------------------
-    // Dates are serialized as dd-MM-yyyy so the report shows them in that format.
+    // ---- audit (server-managed; read-only; dates as dd-MM-yyyy) -------------
     @Column(name = "created_at", updatable = false)
     @JsonFormat(pattern = "dd-MM-yyyy")
     @Schema(accessMode = Schema.AccessMode.READ_ONLY, type = "string", example = "28-07-2026")

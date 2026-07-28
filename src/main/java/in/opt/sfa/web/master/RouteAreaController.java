@@ -7,8 +7,10 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /** Route&ndash;Area mapping master — maps one route to many areas with visit sequence. */
+@Tag(name = "Route-Area Mapping", description = "Map areas to routes")
 @RestController
 @RequestMapping("/api/master/route-area")
 public class RouteAreaController {

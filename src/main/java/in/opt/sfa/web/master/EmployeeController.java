@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * Employee master. The profile row lives in the TENANT db (employee); the login
@@ -27,6 +28,7 @@ import java.util.stream.Collectors;
  * credential. Good enough here; a failure leaves a profile without a login,
  * which a re-save fixes.
  */
+@Tag(name = "Employee Master", description = "Employees and their login (role-gated)")
 @RestController
 @RequestMapping("/api/master/employee")
 public class EmployeeController {

@@ -57,7 +57,7 @@ public class CategoryMasterController {
         target.setCategoryName(trim(form.getCategoryName()));
         target.setDescription(form.getDescription());
         target.setIcon(form.getIcon());
-        if (form.getStatus() != null && !form.getStatus().isBlank()) {
+        if (form.getStatus() != null) {
             target.setStatus(form.getStatus());
         }
         return categories.save(target);   // @PrePersist / @PreUpdate fill the audit columns
@@ -80,7 +80,7 @@ public class CategoryMasterController {
             c.setCategoryName(trim(f.getCategoryName()));
             c.setDescription(f.getDescription());
             c.setIcon(f.getIcon());
-            c.setStatus("Y");
+            c.setStatus(Boolean.TRUE);
             categories.save(c);
             saved++;
         }
@@ -88,9 +88,9 @@ public class CategoryMasterController {
     }
 
     @PostMapping("/{oid}/status")
-    @Operation(summary = "Soft delete / restore a category (Y or N)")
+    @Operation(summary = "Activate / deactivate a category (status = true or false)")
     @Transactional(transactionManager = "tenantTransactionManager")
-    public CategoryMaster status(@PathVariable Long oid, @RequestParam String status) {
+    public CategoryMaster status(@PathVariable Long oid, @RequestParam boolean status) {
         CategoryMaster c = categories.findById(oid)
                 .orElseThrow(() -> new IllegalStateException("Category not found: " + oid));
         c.setStatus(status);

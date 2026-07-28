@@ -5,6 +5,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import io.swagger.v3.oas.annotations.Hidden;
 
 /**
  * Gmail-style multi-account URLs. The path segment /u/{index}/ selects WHICH
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.PathVariable;
  * Static assets (/css, /js, /api, /favicon) are absolute, so they keep working
  * under the /u/{index}/ prefix without any change.
  */
+@Hidden
 @Controller
 public class MultiAccountRoutingController {
 

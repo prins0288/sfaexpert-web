@@ -7,8 +7,10 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /** Client Type master — drives the dynamic Doctor/Chemist/Stockist label. Tenant-routed. */
+@Tag(name = "Client Type Master", description = "Client types that drive the dynamic labels")
 @RestController
 @RequestMapping("/api/master/client-type")
 public class ClientTypeController {

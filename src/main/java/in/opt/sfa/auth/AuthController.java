@@ -4,7 +4,9 @@ import in.opt.sfa.auth.dto.LoginRequest;
 import in.opt.sfa.auth.dto.LoginResponse;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
+@Tag(name = "Authentication", description = "Log in and receive a JWT (the tenant travels inside the token)")
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {

@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * Current user's profile. Auth fields (username/tenant/role/emp_id) come from
@@ -18,6 +19,7 @@ import java.util.Map;
  * is fetched from the TENANT database's employee table, linked by emp_id.
  * This is where the common<->tenant relation is resolved at runtime.
  */
+@Tag(name = "Current User", description = "Profile of the signed-in user (login + tenant employee record)")
 @RestController
 @RequestMapping("/api/me")
 public class MeController {

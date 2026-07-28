@@ -1,10 +1,10 @@
 -- ===========================================================================
 -- category_master — a production-style master, PER TENANT database.
---   soft-delete `status`, an `icon`, and full audit columns
---   (created_at / created_by / updated_at / updated_by).
--- The audit columns are filled by the JPA entity (@PrePersist / @PreUpdate);
--- these seeds set them to 'system' / NOW() directly.
--- Also registers the "Category" menu item under Masters > Catalog.
+--   soft-delete `status` as TINYINT(1) (1 = active/true, 0 = inactive/false),
+--   an `icon`, and full audit columns (created_at/by, updated_at/by).
+-- Audit columns are filled by the JPA entity (@PrePersist / @PreUpdate);
+-- dates are serialized to the client as dd-MM-yyyy. Also registers the
+-- "Category" menu item under Masters > Catalog.
 --
 -- Run:  mysql -u myroot < src/main/resources/sql/10_category_master.sql
 -- ===========================================================================
@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS category_master (
     category_name VARCHAR(128) NOT NULL,
     description   VARCHAR(255) NULL,
     icon          VARCHAR(128) NULL,                       -- bootstrap-icon name or image URL
-    status        CHAR(1)      NOT NULL DEFAULT 'Y',        -- Y active / N inactive (soft delete)
+    status        TINYINT(1)   NOT NULL DEFAULT 1,         -- 1 = active (true), 0 = inactive (false)
     created_at    DATETIME     NULL,
     created_by    VARCHAR(128) NULL,
     updated_at    DATETIME     NULL,
@@ -26,9 +26,10 @@ CREATE TABLE IF NOT EXISTS category_master (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO category_master
     (category_code, category_name, description, icon, status, created_at, created_by, updated_at, updated_by) VALUES
-    ('CAT-PREM', 'Premium',  'High-value / key accounts', 'star',   'Y', NOW(), 'system', NOW(), 'system'),
-    ('CAT-STD',  'Standard', 'Regular accounts',          'circle', 'Y', NOW(), 'system', NOW(), 'system'),
-    ('CAT-NEW',  'New',      'Recently onboarded',        'stars',  'Y', NOW(), 'system', NOW(), 'system')
+    ('CAT-DOC',  'Doctor',   'Doctors / medical practitioners', 'heart-pulse', 1, NOW(), 'system', NOW(), 'system'),
+    ('CAT-PREM', 'Premium',  'High-value / key accounts',       'star',        1, NOW(), 'system', NOW(), 'system'),
+    ('CAT-STD',  'Standard', 'Regular accounts',                'circle',      1, NOW(), 'system', NOW(), 'system'),
+    ('CAT-NEW',  'New',      'Recently onboarded',              'stars',       1, NOW(), 'system', NOW(), 'system')
 ON DUPLICATE KEY UPDATE
     category_name=VALUES(category_name), description=VALUES(description),
     icon=VALUES(icon), updated_at=NOW(), updated_by='system';
@@ -47,7 +48,7 @@ CREATE TABLE IF NOT EXISTS category_master (
     category_name VARCHAR(128) NOT NULL,
     description   VARCHAR(255) NULL,
     icon          VARCHAR(128) NULL,                       -- bootstrap-icon name or image URL
-    status        CHAR(1)      NOT NULL DEFAULT 'Y',        -- Y active / N inactive (soft delete)
+    status        TINYINT(1)   NOT NULL DEFAULT 1,         -- 1 = active (true), 0 = inactive (false)
     created_at    DATETIME     NULL,
     created_by    VARCHAR(128) NULL,
     updated_at    DATETIME     NULL,
@@ -56,9 +57,10 @@ CREATE TABLE IF NOT EXISTS category_master (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO category_master
     (category_code, category_name, description, icon, status, created_at, created_by, updated_at, updated_by) VALUES
-    ('CAT-PREM', 'Premium',  'High-value / key accounts', 'star',   'Y', NOW(), 'system', NOW(), 'system'),
-    ('CAT-STD',  'Standard', 'Regular accounts',          'circle', 'Y', NOW(), 'system', NOW(), 'system'),
-    ('CAT-NEW',  'New',      'Recently onboarded',        'stars',  'Y', NOW(), 'system', NOW(), 'system')
+    ('CAT-DOC',  'Doctor',   'Doctors / medical practitioners', 'heart-pulse', 1, NOW(), 'system', NOW(), 'system'),
+    ('CAT-PREM', 'Premium',  'High-value / key accounts',       'star',        1, NOW(), 'system', NOW(), 'system'),
+    ('CAT-STD',  'Standard', 'Regular accounts',                'circle',      1, NOW(), 'system', NOW(), 'system'),
+    ('CAT-NEW',  'New',      'Recently onboarded',              'stars',       1, NOW(), 'system', NOW(), 'system')
 ON DUPLICATE KEY UPDATE
     category_name=VALUES(category_name), description=VALUES(description),
     icon=VALUES(icon), updated_at=NOW(), updated_by='system';
@@ -77,7 +79,7 @@ CREATE TABLE IF NOT EXISTS category_master (
     category_name VARCHAR(128) NOT NULL,
     description   VARCHAR(255) NULL,
     icon          VARCHAR(128) NULL,                       -- bootstrap-icon name or image URL
-    status        CHAR(1)      NOT NULL DEFAULT 'Y',        -- Y active / N inactive (soft delete)
+    status        TINYINT(1)   NOT NULL DEFAULT 1,         -- 1 = active (true), 0 = inactive (false)
     created_at    DATETIME     NULL,
     created_by    VARCHAR(128) NULL,
     updated_at    DATETIME     NULL,
@@ -86,9 +88,10 @@ CREATE TABLE IF NOT EXISTS category_master (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO category_master
     (category_code, category_name, description, icon, status, created_at, created_by, updated_at, updated_by) VALUES
-    ('CAT-PREM', 'Premium',  'High-value / key accounts', 'star',   'Y', NOW(), 'system', NOW(), 'system'),
-    ('CAT-STD',  'Standard', 'Regular accounts',          'circle', 'Y', NOW(), 'system', NOW(), 'system'),
-    ('CAT-NEW',  'New',      'Recently onboarded',        'stars',  'Y', NOW(), 'system', NOW(), 'system')
+    ('CAT-DOC',  'Doctor',   'Doctors / medical practitioners', 'heart-pulse', 1, NOW(), 'system', NOW(), 'system'),
+    ('CAT-PREM', 'Premium',  'High-value / key accounts',       'star',        1, NOW(), 'system', NOW(), 'system'),
+    ('CAT-STD',  'Standard', 'Regular accounts',                'circle',      1, NOW(), 'system', NOW(), 'system'),
+    ('CAT-NEW',  'New',      'Recently onboarded',              'stars',       1, NOW(), 'system', NOW(), 'system')
 ON DUPLICATE KEY UPDATE
     category_name=VALUES(category_name), description=VALUES(description),
     icon=VALUES(icon), updated_at=NOW(), updated_by='system';
@@ -107,7 +110,7 @@ CREATE TABLE IF NOT EXISTS category_master (
     category_name VARCHAR(128) NOT NULL,
     description   VARCHAR(255) NULL,
     icon          VARCHAR(128) NULL,                       -- bootstrap-icon name or image URL
-    status        CHAR(1)      NOT NULL DEFAULT 'Y',        -- Y active / N inactive (soft delete)
+    status        TINYINT(1)   NOT NULL DEFAULT 1,         -- 1 = active (true), 0 = inactive (false)
     created_at    DATETIME     NULL,
     created_by    VARCHAR(128) NULL,
     updated_at    DATETIME     NULL,
@@ -116,9 +119,10 @@ CREATE TABLE IF NOT EXISTS category_master (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO category_master
     (category_code, category_name, description, icon, status, created_at, created_by, updated_at, updated_by) VALUES
-    ('CAT-PREM', 'Premium',  'High-value / key accounts', 'star',   'Y', NOW(), 'system', NOW(), 'system'),
-    ('CAT-STD',  'Standard', 'Regular accounts',          'circle', 'Y', NOW(), 'system', NOW(), 'system'),
-    ('CAT-NEW',  'New',      'Recently onboarded',        'stars',  'Y', NOW(), 'system', NOW(), 'system')
+    ('CAT-DOC',  'Doctor',   'Doctors / medical practitioners', 'heart-pulse', 1, NOW(), 'system', NOW(), 'system'),
+    ('CAT-PREM', 'Premium',  'High-value / key accounts',       'star',        1, NOW(), 'system', NOW(), 'system'),
+    ('CAT-STD',  'Standard', 'Regular accounts',                'circle',      1, NOW(), 'system', NOW(), 'system'),
+    ('CAT-NEW',  'New',      'Recently onboarded',              'stars',       1, NOW(), 'system', NOW(), 'system')
 ON DUPLICATE KEY UPDATE
     category_name=VALUES(category_name), description=VALUES(description),
     icon=VALUES(icon), updated_at=NOW(), updated_by='system';

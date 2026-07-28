@@ -15,8 +15,10 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /** Area master — list / get / save / add-multiple / bulk-upload / soft-delete. Tenant-routed. */
+@Tag(name = "Area Master", description = "Areas — soft-delete, bulk add, Excel template/upload")
 @RestController
 @RequestMapping("/api/master/area")
 public class AreaController {

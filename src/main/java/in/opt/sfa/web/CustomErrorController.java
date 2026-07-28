@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.context.request.ServletWebRequest;
 
 import java.util.Map;
+import io.swagger.v3.oas.annotations.Hidden;
 
 /**
  * Replaces Spring Boot's default "whitelabel" error page. For things that never
@@ -26,6 +27,7 @@ import java.util.Map;
  * The exception, message, binding errors and stack trace are all pulled from
  * Spring's ErrorAttributes so the real cause is always shown.
  */
+@Hidden
 @RestController
 public class CustomErrorController implements ErrorController {
 

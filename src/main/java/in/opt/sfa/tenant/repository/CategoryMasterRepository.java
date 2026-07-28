@@ -11,7 +11,7 @@ public interface CategoryMasterRepository extends JpaRepository<CategoryMaster, 
 
     List<CategoryMaster> findAllByOrderByOidAsc();
 
-    List<CategoryMaster> findByStatusOrderByCategoryNameAsc(String status);
+    List<CategoryMaster> findByStatusOrderByCategoryNameAsc(Boolean status);
 
     Optional<CategoryMaster> findByCategoryCode(String categoryCode);
 }

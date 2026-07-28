@@ -6,12 +6,14 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * Demo endpoints that read/write the ACTIVE tenant's database. The tenant is
  * already bound by TenantAuthFilter, so ProductRepository (no qualifier) just
  * works and hits the right DB. Note the tenant transaction manager.
  */
+@Tag(name = "Products", description = "Product master (tenant-routed)")
 @RestController
 @RequestMapping("/api/products")
 public class ProductController {

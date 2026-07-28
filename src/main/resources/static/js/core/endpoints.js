@@ -93,6 +93,14 @@
         get: (oid) => `/api/master/category-master/${oid}`,
         status: (oid) => `/api/master/category-master/${oid}/status`,
       },
+      specialityMaster: {
+        base: "/api/master/speciality-master",
+        list: "/api/master/speciality-master",
+        save: "/api/master/speciality-master",
+        saveMultiple: "/api/master/speciality-master/save-multiple",
+        get: (oid) => `/api/master/speciality-master/${oid}`,
+        status: (oid) => `/api/master/speciality-master/${oid}/status`,
+      },
     },
   };
 

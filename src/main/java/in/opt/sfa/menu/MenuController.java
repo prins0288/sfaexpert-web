@@ -5,6 +5,7 @@ import in.opt.sfa.security.UserContext;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * Navigation API. Everything is scoped to the current user via the verified JWT
@@ -14,6 +15,7 @@ import java.util.List;
  *   POST   /api/menu/favorites/{id} -> star an item,   returns updated ids
  *   DELETE /api/menu/favorites/{id} -> un-star an item, returns updated ids
  */
+@Tag(name = "Navigation Menu", description = "Role-filtered 3-level menu tree and per-user favorites")
 @RestController
 @RequestMapping("/api/menu")
 public class MenuController {

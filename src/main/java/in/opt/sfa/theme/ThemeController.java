@@ -4,6 +4,7 @@ import in.opt.sfa.security.UserContext;
 import in.opt.sfa.theme.dto.ThemeConfig;
 import in.opt.sfa.theme.dto.ThemeUpdateRequest;
 import org.springframework.web.bind.annotation.*;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * Per-user appearance API. The username always comes from the VERIFIED JWT
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
  *   PUT   /api/theme          -> partial update (layout / mode / preset / tokens)
  *   POST  /api/theme/reset    -> clear all overrides for a mode
  */
+@Tag(name = "Appearance & Theme", description = "Per-user theme: colours, light/dark, nav layout, density")
 @RestController
 @RequestMapping("/api/theme")
 public class ThemeController {
