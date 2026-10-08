@@ -47,7 +47,7 @@ public class PermissionAdminService {
     public Targets targets() {
         List<EmpDetail> emps = empDetails.findAllByOrderByEmpNameAsc().stream()
                 .filter(e -> e.isActive() && e.getEmpId() != null).toList();
-        List<DesignationOption> desigs = designations.findByStatusOrderByDesignationNameAsc("Y").stream()
+        List<DesignationOption> desigs = designations.findByStatusTrueOrderByDesignationNameAsc().stream()
                 .filter(d -> !Strings.isBlank(d.getDesignationCode()))
                 .map(d -> new DesignationOption(d.getDesignationCode(), d.getDesignationName(), d.getEmpLevel()))
                 .toList();

@@ -206,6 +206,14 @@
         get: (oid) => `/api/master/category-master/${oid}`,
         status: (oid) => `/api/master/category-master/${oid}/status`,
       },
+      designationMaster: {
+        base: "/api/master/designation-master",
+        list: "/api/master/designation-master",
+        save: "/api/master/designation-master",
+        saveMultiple: "/api/master/designation-master/save-multiple",
+        get: (oid) => `/api/master/designation-master/${oid}`,
+        status: (oid) => `/api/master/designation-master/${oid}/status`,
+      },
       degreeMaster: {
         base: "/api/master/degree-master",
         list: "/api/master/degree-master",

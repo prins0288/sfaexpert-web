@@ -123,6 +123,15 @@ public final class DefaultColumnRegistry {
                 hidden("manager", null),
                 hidden("profileComplete", null));
 
+        // master/designation-master.html
+        register("DESIGNATION_MASTER",
+                col("code", "common.code"),
+                col("name", "common.name"),
+                col("empLevel", null),
+                col("role", null),
+                col("employees", null),
+                col("status", "common.status"));
+
         // master/degree-master.html
         register("DEGREE_MASTER",
                 col("code", "common.code"),

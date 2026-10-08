@@ -119,7 +119,7 @@ public class LookupController {
                 .map(r -> new Item(r.getOid(), r.getRouteName())).toList());
         if (want(want, "areas")) res.put("areas", areas.findByStatusOrderByAreaNameAsc("Y").stream()
                 .map(a -> new Item(a.getOid(), a.getAreaName())).toList());
-        if (want(want, "designations")) res.put("designations", designations.findByStatusOrderByDesignationNameAsc("Y").stream()
+        if (want(want, "designations")) res.put("designations", designations.findByStatusTrueOrderByDesignationNameAsc().stream()
                 .map(d -> new Item(d.getOid(), d.getDesignationName(), d.getEmpLevel())).toList());
         if (want(want, "districts")) res.put("districts", districts.findByStatusOrderByDistrictNameAsc("Y").stream()
                 .map(d -> new Item(d.getOid(), d.getDistrictName())).toList());

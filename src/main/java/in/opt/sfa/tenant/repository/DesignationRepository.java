@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface DesignationRepository extends JpaRepository<Designation, Long> {
-    List<Designation> findByStatusOrderByDesignationNameAsc(String status);
+    List<Designation> findByStatusTrueOrderByDesignationNameAsc();
+    List<Designation> findAllByOrderByEmpLevelDescDesignationNameAsc();
     Optional<Designation> findByDesignationCode(String designationCode);
 }

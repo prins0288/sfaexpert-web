@@ -23,5 +23,7 @@ public class Designation {
     @Column(name = "emp_level")
     private Integer empLevel;
 
-    private String status = "Y";
+    /** Active flag stored as TINYINT(1): true = 1 (active), false = 0 (inactive). */
+    @Column(nullable = false)
+    private Boolean status = true;
 }
