@@ -44,6 +44,9 @@
       setLang: (lang) => "/api/i18n/lang?lang=" + encodeURIComponent(lang),
     },
 
+    preferences: {
+      screen: (screenKey) => `/api/preferences/${encodeURIComponent(screenKey)}`,   // GET layout, POST save, DELETE reset
+    },
     permissions: {
       my: "/api/permissions/my",   // GET { CODE: true|false } for the current user
     },

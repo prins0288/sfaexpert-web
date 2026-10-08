@@ -26,16 +26,31 @@
         // Settings.contentProtectionEnabled()'s cached value — that cache is
         // editable from the DevTools console, this isn't.
         var protectedMode = window.sfaContentProtectionActive && sfaContentProtectionActive();
+        // Column Settings: a <table data-screen-key="KEY"> gets the user's saved
+        // column order/visibility (see sfaApplyColumnLayout below) applied to
+        // the DOM BEFORE DataTables reads it — so every index-based feature
+        // (filter row, export, mobile labels) just sees the final layout.
+        var screenKey = $table.attr("data-screen-key") || null;
+        var layout = screenKey ? sfaApplyColumnLayout($table.get(0), SFA_COLPREFS[screenKey]) : null;
         var buttons = [];
         if (!protectedMode) {
             buttons.push({ extend: "excelHtml5", text: '<i class="bi bi-file-earmark-excel"></i> Excel',
-                className: "btn btn-sm btn-accent", exportOptions: { columns: ":not(.no-export)" } });
+                className: "btn btn-sm btn-accent",
+                // with Column Settings, export what the user chose to see
+                exportOptions: { columns: screenKey ? ":visible:not(.no-export)" : ":not(.no-export)" } });
         }
         // NOTE: plain "btn-outline-secondary" clashes with the "btn-secondary"
         // DataTables' Bootstrap5 integration also adds to every button — same
         // gray on both text AND background, so the label goes invisible. Use
         // our own explicitly-styled class instead (see app.css .sfa-btn-outline).
-        buttons.push({ extend: "colvis", text: '<i class="bi bi-eye-slash"></i> Columns', className: "btn btn-sm sfa-btn-outline" });
+        if (screenKey) {
+            // saved per user; replaces the session-only colvis toggle on these grids
+            buttons.push({ text: '<i class="bi bi-layout-three-columns"></i> <span data-i18n="columns.settings">Column Settings</span>',
+                className: "btn btn-sm sfa-btn-outline",
+                action: function () { sfaOpenColumnSettings($table.get(0)); } });
+        } else {
+            buttons.push({ extend: "colvis", text: '<i class="bi bi-eye-slash"></i> Columns', className: "btn btn-sm sfa-btn-outline" });
+        }
         buttons.push({
             text: '<i class="bi bi-funnel"></i> Filter',
             className: "btn btn-sm sfa-btn-outline",
@@ -71,7 +86,9 @@
             scrollCollapse: true,
             autoWidth: true,
             buttons: buttons
-        }, opts));
+        }, opts, layout ? { columnDefs: (opts.columnDefs || []).concat(layout.columnDefs) } : {}));
+        $table.get(0)._sfaOpts = opts;   // sfaRebuildTable() re-inits with the same options
+        $table.get(0)._sfaDt = dt;
 
         sfaWireColumnFilters($table, dt);
 
@@ -91,6 +108,233 @@
         // in <tbody> are untouched (i18n's auto pass never looks inside tbody).
         if (window.I18n) setTimeout(function () { I18n.apply(); }, 0);
         return dt;
+    };
+
+    // ---- Column Settings: per-user column order / visibility ---------------
+    // Generic for every grid. A page opts in with markup only:
+    //     <table data-screen-key="DCR_REPORT"> ... <th data-field="date">Date</th>
+    // and the screen key is registered (with its default columns) in the
+    // backend's DefaultColumnRegistry. Layouts come from GET /api/preferences/{key}
+    // (saved layout merged with defaults, or the defaults) and are fetched
+    // once per tab before the page renders (sfaColumnPrefsPreload, called by
+    // shell.js). <th>s without data-field (S.No, Actions) are not
+    // configurable and keep their position. Any failure -> the page's own
+    // column order, all visible: nothing breaks.
+    var SFA_COLPREFS = {};   // screenKey -> { screenKey, customized, columns: [...] } | null
+    var SORTABLE_SRC = "https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js";
+
+    function sfaLoadColumnPrefs(key) {
+        var cached = Session.cache.get("colprefs_" + key);
+        if (cached) { SFA_COLPREFS[key] = cached; return Promise.resolve(cached); }
+        return Api.get(API.preferences.screen(key), { noLoader: true }).then(function (res) {
+            SFA_COLPREFS[key] = res;
+            Session.cache.set("colprefs_" + key, res);
+            return res;
+        }).catch(function () { SFA_COLPREFS[key] = null; return null; });
+    }
+
+    function sfaStoreColumnPrefs(key, res) {
+        SFA_COLPREFS[key] = res;
+        Session.cache.set("colprefs_" + key, res);
+    }
+
+    /** Fetch layouts for every data-screen-key grid in the page template (before it is rendered). */
+    window.sfaColumnPrefsPreload = function () {
+        var tpl = document.getElementById("pageContent");
+        var root = (tpl && tpl.content) ? tpl.content : document;
+        var keys = {};
+        root.querySelectorAll("table[data-screen-key]").forEach(function (t) { keys[t.getAttribute("data-screen-key")] = true; });
+        return Promise.all(Object.keys(keys).map(sfaLoadColumnPrefs));
+    };
+
+    /** Stable key per header cell: its data-field, or a fixed slot for non-configurable columns. */
+    function sfaHeaderKeys(table) {
+        var cells = Array.prototype.slice.call(table.tHead.rows[0].cells);
+        if (!table._sfaOrigKeys) {
+            table._sfaOrigKeys = cells.map(function (th, i) {
+                var k = th.getAttribute("data-field") || ("__fixed" + i);
+                th.setAttribute("data-sfa-key", k);
+                return k;
+            });
+        }
+        return cells.map(function (th) { return th.getAttribute("data-sfa-key"); });
+    }
+
+    /**
+     * Physically reorder the header and body cells to the saved layout and
+     * return the DataTables columnDefs for hidden columns / widths. Called on
+     * every init: pages destroy() + re-render <tbody> on each refresh, so a
+     * freshly rendered row is in source order while the header (and any row
+     * kept across a rebuild) is in the last applied order — each row is
+     * stamped with the order it is in, so both cases are handled.
+     */
+    function sfaApplyColumnLayout(table, prefs) {
+        if (!table.tHead || !table.tHead.rows.length) return null;
+        var current = sfaHeaderKeys(table);
+        var orig = table._sfaOrigKeys;
+        if (current.length !== orig.length) return null;   // header changed under us: leave it alone
+
+        var fields = orig.filter(function (k) { return k.indexOf("__fixed") !== 0; });
+        var byField = {};
+        var ordered = [];
+        ((prefs && prefs.columns) || []).forEach(function (c) {
+            if (c && fields.indexOf(c.field) !== -1 && !byField[c.field]) { byField[c.field] = c; ordered.push(c.field); }
+        });
+        fields.forEach(function (f) { if (ordered.indexOf(f) === -1) ordered.push(f); });   // not in the registry: keep, visible
+        var next = 0;
+        var target = orig.map(function (k) { return k.indexOf("__fixed") === 0 ? k : ordered[next++]; });
+
+        var headRow = table.tHead.rows[0];
+        var thByKey = {};
+        Array.prototype.forEach.call(headRow.cells, function (th) { thByKey[th.getAttribute("data-sfa-key")] = th; });
+        target.forEach(function (k) { headRow.appendChild(thByKey[k]); });
+
+        var targetSig = target.join("|");
+        Array.prototype.forEach.call(table.tBodies, function (tb) {
+            Array.prototype.forEach.call(tb.rows, function (tr) {
+                var from = tr.getAttribute("data-sfa-order");
+                if (from === targetSig) return;
+                var fromKeys = from ? from.split("|") : orig;
+                if (tr.cells.length !== fromKeys.length) return;    // e.g. a colspan "no data" row
+                var cellByKey = {};
+                Array.prototype.forEach.call(tr.cells, function (td, i) { cellByKey[fromKeys[i]] = td; });
+                target.forEach(function (k) { tr.appendChild(cellByKey[k]); });
+                tr.setAttribute("data-sfa-order", targetSig);
+            });
+        });
+
+        var defs = [], hidden = [];
+        target.forEach(function (k, i) {
+            var c = byField[k];
+            if (!c) return;
+            if (c.visible === false) hidden.push(i);
+            if (c.width) defs.push({ targets: [i], width: c.width });
+        });
+        if (hidden.length) defs.push({ targets: hidden, visible: false });
+        return { columnDefs: defs };
+    }
+
+    /** destroy() + re-init with the current layout, keeping the page's own DT handle valid. */
+    function sfaRebuildTable(table) {
+        var old = table._sfaDt;
+        if (!old) return;
+        old.destroy();   // DataTables re-shows hidden columns, so every cell is back in the DOM
+        var fresh = window.sfaDataTable(table, table._sfaOpts || {});
+        // Pages keep `DT = sfaDataTable(...)` and later call DT.destroy(); point that
+        // (now stale) API object at the new instance so it keeps working.
+        old.context.length = 0;
+        Array.prototype.push.apply(old.context, fresh.context);
+        table._sfaDt = old;
+    }
+
+    function sfaLoadScript(src) {
+        return new Promise(function (resolve, reject) {
+            if (document.querySelector('script[src="' + src + '"]')) { resolve(); return; }
+            var el = document.createElement("script");
+            el.src = src; el.onload = resolve; el.onerror = reject;
+            document.head.appendChild(el);
+        });
+    }
+
+    function sfaColumnModal() {
+        var el = document.getElementById("sfaColModal");
+        if (el) return el;
+        el = document.createElement("div");
+        el.className = "modal fade";
+        el.id = "sfaColModal";
+        el.tabIndex = -1;
+        el.innerHTML =
+            '<div class="modal-dialog modal-dialog-scrollable modal-fullscreen-sm-down"><div class="modal-content">' +
+            '<div class="modal-header sfa-modal"><h5 class="modal-title"><i class="bi bi-layout-three-columns"></i> ' +
+            '<span data-i18n="columns.settings">Column Settings</span></h5>' +
+            '<button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>' +
+            '<div class="modal-body">' +
+            '<p class="small text-muted mb-2" data-i18n="columns.help">Drag to reorder, untick to hide. Saved for you on this screen.</p>' +
+            '<div class="alert alert-danger py-1 small d-none" id="sfaColError"></div>' +
+            '<ul class="list-group sfa-col-list" id="sfaColList"></ul></div>' +
+            '<div class="modal-footer">' +
+            '<button type="button" class="btn btn-outline-secondary me-auto" id="sfaColReset"><i class="bi bi-arrow-counterclockwise"></i> ' +
+            '<span data-i18n="columns.resetDefault">Reset to Default</span></button>' +
+            '<button type="button" class="btn btn-light" data-bs-dismiss="modal" data-i18n="common.cancel">Cancel</button>' +
+            '<button type="button" class="btn btn-primary" id="sfaColApply" data-i18n="columns.apply">Apply</button>' +
+            '</div></div></div>';
+        document.body.appendChild(el);
+        // up/down buttons: keyboard-friendly, and still work if SortableJS can't load
+        $(el).on("click", ".sfa-col-move", function () {
+            var li = this.closest("li");
+            if (this.getAttribute("data-dir") === "up" && li.previousElementSibling) li.parentNode.insertBefore(li, li.previousElementSibling);
+            if (this.getAttribute("data-dir") === "down" && li.nextElementSibling) li.parentNode.insertBefore(li.nextElementSibling, li);
+        });
+        if (window.I18n) I18n.apply(el);
+        return el;
+    }
+
+    function sfaColError(msg) {
+        var e = document.getElementById("sfaColError");
+        e.textContent = msg || "";
+        e.classList.toggle("d-none", !msg);
+    }
+
+    /** Open the Column Settings dialog for one grid. */
+    window.sfaOpenColumnSettings = function (table) {
+        var key = table.getAttribute("data-screen-key");
+        var prefs = SFA_COLPREFS[key];
+        var modalEl = sfaColumnModal();
+        var list = modalEl.querySelector("#sfaColList");
+        sfaColError("");
+
+        // current header labels by field (already translated on the page). Read
+        // through DataTables: a hidden column's <th> is detached from the DOM.
+        var labels = {};
+        var headers = table._sfaDt ? table._sfaDt.columns().header().toArray() : table.tHead.rows[0].cells;
+        Array.prototype.forEach.call(headers, function (th) {
+            var f = th.getAttribute("data-field");
+            if (f) labels[f] = th.textContent.trim();
+        });
+        var cols = [];
+        ((prefs && prefs.columns) || []).forEach(function (c) { if (labels[c.field] !== undefined) cols.push(c); });
+        Object.keys(labels).forEach(function (f) {
+            if (!cols.some(function (c) { return c.field === f; })) cols.push({ field: f, visible: true });
+        });
+
+        list.innerHTML = cols.map(function (c) {
+            var label = (c.labelKey && window.I18n) ? I18n.t(c.labelKey, labels[c.field]) : labels[c.field];
+            return '<li class="list-group-item d-flex align-items-center gap-2" data-field="' + SFA.esc(c.field) + '">' +
+                '<i class="bi bi-grip-vertical text-muted sfa-col-handle" style="cursor:grab"></i>' +
+                '<input class="form-check-input mt-0" type="checkbox" ' + (c.visible === false ? "" : "checked") + '>' +
+                '<span class="flex-grow-1">' + SFA.esc(label) + '</span>' +
+                '<button type="button" class="btn btn-sm btn-link p-0 sfa-col-move" data-dir="up" title="Up"><i class="bi bi-chevron-up"></i></button>' +
+                '<button type="button" class="btn btn-sm btn-link p-0 sfa-col-move" data-dir="down" title="Down"><i class="bi bi-chevron-down"></i></button>' +
+                '</li>';
+        }).join("");
+
+        sfaLoadScript(SORTABLE_SRC).then(function () {
+            if (window.Sortable && !list._sfaSortable) {
+                list._sfaSortable = Sortable.create(list, { handle: ".sfa-col-handle", animation: 150 });
+            }
+        }).catch(function () { /* up/down buttons still work */ });
+
+        function done(res) {
+            sfaStoreColumnPrefs(key, res);
+            bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+            document.querySelectorAll('table[data-screen-key="' + key + '"]').forEach(sfaRebuildTable);
+        }
+
+        modalEl.querySelector("#sfaColApply").onclick = function () {
+            var body = Array.prototype.map.call(list.children, function (li, i) {
+                return { field: li.getAttribute("data-field"), order: i, visible: li.querySelector("input").checked };
+            });
+            if (!body.some(function (c) { return c.visible; })) {
+                sfaColError(window.I18n ? I18n.t("columns.atLeastOne", "Keep at least one column visible.") : "Keep at least one column visible.");
+                return;
+            }
+            Api.post(API.preferences.screen(key), body).then(done).catch(function (e) { sfaColError(e.message); });
+        };
+        modalEl.querySelector("#sfaColReset").onclick = function () {
+            Api.del(API.preferences.screen(key)).then(done).catch(function (e) { sfaColError(e.message); });
+        };
+
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
     };
 
     // ---- Excel-style per-column filter row -------------------------------

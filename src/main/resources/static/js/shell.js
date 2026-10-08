@@ -942,6 +942,8 @@
       loadMenu(),
       loadIdentity(),
       loadPermissions(),
+      // saved column layouts for any data-screen-key grid on this page (app.js)
+      window.sfaColumnPrefsPreload ? sfaColumnPrefsPreload().catch(() => {}) : Promise.resolve(),
       window.Settings ? Settings.load().catch(() => {}) : Promise.resolve(),
       // Deliberately its OWN live server call, not from the Settings cache above —
       // see the big comment on sfaApplyContentProtection in app.js for why.
