@@ -1,7 +1,6 @@
 package in.opt.sfa.tenant.menu;
 
-import in.opt.sfa.tenant.master.employee.entity.Employee;
-import in.opt.sfa.tenant.master.employee.repository.EmployeeRepository;
+import in.opt.sfa.tenant.master.empdetail.repository.EmpDetailRepository;
 import in.opt.sfa.security.Authz;
 import in.opt.sfa.security.UserContext;
 import io.swagger.v3.oas.annotations.Operation;
@@ -28,9 +27,9 @@ import java.util.Map;
 public class MenuVisibilityController {
 
     private final MenuVisibilityService service;
-    private final EmployeeRepository employees;
+    private final EmpDetailRepository employees;
 
-    public MenuVisibilityController(MenuVisibilityService service, EmployeeRepository employees) {
+    public MenuVisibilityController(MenuVisibilityService service, EmpDetailRepository employees) {
         this.service = service;
         this.employees = employees;
     }
@@ -47,7 +46,7 @@ public class MenuVisibilityController {
     @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
     public List<EmpOption> employees() {
         Authz.requireRole("ADMIN", "MANAGER");
-        return employees.findByStatusOrderByEmpNameAsc("Y").stream()
+        return employees.findByActiveTrueOrderByEmpNameAsc().stream()
                 .filter(e -> e.getEmpId() != null)
                 .map(e -> new EmpOption(e.getEmpId(), e.getEmpName()))
                 .toList();

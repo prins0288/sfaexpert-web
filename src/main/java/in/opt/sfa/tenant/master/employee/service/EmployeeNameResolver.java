@@ -1,7 +1,7 @@
 package in.opt.sfa.tenant.master.employee.service;
 
-import in.opt.sfa.tenant.master.employee.entity.Employee;
-import in.opt.sfa.tenant.master.employee.repository.EmployeeRepository;
+import in.opt.sfa.tenant.master.empdetail.entity.EmpDetail;
+import in.opt.sfa.tenant.master.empdetail.repository.EmpDetailRepository;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,9 +22,9 @@ import java.util.stream.Collectors;
 @Component
 public class EmployeeNameResolver {
 
-    private final EmployeeRepository employees;
+    private final EmpDetailRepository employees;
 
-    public EmployeeNameResolver(EmployeeRepository employees) {
+    public EmployeeNameResolver(EmpDetailRepository employees) {
         this.employees = employees;
     }
 
@@ -33,7 +33,7 @@ public class EmployeeNameResolver {
     public Map<String, String> nameMap() {
         return employees.findAll().stream()
                 .filter(e -> e.getEmpId() != null && e.getEmpName() != null)
-                .collect(Collectors.toMap(Employee::getEmpId, Employee::getEmpName, (a, b) -> a));
+                .collect(Collectors.toMap(EmpDetail::getEmpId, EmpDetail::getEmpName, (a, b) -> a));
     }
 
     /** Look up one emp_id in an already-fetched map; unknown values pass through unchanged. */

@@ -24,7 +24,7 @@ public class PermissionAssignment {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long oid;
+    private Long id;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "target_type", nullable = false, length = 20)

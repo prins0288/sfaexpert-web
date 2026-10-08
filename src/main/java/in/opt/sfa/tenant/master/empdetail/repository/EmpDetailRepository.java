@@ -8,5 +8,6 @@ import java.util.Optional;
 
 public interface EmpDetailRepository extends JpaRepository<EmpDetail, String> {
     List<EmpDetail> findAllByOrderByEmpNameAsc();
+    List<EmpDetail> findByActiveTrueOrderByEmpNameAsc();
     Optional<EmpDetail> findByEmpCode(String empCode);
 }

@@ -69,8 +69,8 @@ public class PermissionAdminService {
 
     @Transactional(transactionManager = "tenantTransactionManager")
     public PermissionDefinitionDto saveDefinition(PermissionDefinitionDto form) {
-        PermissionDefinition target = form.getOid() != null
-                ? definitions.findById(form.getOid()).orElseThrow(() -> new IllegalStateException("Permission not found: " + form.getOid()))
+        PermissionDefinition target = form.getId() != null
+                ? definitions.findById(form.getId()).orElseThrow(() -> new IllegalStateException("Permission not found: " + form.getId()))
                 : new PermissionDefinition();
         target.setPermissionCode(Strings.isBlank(form.getPermissionCode()) ? null : form.getPermissionCode().trim());
         target.setModule(form.getModule());
@@ -85,7 +85,7 @@ public class PermissionAdminService {
     public List<PermissionAssignmentDto> listAssignments(PermissionTargetType targetType, String targetValue) {
         List<PermissionAssignment> rows = (targetType != null && targetValue != null)
                 ? assignments.findByTargetTypeAndTargetValueOrderByPermissionCodeAsc(targetType, targetValue)
-                : assignments.findAllByOrderByOidAsc();
+                : assignments.findAllByOrderByIdAsc();
         return rows.stream().map(PermissionAdminService::toDto).collect(Collectors.toList());
     }
 
@@ -109,7 +109,7 @@ public class PermissionAdminService {
 
     private static PermissionDefinitionDto toDto(PermissionDefinition e) {
         PermissionDefinitionDto d = new PermissionDefinitionDto();
-        d.setOid(e.getOid());
+        d.setId(e.getId());
         d.setPermissionCode(e.getPermissionCode());
         d.setModule(e.getModule());
         d.setDescription(e.getDescription());
@@ -123,7 +123,7 @@ public class PermissionAdminService {
 
     private static PermissionAssignmentDto toDto(PermissionAssignment e) {
         PermissionAssignmentDto d = new PermissionAssignmentDto();
-        d.setOid(e.getOid());
+        d.setId(e.getId());
         d.setTargetType(e.getTargetType());
         d.setTargetValue(e.getTargetValue());
         d.setPermissionCode(e.getPermissionCode());
