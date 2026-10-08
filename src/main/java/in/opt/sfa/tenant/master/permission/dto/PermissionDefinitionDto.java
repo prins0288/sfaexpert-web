@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 @Getter
 @Setter
 public class PermissionDefinitionDto {
-    private Long oid;
+    private Long id;
     private String permissionCode;
     private String module;
     private String description;

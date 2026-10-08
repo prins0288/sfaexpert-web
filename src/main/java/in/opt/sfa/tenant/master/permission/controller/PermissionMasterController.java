@@ -35,7 +35,7 @@ public class PermissionMasterController {
     }
 
     @PostMapping
-    @Operation(summary = "Create or update a permission code", description = "Send oid to update, omit it to create.")
+    @Operation(summary = "Create or update a permission code", description = "Send id to update, omit it to create.")
     public PermissionDefinitionDto saveDefinition(@RequestBody PermissionDefinitionDto form) {
         Authz.requireRole("ADMIN");
         return service.saveDefinition(form);
@@ -67,10 +67,10 @@ public class PermissionMasterController {
         return service.saveAssignment(form);
     }
 
-    @DeleteMapping("/assignments/{oid}")
+    @DeleteMapping("/assignments/{id}")
     @Operation(summary = "Remove an assignment (reverts that target to the default — no row = full permission)")
-    public void deleteAssignment(@PathVariable Long oid) {
+    public void deleteAssignment(@PathVariable Long id) {
         Authz.requireRole("ADMIN");
-        service.deleteAssignment(oid);
+        service.deleteAssignment(id);
     }
 }

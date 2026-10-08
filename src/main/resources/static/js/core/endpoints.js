@@ -55,7 +55,7 @@
       save: "/api/master/permission-master",
       targets: "/api/master/permission-master/targets",    // GET employees / designations / emp levels
       assignments: "/api/master/permission-master/assignments",  // GET ?targetType=&targetValue=, POST upsert
-      deleteAssignment: (oid) => `/api/master/permission-master/assignments/${oid}`,
+      deleteAssignment: (id) => `/api/master/permission-master/assignments/${id}`,
     },
 
     menu: {

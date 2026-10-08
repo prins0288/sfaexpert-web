@@ -10,7 +10,7 @@ import java.util.Optional;
 /** TENANT-db repository (auto-routed to the active tenant via package location). */
 public interface PermissionAssignmentRepository extends JpaRepository<PermissionAssignment, Long> {
 
-    List<PermissionAssignment> findAllByOrderByOidAsc();
+    List<PermissionAssignment> findAllByOrderByIdAsc();
 
     List<PermissionAssignment> findByTargetTypeAndTargetValueOrderByPermissionCodeAsc(
             PermissionTargetType targetType, String targetValue);

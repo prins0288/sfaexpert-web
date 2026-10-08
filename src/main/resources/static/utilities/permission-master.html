@@ -79,7 +79,7 @@
       <div class="modal-header sfa-modal"><h5 class="modal-title" id="pmCodeTitle">Add Permission Code</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
       <div class="modal-body">
-        <input type="hidden" id="pc_oid" />
+        <input type="hidden" id="pc_id" />
         <div class="mb-3"><label class="form-label">Code <span class="required-star">*</span></label>
           <input class="form-control text-uppercase" id="pc_code" required maxlength="100" placeholder="e.g. ZONE_SAVE" /></div>
         <div class="mb-3"><label class="form-label">Module</label>
@@ -213,7 +213,7 @@
     const prev = accessOf(code);
     try {
       if (!sel.value) {
-        if (CURRENT[code]) await Api.del(EP.deleteAssignment(CURRENT[code].oid));
+        if (CURRENT[code]) await Api.del(EP.deleteAssignment(CURRENT[code].id));
         delete CURRENT[code];
       } else {
         CURRENT[code] = await Api.post(EP.assignments,
@@ -232,7 +232,7 @@
   // ---- permission_master (catalog) ----------------------------------------
   function pmCodeAdd() {
     document.getElementById('pmCodeTitle').textContent = 'Add Permission Code';
-    ['pc_oid', 'pc_code', 'pc_module', 'pc_desc'].forEach(id => document.getElementById(id).value = '');
+    ['pc_id', 'pc_code', 'pc_module', 'pc_desc'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('pc_code').readOnly = false;
     document.getElementById('pc_status').checked = true;
     CODE_MODAL.show();
@@ -240,7 +240,7 @@
 
   function pmCodeEdit(c) {
     document.getElementById('pmCodeTitle').textContent = 'Edit Permission Code';
-    document.getElementById('pc_oid').value = c.oid;
+    document.getElementById('pc_id').value = c.id;
     document.getElementById('pc_code').value = c.permissionCode;
     document.getElementById('pc_code').readOnly = true;   // assignments reference the code by value
     document.getElementById('pc_module').value = c.module || '';
@@ -251,9 +251,9 @@
 
   async function pmCodeSave(ev) {
     ev.preventDefault();
-    const oid = document.getElementById('pc_oid').value;
+    const id = document.getElementById('pc_id').value;
     const body = {
-      oid: oid ? Number(oid) : null,
+      id: id ? Number(id) : null,
       permissionCode: document.getElementById('pc_code').value.trim().toUpperCase(),
       module: document.getElementById('pc_module').value.trim() || null,
       description: document.getElementById('pc_desc').value.trim() || null,
