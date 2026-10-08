@@ -11,14 +11,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * One user's saved column layout for one grid (COMMON db, table
- * user_table_preferences). user_id holds the emp_id — the JWT subject — and
+ * A company's saved column layout for one grid (COMMON db, table
+ * user_table_preferences) — shared by every user of that company.
  * company_code is always taken from the verified token, never from the client.
  */
 @Entity
 @Table(name = "user_table_preferences",
         uniqueConstraints = @UniqueConstraint(name = "uq_user_table_preferences",
-                columnNames = {"company_code", "user_id", "screen_key"}))
+                columnNames = {"company_code", "screen_key"}))
 @Getter
 @Setter
 public class UserTablePreference {
@@ -29,9 +29,6 @@ public class UserTablePreference {
 
     @Column(name = "company_code", nullable = false, length = 64)
     private String companyCode;
-
-    @Column(name = "user_id", nullable = false, length = 40)
-    private String userId;
 
     @Column(name = "screen_key", nullable = false, length = 100)
     private String screenKey;

@@ -14,9 +14,10 @@ import java.time.LocalDateTime;
 import java.util.*;
 
 /**
- * Per-user column layouts for registered grids. The owner is always
- * (companyCode, empId) from the verified JWT (UserContext) — never from the
- * request — so every read and write is company-isolated.
+ * Company-wide column layouts for registered grids: one layout per
+ * (company, screen), the same for every user of that company. The company is
+ * always taken from the verified JWT (UserContext) — never from the request —
+ * so every read and write is company-isolated.
  */
 @Service
 public class TablePreferenceService {
@@ -31,8 +32,8 @@ public class TablePreferenceService {
     @Transactional(transactionManager = "commonTransactionManager", readOnly = true)
     public TablePreferenceDto get(String screenKey) {
         requireRegistered(screenKey);
-        Owner o = owner();
-        return repository.findByCompanyCodeAndUserIdAndScreenKey(o.companyCode, o.userId, screenKey)
+        String companyCode = companyCode();
+        return repository.findByCompanyCodeAndScreenKey(companyCode, screenKey)
                 .map(row -> new TablePreferenceDto(screenKey, true, merge(screenKey, row.getColumnConfig())))
                 .orElseGet(() -> new TablePreferenceDto(screenKey, false, DefaultColumnRegistry.defaults(screenKey)));
     }
@@ -45,12 +46,11 @@ public class TablePreferenceService {
         if (merged.stream().noneMatch(c -> Boolean.TRUE.equals(c.getVisible()))) {
             throw new IllegalArgumentException("At least one column must stay visible");
         }
-        Owner o = owner();
-        UserTablePreference row = repository.findByCompanyCodeAndUserIdAndScreenKey(o.companyCode, o.userId, screenKey)
+        String companyCode = companyCode();
+        UserTablePreference row = repository.findByCompanyCodeAndScreenKey(companyCode, screenKey)
                 .orElseGet(() -> {
                     UserTablePreference r = new UserTablePreference();
-                    r.setCompanyCode(o.companyCode);
-                    r.setUserId(o.userId);
+                    r.setCompanyCode(companyCode);
                     r.setScreenKey(screenKey);
                     return r;
                 });
@@ -64,8 +64,8 @@ public class TablePreferenceService {
     @Transactional(transactionManager = "commonTransactionManager")
     public TablePreferenceDto reset(String screenKey) {
         requireRegistered(screenKey);
-        Owner o = owner();
-        repository.deleteByCompanyCodeAndUserIdAndScreenKey(o.companyCode, o.userId, screenKey);
+        String companyCode = companyCode();
+        repository.deleteByCompanyCodeAndScreenKey(companyCode, screenKey);
         return new TablePreferenceDto(screenKey, false, DefaultColumnRegistry.defaults(screenKey));
     }
 
@@ -130,13 +130,11 @@ public class TablePreferenceService {
         }
     }
 
-    private record Owner(String companyCode, String userId) { }
-
-    private static Owner owner() {
+    private static String companyCode() {
         UserContext.CurrentUser u = UserContext.get();
-        if (u == null || u.companyCode() == null || u.empId() == null) {
+        if (u == null || u.companyCode() == null) {
             throw new ForbiddenException("No verified user on this request");
         }
-        return new Owner(u.companyCode(), u.empId());
+        return u.companyCode();
     }
 }

@@ -3,6 +3,7 @@ package in.opt.sfa.preference.controller;
 import in.opt.sfa.preference.dto.ColumnConfig;
 import in.opt.sfa.preference.dto.TablePreferenceDto;
 import in.opt.sfa.preference.service.TablePreferenceService;
+import in.opt.sfa.security.Authz;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
@@ -11,12 +12,13 @@ import java.util.List;
 
 /**
  * Column Settings for ANY registered grid (see DefaultColumnRegistry) — one
- * controller for every report. The layout belongs to the logged-in user in
- * their company; both come from the JWT, nothing identifying is sent by the client.
+ * controller for every report. The layout is COMPANY-WIDE: every user of the
+ * company reads the same one, only ADMIN / SUPER_ADMIN can change or reset it.
+ * The company comes from the JWT; nothing identifying is sent by the client.
  */
 @RestController
 @RequestMapping("/api/preferences")
-@Tag(name = "Table Preferences", description = "Per-user column order / visibility for report grids")
+@Tag(name = "Table Preferences", description = "Company-wide column order / visibility for report grids")
 public class TablePreferenceController {
 
     private final TablePreferenceService service;
@@ -34,15 +36,17 @@ public class TablePreferenceController {
     }
 
     @PostMapping("/{screenKey}")
-    @Operation(summary = "Save the column layout for a screen (upsert)",
+    @Operation(summary = "Save the company's column layout for a screen (upsert, ADMIN)",
             description = "Body: [{field, order, visible, width?, extraSettings?}]. Unknown fields are ignored.")
     public TablePreferenceDto save(@PathVariable String screenKey, @RequestBody List<ColumnConfig> columns) {
+        Authz.requireRole("ADMIN");
         return service.save(screenKey, columns);
     }
 
     @DeleteMapping("/{screenKey}")
-    @Operation(summary = "Reset a screen to its default columns")
+    @Operation(summary = "Reset a screen to its default columns for the whole company (ADMIN)")
     public TablePreferenceDto reset(@PathVariable String screenKey) {
+        Authz.requireRole("ADMIN");
         return service.reset(screenKey);
     }
 }
