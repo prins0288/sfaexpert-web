@@ -33,6 +33,19 @@ public class EmpDetailController {
         return service.list();
     }
 
+    /** Default login for a new employee: {username: PREFIX + 8 digits, password: 8 digits}. */
+    @GetMapping("/suggest-login")
+    public Map<String, Object> suggestLogin() {
+        return service.suggestLogin();
+    }
+
+    /** {username, available, message} — empId (on edit) lets an employee keep their own username. */
+    @GetMapping("/username-available")
+    public Map<String, Object> usernameAvailable(@RequestParam String username,
+                                                 @RequestParam(required = false) String empId) {
+        return service.usernameAvailability(username, empId);
+    }
+
     @GetMapping("/{empId}")
     public Map<String, Object> get(@PathVariable String empId) {
         return service.get(empId);

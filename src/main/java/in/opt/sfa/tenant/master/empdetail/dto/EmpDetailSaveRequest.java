@@ -33,4 +33,11 @@ public class EmpDetailSaveRequest {
     private String reportingDate;   // ISO yyyy-MM-dd
     private String officialEmail;
     private String department;
+
+    // ---- employment status ----
+    private Boolean officeStaff;
+    private Boolean confirmed;
+    private String confirmationDate;  // ISO yyyy-MM-dd
+    private String resignationDate;   // ISO yyyy-MM-dd
+    private String lastWorkingDate;   // ISO yyyy-MM-dd
 }

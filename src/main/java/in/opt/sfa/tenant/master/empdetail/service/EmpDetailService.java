@@ -2,6 +2,7 @@ package in.opt.sfa.tenant.master.empdetail.service;
 
 import in.opt.sfa.common.entity.AppUser;
 import in.opt.sfa.common.service.AppUserAdminService;
+import in.opt.sfa.common.service.CompanySettingStore;
 import in.opt.sfa.common.util.CodeGeneratorService;
 import in.opt.sfa.common.util.ExcelUtil;
 import in.opt.sfa.common.util.Strings;
@@ -18,12 +19,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.security.SecureRandom;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -40,15 +43,79 @@ public class EmpDetailService {
     private final CodeGeneratorService codeGenerator;
     private final DivisionRepository divisions;
     private final DesignationRepository designations;
+    private final CompanySettingStore settings;
+
+    private static final SecureRandom RANDOM = new SecureRandom();
+    /** Username: 3-50 chars, letters / digits / . _ @ - (no spaces). */
+    private static final Pattern USERNAME = Pattern.compile("^[A-Za-z0-9._@-]{3,50}$");
+    /** Same rule as the emp_detail chk_emp_mobile constraint. */
+    private static final Pattern MOBILE = Pattern.compile("^[6-9][0-9]{9}$");
+    private static final Pattern EMAIL = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
 
     public EmpDetailService(EmpDetailRepository employees, AppUserAdminService credentials,
                             CodeGeneratorService codeGenerator, DivisionRepository divisions,
-                            DesignationRepository designations) {
+                            DesignationRepository designations, CompanySettingStore settings) {
         this.employees = employees;
         this.credentials = credentials;
         this.codeGenerator = codeGenerator;
         this.divisions = divisions;
         this.designations = designations;
+        this.settings = settings;
+    }
+
+    // ---- login suggestions for the "Add Employee" form -----------------------
+
+    /**
+     * A ready-to-use login for a new employee: username = company prefix +
+     * 8 random digits (e.g. ACME48203917, re-rolled until it is free across all
+     * companies), password = 8 random digits. The prefix is the company
+     * setting "username.prefix", else the company code in capitals.
+     */
+    public Map<String, Object> suggestLogin() {
+        Authz.requireRole("ADMIN", "MANAGER");
+        String companyCode = TenantContext.getCompanyCode();
+        String prefix = usernamePrefix();
+        String username = null;
+        for (int i = 0; i < 20 && username == null; i++) {
+            String candidate = prefix + eightDigits();
+            if (credentials.isUsernameAvailable(candidate, companyCode, null)) username = candidate;
+        }
+        if (username == null) throw new IllegalStateException("Could not generate a free username, please try again");
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("username", username);
+        m.put("password", eightDigits());
+        return m;
+    }
+
+    /** Live check for the form: is this username valid and not taken (by anyone but this employee)? */
+    public Map<String, Object> usernameAvailability(String username, String empId) {
+        Authz.requireRole("ADMIN", "MANAGER");
+        String u = username == null ? "" : username.trim();
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("username", u);
+        if (!USERNAME.matcher(u).matches()) {
+            m.put("available", false);
+            m.put("message", "Use 3-50 letters, digits or . _ @ - (no spaces)");
+        } else if (!credentials.isUsernameAvailable(u, TenantContext.getCompanyCode(), Strings.isBlank(empId) ? null : empId)) {
+            m.put("available", false);
+            m.put("message", "Username already exists");
+        } else {
+            m.put("available", true);
+            m.put("message", "Username is available");
+        }
+        return m;
+    }
+
+    private String usernamePrefix() {
+        String companyCode = TenantContext.getCompanyCode();
+        String p = settings.value("username.prefix", companyCode == null ? "" : companyCode);
+        p = p == null ? "" : p.replaceAll("[^A-Za-z0-9]", "").toUpperCase();
+        return p.length() > 20 ? p.substring(0, 20) : p;
+    }
+
+    /** 8 random digits, never starting with 0 (so Excel / phones don't drop it). */
+    private static String eightDigits() {
+        return String.valueOf(10_000_000 + RANDOM.nextInt(90_000_000));
     }
 
     @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
@@ -92,11 +159,14 @@ public class EmpDetailService {
             if (req.getDesignationId() == null) throw new IllegalStateException("Designation is required");
             if (Strings.isBlank(req.getUsername())) throw new IllegalStateException("Username is required");
             if (Strings.isBlank(req.getPassword())) throw new IllegalStateException("Password is required for a new employee");
+        }
+        validate(req, e, isNew);
+
+        if (isNew) {
             String code = codeGenerator.nextEmpCode();
             e.setEmpId(code);
             e.setEmpCode(code);
             e.setActive(true);
-            e.setEmpLevel(1);
             e.setConfirmed(false);
             e.setCreatedAt(LocalDateTime.now());
             e.setCreatedBy(currentEmpId());
@@ -104,16 +174,28 @@ public class EmpDetailService {
 
         if (!Strings.isBlank(req.getEmpName())) e.setEmpName(req.getEmpName().trim());
         if (req.getDivisionId() != null) e.setDivisionId(req.getDivisionId());
-        if (req.getDesignationId() != null) e.setDesignationId(req.getDesignationId());
+        if (req.getDesignationId() != null) {
+            Designation d = designations.findById(req.getDesignationId())
+                    .orElseThrow(() -> new IllegalStateException("Designation not found: " + req.getDesignationId()));
+            e.setDesignationId(d.getOid());
+            // emp_level drives the role in the JWT (RoleLevelMapper) — keep it in step with the designation
+            e.setEmpLevel(d.getEmpLevel() == null ? 1 : d.getEmpLevel());
+        }
         if (req.getStateId() != null) e.setStateId(req.getStateId());
         if (req.getHqId() != null) e.setHqId(req.getHqId());
         if (req.getManagerId() != null) e.setManagerId(Strings.isBlank(req.getManagerId()) ? null : req.getManagerId());
-        if (req.getMobile() != null) e.setMobile(req.getMobile().trim());
+        if (req.getMobile() != null) e.setMobile(Strings.isBlank(req.getMobile()) ? null : req.getMobile().trim());
         if (req.getGender() != null) e.setGender(Strings.isBlank(req.getGender()) ? null : req.getGender());
         if (req.getDateOfJoining() != null) e.setDateOfJoining(parseDate(req.getDateOfJoining()));
         if (req.getReportingDate() != null) e.setReportingDate(parseDate(req.getReportingDate()));
         if (req.getOfficialEmail() != null) e.setOfficialEmail(Strings.isBlank(req.getOfficialEmail()) ? null : req.getOfficialEmail().trim());
         if (req.getDepartment() != null) e.setDepartment(Strings.isBlank(req.getDepartment()) ? null : req.getDepartment().trim());
+        if (req.getOfficeStaff() != null) e.setOfficeStaff(req.getOfficeStaff());
+        if (req.getConfirmed() != null) e.setConfirmed(req.getConfirmed());
+        if (req.getConfirmationDate() != null) e.setConfirmationDate(parseDate(req.getConfirmationDate()));
+        if (req.getResignationDate() != null) e.setResignationDate(parseDate(req.getResignationDate()));
+        if (req.getLastWorkingDate() != null) e.setLastWorkingDate(parseDate(req.getLastWorkingDate()));
+        if (!e.isConfirmed()) e.setConfirmationDate(null);
 
         e.setProfileComplete(e.getGender() != null && e.getDateOfJoining() != null
                 && e.getOfficialEmail() != null && e.getDepartment() != null);
@@ -123,7 +205,8 @@ public class EmpDetailService {
 
         // Keep the COMMON-db login (user_login_master) in sync — blank username/password
         // on an update keeps the existing ones (see AppUserAdminService.upsert).
-        credentials.upsert(TenantContext.getCompanyCode(), e.getEmpId(), req.getUsername(), req.getPassword(), e.isActive());
+        credentials.upsert(TenantContext.getCompanyCode(), e.getEmpId(),
+                Strings.isBlank(req.getUsername()) ? null : req.getUsername().trim(), req.getPassword(), e.isActive());
 
         return get(e.getEmpId());
     }
@@ -178,6 +261,7 @@ public class EmpDetailService {
             e.setMobile(mobile == null ? null : mobile.trim());
             e.setDivisionId(division.getOid());
             e.setDesignationId(designation.getOid());
+            e.setEmpLevel(designation.getEmpLevel() == null ? 1 : designation.getEmpLevel());
             String email = row.get("official_email"), dept = row.get("department");
             e.setOfficialEmail(Strings.isBlank(email) ? null : email.trim());
             e.setDepartment(Strings.isBlank(dept) ? null : dept.trim());
@@ -207,6 +291,42 @@ public class EmpDetailService {
 
     // ---- helpers --------------------------------------------------------
 
+    /** Field rules, so the user gets a clear message instead of a DB constraint error. */
+    private void validate(in.opt.sfa.tenant.master.empdetail.dto.EmpDetailSaveRequest req, EmpDetail e, boolean isNew) {
+        String self = isNew ? null : e.getEmpId();
+        if (!Strings.isBlank(req.getUsername())) {
+            String u = req.getUsername().trim();
+            if (!USERNAME.matcher(u).matches()) throw new IllegalStateException("Username: use 3-50 letters, digits or . _ @ - (no spaces)");
+            if (!credentials.isUsernameAvailable(u, TenantContext.getCompanyCode(), self)) {
+                throw new IllegalStateException("Username already exists: " + u);
+            }
+        }
+        if (!Strings.isBlank(req.getPassword()) && req.getPassword().trim().length() < 4) {
+            throw new IllegalStateException("Password must be at least 4 characters");
+        }
+        if (!Strings.isBlank(req.getMobile()) && !MOBILE.matcher(req.getMobile().trim()).matches()) {
+            throw new IllegalStateException("Mobile must be 10 digits starting with 6-9");
+        }
+        if (!Strings.isBlank(req.getGender()) && !List.of("MALE", "FEMALE", "OTHER").contains(req.getGender())) {
+            throw new IllegalStateException("Gender must be MALE, FEMALE or OTHER");
+        }
+        if (!Strings.isBlank(req.getOfficialEmail())) {
+            String mail = req.getOfficialEmail().trim();
+            if (!EMAIL.matcher(mail).matches()) throw new IllegalStateException("Official email is not valid");
+            employees.findByOfficialEmail(mail)
+                    .filter(other -> !other.getEmpId().equals(self))
+                    .ifPresent(other -> { throw new IllegalStateException("Official email already used by " + other.getEmpName()); });
+        }
+        if (self != null && self.equals(req.getManagerId())) {
+            throw new IllegalStateException("An employee cannot be their own manager");
+        }
+        LocalDate doj = parseDate(req.getDateOfJoining()) != null ? parseDate(req.getDateOfJoining()) : e.getDateOfJoining();
+        LocalDate lwd = parseDate(req.getLastWorkingDate());
+        if (doj != null && lwd != null && lwd.isBefore(doj)) {
+            throw new IllegalStateException("Last working date cannot be before the date of joining");
+        }
+    }
+
     private EmpDetail find(String empId) {
         return employees.findById(empId).orElseThrow(() -> new IllegalStateException("Employee not found: " + empId));
     }
@@ -229,6 +349,12 @@ public class EmpDetailService {
         m.put("stateId", e.getStateId());
         m.put("hqId", e.getHqId());
         m.put("managerId", e.getManagerId());
+        m.put("empLevel", e.getEmpLevel());
+        m.put("officeStaff", e.isOfficeStaff());
+        m.put("confirmed", e.isConfirmed());
+        m.put("confirmationDate", e.getConfirmationDate());
+        m.put("resignationDate", e.getResignationDate());
+        m.put("lastWorkingDate", e.getLastWorkingDate());
         m.put("active", e.isActive());
         m.put("profileComplete", e.isProfileComplete());
         m.put("username", user == null ? null : user.getUsername());

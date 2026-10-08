@@ -193,6 +193,8 @@
         status: (empId) => `/api/master/create-employee/${empId}/status`,
         template: "/api/master/create-employee/template",
         upload: "/api/master/create-employee/upload",
+        suggestLogin: "/api/master/create-employee/suggest-login",          // GET {username, password}
+        usernameAvailable: "/api/master/create-employee/username-available", // GET ?username=&empId=
       },
       categoryMaster: {
         base: "/api/master/category-master",
