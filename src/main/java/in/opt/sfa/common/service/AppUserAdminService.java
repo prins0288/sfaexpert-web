@@ -2,8 +2,6 @@ package in.opt.sfa.common.service;
 
 import in.opt.sfa.common.entity.AppUser;
 import in.opt.sfa.common.repository.AppUserRepository;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -11,8 +9,8 @@ import java.util.List;
 
 /**
  * Manages login credentials in the COMMON database (app_user). Employee CRUD in
- * the tenant DB calls this to keep the matching login row (username / bcrypt
- * password / role / enabled) in sync, linked by emp_id + tenant_id.
+ * the tenant DB calls this to keep the matching login row (username / plain-text
+ * password / role / enabled) in sync, linked by emp_id + company_code.
  *
  * All methods use the "commonTransactionManager" so they run against sfa_central
  * even when invoked from within a tenant-DB transaction.
@@ -21,15 +19,14 @@ import java.util.List;
 public class AppUserAdminService {
 
     private final AppUserRepository users;
-    private final PasswordEncoder encoder = new BCryptPasswordEncoder();
 
     public AppUserAdminService(AppUserRepository users) {
         this.users = users;
     }
 
     @Transactional(transactionManager = "commonTransactionManager", readOnly = true)
-    public List<AppUser> listByTenant(String tenantId) {
-        return users.findByTenantId(tenantId);
+    public List<AppUser> listByCompanyCode(String companyCode) {
+        return users.findByCompanyCode(companyCode);
     }
 
     /**
@@ -37,9 +34,12 @@ public class AppUserAdminService {
      * required; on update a blank password keeps the existing one.
      */
     @Transactional(transactionManager = "commonTransactionManager")
-    public AppUser upsert(String tenantId, String empId, String username,
-                          String rawPassword, String role, boolean enabled) {
-        AppUser u = users.findByEmpIdAndTenantId(empId, tenantId).orElseGet(AppUser::new);
+    public AppUser upsert(String companyCode, String empId, String username,
+                          String rawPassword, boolean enabled) {
+        if (empId == null || empId.isBlank()) {
+            throw new IllegalStateException("emp_id is required");   // user_login_master.emp_id is mandatory
+        }
+        AppUser u = users.findByEmpIdAndCompanyCode(empId, companyCode).orElseGet(AppUser::new);
         boolean isNew = u.getId() == null;
 
         if (username != null && !username.isBlank()) {
@@ -51,17 +51,12 @@ public class AppUserAdminService {
             throw new IllegalStateException("Username is required");
         }
 
-        u.setTenantId(tenantId);
+        u.setCompanyCode(companyCode);
         u.setEmpId(empId);
-        if (role != null && !role.isBlank()) {
-            u.setRole(role);
-        } else if (isNew) {
-            u.setRole("USER");
-        }
-        u.setEnabled(enabled);
+        u.setActive(enabled);
 
         if (rawPassword != null && !rawPassword.isBlank()) {
-            u.setPassword(encoder.encode(rawPassword));
+            u.setPassword(rawPassword);
         } else if (isNew) {
             throw new IllegalStateException("Password is required for a new login");
         }
@@ -84,20 +79,20 @@ public class AppUserAdminService {
     public void changeOwnPassword(String username, String currentRaw, String newRaw) {
         AppUser u = users.findByUsername(username)
                 .orElseThrow(() -> new IllegalStateException("User not found: " + username));
-        if (currentRaw == null || !encoder.matches(currentRaw, u.getPassword())) {
+        if (currentRaw == null || !currentRaw.equals(u.getPassword())) {
             throw new IllegalStateException("Current password is incorrect");
         }
         if (newRaw == null || newRaw.isBlank()) {
             throw new IllegalStateException("New password is required");
         }
-        u.setPassword(encoder.encode(newRaw));
+        u.setPassword(newRaw);
         users.save(u);
     }
 
     @Transactional(transactionManager = "commonTransactionManager")
-    public void setEnabled(String tenantId, String empId, boolean enabled) {
-        users.findByEmpIdAndTenantId(empId, tenantId).ifPresent(u -> {
-            u.setEnabled(enabled);
+    public void setEnabled(String companyCode, String empId, boolean enabled) {
+        users.findByEmpIdAndCompanyCode(empId, companyCode).ifPresent(u -> {
+            u.setActive(enabled);
             users.save(u);
         });
     }

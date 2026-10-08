@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>/* reverse-proxy sub-path support: make relative css/js resolve under the deploy prefix (e.g. /sfaexpert), "" locally */
+  (function(){try{var p=location.pathname,m=p.match(/^(.*?)\/u\/\d+(\/|$)/),c=m?m[1]:p.replace(/\/[^\/]*$/,'');document.write('<base href="'+(c||'')+'/">');}catch(e){}})();</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StarSFA &middot; AI Assistant</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="css/app.css" rel="stylesheet" />
+  <script>
+    (function () {
+      try {
+        var d = document.documentElement, s = localStorage;
+        var m = location.pathname.match(/\/u\/(\d+)(\/|$)/), q = '_u' + (m ? m[1] : '0');
+        d.setAttribute('data-theme', s.getItem('sfa_mode' + q) || 'light');
+        d.setAttribute('data-nav', s.getItem('sfa_nav' + q) || 'vertical');
+        d.setAttribute('data-density', s.getItem('sfa_density' + q) || 'comfortable');
+        var f = s.getItem('sfa_font' + q); if (f) d.style.setProperty('--sfa-font-scale', f);
+        var c = s.getItem('sfa_theme' + q);
+        if (c) { c = JSON.parse(c); var t = (c.resolved && c.resolved[c.mode]) || {};
+          for (var k in t) d.style.setProperty('--sfa-' + k, t[k]); }
+      } catch (e) {}
+    })();
+  </script>
+  <style>
+    /* Fill the shell's content area exactly (no outer page scroll): only the stream scrolls. */
+    #app[data-page="ai"] .sfa-content { overflow: hidden; display: flex; flex-direction: column; }
+    #app[data-page="ai"] #sfaContent { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+    .ai-wrap { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+    .ai-toolbar { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; margin-bottom: .5rem; }
+    .ai-stream { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: .25rem; }
+    .ai-msg { max-width: 900px; margin: 0 auto .9rem; display: flex; gap: .6rem; }
+    .ai-msg .who { flex: 0 0 30px; height: 30px; width: 30px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 15px; }
+    .ai-user .who { background: var(--sfa-primary, #2b59c3); }
+    .ai-bot  .who { background: #10a37f; }
+    .ai-bubble { position: relative; background: var(--sfa-surface-2, #f4f6fb); border: 1px solid var(--sfa-border, #e3e7ef); border-radius: 12px; padding: .6rem .85rem; overflow-x: auto; flex: 1 1 auto; min-width: 0; }
+    .ai-user .ai-bubble { background: transparent; border-color: transparent; }
+    .ai-bubble table { margin-bottom: .3rem; }
+    .ai-user-text { white-space: pre-wrap; }
+    .ai-edit { position: absolute; top: 4px; right: 4px; border: none; background: transparent; color: var(--sfa-text-muted, #8a94a6); opacity: 0; cursor: pointer; font-size: 13px; transition: opacity .15s; }
+    .ai-user:hover .ai-edit { opacity: 1; }
+    .ai-file-chip { display: inline-flex; align-items: center; gap: .35rem; background: var(--sfa-surface-2, #eef1f7); border: 1px solid var(--sfa-border, #e3e7ef); border-radius: 20px; padding: .1rem .55rem; font-size: 12px; margin-top: .35rem; }
+    .ai-xlsx { display: flex; justify-content: flex-end; margin-bottom: .4rem; }
+    .ai-caret::after { content: "▋"; margin-left: 1px; animation: aiBlink 1s steps(1) infinite; color: var(--sfa-text-muted, #8a94a6); }
+    @keyframes aiBlink { 50% { opacity: 0; } }
+    .ai-empty { color: var(--sfa-text-muted, #8a94a6); text-align: center; margin-top: 3rem; }
+    .ai-empty .ex { display: inline-block; margin: .25rem; cursor: pointer; }
+    .ai-attach-bar { max-width: 900px; margin: .25rem auto 0; }
+    .ai-input { display: flex; gap: .5rem; margin-top: .5rem; align-items: flex-end; }
+    .ai-input textarea { resize: none; }
+  </style>
+</head>
+<body>
+<div id="app" data-page="ai" data-title="AI Assistant"></div>
+
+<template id="pageContent">
+  <div id="aiNotReady" class="alert alert-warning" hidden>
+    <i class="bi bi-exclamation-triangle"></i> AI is not set up for this company yet.
+    <a href="#" id="aiCfgLink">Configure the provider &amp; API key</a> (admin).
+  </div>
+
+  <div class="ai-wrap">
+    <div class="ai-toolbar">
+      <span class="badge bg-secondary" id="aiProviderBadge">—</span>
+      <label class="small text-muted mb-0">Model</label>
+      <select id="aiModel" class="form-select form-select-sm" style="width:auto"></select>
+      <div class="ms-auto d-flex gap-2">
+        <button class="btn btn-sm btn-outline-secondary" id="aiNew"><i class="bi bi-plus-lg"></i> New chat</button>
+      </div>
+    </div>
+
+    <div class="ai-stream" id="aiStream"></div>
+
+    <div class="ai-attach-bar" id="aiAttachBar" hidden></div>
+    <div class="ai-input">
+      <input type="file" id="aiFile" hidden
+             accept=".txt,.csv,.tsv,.json,.md,.log,.xml,.html,.xlsx,.xls,.xlsm" />
+      <button class="btn btn-outline-secondary" id="aiAttachBtn" title="Attach a file (text, CSV, Excel)"><i class="bi bi-paperclip"></i></button>
+      <textarea id="aiText" class="form-control" rows="2" placeholder="Ask anything about your data… (Enter to send, Shift+Enter for a new line)"></textarea>
+      <button class="btn btn-primary" id="aiSend"><i class="bi bi-send"></i></button>
+    </div>
+  </div>
+</template>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="js/core/session.js"></script>
+<script src="js/core/endpoints.js"></script>
+<script src="js/core/http.js"></script>
+<script src="js/core/theme.js"></script>
+<script src="js/core/settings.js"></script>
+<script src="js/core/i18n.js"></script>
+<script src="js/app.js"></script>
+<script src="js/core/uikit.js"></script>
+<script src="js/shell.js"></script>
+<script>
+  // Conversation memory: per browser TAB (sessionStorage) + per account slot — survives
+  // reloads within THIS tab, a NEW tab starts fresh, closing forgets. Each history item:
+  //   { role, content(=sent to AI), display(=shown to user), fileName? }
+  const SLOT = (location.pathname.match(/\/u\/(\d+)(\/|$)/) || [])[1] || '0';
+  const MEM_KEY = 'sfa_ai_chat_u' + SLOT;
+  const MAX_FILE_BYTES = 3 * 1024 * 1024;      // 3 MB upload cap
+  const MAX_TEXT_CHARS = 100000;               // cap extracted text fed to the model
+
+  let history = loadHistory();
+  let meta = null;
+  let busy = false;
+  let attachment = null;   // { name, text }
+
+  function loadHistory() { try { return JSON.parse(sessionStorage.getItem(MEM_KEY)) || []; } catch (e) { return []; } }
+  function saveHistory() { try { sessionStorage.setItem(MEM_KEY, JSON.stringify(history)); } catch (e) {} }
+
+  window.pageInit = async function () {
+    document.getElementById('aiCfgLink').addEventListener('click', (e) => {
+      e.preventDefault(); location.href = Session.uUrl(Session.activeIndex(), 'settings/ai.html');
+    });
+    document.getElementById('aiSend').addEventListener('click', sendCurrent);
+    document.getElementById('aiNew').addEventListener('click', newChat);
+    document.getElementById('aiAttachBtn').addEventListener('click', () => document.getElementById('aiFile').click());
+    document.getElementById('aiFile').addEventListener('change', onFilePicked);
+    document.getElementById('aiText').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendCurrent(); }
+    });
+
+    try { meta = await Api.get(API.ai.meta); renderMeta(); }
+    catch (e) { SFA.toast(e.message, false); }
+
+    renderAll();
+  };
+
+  function renderMeta() {
+    document.getElementById('aiNotReady').hidden = !!(meta && meta.ready);
+    const badge = document.getElementById('aiProviderBadge');
+    const sel = document.getElementById('aiModel');
+    sel.innerHTML = '';
+    if (!meta) return;
+    badge.textContent = meta.provider ? meta.provider : 'not configured';
+    const prov = (meta.providers || []).find(p => p.id === meta.provider);
+    const models = (prov && prov.models) || [];
+    models.forEach(m => { const o = document.createElement('option'); o.value = m; o.textContent = m; sel.appendChild(o); });
+    if (meta.model && !models.includes(meta.model)) {
+      const o = document.createElement('option'); o.value = meta.model; o.textContent = meta.model; sel.appendChild(o);
+    }
+    if (meta.model) sel.value = meta.model;
+    const dis = !(meta && meta.ready);
+    document.getElementById('aiText').disabled = dis;
+    document.getElementById('aiSend').disabled = dis;
+    document.getElementById('aiAttachBtn').disabled = dis;
+  }
+
+  // ---- rendering ----------------------------------------------------------
+
+  function renderAll() {
+    const stream = document.getElementById('aiStream');
+    stream.innerHTML = '';
+    if (!history.length) { showEmpty(); return; }
+    history.forEach((m, i) => {
+      if (m.role === 'user') addUserBubble(m, i);
+      else addAssistantBubble(m.content, false);   // existing answers render instantly
+    });
+    scrollDown();
+  }
+
+  function showEmpty() {
+    document.getElementById('aiStream').innerHTML =
+      '<div class="ai-empty" id="aiEmpty"><div style="font-size:2rem"><i class="bi bi-robot"></i></div>' +
+      '<p class="mb-2">Ask about your data — answered from your company\'s live records.</p><div>' +
+      '<span class="badge rounded-pill text-bg-light ex">Active employees ki list do</span> ' +
+      '<span class="badge rounded-pill text-bg-light ex">Kitne admin, manager, employee hain? summary do</span> ' +
+      '<span class="badge rounded-pill text-bg-light ex">Designation-wise employee count</span></div></div>';
+    document.querySelectorAll('#aiEmpty .ex').forEach(el =>
+      el.addEventListener('click', () => { document.getElementById('aiText').value = el.textContent; sendCurrent(); }));
+  }
+  function removeEmpty() { const e = document.getElementById('aiEmpty'); if (e) e.remove(); }
+
+  function addUserBubble(msg, idx) {
+    removeEmpty();
+    const wrap = document.createElement('div'); wrap.className = 'ai-msg ai-user'; wrap.dataset.idx = idx;
+    const bubble = document.createElement('div'); bubble.className = 'ai-bubble';
+    const txt = document.createElement('div'); txt.className = 'ai-user-text'; txt.textContent = (msg.display != null ? msg.display : msg.content);
+    bubble.appendChild(txt);
+    if (msg.fileName) {
+      const chip = document.createElement('div'); chip.className = 'ai-file-chip';
+      chip.innerHTML = '<i class="bi bi-paperclip"></i> ' + escapeHtml(msg.fileName);
+      bubble.appendChild(chip);
+    }
+    const edit = document.createElement('button'); edit.className = 'ai-edit'; edit.title = 'Edit & resend';
+    edit.innerHTML = '<i class="bi bi-pencil"></i>';
+    edit.addEventListener('click', () => startEdit(idx));
+    bubble.appendChild(edit);
+    wrap.innerHTML = '<div class="who"><i class="bi bi-person-fill"></i></div>';
+    wrap.appendChild(bubble);
+    document.getElementById('aiStream').appendChild(wrap);
+  }
+
+  function addAssistantBubble(html, typewriter) {
+    removeEmpty();
+    const wrap = document.createElement('div'); wrap.className = 'ai-msg ai-bot';
+    wrap.innerHTML = '<div class="who"><i class="bi bi-robot"></i></div>';
+    const bubble = document.createElement('div'); bubble.className = 'ai-bubble';
+    wrap.appendChild(bubble);
+    document.getElementById('aiStream').appendChild(wrap);
+    if (typewriter) typeReveal(bubble, html, () => { decorateAnswer(bubble); scrollDown(); });
+    else { bubble.innerHTML = html; decorateAnswer(bubble); }
+    return bubble;
+  }
+
+  // Typewriter that PRESERVES formatting: render final HTML, blank every text node,
+  // then reveal characters in document order (tables/bold fill in progressively).
+  function typeReveal(bubble, html, done) {
+    bubble.innerHTML = html;
+    bubble.classList.add('ai-caret');
+    const walker = document.createTreeWalker(bubble, NodeFilter.SHOW_TEXT);
+    const nodes = []; let n;
+    while ((n = walker.nextNode())) { nodes.push({ node: n, full: n.nodeValue }); n.nodeValue = ''; }
+    let i = 0;
+    (function tick() {
+      if (i >= nodes.length) { bubble.classList.remove('ai-caret'); done && done(); return; }
+      const cur = nodes[i];
+      if (cur.node.nodeValue.length < cur.full.length) {
+        const step = Math.max(2, Math.ceil(cur.full.length / 40));
+        cur.node.nodeValue = cur.full.slice(0, cur.node.nodeValue.length + step);
+        maybeScroll();
+        setTimeout(tick, 14);
+      } else { i++; tick(); }
+    })();
+  }
+
+  // ---- edit & resend ------------------------------------------------------
+
+  function startEdit(idx) {
+    if (busy) return;
+    const wrap = document.querySelector('.ai-msg.ai-user[data-idx="' + idx + '"]');
+    if (!wrap) return;
+    const bubble = wrap.querySelector('.ai-bubble');
+    const original = history[idx] ? (history[idx].display != null ? history[idx].display : history[idx].content) : '';
+    bubble.innerHTML = '';
+    const ta = document.createElement('textarea'); ta.className = 'form-control mb-2'; ta.rows = 2; ta.value = original;
+    const row = document.createElement('div'); row.className = 'd-flex gap-2 justify-content-end';
+    const cancel = document.createElement('button'); cancel.className = 'btn btn-sm btn-outline-secondary'; cancel.textContent = 'Cancel';
+    const save = document.createElement('button'); save.className = 'btn btn-sm btn-primary'; save.innerHTML = '<i class="bi bi-send"></i> Send';
+    cancel.addEventListener('click', renderAll);
+    save.addEventListener('click', () => {
+      const v = ta.value.trim(); if (!v) return;
+      history = history.slice(0, idx);           // drop this turn and everything after (Claude-style)
+      saveHistory(); renderAll();
+      submit(v, null);
+    });
+    ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); save.click(); } });
+    row.append(cancel, save); bubble.append(ta, row); ta.focus();
+    ta.setSelectionRange(ta.value.length, ta.value.length);
+  }
+
+  // ---- file upload --------------------------------------------------------
+
+  async function onFilePicked(e) {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';                          // allow re-picking the same file
+    if (!file) return;
+    if (file.size > MAX_FILE_BYTES) { SFA.toast('Please choose a file under 3 MB.', false); return; }
+    try {
+      let text = await extractText(file);
+      if (text == null) { SFA.toast('Only text, CSV, or Excel files are supported right now.', false); return; }
+      if (text.length > MAX_TEXT_CHARS) text = text.slice(0, MAX_TEXT_CHARS) + '\n...(truncated)';
+      attachment = { name: file.name, text };
+      renderAttachBar();
+    } catch (err) { SFA.toast('Could not read the file: ' + err.message, false); }
+  }
+
+  async function extractText(file) {
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    if (['xlsx', 'xls', 'xlsm'].includes(ext)) {
+      if (typeof XLSX === 'undefined') throw new Error('Excel reader not loaded');
+      const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+      return wb.SheetNames.map(sn => 'Sheet: ' + sn + '\n' + XLSX.utils.sheet_to_csv(wb.Sheets[sn])).join('\n\n');
+    }
+    if (['txt', 'csv', 'tsv', 'json', 'md', 'log', 'xml', 'html'].includes(ext)) return await file.text();
+    return null;   // unsupported (image/pdf/etc.)
+  }
+
+  function renderAttachBar() {
+    const bar = document.getElementById('aiAttachBar');
+    if (!attachment) { bar.hidden = true; bar.innerHTML = ''; return; }
+    bar.hidden = false;
+    bar.innerHTML = '<span class="ai-file-chip"><i class="bi bi-paperclip"></i> ' + escapeHtml(attachment.name) +
+      ' <button type="button" class="btn-close btn-close-sm" style="font-size:.6rem" aria-label="Remove"></button></span>';
+    bar.querySelector('button').addEventListener('click', () => { attachment = null; renderAttachBar(); });
+  }
+
+  // ---- send ---------------------------------------------------------------
+
+  function newChat() {
+    history = []; attachment = null; saveHistory(); renderAttachBar(); renderAll();
+  }
+
+  function sendCurrent() {
+    const ta = document.getElementById('aiText');
+    const text = (ta.value || '').trim();
+    const attach = attachment;
+    if (!text && !attach) return;
+    ta.value = ''; attachment = null; renderAttachBar();
+    submit(text, attach);
+  }
+
+  async function submit(text, attach) {
+    if (busy) return;
+    if (!(meta && meta.ready)) { SFA.toast('AI is not configured yet.', false); return; }
+
+    // content = what the AI sees (question + any file text); display = what the user sees.
+    let content = text;
+    if (attach) content = (text ? text + '\n\n' : '') + 'Attached file "' + attach.name + '" content:\n' + attach.text;
+    const userMsg = { role: 'user', content, display: text || '(file attached)', fileName: attach ? attach.name : undefined };
+    history.push(userMsg); saveHistory();
+    addUserBubble(userMsg, history.length - 1);
+
+    const thinking = addAssistantBubble('<span class="text-muted"><i class="bi bi-three-dots"></i> thinking…</span>', false);
+    scrollDown();
+    busy = true; setInputEnabled(false);
+
+    try {
+      const model = document.getElementById('aiModel').value || undefined;
+      const payload = history.map(m => ({ role: m.role, content: m.content }));   // strip UI-only fields
+      const res = await Api.post(API.ai.chat, { messages: payload, model });
+      const html = (res && res.html) || '<p class="text-muted">No answer.</p>';
+      history.push({ role: 'assistant', content: html }); saveHistory();
+      thinking.innerHTML = '';                     // clear "thinking…" then type the answer in
+      typeReveal(thinking, html, () => { decorateAnswer(thinking); scrollDown(); });
+    } catch (e) {
+      thinking.innerHTML = '<span class="text-danger"><i class="bi bi-exclamation-circle"></i> ' +
+        escapeHtml(e.message || 'Something went wrong') + '</span>';
+      // error turn is not stored in memory
+    } finally {
+      busy = false; setInputEnabled(true); scrollDown();
+    }
+  }
+
+  function setInputEnabled(on) {
+    const ready = on && meta && meta.ready;
+    document.getElementById('aiSend').disabled = !ready;
+    document.getElementById('aiText').disabled = !ready;
+    document.getElementById('aiAttachBtn').disabled = !ready;
+  }
+
+  // ---- Excel export (per answer with table[s]) ----------------------------
+
+  function decorateAnswer(bubble) {
+    if (!bubble || bubble.querySelector('.ai-actions')) return;
+    const answerText = (bubble.innerText || '').trim();     // capture before adding the toolbar
+    const bar = document.createElement('div'); bar.className = 'ai-actions ai-xlsx'; bar.style.gap = '.4rem';
+
+    // Copy (like Claude) — always available
+    const copy = document.createElement('button');
+    copy.className = 'btn btn-sm btn-outline-secondary'; copy.title = 'Copy';
+    copy.innerHTML = '<i class="bi bi-clipboard"></i>';
+    copy.addEventListener('click', () => {
+      const write = navigator.clipboard && navigator.clipboard.writeText
+        ? navigator.clipboard.writeText(answerText) : Promise.reject();
+      Promise.resolve(write).then(() => {
+        copy.innerHTML = '<i class="bi bi-check2"></i>';
+        setTimeout(() => { copy.innerHTML = '<i class="bi bi-clipboard"></i>'; }, 1200);
+      }).catch(() => SFA.toast('Copy failed', false));
+    });
+    bar.appendChild(copy);
+
+    // Download Excel — only when the answer has table(s)
+    if (bubble.querySelectorAll('table').length) {
+      const xl = document.createElement('button');
+      xl.className = 'btn btn-sm btn-outline-success';
+      xl.innerHTML = '<i class="bi bi-file-earmark-excel"></i> Excel';
+      xl.addEventListener('click', () => exportTables(bubble));
+      bar.appendChild(xl);
+    }
+    bubble.insertBefore(bar, bubble.firstChild);
+  }
+
+  function exportTables(bubble) {
+    if (typeof XLSX === 'undefined') { SFA.toast('Excel library still loading — try again.', false); return; }
+    const tables = bubble.querySelectorAll('table');
+    if (!tables.length) return;
+    const wb = XLSX.utils.book_new();
+    tables.forEach((t, i) => XLSX.utils.book_append_sheet(wb, XLSX.utils.table_to_sheet(t), 'Report' + (tables.length > 1 ? ' ' + (i + 1) : '')));
+    XLSX.writeFile(wb, 'ai-report-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.xlsx');
+  }
+
+  // ---- helpers ------------------------------------------------------------
+
+  function scrollDown() { const s = document.getElementById('aiStream'); s.scrollTop = s.scrollHeight; }
+  function maybeScroll() {
+    const s = document.getElementById('aiStream');
+    if (s.scrollHeight - s.scrollTop - s.clientHeight < 120) s.scrollTop = s.scrollHeight;   // only if near bottom
+  }
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+</script>
+</body>
+</html>

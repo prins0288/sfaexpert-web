@@ -7,18 +7,21 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.2.5</version>
+        <version>4.1.1</version>
         <relativePath/>
     </parent>
 
     <groupId>in.opt</groupId>
-    <artifactId>multitenant-login</artifactId>
+    <artifactId>sfaexpert</artifactId>
     <version>1.0.0</version>
-    <name>multitenant-login</name>
-    <description>Multi-tenant login system with dynamic per-tenant datasources</description>
+    <name>sfaexpert</name>
+    <description>SFAExpert — multi-tenant Sales Force Automation platform</description>
+    <!-- WAR so it can deploy to an external Tomcat 11+ (Jakarta EE 11 / Servlet 6.1,
+         Java 21). The repackaged WAR is ALSO runnable standalone via `java -jar`. -->
+    <packaging>war</packaging>
 
     <properties>
-        <java.version>17</java.version>
+        <java.version>21</java.version>
         <jjwt.version>0.12.6</jjwt.version>
     </properties>
 
@@ -27,6 +30,14 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
+        <!-- Embedded Tomcat marked 'provided': NOT bundled into the WAR that a real
+             Tomcat deploys (the container supplies it), but still available so the
+             same repackaged WAR runs standalone with `java -jar`. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-tomcat</artifactId>
+            <scope>provided</scope>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
@@ -34,6 +45,18 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+        <!-- AOP: powers @RequiresPermission (PermissionAspect). Added directly
+             (spring-aop + aspectjweaver) instead of spring-boot-starter-aop,
+             which has no published 4.1.x release yet; both artifacts below are
+             version-managed by the spring-boot-starter-parent BOM. -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-aop</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.aspectj</groupId>
+            <artifactId>aspectjweaver</artifactId>
         </dependency>
 
         <!-- BCrypt only (not the full security filter chain) -->
@@ -80,7 +103,7 @@
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-            <version>2.5.0</version>
+            <version>3.1.1</version>
         </dependency>
 
         <dependency>

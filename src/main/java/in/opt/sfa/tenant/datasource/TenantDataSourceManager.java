@@ -57,38 +57,38 @@ public class TenantDataSourceManager {
     /**
      * Returns the (creating if needed) datasource for a tenant and marks it used.
      */
-    public DataSource getDataSource(String tenantId) {
-        lastAccess.put(tenantId, System.currentTimeMillis());
+    public DataSource getDataSource(String companyCode) {
+        lastAccess.put(companyCode, System.currentTimeMillis());
 
-        HikariDataSource existing = pools.get(tenantId);
+        HikariDataSource existing = pools.get(companyCode);
         if (existing != null && !existing.isClosed()) {
             return existing;
         }
 
         synchronized (lock) {
-            HikariDataSource again = pools.get(tenantId);
+            HikariDataSource again = pools.get(companyCode);
             if (again != null && !again.isClosed()) {
                 return again;
             }
-            HikariDataSource created = build(tenantId);
-            pools.put(tenantId, created);
-            lastAccess.put(tenantId, System.currentTimeMillis());
+            HikariDataSource created = build(companyCode);
+            pools.put(companyCode, created);
+            lastAccess.put(companyCode, System.currentTimeMillis());
             LocalDateTime openTime = LocalDateTime.now();
-            openedAt.put(tenantId, openTime);
+            openedAt.put(companyCode, openTime);
             log.info("Pool '{}' OPENED for tenant '{}' at {} (active tenants: {})",
-                    created.getPoolName(), tenantId, openTime.format(TS), pools.size());
+                    created.getPoolName(), companyCode, openTime.format(TS), pools.size());
             return created;
         }
     }
 
-    private HikariDataSource build(String tenantId) {
+    private HikariDataSource build(String companyCode) {
         TenantConfig cfg = tenantConfigRepositoryProvider.getObject()
-                .findByTenantId(tenantId)
+                .findByCompanyCode(companyCode)
                 .orElseThrow(() -> new IllegalStateException(
-                        "No tenant_config found for tenant '" + tenantId + "'"));
+                        "No tenant_config found for tenant '" + companyCode + "'"));
 
                 //         log.info("Connection Details for tenant '{}': host={}, port={}, db={}, user={}, pool={}",
-                // tenantId, cfg.getDbHost(), cfg.getDbPort(), cfg.getDbName(), cfg.getDbUsername(), cfg.getPoolName());
+                // companyCode, cfg.getDbHost(), cfg.getDbPort(), cfg.getDbName(), cfg.getDbUsername(), cfg.getPoolName());
 
         HikariConfig hikari = new HikariConfig();
 
@@ -101,7 +101,7 @@ public class TenantDataSourceManager {
         }
 
         // ---- Per-tenant HikariCP settings (each from its own column) -------
-        hikari.setPoolName(hasText(cfg.getPoolName()) ? cfg.getPoolName() : "tenant-" + tenantId);
+        hikari.setPoolName(hasText(cfg.getPoolName()) ? cfg.getPoolName() : "tenant-" + companyCode);
         hikari.setMaximumPoolSize(cfg.getMaximumPoolSize() != null ? cfg.getMaximumPoolSize() : 5);
         // minimumIdle 0 (default) => Hikari drops connections when unused; our
         // scheduler then closes the whole pool once the tenant goes idle.
@@ -170,20 +170,20 @@ public class TenantDataSourceManager {
     @Scheduled(fixedDelay = 60_000L)
     public void closeIdleDataSources() {
         long now = System.currentTimeMillis();
-        for (String tenantId : new ArrayList<>(pools.keySet())) {
-            Long last = lastAccess.get(tenantId);
+        for (String companyCode : new ArrayList<>(pools.keySet())) {
+            Long last = lastAccess.get(companyCode);
             if (last == null || (now - last) > idleTimeoutMs) {
                 synchronized (lock) {
-                    HikariDataSource ds = pools.remove(tenantId);
-                    lastAccess.remove(tenantId);
-                    LocalDateTime opened = openedAt.remove(tenantId);
+                    HikariDataSource ds = pools.remove(companyCode);
+                    lastAccess.remove(companyCode);
+                    LocalDateTime opened = openedAt.remove(companyCode);
                     if (ds != null && !ds.isClosed()) {
                         String poolName = ds.getPoolName();
                         ds.close();
                         LocalDateTime closeTime = LocalDateTime.now();
                         long openMins = opened == null ? -1 : Duration.between(opened, closeTime).toMinutes();
                         log.info("Pool '{}' CLOSED for tenant '{}' at {} (opened at {}, was open ~{} min, idle > {} min)",
-                                poolName, tenantId, closeTime.format(TS),
+                                poolName, companyCode, closeTime.format(TS),
                                 opened == null ? "?" : opened.format(TS), openMins, idleTimeoutMs / 60000);
                     }
                 }
@@ -191,19 +191,19 @@ public class TenantDataSourceManager {
         }
     }
 
-    public boolean isOpen(String tenantId) {
-        HikariDataSource ds = pools.get(tenantId);
+    public boolean isOpen(String companyCode) {
+        HikariDataSource ds = pools.get(companyCode);
         return ds != null && !ds.isClosed();
     }
 
     @PreDestroy
     public void closeAll() {
-        pools.forEach((tenantId, ds) -> {
+        pools.forEach((companyCode, ds) -> {
             if (!ds.isClosed()) {
-                LocalDateTime opened = openedAt.get(tenantId);
+                LocalDateTime opened = openedAt.get(companyCode);
                 ds.close();
                 log.info("Pool '{}' CLOSED for tenant '{}' at {} (opened at {}) — app shutdown",
-                        ds.getPoolName(), tenantId, LocalDateTime.now().format(TS),
+                        ds.getPoolName(), companyCode, LocalDateTime.now().format(TS),
                         opened == null ? "?" : opened.format(TS));
             }
         });

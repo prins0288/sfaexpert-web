@@ -4,8 +4,8 @@ import jakarta.servlet.RequestDispatcher;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.boot.web.error.ErrorAttributeOptions;
 import org.springframework.boot.web.error.ErrorAttributeOptions.Include;
-import org.springframework.boot.web.servlet.error.ErrorAttributes;
-import org.springframework.boot.web.servlet.error.ErrorController;
+import org.springframework.boot.webmvc.error.ErrorAttributes;
+import org.springframework.boot.webmvc.error.ErrorController;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -47,7 +47,12 @@ public class CustomErrorController implements ErrorController {
                         Include.BINDING_ERRORS,
                         Include.STACK_TRACE));
 
-        int status = attrs.get("status") instanceof Integer s ? s : 500;
+        // Prefer the container's real error status (jakarta.servlet.error.status_code);
+        // on Spring Boot 4 the ErrorAttributes "status" wasn't always populated for a
+        // filter-initiated sendError, which defaulted this to 500 and hid real 401/403/404s.
+        Object scAttr = request.getAttribute(RequestDispatcher.ERROR_STATUS_CODE);
+        int status = scAttr instanceof Integer sc ? sc
+                : (attrs.get("status") instanceof Integer s ? s : 500);
 
         if (wantsJson(request)) {
             return ResponseEntity.status(status)

@@ -23,13 +23,13 @@ public class TenantRoutingDataSource extends AbstractDataSource {
     }
 
     private DataSource current() {
-        String tenantId = TenantContext.getTenantId();
-        if (tenantId == null) {
+        String companyCode = TenantContext.getCompanyCode();
+        if (companyCode == null) {
             throw new IllegalStateException(
                     "No tenant bound to the current thread. A tenant datasource "
                             + "can only be used inside an authenticated request.");
         }
-        return manager.getDataSource(tenantId);
+        return manager.getDataSource(companyCode);
     }
 
     @Override

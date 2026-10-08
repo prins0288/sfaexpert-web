@@ -5,8 +5,9 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- * Lives in the COMMON database (sfa_central). Stores everything needed to build
- * a dedicated HikariCP datasource for a tenant:
+ * Lives in the COMMON database (sfa_central), table {@code client_details}
+ * (formerly {@code tenant_config}). Stores everything needed to build a
+ * dedicated HikariCP datasource for a tenant:
  *
  *  - the JDBC URL split into parts (host / port / db name / params) so each
  *    piece is its own column, and
@@ -16,7 +17,7 @@ import lombok.Setter;
  * falls back to a sensible default instead of overriding Hikari's own default.
  */
 @Entity
-@Table(name = "tenant_config")
+@Table(name = "client_details")
 @Getter
 @Setter
 public class TenantConfig {
@@ -25,8 +26,8 @@ public class TenantConfig {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "tenant_id", nullable = false, unique = true)
-    private String tenantId;
+    @Column(name = "company_code", nullable = false, unique = true)
+    private String companyCode;
 
     // ---- Connection parts (the JDBC URL, split into columns) ----------------
     @Column(name = "db_host", nullable = false)

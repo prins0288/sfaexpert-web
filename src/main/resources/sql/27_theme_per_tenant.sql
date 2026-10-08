@@ -1,0 +1,31 @@
+-- ===========================================================================
+-- Appearance / theme becomes PER TENANT instead of per user.
+--
+-- Before: user_preference + user_theme_token in the COMMON db, keyed by
+-- username — so the look followed the person, and (because the browser cached
+-- it under one shared localStorage key) one tenant's colours leaked onto
+-- another tenant in the same browser.
+--
+-- After: every theme value is a key/value row in the TENANT's own
+-- company_setting_master, next to the other company-wide settings:
+--     theme.navLayout / theme.mode / theme.preset / theme.fontScale
+--     theme.density   / theme.sidebarCollapsed
+--     theme.<mode>.<tokenKey>      e.g. theme.light.sidebar-bg = #12294d
+-- No schema change is needed — company_setting_master is already key/value.
+--
+-- The old COMMON-db tables are left in place (harmless, simply unused) so
+-- nothing is destroyed; drop them once you're happy with the new behaviour:
+--     -- USE sfa_central;
+--     -- DROP TABLE IF EXISTS user_theme_token;
+--     -- DROP TABLE IF EXISTS user_preference;
+--
+-- Nothing to insert: with no theme.* rows a tenant simply resolves to the
+-- built-in defaults (vertical / light / default preset), and the first save
+-- from the Appearance page creates the rows.
+--
+-- Verify (per tenant):
+--   SELECT setting_key, setting_value FROM company_setting_master
+--    WHERE setting_key LIKE 'theme.%' ORDER BY setting_key;
+-- ===========================================================================
+
+SELECT 'theme is now per-tenant; stored in company_setting_master (theme.*)' AS note;

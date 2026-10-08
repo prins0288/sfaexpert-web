@@ -2,8 +2,8 @@ package in.opt.sfa.web;
 
 import in.opt.sfa.common.service.AppUserAdminService;
 import in.opt.sfa.security.UserContext;
-import in.opt.sfa.tenant.entity.Employee;
-import in.opt.sfa.tenant.repository.EmployeeRepository;
+import in.opt.sfa.tenant.master.employee.entity.Employee;
+import in.opt.sfa.tenant.master.employee.repository.EmployeeRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.transaction.annotation.Transactional;

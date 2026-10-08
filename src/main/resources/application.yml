@@ -1,5 +1,8 @@
 server:
-  port: 8081
+  port: 8082
+  # Honour X-Forwarded-* (incl. X-Forwarded-Prefix "/sfaexpert") from the reverse
+  # proxy, so any server-generated URL/redirect is built under the sub-path.
+  forward-headers-strategy: framework
   # Allow large request headers (big JWTs / cookies) — 64 KB.
   max-http-request-header-size: 65536
   tomcat:
@@ -9,16 +12,39 @@ server:
 
 spring:
   application:
-    name: multitenant-login
+    name: sfaexpert
   jpa:
     open-in-view: false   # important: don't hold tenant connections across the view layer
+    # Spring Boot 4 note: Boot's HibernateDefaultDdlAutoProvider probes the datasource
+    # (EmbeddedDatabaseConnection.isEmbedded -> getConnection) at startup to choose a default
+    # ddl-auto. The tenant routing datasource has NO tenant bound at startup and throws, so we
+    # set ddl-auto explicitly here — that short-circuits the probe and keeps the tenant pool
+    # lazy (opened only on login / first authenticated request), exactly as designed.
+    hibernate:
+      ddl-auto: validate
   # ---- File upload limits (max 500 MB) ----
   servlet:
     multipart:
       max-file-size: 500MB
       max-request-size: 500MB
 
+  # ---- DevTools: auto-recompile (VS Code) + auto-restart the app on save ----
+  devtools:
+    restart:
+      enabled: true
+      poll-interval: 2s      # how often devtools checks the classpath for changed .class files
+      quiet-period: 1s       # wait this long after the last change before restarting
+    livereload:
+      enabled: true
+
 app:
+  # ---- External file storage (uploaded loader image, and future assets) ----
+  # Base folder ON DISK, OUTSIDE the app. Files are saved under
+  # <base-dir>/<tenantId>/. Set this to your folder (or via the STORAGE_BASE_DIR
+  # env var). Default is ./sfa-storage next to the running app.
+  storage:
+    base-dir: ${STORAGE_BASE_DIR:./sfa-storage}
+
   # ---- COMMON database (users + tenant_config live here) ----
   # These bind straight to the HikariDataSource (see CommonDataSourceConfig),
   # so the common pool's HikariCP tuning lives HERE in application.yml.
@@ -45,11 +71,17 @@ app:
       keepalive-time: 0              # 0 = disabled
       auto-commit: true
 
-  # ---- JWT ----
+  # ---- JWT (access token) + refresh token ----
+  # Access token (short-lived, sent as "Bearer ..." on every request) — expiration-ms
+  # is in MILLISECONDS. Examples: 1 hour = 3600000, 1 day = 86400000, 7 days = 604800000.
+  # Refresh token (long-lived, opaque, stored in the refresh_token table — see
+  # in.opt.sfa.auth.AuthService) — refresh-expiration-days is in DAYS.
+  # For a 1-year refresh session: refresh-expiration-days: 365
   jwt:
     # MUST be at least 32 characters for HS256. Change in production.
     secret: change-this-super-secret-key-please-min-32-bytes-0123456789
-    expiration-ms: 3600000        # 1 hour
+    expiration-ms: 28800000            # access token lifetime — 1 hour
+    refresh-expiration-days: 365      # refresh token lifetime — 1 year
 
   # ---- Tenant pools ----
   tenant:

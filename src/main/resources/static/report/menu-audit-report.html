@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>/* reverse-proxy sub-path support: make relative css/js resolve under the deploy prefix (e.g. /sfaexpert), "" locally */
+  (function(){try{var p=location.pathname,m=p.match(/^(.*?)\/u\/\d+(\/|$)/),c=m?m[1]:p.replace(/\/[^\/]*$/,'');document.write('<base href="'+(c||'')+'/">');}catch(e){}})();</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StarSFA &middot; Menu Audit Report</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css" rel="stylesheet" />
+  <link href="css/app.css" rel="stylesheet" />
+  <script>
+    (function () {
+      try {
+        var d = document.documentElement, s = localStorage;
+        var m = location.pathname.match(/\/u\/(\d+)(\/|$)/), q = '_u' + (m ? m[1] : '0');
+        d.setAttribute('data-theme', s.getItem('sfa_mode' + q) || 'light');
+        d.setAttribute('data-nav', s.getItem('sfa_nav' + q) || 'vertical');
+        d.setAttribute('data-density', s.getItem('sfa_density' + q) || 'comfortable');
+        var f = s.getItem('sfa_font' + q); if (f) d.style.setProperty('--sfa-font-scale', f);
+        var c = s.getItem('sfa_theme' + q);
+        if (c) { c = JSON.parse(c); var t = (c.resolved && c.resolved[c.mode]) || {};
+          for (var k in t) d.style.setProperty('--sfa-' + k, t[k]); }
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+<div id="app" data-page="menuauditreport" data-title="Menu Audit Report"></div>
+
+<template id="pageContent">
+  <div class="card">
+    <div class="card-header">
+      <i class="bi bi-clock-history"></i> Menu Audit Report
+      <small class="text-muted ms-2">Every add / edit / activate / deactivate / delete made in Menu Master</small>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table id="maTable" class="table table-striped table-bordered nowrap" style="width:100%">
+          <thead><tr>
+            <th>S.No</th><th>Menu Item</th><th>Type</th><th>Action</th><th>Changed By</th><th>Changed At</th><th>Details</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.colVis.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="js/core/session.js"></script>
+<script src="js/core/endpoints.js"></script>
+<script src="js/core/http.js"></script>
+<script src="js/core/theme.js"></script>
+<script src="js/core/settings.js"></script>
+<script src="js/core/i18n.js"></script>
+<script src="js/app.js"></script>
+<script src="js/core/uikit.js"></script>
+<script src="js/shell.js"></script>
+<script>
+  let DT = null;
+
+  const actionBadge = (a) => {
+    const map = {
+      CREATE:     'bg-success-subtle text-success-emphasis',
+      UPDATE:     'bg-primary-subtle text-primary-emphasis',
+      ACTIVATE:   'bg-success-subtle text-success-emphasis',
+      DEACTIVATE: 'bg-warning-subtle text-warning-emphasis',
+      DELETE:     'bg-danger-subtle text-danger-emphasis',
+    };
+    return `<span class="badge ${map[a] || 'bg-secondary-subtle'}">${SFA.esc(a)}</span>`;
+  };
+
+  window.pageInit = async function () {
+    try { await reload(); } catch (e) { SFA.toast(e.message, false); }
+  };
+
+  async function reload() {
+    const rows = await Api.get(API.menuAuditLog.list);
+    if (DT) { DT.destroy(); }
+    document.querySelector('#maTable tbody').innerHTML = rows.map((r, i) => `
+      <tr>
+        <td>${i + 1}</td>
+        <td>${SFA.esc(r.label)}</td>
+        <td><span class="badge bg-secondary-subtle text-secondary-emphasis">${SFA.esc(r.menuType)}</span></td>
+        <td>${actionBadge(r.action)}</td>
+        <td>${SFA.esc(r.changedByName)}</td>
+        <td><small>${SFA.esc(r.changedAt)}</small></td>
+        <td><small class="text-muted">${SFA.esc(r.details) || ''}</small></td>
+      </tr>`).join('');
+    DT = sfaDataTable('#maTable');
+  }
+</script>
+</body>
+</html>

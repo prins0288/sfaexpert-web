@@ -1,5 +1,7 @@
 package in.opt.sfa.security;
 
+import in.opt.sfa.exception.ForbiddenException;
+
 /**
  * Tiny server-side authorization helper. Reads the role from the VERIFIED token
  * (UserContext) — never from anything the client can edit — and rejects with 403
@@ -13,6 +15,7 @@ public final class Authz {
 
     public static void requireRole(String... allowed) {
         String role = UserContext.role();
+        if ("SUPER_ADMIN".equals(role)) return;   // super admin always passes, regardless of the allowed list
         for (String a : allowed) {
             if (a.equals(role)) return;
         }

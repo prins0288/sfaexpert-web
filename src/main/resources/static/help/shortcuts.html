@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>/* reverse-proxy sub-path support: make relative css/js resolve under the deploy prefix (e.g. /sfaexpert), "" locally */
+  (function(){try{var p=location.pathname,m=p.match(/^(.*?)\/u\/\d+(\/|$)/),c=m?m[1]:p.replace(/\/[^\/]*$/,'');document.write('<base href="'+(c||'')+'/">');}catch(e){}})();</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StarSFA &middot; Keyboard Shortcuts</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="css/app.css" rel="stylesheet" />
+  <script>
+    (function () {
+      try {
+        var d = document.documentElement, s = localStorage;
+        var m = location.pathname.match(/\/u\/(\d+)(\/|$)/), q = '_u' + (m ? m[1] : '0');
+        d.setAttribute('data-theme', s.getItem('sfa_mode' + q) || 'light');
+        d.setAttribute('data-nav', s.getItem('sfa_nav' + q) || 'vertical');
+        d.setAttribute('data-density', s.getItem('sfa_density' + q) || 'comfortable');
+        var f = s.getItem('sfa_font' + q); if (f) d.style.setProperty('--sfa-font-scale', f);
+        var c = s.getItem('sfa_theme' + q);
+        if (c) { c = JSON.parse(c); var t = (c.resolved && c.resolved[c.mode]) || {};
+          for (var k in t) d.style.setProperty('--sfa-' + k, t[k]); }
+      } catch (e) {}
+    })();
+  </script>
+  <style>
+    /* Local styling for the shortcut documentation only. */
+    .kbdkey{display:inline-block;min-width:26px;padding:2px 8px;margin:1px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+      font-size:.82rem;line-height:1.4;text-align:center;color:var(--sfa-text,#24303f);
+      background:var(--sfa-surface-2,#eef2f8);border:1px solid var(--sfa-border,#e3e7ee);
+      border-bottom-width:2px;border-radius:6px;white-space:nowrap;}
+    .kbd-sep{margin:0 4px;color:var(--sfa-text-muted,#6b7a90);}
+    .sc-table td{vertical-align:middle;}
+    .sc-table td:first-child{width:220px;white-space:nowrap;}
+    @media (max-width:767px){.sc-table td:first-child{width:auto;}}
+    .sc-note{background:var(--sfa-primary-soft,#eef2f8);border-left:4px solid var(--sfa-primary,#1b3a6b);
+      border-radius:8px;padding:12px 14px;font-size:.9rem;}
+    .sc-lead{color:var(--sfa-text-muted,#6b7a90);}
+  </style>
+</head>
+<body>
+<div id="app" data-page="shortcuts" data-title="Keyboard Shortcuts"></div>
+
+<template id="pageContent">
+  <div class="card">
+    <div class="card-header"><i class="bi bi-keyboard"></i> Keyboard Shortcuts &amp; Interface Guide</div>
+    <div class="card-body">
+      <p class="sc-lead mb-3">
+        These shortcuts work on every screen in StarSFA. They are designed for fast,
+        mouse-free data entry and reporting. A shortcut key is shown as a chip, e.g.
+        <span class="kbdkey">s</span>. Where two keys must be pressed together they are
+        joined with a plus, e.g. <span class="kbdkey">Alt</span><span class="kbd-sep">+</span><span class="kbdkey">M</span>.
+      </p>
+
+      <div class="row g-4">
+
+        <!-- Search & global navigation -->
+        <div class="col-lg-6">
+          <h6 class="text-uppercase text-muted small fw-bold mb-2"><i class="bi bi-search"></i> Search &amp; Navigation</h6>
+          <table class="table table-sm table-striped sc-table mb-0">
+            <tbody>
+              <tr>
+                <td><span class="kbdkey">s</span></td>
+                <td>Focus the <b>grid's own search box</b> (the table search). On a page with no grid, it focuses the top menu search instead.</td>
+              </tr>
+              <tr>
+                <td><span class="kbdkey">Alt</span><span class="kbd-sep">+</span><span class="kbdkey">Shift</span><span class="kbd-sep">+</span><span class="kbdkey">S</span></td>
+                <td>Focus the top <b>menu (navigation) search</b> in the header.</td>
+              </tr>
+              <tr>
+                <td><span class="kbdkey">?</span></td>
+                <td>Open the current page's <b>Help</b> popover (the <i class="bi bi-question-circle"></i> button next to the page title).</td>
+              </tr>
+              <tr>
+                <td><span class="kbdkey">Esc</span></td>
+                <td>Back out of a shortcut &mdash; leaves the search/filter field you are in and closes an open filter panel, so the single-key shortcuts work again. (For example: you press <span class="kbdkey">s</span> by mistake, then press <span class="kbdkey">Esc</span> and <span class="kbdkey">f</span> to filter instead.)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Record actions -->
+        <div class="col-lg-6">
+          <h6 class="text-uppercase text-muted small fw-bold mb-2"><i class="bi bi-pencil-square"></i> Record Actions</h6>
+          <table class="table table-sm table-striped sc-table mb-0">
+            <tbody>
+              <tr><td><span class="kbdkey">n</span></td><td>New record &mdash; opens <b>Add Single</b>.</td></tr>
+              <tr><td><span class="kbdkey">Alt</span><span class="kbd-sep">+</span><span class="kbdkey">M</span></td><td>Open <b>Add Multiple</b>.</td></tr>
+              <tr><td><span class="kbdkey">Alt</span><span class="kbd-sep">+</span><span class="kbdkey">U</span></td><td>Open <b>Bulk Upload</b>.</td></tr>
+              <tr><td><span class="kbdkey">e</span></td><td><b>Edit</b> the highlighted row.</td></tr>
+              <tr><td><span class="kbdkey">d</span></td><td><b>Delete / deactivate</b> the highlighted row.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Filters -->
+        <div class="col-lg-6">
+          <h6 class="text-uppercase text-muted small fw-bold mb-2"><i class="bi bi-funnel"></i> Filters</h6>
+          <table class="table table-sm table-striped sc-table mb-0">
+            <tbody>
+              <tr><td><span class="kbdkey">f</span></td><td>Open the grid's <b>column-filter row</b>.</td></tr>
+              <tr><td><span class="kbdkey">r</span></td><td><b>Reset</b> the filters.</td></tr>
+              <tr>
+                <td><span class="kbdkey">Enter</span></td>
+                <td>Inside a filter field, jump to the <b>next field</b>. A dropdown or date field opens as you land on it; pressing Enter on the <b>last field runs Search</b>.</td>
+              </tr>
+              <tr>
+                <td><i class="bi bi-chevron-down"></i> header chevron</td>
+                <td>The <b>Filters card auto-hides</b> when a report loads so the data shows first. Click the chevron in the Filters header to show or hide it again.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Table navigation -->
+        <div class="col-lg-6">
+          <h6 class="text-uppercase text-muted small fw-bold mb-2"><i class="bi bi-table"></i> Table Navigation</h6>
+          <table class="table table-sm table-striped sc-table mb-0">
+            <tbody>
+              <tr>
+                <td><span class="kbdkey">&uarr;</span><span class="kbd-sep">/</span><span class="kbdkey">&darr;</span></td>
+                <td>Move the <b>row highlight</b> up / down through the visible rows.</td>
+              </tr>
+              <tr>
+                <td><span class="kbdkey">Alt</span><span class="kbd-sep">+</span><span class="kbdkey">N</span><span class="kbd-sep">/</span><span class="kbdkey">Alt</span><span class="kbd-sep">+</span><span class="kbdkey">P</span></td>
+                <td><b>Next / previous</b> table page.</td>
+              </tr>
+              <tr>
+                <td><span class="kbdkey">Shift</span><span class="kbd-sep">+</span>click</td>
+                <td>On a row checkbox, select the <b>whole range</b> from the last checkbox you clicked.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+
+      <!-- Interface behaviours -->
+      <h6 class="text-uppercase text-muted small fw-bold mt-4 mb-2"><i class="bi bi-window-sidebar"></i> Interface</h6>
+      <div class="row g-3">
+        <div class="col-md-6"><div class="sc-note"><i class="bi bi-arrow-up-circle"></i>
+          <b>Back to top</b> &mdash; a round button appears at the bottom-right once you scroll down; on a phone it stacks above a page's floating action button.</div></div>
+        <div class="col-md-6"><div class="sc-note"><i class="bi bi-phone"></i>
+          <b>Mobile cards</b> &mdash; on a phone-sized screen every table row is shown as its own card, with each column labelled.</div></div>
+        <div class="col-md-6"><div class="sc-note"><i class="bi bi-arrow-repeat"></i>
+          <b>Loading spinner</b> &mdash; a global spinner appears automatically while data is loading.</div></div>
+        <div class="col-md-6"><div class="sc-note"><i class="bi bi-info-circle"></i>
+          <b>Highlighted row</b> &mdash; click a row (or use the arrow keys) to highlight it; the row-scoped keys (<span class="kbdkey">e</span>, <span class="kbdkey">d</span>) act on that row.</div></div>
+      </div>
+
+      <!-- When shortcuts pause -->
+      <h6 class="text-uppercase text-muted small fw-bold mt-4 mb-2"><i class="bi bi-pause-circle"></i> When Shortcuts Pause</h6>
+      <ul class="mb-0 small">
+        <li>While you are <b>typing in a text box, dropdown, or date field</b>, the single-key shortcuts are switched off so you can type normally. The one exception is <span class="kbdkey">Enter</span> inside a filter field, which moves to the next field.</li>
+        <li>While a <b>dialog (pop-up) is open</b>, single-key shortcuts are switched off &mdash; except <span class="kbdkey">Alt</span><span class="kbd-sep">+</span><span class="kbdkey">M</span> and <span class="kbdkey">Alt</span><span class="kbd-sep">+</span><span class="kbdkey">U</span>, which open their dialogs.</li>
+      </ul>
+    </div>
+  </div>
+</template>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="js/core/session.js"></script>
+<script src="js/core/endpoints.js"></script>
+<script src="js/core/http.js"></script>
+<script src="js/core/theme.js"></script>
+<script src="js/core/settings.js"></script>
+<script src="js/core/i18n.js"></script>
+<script src="js/app.js"></script>
+<script src="js/core/uikit.js"></script>
+<script src="js/shell.js"></script>
+</body>
+</html>

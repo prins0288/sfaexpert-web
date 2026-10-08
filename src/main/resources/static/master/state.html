@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>/* reverse-proxy sub-path support: make relative css/js resolve under the deploy prefix (e.g. /sfaexpert), "" locally */
+  (function(){try{var p=location.pathname,m=p.match(/^(.*?)\/u\/\d+(\/|$)/),c=m?m[1]:p.replace(/\/[^\/]*$/,'');document.write('<base href="'+(c||'')+'/">');}catch(e){}})();</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StarSFA &middot; State Master</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css" rel="stylesheet" />
+  <link href="css/app.css" rel="stylesheet" />
+  <script>
+    (function () {
+      try {
+        var d = document.documentElement, s = localStorage;
+        // theme is PER TENANT and several tenants can be signed in at once
+        // (/u/0, /u/1...), so these caches are scoped to the account slot —
+        // a shared key would paint the last-customised tenant's colours here.
+        var m = location.pathname.match(/\/u\/(\d+)(\/|$)/), q = '_u' + (m ? m[1] : '0');
+        d.setAttribute('data-theme', s.getItem('sfa_mode' + q) || 'light');
+        d.setAttribute('data-nav', s.getItem('sfa_nav' + q) || 'vertical');
+        d.setAttribute('data-density', s.getItem('sfa_density' + q) || 'comfortable');
+        var f = s.getItem('sfa_font' + q); if (f) d.style.setProperty('--sfa-font-scale', f);
+        var c = s.getItem('sfa_theme' + q);
+        if (c) { c = JSON.parse(c); var t = (c.resolved && c.resolved[c.mode]) || {};
+          for (var k in t) d.style.setProperty('--sfa-' + k, t[k]); }
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+<div id="app" data-page="state" data-title="State Master"></div>
+
+<template id="pageContent">
+  <div class="card">
+    <div class="card-header">
+      <i class="bi bi-signpost"></i> States
+      <div class="card-tools">
+        <button class="btn btn-sm btn-primary" onclick="stAdd()"><i class="bi bi-plus-lg"></i> Add Single</button>
+        <button class="btn btn-sm btn-outline-primary" onclick="stMultiAdd()"><i class="bi bi-plus-square"></i> Add Multiple</button>
+        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#stUploadModal"><i class="bi bi-upload"></i> Bulk Upload</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table id="stTable" class="table table-striped table-bordered nowrap" style="width:100%">
+          <thead><tr>
+            <th>S.No</th><th>Code</th><th>Name</th><th>Country</th><th>Status</th><th class="no-export">Actions</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add / Edit -->
+  <div class="modal fade" id="stModal" tabindex="-1"><div class="modal-dialog modal-dialog-scrollable modal-fullscreen-sm-down">
+    <form class="modal-content" onsubmit="stSave(event)">
+      <div class="modal-header sfa-modal"><h5 class="modal-title" id="stModalTitle">Add State</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body"><div class="row g-3">
+        <input type="hidden" id="s_oid" />
+        <div class="col-md-5"><label class="form-label">Code <span class="required-star">*</span></label>
+          <input class="form-control" id="s_stateCode" required placeholder="MH" /></div>
+        <div class="col-md-7"><label class="form-label">Name <span class="required-star">*</span></label>
+          <input class="form-control" id="s_stateName" required placeholder="Maharashtra" /></div>
+        <div class="col-md-12"><label class="form-label">Country</label>
+          <select class="form-select" id="s_countryOid"></select></div>
+      </div></div>
+      <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button></div>
+    </form>
+  </div></div>
+
+  <!-- Add Multiple -->
+  <div class="modal fade" id="stMultiModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
+    <form class="modal-content" onsubmit="stSaveMultiple(event)">
+      <div class="modal-header sfa-modal"><h5 class="modal-title">Add Multiple &middot; States</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <table class="table table-bordered multi-row-table" id="stMultiTable">
+          <thead><tr><th style="width:40px">#</th><th>Code *</th><th>Name *</th><th>Country</th><th style="width:60px"></th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="row-sno">1</td>
+              <td><input class="form-control" name="stateCode" /></td>
+              <td><input class="form-control" name="stateName" /></td>
+              <td><select class="form-select" name="countryOid" data-lk="countries"></select></td>
+              <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="sfaRemoveRow(this,'stMultiTable')"><i class="bi bi-x"></i></button></td>
+            </tr>
+          </tbody>
+        </table>
+        <button type="button" class="btn btn-sm btn-outline-primary" onclick="sfaAddRow('stMultiTable')"><i class="bi bi-plus"></i> Add Row</button>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button></div>
+    </form>
+  </div></div>
+
+  <!-- Bulk Upload -->
+  <div class="modal fade" id="stUploadModal" tabindex="-1"><div class="modal-dialog modal-dialog-scrollable modal-fullscreen-sm-down">
+    <form class="modal-content" onsubmit="stUpload(event)">
+      <div class="modal-header sfa-modal"><h5 class="modal-title">Bulk Upload &middot; States</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <p class="text-muted small">Existing rows (matched by <b>state_code</b>) are updated; new codes inserted. <b>country</b> column accepts code or name.</p>
+        <button type="button" class="btn btn-sm btn-outline-secondary mb-3" onclick="Api.download(API.master.state.template,'state_template.xlsx')">
+          <i class="bi bi-download"></i> Download Template</button>
+        <input type="file" class="form-control" id="stFile" name="file" accept=".xlsx,.xls" required />
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-accent">Upload</button></div>
+    </form>
+  </div></div>
+</template>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.colVis.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="js/core/session.js"></script>
+<script src="js/core/endpoints.js"></script>
+<script src="js/core/http.js"></script>
+<script src="js/core/theme.js"></script>
+<script src="js/core/settings.js"></script>
+<script src="js/core/i18n.js"></script>
+<script src="js/app.js"></script>
+<script src="js/core/uikit.js"></script>
+<script src="js/shell.js"></script>
+<script>
+  let DT = null, MODAL = null, MULTI = null, LK = {};
+
+  window.pageInit = async function () {
+    MODAL = new bootstrap.Modal('#stModal');
+    MULTI = new bootstrap.Modal('#stMultiModal');
+    try {
+      LK = await Api.get(API.lookups, { query: { keys: 'countries' } });   // State needs only the country list
+      SFA.fillSelect(document.getElementById('s_countryOid'), LK.countries);
+      await reload();
+    } catch (e) { SFA.toast(e.message, false); }
+  };
+
+  async function reload() {
+    const rows = await Api.get(API.master.state.list);
+    if (DT) { DT.destroy(); }
+    document.querySelector('#stTable tbody').innerHTML = rows.map((r, i) => `
+      <tr>
+        <td>${i + 1}</td><td>${SFA.esc(r.stateCode)}</td><td>${SFA.esc(r.stateName)}</td><td>${SFA.esc(r.countryName)}</td>
+        <td>${SFA.statusBadge(r.status)}</td>
+        <td class="no-export">
+          <button class="btn btn-sm btn-outline-primary" onclick='stEdit(${JSON.stringify(r)})'><i class="bi bi-pencil"></i></button>
+          ${r.status === 'Y'
+            ? `<button class="btn btn-sm btn-outline-danger" onclick="stStatus(${r.oid},'N')"><i class="bi bi-slash-circle"></i></button>`
+            : `<button class="btn btn-sm btn-outline-success" onclick="stStatus(${r.oid},'Y')"><i class="bi bi-check-circle"></i></button>`}
+        </td>
+      </tr>`).join('');
+    DT = sfaDataTable('#stTable');
+  }
+
+  function stAdd() {
+    ['s_oid', 's_stateCode', 's_stateName', 's_countryOid'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('stModalTitle').textContent = 'Add State';
+    MODAL.show();
+  }
+  function stEdit(r) {
+    document.getElementById('s_oid').value = r.oid;
+    document.getElementById('s_stateCode').value = r.stateCode || '';
+    document.getElementById('s_stateName').value = r.stateName || '';
+    document.getElementById('s_countryOid').value = r.countryOid || '';
+    document.getElementById('stModalTitle').textContent = 'Edit State';
+    MODAL.show();
+  }
+  async function stSave(ev) {
+    ev.preventDefault();
+    const v = id => { const x = document.getElementById(id).value; return x === '' ? null : x; };
+    const body = { oid: v('s_oid'), stateCode: v('s_stateCode'), stateName: v('s_stateName'), countryOid: v('s_countryOid') };
+    try { await Api.post(API.master.state.save, body); MODAL.hide(); await reload(); SFA.toast('Saved'); }
+    catch (e) { SFA.toast(e.message, false); }
+  }
+  async function stStatus(oid, status) {
+    if (!confirm(status === 'N' ? 'Deactivate this state?' : 'Activate this state?')) return;
+    try { await Api.post(API.master.state.status(oid), null, { query: { status } }); await reload(); }
+    catch (e) { SFA.toast(e.message, false); }
+  }
+
+  // ---- Add Multiple ----
+  function stMultiAdd() {
+    const tb = document.querySelector('#stMultiTable tbody');
+    const rows = tb.querySelectorAll('tr');
+    for (let i = rows.length - 1; i > 0; i--) rows[i].remove();
+    const first = tb.querySelector('tr');
+    first.querySelectorAll('input').forEach(x => x.value = '');
+    first.querySelectorAll('select[data-lk]').forEach(sel => SFA.fillSelect(sel, LK[sel.getAttribute('data-lk')]));
+    MULTI.show();
+  }
+  async function stSaveMultiple(ev) {
+    ev.preventDefault();
+    const rows = collectRows('stMultiTable', ['stateCode', 'stateName', 'countryOid']);
+    if (!rows.length) { SFA.toast('No rows to save', false); return; }
+    try {
+      const res = await Api.post(API.master.state.saveMultiple, rows);
+      MULTI.hide(); await reload(); SFA.toast(res.saved + ' saved' + (res.skipped ? ', ' + res.skipped + ' skipped' : ''));
+    } catch (e) { SFA.toast(e.message, false); }
+  }
+
+  // ---- Bulk Upload ----
+  async function stUpload(ev) {
+    ev.preventDefault();
+    const f = document.getElementById('stFile').files[0];
+    if (!f) { SFA.toast('Choose a file', false); return; }
+    const fd = new FormData(); fd.append('file', f);
+    try {
+      const res = await Api.post(API.master.state.upload, fd);
+      bootstrap.Modal.getInstance(document.getElementById('stUploadModal')).hide();
+      document.getElementById('stFile').value = '';
+      await reload();
+      SFA.toast('Upload: ' + res.inserted + ' inserted, ' + res.updated + ' updated, ' + res.skipped + ' skipped');
+    } catch (e) { SFA.toast(e.message, false); }
+  }
+
+  function collectRows(tableId, fields) {
+    const rows = [];
+    document.querySelectorAll('#' + tableId + ' tbody tr').forEach(tr => {
+      const o = {}; let any = false;
+      fields.forEach(f => {
+        const el = tr.querySelector('[name="' + f + '"]');
+        const val = el ? String(el.value).trim() : '';
+        o[f] = val === '' ? null : val;
+        if (val) any = true;
+      });
+      if (any) rows.push(o);
+    });
+    return rows;
+  }
+</script>
+</body>
+</html>

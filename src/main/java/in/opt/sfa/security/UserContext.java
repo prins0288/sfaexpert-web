@@ -7,7 +7,8 @@ package in.opt.sfa.security;
  */
 public final class UserContext {
 
-    public record CurrentUser(String username, String role, String empId, String tenant) { }
+    public record CurrentUser(String username, String role, String empId, String companyCode,
+                               String designationCode, Integer empLevel) { }
 
     private static final ThreadLocal<CurrentUser> CURRENT = new ThreadLocal<>();
 

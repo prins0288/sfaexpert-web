@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>/* reverse-proxy sub-path support: make relative css/js resolve under the deploy prefix (e.g. /sfaexpert), "" locally */
+  (function(){try{var p=location.pathname,m=p.match(/^(.*?)\/u\/\d+(\/|$)/),c=m?m[1]:p.replace(/\/[^\/]*$/,'');document.write('<base href="'+(c||'')+'/">');}catch(e){}})();</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StarSFA &middot; Menu Visibility</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="css/app.css" rel="stylesheet" />
+  <script>
+    (function () {
+      try {
+        var d = document.documentElement, s = localStorage;
+        var m = location.pathname.match(/\/u\/(\d+)(\/|$)/), q = '_u' + (m ? m[1] : '0');
+        d.setAttribute('data-theme', s.getItem('sfa_mode' + q) || 'light');
+        d.setAttribute('data-nav', s.getItem('sfa_nav' + q) || 'vertical');
+        d.setAttribute('data-density', s.getItem('sfa_density' + q) || 'comfortable');
+        var f = s.getItem('sfa_font' + q); if (f) d.style.setProperty('--sfa-font-scale', f);
+        var c = s.getItem('sfa_theme' + q);
+        if (c) { c = JSON.parse(c); var t = (c.resolved && c.resolved[c.mode]) || {};
+          for (var k in t) d.style.setProperty('--sfa-' + k, t[k]); }
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+<div id="app" data-page="menu-visibility" data-title="Menu Visibility"></div>
+
+<template id="pageContent">
+  <div class="card">
+    <div class="card-header">
+      <i class="bi bi-eye"></i> Menu Visibility
+      <div class="card-tools">
+        <button class="btn btn-sm sfa-btn-outline" type="button" onclick="mvSelectAll(true)" data-i18n="common.showAll"><i class="bi bi-check2-square"></i> Show all</button>
+        <button class="btn btn-sm sfa-btn-outline" type="button" onclick="mvSelectAll(false)" data-i18n="common.hideAll"><i class="bi bi-square"></i> Hide all</button>
+        <button class="btn btn-sm btn-primary" type="button" id="mvSaveBtn" onclick="mvSave()" data-i18n="common.save"><i class="bi bi-save"></i> Save</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="row g-3 align-items-end mb-3">
+        <div class="col-md-4">
+          <label class="form-label">Apply to</label>
+          <select class="form-select" id="mvScope" onchange="mvScopeChanged()"></select>
+        </div>
+        <div class="col-md-5" id="mvEmpWrap" style="display:none">
+          <label class="form-label">Employee</label>
+          <select class="form-select" id="mvEmp" onchange="mvLoad()"></select>
+        </div>
+        <div class="col-md-3">
+          <div class="text-muted small" id="mvHint"></div>
+        </div>
+      </div>
+
+      <div class="sfa-mv-legend text-muted small mb-3">
+        <i class="bi bi-info-circle"></i>
+        <span>
+          <b>Checkbox</b> = show/hide. <b>Star</b> = add to your favourites.
+          <span id="mvDragHint"><b>Drag the handle</b> to reorder or re-parent, then click <b>Save</b>.</span>
+          <span id="mvTypeHint">Use the <i class="bi bi-phone"></i> toggle to put an item on the mobile app menu.</span>
+          For an employee, hidden/moved items affect only them; everyone else follows the global menu.
+        </span>
+      </div>
+
+      <div class="row g-4">
+        <div class="col-md-6">
+          <h6 class="sfa-mv-panel-title"><i class="bi bi-window-desktop"></i> Web Menu <small class="text-muted">— sidebar (nested)</small></h6>
+          <div id="mvWebTree" class="sfa-mv-tree"></div>
+        </div>
+        <div class="col-md-6">
+          <h6 class="sfa-mv-panel-title"><i class="bi bi-phone"></i> App Menu <small class="text-muted">— mobile (cards)</small></h6>
+          <div id="mvAppGrid" class="sfa-mv-appwrap"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+<script src="js/core/session.js"></script>
+<script src="js/core/endpoints.js"></script>
+<script src="js/core/http.js"></script>
+<script src="js/core/theme.js"></script>
+<script src="js/core/settings.js"></script>
+<script src="js/core/i18n.js"></script>
+<script src="js/app.js"></script>
+<script src="js/core/uikit.js"></script>
+<script src="js/shell.js"></script>
+<script>
+  let MV_TREE = [];
+  let FAVS = new Set();          // current user's favourite menu-item ids
+  let SORTABLES = [];            // active SortableJS instances (destroyed on re-render)
+
+  window.pageInit = async function () {
+    buildScopeOptions();
+    try { const menu = await Api.get(API.menu.get); FAVS = new Set(menu.favorites || []); } catch (e) {}
+    mvScopeChanged();
+  };
+
+  function isAdmin() {
+    const r = (SFA.role || '').toUpperCase();
+    return r === 'ADMIN' || r === 'MANAGER';
+  }
+  // You can always drag your OWN menu (SELF). A specific employee's menu or the
+  // global (ALL) menu can only be reordered by Admin/Manager.
+  function canReorder() {
+    const sel = document.getElementById('mvScope');
+    const scope = sel ? sel.value : '';
+    return scope === 'SELF' || isAdmin();
+  }
+
+  function buildScopeOptions() {
+    const sel = document.getElementById('mvScope');
+    const opts = [];
+    if (isAdmin()) {
+      opts.push('<option value="ALL">Everyone (global default)</option>');
+      opts.push('<option value="EMP">A specific employee</option>');
+    }
+    opts.push('<option value="SELF">Myself</option>');
+    sel.innerHTML = opts.join('');
+    document.getElementById('mvDragHint').style.display = canReorder() ? '' : 'none';
+    document.getElementById('mvTypeHint').style.display = isAdmin() ? '' : 'none';
+  }
+
+  async function mvScopeChanged() {
+    const scope = document.getElementById('mvScope').value;
+    const empWrap = document.getElementById('mvEmpWrap');
+    const hint = document.getElementById('mvHint');
+    if (scope === 'EMP') {
+      empWrap.style.display = '';
+      hint.textContent = 'Overrides just this employee.';
+      await ensureEmployees();
+      await mvLoad();
+    } else {
+      empWrap.style.display = 'none';
+      hint.textContent = scope === 'ALL' ? 'Changes the default for everyone.' : 'Only changes what YOU see.';
+      await mvLoad();
+    }
+  }
+
+  let EMP_LOADED = false;
+  async function ensureEmployees() {
+    if (EMP_LOADED) return;
+    try {
+      const list = await Api.get(API.menuVisibility.employees);
+      document.getElementById('mvEmp').innerHTML =
+        (list || []).map(e => `<option value="${SFA.esc(e.empId)}">${SFA.esc(e.name || e.empId)} (${SFA.esc(e.empId)})</option>`).join('')
+        || '<option value="">No employees</option>';
+      EMP_LOADED = true;
+    } catch (e) { SFA.toast(e.message, false); }
+  }
+
+  function currentTarget() {
+    const scope = document.getElementById('mvScope').value;
+    if (scope === 'EMP') return document.getElementById('mvEmp').value || '';
+    return scope; // ALL | SELF
+  }
+
+  let PANELS = { web: [], app: [] };
+
+  async function mvLoad() {
+    const target = currentTarget();
+    const web = document.getElementById('mvWebTree'), app = document.getElementById('mvAppGrid');
+    if (!target) { web.innerHTML = ''; app.innerHTML = ''; return; }
+    web.innerHTML = '<div class="text-muted small py-3">Loading…</div>';
+    app.innerHTML = '';
+    try {
+      PANELS = await Api.get(API.menuVisibility.tree(target));
+      renderPanels();
+    } catch (e) { web.innerHTML = ''; SFA.toast(e.message, false); }
+  }
+
+  function renderPanels() {
+    // WEB — nested tree
+    document.getElementById('mvWebTree').innerHTML =
+      '<ul class="sfa-mv-list" data-root="1">' + (PANELS.web || []).map(n => webNodeHtml(n)).join('') + '</ul>';
+    // APP — flat cards
+    const app = PANELS.app || [];
+    document.getElementById('mvAppGrid').innerHTML = app.length
+      ? '<div class="sfa-mv-appgrid" data-root="1">' + app.map(n => appCardHtml(n)).join('') + '</div>'
+      : '<div class="sfa-mv-empty text-muted small">No app menu items yet. Turn on the '
+        + '<i class="bi bi-phone"></i> toggle on a web item to add it to the mobile menu.</div>';
+    initSortable();
+  }
+
+  function favBtn(id) {
+    const fav = FAVS.has(id);
+    return `<button type="button" class="sfa-mv-fav ${fav ? 'on' : ''}" data-id="${id}" onclick="mvToggleFav(this)"
+              title="Favourite"><i class="bi ${fav ? 'bi-star-fill' : 'bi-star'}"></i></button>`;
+  }
+  function handleSpan() {
+    return canReorder() ? '<span class="sfa-mv-handle" title="Drag to reorder / move"><i class="bi bi-grip-vertical"></i></span>' : '';
+  }
+  // phone toggle: WEB <-> BOTH (adds/removes an item from the mobile app menu). Admin only.
+  function phoneToggle(n) {
+    if (!isAdmin()) return '';
+    const on = n.menuType === 'BOTH' || n.menuType === 'APP';
+    return `<button type="button" class="sfa-mv-phone ${on ? 'on' : ''}" data-id="${n.id}" onclick="mvToggleType(this)"
+              title="${on ? 'On the app menu — click to remove' : 'Add to the app menu'}"><i class="bi bi-phone"></i></button>`;
+  }
+
+  function webNodeHtml(n) {
+    const kids = '<ul class="sfa-mv-list" data-parent="' + n.id + '">'
+      + ((n.children && n.children.length) ? n.children.map(c => webNodeHtml(c)).join('') : '') + '</ul>';
+    const icon = n.icon ? `<i class="bi bi-${SFA.esc(n.icon)}"></i> ` : '';
+    return `<li data-id="${n.id}">
+        <div class="sfa-mv-item">
+          ${handleSpan()}
+          <input type="checkbox" class="form-check-input mv-cb" data-id="${n.id}" ${n.visible ? 'checked' : ''}
+                 onchange="mvCascade(this)" title="Show / hide">
+          <span class="sfa-mv-label">${icon}${SFA.esc(n.label)}</span>
+          ${phoneToggle(n)}${favBtn(n.id)}
+        </div>${kids}
+      </li>`;
+  }
+
+  function appCardHtml(n) {
+    const icon = n.icon ? `<i class="bi bi-${SFA.esc(n.icon)}"></i>` : '<i class="bi bi-app"></i>';
+    return `<div class="sfa-mv-card" data-id="${n.id}" data-parent="${n.parentId == null ? '' : n.parentId}">
+        <div class="sfa-mv-card-top">
+          ${handleSpan()}
+          <input type="checkbox" class="form-check-input mv-cb" data-id="${n.id}" ${n.visible ? 'checked' : ''} title="Show / hide">
+          ${favBtn(n.id)}
+        </div>
+        <div class="sfa-mv-card-icon">${icon}</div>
+        <div class="sfa-mv-card-label">${SFA.esc(n.label)}</div>
+      </div>`;
+  }
+
+  // ---- drag (web tree = nested; app grid = flat) ----
+  function initSortable() {
+    SORTABLES.forEach(s => { try { s.destroy(); } catch (e) {} });
+    SORTABLES = [];
+    if (!canReorder() || !window.Sortable) return;
+    document.querySelectorAll('#mvWebTree ul.sfa-mv-list').forEach(ul => {
+      SORTABLES.push(Sortable.create(ul, { group: 'webmenu', handle: '.sfa-mv-handle', animation: 150,
+        fallbackOnBody: true, draggable: 'li', ghostClass: 'sfa-mv-ghost', onEnd: onDragEnd }));
+    });
+    const grid = document.querySelector('#mvAppGrid .sfa-mv-appgrid');
+    if (grid) SORTABLES.push(Sortable.create(grid, { group: 'appmenu', handle: '.sfa-mv-handle', animation: 150,
+        draggable: '.sfa-mv-card', ghostClass: 'sfa-mv-ghost', onEnd: onDragEnd }));
+  }
+
+  function collectMoves() {
+    const moves = [];
+    // web (nested): parent from the containing <ul>
+    document.querySelectorAll('#mvWebTree ul.sfa-mv-list').forEach(ul => {
+      const parentId = ul.dataset.parent ? Number(ul.dataset.parent) : null;
+      Array.from(ul.children).forEach((li, i) => {
+        if (li.matches('li[data-id]')) moves.push({ id: Number(li.dataset.id), parentId, sortOrder: i });
+      });
+    });
+    // app (flat cards): parent stays the item's own (kept on the card), order = card index
+    const grid = document.querySelector('#mvAppGrid .sfa-mv-appgrid');
+    if (grid) Array.from(grid.children).forEach((c, i) => {
+      if (c.matches('.sfa-mv-card')) moves.push({ id: Number(c.dataset.id), parentId: c.dataset.parent ? Number(c.dataset.parent) : null, sortOrder: i });
+    });
+    return moves;
+  }
+
+  // Drag only rearranges; nothing is persisted until "Save" is clicked.
+  let mvDirty = false;
+  function onDragEnd() { mvDirty = true; markUnsaved(); }
+  function markUnsaved() { const b = document.getElementById('mvSaveBtn'); if (b) b.classList.add('sfa-mv-unsaved'); }
+
+  // ---- move an item onto / off the app menu (menu_type) ----
+  async function mvToggleType(btn) {
+    const id = Number(btn.getAttribute('data-id'));
+    const on = btn.classList.contains('on');
+    try {
+      PANELS = await Api.post(API.menuVisibility.type, { id, menuType: on ? 'WEB' : 'BOTH' });
+      renderPanels();
+      dropOwnMenuCache();
+    } catch (e) { SFA.toast(e.message, false); }
+  }
+
+  // ---- favourites (per current user) ----
+  async function mvToggleFav(btn) {
+    const id = Number(btn.getAttribute('data-id'));
+    const on = btn.classList.contains('on');
+    try {
+      const updated = on ? await Api.del(API.menu.favorite(id)) : await Api.post(API.menu.favorite(id));
+      FAVS = new Set(updated || []);
+      // both panels can show the same item — sync every star for this id
+      document.querySelectorAll('.sfa-mv-fav[data-id="' + id + '"]').forEach(b => {
+        b.classList.toggle('on', !on);
+        b.querySelector('i').className = 'bi ' + (!on ? 'bi-star-fill' : 'bi-star');
+      });
+      dropOwnMenuCache();
+    } catch (e) { SFA.toast(e.message, false); }
+  }
+
+  // ---- visibility ----
+  function mvCascade(cb) {
+    const li = cb.closest('li'); if (!li) return;
+    li.querySelectorAll('ul .mv-cb').forEach(c => { c.checked = cb.checked; });
+  }
+  function mvSelectAll(on) {
+    document.querySelectorAll('#mvWebTree .mv-cb, #mvAppGrid .mv-cb').forEach(c => { c.checked = on; });
+  }
+
+  async function mvSave() {
+    const target = currentTarget();
+    if (!target) { SFA.toast('Choose a target first', false); return; }
+    try {
+      if (canReorder()) await Api.post(API.menuVisibility.reorder, { target, moves: collectMoves() });
+      const items = {};
+      document.querySelectorAll('#mvWebTree .mv-cb, #mvAppGrid .mv-cb').forEach(c => { items[c.getAttribute('data-id')] = c.checked; });
+      PANELS = await Api.post(API.menuVisibility.save, { target, items });
+      mvDirty = false;
+      const b = document.getElementById('mvSaveBtn'); if (b) b.classList.remove('sfa-mv-unsaved');
+      renderPanels();
+      dropOwnMenuCache();
+      const scope = document.getElementById('mvScope').value;
+      if (scope === 'SELF' || scope === 'ALL') { SFA.toast('Saved. Refreshing menu…'); setTimeout(() => location.reload(), 600); }
+      else SFA.toast('Saved for the selected employee.');
+    } catch (e) { SFA.toast(e.message, false); }
+  }
+
+  function dropOwnMenuCache() {
+    Session.cache.clear('menu');
+    try { localStorage.removeItem('sfa_menu'); } catch (e) {}
+  }
+
+  // the current user's own sidebar may have changed — drop the cached menu so
+  // the next navigation refetches it.
+  function dropOwnMenuCache() {
+    Session.cache.clear('menu');
+    try { localStorage.removeItem('sfa_menu'); } catch (e) {}
+  }
+</script>
+</body>
+</html>

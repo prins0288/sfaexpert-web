@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>/* reverse-proxy sub-path support: make relative css/js resolve under the deploy prefix (e.g. /sfaexpert), "" locally */
+  (function(){try{var p=location.pathname,m=p.match(/^(.*?)\/u\/\d+(\/|$)/),c=m?m[1]:p.replace(/\/[^\/]*$/,'');document.write('<base href="'+(c||'')+'/">');}catch(e){}})();</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StarSFA &middot; Activity Type Master</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css" rel="stylesheet" />
+  <link href="css/app.css" rel="stylesheet" />
+  <script>
+    (function () {
+      try {
+        var d = document.documentElement, s = localStorage;
+        var m = location.pathname.match(/\/u\/(\d+)(\/|$)/), q = '_u' + (m ? m[1] : '0');
+        d.setAttribute('data-theme', s.getItem('sfa_mode' + q) || 'light');
+        d.setAttribute('data-nav', s.getItem('sfa_nav' + q) || 'vertical');
+        d.setAttribute('data-density', s.getItem('sfa_density' + q) || 'comfortable');
+        var f = s.getItem('sfa_font' + q); if (f) d.style.setProperty('--sfa-font-scale', f);
+        var c = s.getItem('sfa_theme' + q);
+        if (c) { c = JSON.parse(c); var t = (c.resolved && c.resolved[c.mode]) || {};
+          for (var k in t) d.style.setProperty('--sfa-' + k, t[k]); }
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+<div id="app" data-page="activitytype" data-title="Activity Type Master Master"></div>
+
+<template id="pageContent">
+  <div class="card">
+    <div class="card-header">
+      <i class="bi bi-clipboard2-pulse"></i> Activity Types
+      <div class="card-tools">
+        <button class="btn btn-sm btn-primary" onclick="atAdd()"><i class="bi bi-plus-lg"></i> Add Single</button>
+        <button class="btn btn-sm btn-outline-primary" onclick="atMultiAdd()"><i class="bi bi-plus-square"></i> Add Multiple</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table id="atTable" class="table table-striped table-bordered nowrap" style="width:100%">
+          <thead><tr>
+            <th>S.No</th><th>Code</th><th>Name</th><th>Client Type</th><th>Status</th><th class="no-export">Actions</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="atModal" tabindex="-1"><div class="modal-dialog modal-dialog-scrollable modal-fullscreen-sm-down">
+    <form class="modal-content" onsubmit="atSave(event)">
+      <div class="modal-header sfa-modal"><h5 class="modal-title" id="atModalTitle">Add Activity Type</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body"><div class="row g-3">
+        <input type="hidden" id="at_oid" />
+        <div class="col-md-4"><label class="form-label">Type Code <span class="required-star">*</span></label>
+          <input class="form-control" id="at_typeCode" required placeholder="CME_CLIENT" /></div>
+        <div class="col-md-8"><label class="form-label">Type Name <span class="required-star">*</span></label>
+          <input class="form-control" id="at_typeName" required placeholder="CME|Client" /></div>
+        <div class="col-md-12"><label class="form-label">Client Type <span class="required-star">*</span></label>
+          <select class="form-select" id="at_clientTypeId" required><option value="">Select client type…</option></select></div>
+      </div></div>
+      <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button></div>
+    </form>
+  </div></div>
+
+  <!-- Add Multiple -->
+  <div class="modal fade" id="atMultiModal" tabindex="-1"><div class="modal-dialog modal-xl modal-dialog-scrollable modal-fullscreen-sm-down">
+    <form class="modal-content" onsubmit="atSaveMultiple(event)">
+      <div class="modal-header sfa-modal"><h5 class="modal-title">Add Multiple &middot; Activity Types</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <table class="table table-bordered multi-row-table" id="atMultiTable">
+          <thead><tr><th style="width:40px">#</th><th>Code *</th><th>Name *</th><th>Client Type *</th><th style="width:60px"></th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="row-sno">1</td>
+              <td><input class="form-control" name="typeCode" /></td>
+              <td><input class="form-control" name="typeName" /></td>
+              <td><select class="form-select at-multi-clienttype" name="clientTypeId"><option value="">Select…</option></select></td>
+              <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="sfaRemoveRow(this,'atMultiTable')"><i class="bi bi-x"></i></button></td>
+            </tr>
+          </tbody>
+        </table>
+        <button type="button" class="btn btn-sm btn-outline-primary" onclick="sfaAddRow('atMultiTable')"><i class="bi bi-plus"></i> Add Row</button>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button></div>
+    </form>
+  </div></div>
+</template>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.colVis.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="js/core/session.js"></script>
+<script src="js/core/endpoints.js"></script>
+<script src="js/core/http.js"></script>
+<script src="js/core/theme.js"></script>
+<script src="js/core/settings.js"></script>
+<script src="js/core/i18n.js"></script>
+<script src="js/app.js"></script>
+<script src="js/core/uikit.js"></script>
+<script src="js/shell.js"></script>
+<script>
+  let DT = null, MODAL = null, MULTI = null, CLIENT_TYPES = [];
+  const EP = API.master.activityType;
+  // isActive is a boolean (TINYINT 1/0) for this master.
+  const boolBadge = (b) => (b
+    ? '<span class="badge badge-active">Active</span>'
+    : '<span class="badge badge-inactive">Inactive</span>');
+
+  window.pageInit = async function () {
+    MODAL = new bootstrap.Modal('#atModal');
+    MULTI = new bootstrap.Modal('#atMultiModal');
+    try {
+      CLIENT_TYPES = await Api.get(API.master.clientType.list);
+      fillClientTypeSelect(document.getElementById('at_clientTypeId'));
+      document.querySelectorAll('.at-multi-clienttype').forEach(fillClientTypeSelect);
+      await reload();
+    } catch (e) { SFA.toast(e.message, false); }
+  };
+
+  // Every Client Type dropdown (single + bulk rows) is filled from the same
+  // active-only list — CLIENT_TYPES is fetched once on load, not per-select.
+  function fillClientTypeSelect(sel) {
+    if (!sel) return;
+    const opts = CLIENT_TYPES.filter(c => c.isActive)
+      .map(c => `<option value="${c.oid}">${SFA.esc(c.typeName)}</option>`).join('');
+    sel.innerHTML = '<option value="">Select client type…</option>' + opts;
+  }
+
+  async function reload() {
+    const rows = await Api.get(EP.list);
+    if (DT) { DT.destroy(); }
+    document.querySelector('#atTable tbody').innerHTML = rows.map((r, i) => `
+      <tr>
+        <td>${i + 1}</td><td>${SFA.esc(r.typeCode)}</td><td>${SFA.esc(r.typeName)}</td>
+        <td>${SFA.esc(r.clientTypeName)}</td>
+        <td>${boolBadge(r.isActive)}</td>
+        <td class="no-export">
+          <button class="btn btn-sm btn-outline-primary" onclick='atEdit(${JSON.stringify(r)})'><i class="bi bi-pencil"></i></button>
+          ${r.isActive
+            ? `<button class="btn btn-sm btn-outline-danger" onclick="atStatus(${r.oid},false)"><i class="bi bi-slash-circle"></i></button>`
+            : `<button class="btn btn-sm btn-outline-success" onclick="atStatus(${r.oid},true)"><i class="bi bi-check-circle"></i></button>`}
+        </td>
+      </tr>`).join('');
+    DT = sfaDataTable('#atTable');
+  }
+
+  function atAdd() {
+    ['at_oid','at_typeCode','at_typeName','at_clientTypeId'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('atModalTitle').textContent = 'Add Activity Type';
+    MODAL.show();
+  }
+  function atEdit(r) {
+    document.getElementById('at_oid').value = r.oid;
+    document.getElementById('at_typeCode').value = r.typeCode || '';
+    document.getElementById('at_typeName').value = r.typeName || '';
+    document.getElementById('at_clientTypeId').value = r.clientTypeId || '';
+    document.getElementById('atModalTitle').textContent = 'Edit Activity Type';
+    MODAL.show();
+  }
+  async function atSave(ev) {
+    ev.preventDefault();
+    const val = id => { const x = document.getElementById(id).value; return x === '' ? null : x; };
+    const body = { oid: val('at_oid'), typeCode: val('at_typeCode'), typeName: val('at_typeName'),
+      clientTypeId: val('at_clientTypeId') };
+    try { await Api.post(EP.save, body); MODAL.hide(); await reload(); SFA.toast('Saved'); }
+    catch (e) { SFA.toast(e.message, false); }
+  }
+  async function atStatus(oid, isActive) {
+    if (!confirm(isActive ? 'Activate this activity type?' : 'Deactivate this activity type?')) return;
+    try { await Api.post(EP.status(oid), null, { query: { status: isActive } }); await reload(); }
+    catch (e) { SFA.toast(e.message, false); }
+  }
+
+  // ---- Add Multiple ----
+  function atMultiAdd() {
+    const tb = document.querySelector('#atMultiTable tbody');
+    const rows = tb.querySelectorAll('tr');
+    for (let i = rows.length - 1; i > 0; i--) rows[i].remove();
+    tb.querySelector('tr').querySelectorAll('input').forEach(x => x.value = '');
+    tb.querySelectorAll('.at-multi-clienttype').forEach(sel => { fillClientTypeSelect(sel); sel.value = ''; });
+    MULTI.show();
+  }
+  async function atSaveMultiple(ev) {
+    ev.preventDefault();
+    const rows = collectRows('atMultiTable', ['typeCode', 'typeName', 'clientTypeId']);
+    if (!rows.length) { SFA.toast('No rows to save', false); return; }
+    try {
+      const res = await Api.post(EP.saveMultiple, rows);
+      MULTI.hide(); await reload(); SFA.toast(res.saved + ' saved' + (res.skipped ? ', ' + res.skipped + ' skipped' : ''));
+    } catch (e) { SFA.toast(e.message, false); }
+  }
+  function collectRows(tableId, fields) {
+    const rows = [];
+    document.querySelectorAll('#' + tableId + ' tbody tr').forEach(tr => {
+      const o = {}; let any = false;
+      fields.forEach(f => {
+        const el = tr.querySelector('[name="' + f + '"]');
+        const val = el ? String(el.value).trim() : '';
+        o[f] = val === '' ? null : val;
+        if (val) any = true;
+      });
+      if (any) rows.push(o);
+    });
+    return rows;
+  }
+</script>
+</body>
+</html>

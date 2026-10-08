@@ -15,11 +15,23 @@
 (function (window) {
   "use strict";
 
-  const CACHE = "sfa_theme";          // full ThemeConfig JSON
-  const K_MODE = "sfa_mode";
-  const K_NAV = "sfa_nav";
-  const K_DENSITY = "sfa_density";
-  const K_FONT = "sfa_font";
+  /**
+   * The theme is PER TENANT, and the browser can hold several tenants signed in
+   * at once (/u/0, /u/1, ...). These cache keys must therefore be scoped to the
+   * account slot in the URL — with one shared "sfa_theme" key the instant-paint
+   * on boot would show whichever tenant was customised LAST, on every tenant.
+   * The inline boot script at the top of every page derives the same suffix.
+   */
+  function acctSuffix() {
+    const m = location.pathname.match(/^\/u\/(\d+)(\/|$)/);
+    return "_u" + (m ? m[1] : "0");
+  }
+  const SFX = acctSuffix();
+  const CACHE = "sfa_theme" + SFX;    // full ThemeConfig JSON
+  const K_MODE = "sfa_mode" + SFX;
+  const K_NAV = "sfa_nav" + SFX;
+  const K_DENSITY = "sfa_density" + SFX;
+  const K_FONT = "sfa_font" + SFX;
 
   let state = null;                    // current ThemeConfig
   const listeners = [];
@@ -69,10 +81,21 @@
       return cfg;
     },
 
-    /** Fetch the authoritative config from the server and apply it. */
+    /**
+     * Fetch the authoritative config and apply it — UNLESS this account already
+     * has one cached for this browser tab (Session.cache, sessionStorage), in
+     * which case that's used and NO network request is made at all. This app is
+     * multi-page (full navigations, not client-side routing), so without this
+     * every single page view would re-fetch theme/menu/identity/settings from
+     * the server; the cache clears itself when the tab closes or the account
+     * signs out, and save()/resetMode() below keep it fresh on every change.
+     */
     async load() {
+      const cached = window.Session && Session.cache.get("theme");
+      if (cached) { apply(cached); return cached; }
       const cfg = await Api.get(API.theme.get);
       apply(cfg);
+      if (window.Session) Session.cache.set("theme", cfg);
       return cfg;
     },
 
@@ -81,6 +104,7 @@
       const cfg = await Api.put(API.theme.update, patch);
       const layoutChanged = state && cfg.navLayout !== state.navLayout;
       apply(cfg);
+      if (window.Session) Session.cache.set("theme", cfg);
       // Vertical<->horizontal is a structural chrome change; rebuild cleanly.
       if (layoutChanged && window.Shell && typeof Shell.rebuild === "function") {
         Shell.rebuild();
@@ -109,6 +133,7 @@
     async resetMode(mode) {
       const cfg = await Api.post(API.theme.reset, null, { query: { mode: mode || state.mode } });
       apply(cfg);
+      if (window.Session) Session.cache.set("theme", cfg);
       return cfg;
     },
 

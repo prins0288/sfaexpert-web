@@ -11,11 +11,11 @@ public final class TenantContext {
     private TenantContext() {
     }
 
-    public static void setTenantId(String tenantId) {
-        CURRENT.set(tenantId);
+    public static void setCompanyCode(String companyCode) {
+        CURRENT.set(companyCode);
     }
 
-    public static String getTenantId() {
+    public static String getCompanyCode() {
         return CURRENT.get();
     }
 

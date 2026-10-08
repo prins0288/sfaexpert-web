@@ -1,24 +1,30 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <script>/* reverse-proxy sub-path support: make relative css/js resolve under the deploy prefix (e.g. /sfaexpert), "" locally */
+  (function(){try{var p=location.pathname,m=p.match(/^(.*?)\/u\/\d+(\/|$)/),c=m?m[1]:p.replace(/\/[^\/]*$/,'');document.write('<base href="'+(c||'')+'/">');}catch(e){}})();</script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>StarSFA &middot; Dashboard</title>
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
-  <link href="/css/app.css" rel="stylesheet" />
+  <link href="css/app.css" rel="stylesheet" />
   <script>
     /* Apply the saved theme (mode / layout / density / colours) BEFORE first
        paint so there is no flash. theme.js re-applies from the server after. */
     (function () {
       try {
         var d = document.documentElement, s = localStorage;
-        d.setAttribute('data-theme', s.getItem('sfa_mode') || 'light');
-        d.setAttribute('data-nav', s.getItem('sfa_nav') || 'vertical');
-        d.setAttribute('data-density', s.getItem('sfa_density') || 'comfortable');
-        var f = s.getItem('sfa_font'); if (f) d.style.setProperty('--sfa-font-scale', f);
-        var c = s.getItem('sfa_theme');
+        // theme is PER TENANT and several tenants can be signed in at once
+        // (/u/0, /u/1...), so these caches are scoped to the account slot —
+        // a shared key would paint the last-customised tenant's colours here.
+        var m = location.pathname.match(/\/u\/(\d+)(\/|$)/), q = '_u' + (m ? m[1] : '0');
+        d.setAttribute('data-theme', s.getItem('sfa_mode' + q) || 'light');
+        d.setAttribute('data-nav', s.getItem('sfa_nav' + q) || 'vertical');
+        d.setAttribute('data-density', s.getItem('sfa_density' + q) || 'comfortable');
+        var f = s.getItem('sfa_font' + q); if (f) d.style.setProperty('--sfa-font-scale', f);
+        var c = s.getItem('sfa_theme' + q);
         if (c) { c = JSON.parse(c); var t = (c.resolved && c.resolved[c.mode]) || {};
           for (var k in t) d.style.setProperty('--sfa-' + k, t[k]); }
       } catch (e) {}
@@ -32,22 +38,22 @@
   <div class="row g-3 mb-4">
     <div class="col-md-3 col-6"><a href="/master/route.html" class="text-decoration-none">
       <div class="stat-tile"><div class="icon" style="background:#2a56a0"><i class="bi bi-signpost-2"></i></div>
-        <div><div class="num" id="routeCount">0</div><div class="lbl">Routes</div></div></div></a></div>
+        <div><div class="num" id="routeCount">0</div><div class="lbl" data-i18n="dashboard.routes">Routes</div></div></div></a></div>
     <div class="col-md-3 col-6"><a href="/master/area.html" class="text-decoration-none">
       <div class="stat-tile"><div class="icon" style="background:#0aa3a3"><i class="bi bi-geo-alt"></i></div>
-        <div><div class="num" id="areaCount">0</div><div class="lbl">Areas</div></div></div></a></div>
+        <div><div class="num" id="areaCount">0</div><div class="lbl" data-i18n="dashboard.areas">Areas</div></div></div></a></div>
     <div class="col-md-3 col-6"><a href="/master/client.html" class="text-decoration-none">
       <div class="stat-tile"><div class="icon" style="background:#1a9d63"><i class="bi bi-people"></i></div>
-        <div><div class="num" id="clientCount">0</div><div class="lbl">Clients</div></div></div></a></div>
+        <div><div class="num" id="clientCount">0</div><div class="lbl" data-i18n="dashboard.clients">Clients</div></div></div></a></div>
     <div class="col-md-3 col-6"><a href="/master/products.html" class="text-decoration-none">
       <div class="stat-tile"><div class="icon" style="background:#b0384a"><i class="bi bi-box-seam"></i></div>
-        <div><div class="num" id="productCount">0</div><div class="lbl">Products</div></div></div></a></div>
+        <div><div class="num" id="productCount">0</div><div class="lbl" data-i18n="dashboard.products">Products</div></div></div></a></div>
   </div>
 
   <div class="card">
-    <div class="card-header"><i class="bi bi-speedometer2"></i> Overview</div>
+    <div class="card-header"><i class="bi bi-speedometer2"></i> <span data-i18n="dashboard.overview">Overview</span></div>
     <div class="card-body">
-      <p>Welcome, <b id="welcomeUser"></b>. You are signed in to tenant <b id="welcomeTenant"></b>.</p>
+      <p><span data-i18n="dashboard.welcome">Welcome</span>, <b id="welcomeUser"></b>. You are signed in to tenant <b id="welcomeTenant"></b>.</p>
       <p class="text-muted mb-0">
         Multi-tenant (one DB per tenant, a dedicated HikariCP pool per tenant), JPA repositories that
         auto-route to the active tenant, and the list &rarr; add/edit &rarr; soft-delete master pattern
@@ -59,24 +65,27 @@
 
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="/js/core/session.js"></script>
-<script src="/js/core/endpoints.js"></script>
-<script src="/js/core/http.js"></script>
-<script src="/js/core/theme.js"></script>
-<script src="/js/app.js"></script>
-<script src="/js/shell.js"></script>
+<script src="js/core/session.js"></script>
+<script src="js/core/endpoints.js"></script>
+<script src="js/core/http.js"></script>
+<script src="js/core/theme.js"></script>
+<script src="js/core/settings.js"></script>
+<script src="js/core/i18n.js"></script>
+<script src="js/app.js"></script>
+<script src="js/core/uikit.js"></script>
+<script src="js/shell.js"></script>
 <script>
   window.pageInit = async function () {
     document.getElementById('welcomeUser').textContent = SFA.user;
-    document.getElementById('welcomeTenant').textContent = SFA.tenant;
-    const count = async (path, el) => {
-      try { const d = await Api.get(path); document.getElementById(el).textContent = Array.isArray(d) ? d.length : 0; }
-      catch (e) { /* leave 0 */ }
-    };
-    count(API.master.route.list, 'routeCount');
-    count(API.master.area.list, 'areaCount');
-    count(API.master.client.list, 'clientCount');
-    count(API.products.list, 'productCount');
+    document.getElementById('welcomeTenant').textContent = SFA.companyCode;
+    // ONE lightweight counts call instead of downloading all 4 full master lists.
+    try {
+      const c = await Api.get(API.dashboard.counts);
+      document.getElementById('routeCount').textContent = c.routes || 0;
+      document.getElementById('areaCount').textContent = c.areas || 0;
+      document.getElementById('clientCount').textContent = c.clients || 0;
+      document.getElementById('productCount').textContent = c.products || 0;
+    } catch (e) { /* leave 0s */ }
   };
 </script>
 </body>

@@ -1,26 +1,33 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <script>/* reverse-proxy sub-path support: make relative css/js resolve under the deploy prefix (e.g. /sfaexpert), "" locally */
+  (function(){try{var p=location.pathname,m=p.match(/^(.*?)\/u\/\d+(\/|$)/),c=m?m[1]:p.replace(/\/[^\/]*$/,'');document.write('<base href="'+(c||'')+'/">');}catch(e){}})();</script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>StarSFA &middot; Client</title>
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
   <link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet" />
   <link href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css" rel="stylesheet" />
-  <link href="/css/app.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" rel="stylesheet" />
+  <link href="css/app.css" rel="stylesheet" />
   <script>
     /* Apply the saved theme (mode / layout / density / colours) BEFORE first
        paint so there is no flash. theme.js re-applies from the server after. */
     (function () {
       try {
         var d = document.documentElement, s = localStorage;
-        d.setAttribute('data-theme', s.getItem('sfa_mode') || 'light');
-        d.setAttribute('data-nav', s.getItem('sfa_nav') || 'vertical');
-        d.setAttribute('data-density', s.getItem('sfa_density') || 'comfortable');
-        var f = s.getItem('sfa_font'); if (f) d.style.setProperty('--sfa-font-scale', f);
-        var c = s.getItem('sfa_theme');
+        // theme is PER TENANT and several tenants can be signed in at once
+        // (/u/0, /u/1...), so these caches are scoped to the account slot —
+        // a shared key would paint the last-customised tenant's colours here.
+        var m = location.pathname.match(/\/u\/(\d+)(\/|$)/), q = '_u' + (m ? m[1] : '0');
+        d.setAttribute('data-theme', s.getItem('sfa_mode' + q) || 'light');
+        d.setAttribute('data-nav', s.getItem('sfa_nav' + q) || 'vertical');
+        d.setAttribute('data-density', s.getItem('sfa_density' + q) || 'comfortable');
+        var f = s.getItem('sfa_font' + q); if (f) d.style.setProperty('--sfa-font-scale', f);
+        var c = s.getItem('sfa_theme' + q);
         if (c) { c = JSON.parse(c); var t = (c.resolved && c.resolved[c.mode]) || {};
           for (var k in t) d.style.setProperty('--sfa-' + k, t[k]); }
       } catch (e) {}
@@ -94,9 +101,9 @@
         <div class="col-md-3"><label class="form-label">Email</label>
           <input class="form-control" id="c_email" type="email" /></div>
         <div class="col-md-3"><label class="form-label">DOB</label>
-          <input class="form-control" id="c_dob" type="date" /></div>
+          <input class="form-control sfa-date" id="c_dob" type="text" /></div>
         <div class="col-md-3"><label class="form-label">Anniversary</label>
-          <input class="form-control" id="c_anniversary" type="date" /></div>
+          <input class="form-control sfa-date" id="c_anniversary" type="text" /></div>
 
         <div class="col-md-4"><label class="form-label">Drug License No</label>
           <input class="form-control" id="c_drugLicenseNo" /></div>
@@ -135,13 +142,18 @@
 <script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
 <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
 <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.colVis.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<script src="/js/core/session.js"></script>
-<script src="/js/core/endpoints.js"></script>
-<script src="/js/core/http.js"></script>
-<script src="/js/core/theme.js"></script>
-<script src="/js/app.js"></script>
-<script src="/js/shell.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="js/core/session.js"></script>
+<script src="js/core/endpoints.js"></script>
+<script src="js/core/http.js"></script>
+<script src="js/core/theme.js"></script>
+<script src="js/core/settings.js"></script>
+<script src="js/core/i18n.js"></script>
+<script src="js/app.js"></script>
+<script src="js/core/uikit.js"></script>
+<script src="js/shell.js"></script>
 <script>
   let DT = null, MODAL = null, LK = {};
 
@@ -183,11 +195,12 @@
     DT = sfaDataTable('#clientTable');
   }
 
-  const CF = ['c_oid','c_clientCode','c_prefix','c_name','c_firmName','c_address','c_city','c_mobile','c_email','c_dob','c_anniversary','c_drugLicenseNo','c_gstNo','c_remarks'];
+  const CF = ['c_oid','c_clientCode','c_prefix','c_name','c_firmName','c_address','c_city','c_mobile','c_email','c_drugLicenseNo','c_gstNo','c_remarks'];
   const CS = ['c_clientTypeOid','c_degreeOid','c_specialityOid','c_categoryOid','c_routeOid','c_areaOid'];
 
   function clientAdd() {
     CF.concat(CS).forEach(id => document.getElementById(id).value = '');
+    ['c_dob', 'c_anniversary'].forEach(id => sfaSetDate(id, ''));
     document.getElementById('clientModalTitle').textContent = 'Add Client';
     MODAL.show();
   }
@@ -207,8 +220,8 @@
     document.getElementById('c_city').value = r.city || '';
     document.getElementById('c_mobile').value = r.mobile || '';
     document.getElementById('c_email').value = r.email || '';
-    document.getElementById('c_dob').value = r.dob || '';
-    document.getElementById('c_anniversary').value = r.anniversary || '';
+    sfaSetDate('c_dob', r.dob);
+    sfaSetDate('c_anniversary', r.anniversary);
     document.getElementById('c_drugLicenseNo').value = r.drugLicenseNo || '';
     document.getElementById('c_gstNo').value = r.gstNo || '';
     document.getElementById('c_remarks').value = r.remarks || '';

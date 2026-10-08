@@ -25,6 +25,6 @@ public class District {
 
     private String status = "Y";
 
-    @Formula("(select s.state_name from state s where s.oid = state_oid)")
+    @Formula("(select s.state_name from state_master s where s.oid = state_oid)")
     private String stateName;
 }

@@ -97,6 +97,7 @@ public enum ThemeToken {
     TABLE_STRIPE_BG  ("table-stripe-bg",   "Table stripe",       Group.TABLE,   Type.COLOR, "#f7f9fc", "#1c2534"),
     TABLE_HOVER_BG   ("table-hover-bg",    "Table row hover",    Group.TABLE,   Type.COLOR, "#eef4ff", "#212c3e"),
     TABLE_BORDER     ("table-border",      "Table border",       Group.TABLE,   Type.COLOR, "#e3e7ee", "#26303f"),
+    TABLE_ROW_HIGHLIGHT("table-row-highlight","Row highlight (on click)",Group.TABLE,Type.COLOR,"#eef2f8","#1b2740"),
 
     // ---- Forms -------------------------------------------------------------
     INPUT_BG         ("input-bg",          "Input background",   Group.FORM,    Type.COLOR, "#ffffff", "#131b27"),

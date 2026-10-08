@@ -5,7 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 @Entity
-@Table(name = "designation")
+@Table(name = "designation_master")
 @Getter
 @Setter
 public class Designation {
@@ -18,6 +18,10 @@ public class Designation {
 
     @Column(name = "designation_name")
     private String designationName;
+
+    /** Hierarchy / employee level for this designation (1, 2, 3, … — higher = more senior). */
+    @Column(name = "emp_level")
+    private Integer empLevel;
 
     private String status = "Y";
 }

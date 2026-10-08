@@ -1,7 +1,7 @@
 package in.opt.sfa.web;
 
 import in.opt.sfa.security.JwtUtil;
-import in.opt.sfa.tenant.repository.EmployeeRepository;
+import in.opt.sfa.tenant.master.employee.repository.EmployeeRepository;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,11 +39,14 @@ public class MeController {
         Claims claims = jwtUtil.parse(header.substring(7));   // filter guarantees a valid Bearer token
 
         Map<String, Object> res = new LinkedHashMap<>();
-        // ---- from common DB (via JWT) ----
-        res.put("username", claims.getSubject());
+        // ---- from common DB (via JWT) ----  sub = emp_id; username is its own claim
+        String username = claims.get("username", String.class);
+        if (username == null) username = claims.getSubject();      // old-token fallback
+        String empId = claims.get("emp_id", String.class);
+        if (empId == null) empId = claims.getSubject();
+        res.put("username", username);
         res.put("tenant", claims.get("tenant", String.class));
         res.put("role", claims.get("role", String.class));
-        String empId = claims.get("emp_id", String.class);
         res.put("empId", empId);
 
         // ---- full profile from the tenant DB ----

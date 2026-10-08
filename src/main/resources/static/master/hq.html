@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>/* reverse-proxy sub-path support: make relative css/js resolve under the deploy prefix (e.g. /sfaexpert), "" locally */
+  (function(){try{var p=location.pathname,m=p.match(/^(.*?)\/u\/\d+(\/|$)/),c=m?m[1]:p.replace(/\/[^\/]*$/,'');document.write('<base href="'+(c||'')+'/">');}catch(e){}})();</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StarSFA &middot; HQ Master</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css" rel="stylesheet" />
+  <link href="css/app.css" rel="stylesheet" />
+  <script>
+    (function () {
+      try {
+        var d = document.documentElement, s = localStorage;
+        // theme is PER TENANT and several tenants can be signed in at once
+        // (/u/0, /u/1...), so these caches are scoped to the account slot —
+        // a shared key would paint the last-customised tenant's colours here.
+        var m = location.pathname.match(/\/u\/(\d+)(\/|$)/), q = '_u' + (m ? m[1] : '0');
+        d.setAttribute('data-theme', s.getItem('sfa_mode' + q) || 'light');
+        d.setAttribute('data-nav', s.getItem('sfa_nav' + q) || 'vertical');
+        d.setAttribute('data-density', s.getItem('sfa_density' + q) || 'comfortable');
+        var f = s.getItem('sfa_font' + q); if (f) d.style.setProperty('--sfa-font-scale', f);
+        var c = s.getItem('sfa_theme' + q);
+        if (c) { c = JSON.parse(c); var t = (c.resolved && c.resolved[c.mode]) || {};
+          for (var k in t) d.style.setProperty('--sfa-' + k, t[k]); }
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+<div id="app" data-page="hq" data-title="HQ Master"></div>
+
+<template id="pageContent">
+  <div class="card">
+    <div class="card-header">
+      <i class="bi bi-building"></i> HQs
+      <div class="card-tools">
+        <button class="btn btn-sm btn-primary" onclick="hqAdd()"><i class="bi bi-plus-lg"></i> Add Single</button>
+        <button class="btn btn-sm btn-outline-primary" onclick="hqMultiAdd()"><i class="bi bi-plus-square"></i> Add Multiple</button>
+        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#hqUploadModal"><i class="bi bi-upload"></i> Bulk Upload</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table id="hqTable" class="table table-striped table-bordered nowrap" style="width:100%">
+          <thead><tr>
+            <th>S.No</th><th>Code</th><th>Name</th><th>State</th><th>HQ Group</th><th>Status</th><th class="no-export">Actions</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add / Edit -->
+  <div class="modal fade" id="hqModal" tabindex="-1"><div class="modal-dialog modal-dialog-scrollable modal-fullscreen-sm-down">
+    <form class="modal-content" onsubmit="hqSave(event)">
+      <div class="modal-header sfa-modal"><h5 class="modal-title" id="hqModalTitle">Add HQ</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body"><div class="row g-3">
+        <input type="hidden" id="h_oid" />
+        <div class="col-md-5"><label class="form-label">Code <span class="required-star">*</span></label>
+          <input class="form-control" id="h_hqCode" required placeholder="HQ-MUM" /></div>
+        <div class="col-md-7"><label class="form-label">Name <span class="required-star">*</span></label>
+          <input class="form-control" id="h_hqName" required placeholder="Mumbai HQ" /></div>
+        <div class="col-md-6"><label class="form-label">State</label>
+          <select class="form-select" id="h_stateOid"></select></div>
+        <div class="col-md-6"><label class="form-label">HQ Group <small class="text-muted">(optional)</small></label>
+          <select class="form-select" id="h_hqGroupId"></select></div>
+      </div></div>
+      <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button></div>
+    </form>
+  </div></div>
+
+  <!-- Add Multiple -->
+  <div class="modal fade" id="hqMultiModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
+    <form class="modal-content" onsubmit="hqSaveMultiple(event)">
+      <div class="modal-header sfa-modal"><h5 class="modal-title">Add Multiple &middot; HQs</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <table class="table table-bordered multi-row-table" id="hqMultiTable">
+          <thead><tr><th style="width:40px">#</th><th>Code *</th><th>Name *</th><th>State</th><th>HQ Group</th><th style="width:60px"></th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="row-sno">1</td>
+              <td><input class="form-control" name="hqCode" /></td>
+              <td><input class="form-control" name="hqName" /></td>
+              <td><select class="form-select" name="stateOid" data-lk="states"></select></td>
+              <td><select class="form-select" name="hqGroupId" data-lk="hqGroups"></select></td>
+              <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="sfaRemoveRow(this,'hqMultiTable')"><i class="bi bi-x"></i></button></td>
+            </tr>
+          </tbody>
+        </table>
+        <button type="button" class="btn btn-sm btn-outline-primary" onclick="sfaAddRow('hqMultiTable')"><i class="bi bi-plus"></i> Add Row</button>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button></div>
+    </form>
+  </div></div>
+
+  <!-- Bulk Upload -->
+  <div class="modal fade" id="hqUploadModal" tabindex="-1"><div class="modal-dialog modal-dialog-scrollable modal-fullscreen-sm-down">
+    <form class="modal-content" onsubmit="hqUpload(event)">
+      <div class="modal-header sfa-modal"><h5 class="modal-title">Bulk Upload &middot; HQs</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <p class="text-muted small">Existing rows (matched by <b>hq_code</b>) are updated; new codes inserted. <b>state</b> and <b>hq_group</b> columns accept code or name (hq_group is optional).</p>
+        <button type="button" class="btn btn-sm btn-outline-secondary mb-3" onclick="Api.download(API.master.hq.template,'hq_template.xlsx')">
+          <i class="bi bi-download"></i> Download Template</button>
+        <input type="file" class="form-control" id="hqFile" name="file" accept=".xlsx,.xls" required />
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-accent">Upload</button></div>
+    </form>
+  </div></div>
+</template>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.colVis.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="js/core/session.js"></script>
+<script src="js/core/endpoints.js"></script>
+<script src="js/core/http.js"></script>
+<script src="js/core/theme.js"></script>
+<script src="js/core/settings.js"></script>
+<script src="js/core/i18n.js"></script>
+<script src="js/app.js"></script>
+<script src="js/core/uikit.js"></script>
+<script src="js/shell.js"></script>
+<script>
+  let DT = null, MODAL = null, MULTI = null, LK = {};
+  // isActive is a boolean (TINYINT 1/0) for this master.
+  const boolBadge = (b) => (b
+    ? '<span class="badge badge-active">Active</span>'
+    : '<span class="badge badge-inactive">Inactive</span>');
+
+  window.pageInit = async function () {
+    MODAL = new bootstrap.Modal('#hqModal');
+    MULTI = new bootstrap.Modal('#hqMultiModal');
+    try {
+      LK = await Api.get(API.lookups);
+      SFA.fillSelect(document.getElementById('h_stateOid'), LK.states);
+      SFA.fillSelect(document.getElementById('h_hqGroupId'), LK.hqGroups, '-- None --');
+      await reload();
+    } catch (e) { SFA.toast(e.message, false); }
+  };
+
+  async function reload() {
+    const rows = await Api.get(API.master.hq.list);
+    if (DT) { DT.destroy(); }
+    document.querySelector('#hqTable tbody').innerHTML = rows.map((r, i) => `
+      <tr>
+        <td>${i + 1}</td><td>${SFA.esc(r.hqCode)}</td><td>${SFA.esc(r.hqName)}</td><td>${SFA.esc(r.stateName)}</td>
+        <td>${SFA.esc(r.hqGroupName)}</td>
+        <td>${boolBadge(r.isActive)}</td>
+        <td class="no-export">
+          <button class="btn btn-sm btn-outline-primary" onclick='hqEdit(${JSON.stringify(r)})'><i class="bi bi-pencil"></i></button>
+          ${r.isActive
+            ? `<button class="btn btn-sm btn-outline-danger" onclick="hqStatus(${r.oid},false)"><i class="bi bi-slash-circle"></i></button>`
+            : `<button class="btn btn-sm btn-outline-success" onclick="hqStatus(${r.oid},true)"><i class="bi bi-check-circle"></i></button>`}
+        </td>
+      </tr>`).join('');
+    DT = sfaDataTable('#hqTable');
+  }
+
+  function hqAdd() {
+    ['h_oid', 'h_hqCode', 'h_hqName', 'h_stateOid', 'h_hqGroupId'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('hqModalTitle').textContent = 'Add HQ';
+    MODAL.show();
+  }
+  function hqEdit(r) {
+    document.getElementById('h_oid').value = r.oid;
+    document.getElementById('h_hqCode').value = r.hqCode || '';
+    document.getElementById('h_hqName').value = r.hqName || '';
+    document.getElementById('h_stateOid').value = r.stateOid || '';
+    document.getElementById('h_hqGroupId').value = r.hqGroupId || '';
+    document.getElementById('hqModalTitle').textContent = 'Edit HQ';
+    MODAL.show();
+  }
+  async function hqSave(ev) {
+    ev.preventDefault();
+    const v = id => { const x = document.getElementById(id).value; return x === '' ? null : x; };
+    const body = { oid: v('h_oid'), hqCode: v('h_hqCode'), hqName: v('h_hqName'), stateOid: v('h_stateOid'), hqGroupId: v('h_hqGroupId') };
+    try { await Api.post(API.master.hq.save, body); MODAL.hide(); await reload(); SFA.toast('Saved'); }
+    catch (e) { SFA.toast(e.message, false); }
+  }
+  async function hqStatus(oid, isActive) {
+    if (!confirm(isActive ? 'Activate this HQ?' : 'Deactivate this HQ?')) return;
+    try { await Api.post(API.master.hq.status(oid), null, { query: { status: isActive } }); await reload(); }
+    catch (e) { SFA.toast(e.message, false); }
+  }
+
+  // ---- Add Multiple ----
+  function hqMultiAdd() {
+    const tb = document.querySelector('#hqMultiTable tbody');
+    const rows = tb.querySelectorAll('tr');
+    for (let i = rows.length - 1; i > 0; i--) rows[i].remove();
+    const first = tb.querySelector('tr');
+    first.querySelectorAll('input').forEach(x => x.value = '');
+    first.querySelectorAll('select[data-lk]').forEach(sel => SFA.fillSelect(sel, LK[sel.getAttribute('data-lk')]));
+    MULTI.show();
+  }
+  async function hqSaveMultiple(ev) {
+    ev.preventDefault();
+    const rows = collectRows('hqMultiTable', ['hqCode', 'hqName', 'stateOid', 'hqGroupId']);
+    if (!rows.length) { SFA.toast('No rows to save', false); return; }
+    try {
+      const res = await Api.post(API.master.hq.saveMultiple, rows);
+      MULTI.hide(); await reload(); SFA.toast(res.saved + ' saved' + (res.skipped ? ', ' + res.skipped + ' skipped' : ''));
+    } catch (e) { SFA.toast(e.message, false); }
+  }
+
+  // ---- Bulk Upload ----
+  async function hqUpload(ev) {
+    ev.preventDefault();
+    const f = document.getElementById('hqFile').files[0];
+    if (!f) { SFA.toast('Choose a file', false); return; }
+    const fd = new FormData(); fd.append('file', f);
+    try {
+      const res = await Api.post(API.master.hq.upload, fd);
+      bootstrap.Modal.getInstance(document.getElementById('hqUploadModal')).hide();
+      document.getElementById('hqFile').value = '';
+      await reload();
+      SFA.toast('Upload: ' + res.inserted + ' inserted, ' + res.updated + ' updated, ' + res.skipped + ' skipped');
+    } catch (e) { SFA.toast(e.message, false); }
+  }
+
+  function collectRows(tableId, fields) {
+    const rows = [];
+    document.querySelectorAll('#' + tableId + ' tbody tr').forEach(tr => {
+      const o = {}; let any = false;
+      fields.forEach(f => {
+        const el = tr.querySelector('[name="' + f + '"]');
+        const val = el ? String(el.value).trim() : '';
+        o[f] = val === '' ? null : val;
+        if (val) any = true;
+      });
+      if (any) rows.push(o);
+    });
+    return rows;
+  }
+</script>
+</body>
+</html>

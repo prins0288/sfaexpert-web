@@ -8,5 +8,5 @@ import java.util.Optional;
 /** COMMON repository (bound to the common EntityManagerFactory by package). */
 public interface TenantConfigRepository extends JpaRepository<TenantConfig, Long> {
 
-    Optional<TenantConfig> findByTenantId(String tenantId);
+    Optional<TenantConfig> findByCompanyCode(String companyCode);
 }

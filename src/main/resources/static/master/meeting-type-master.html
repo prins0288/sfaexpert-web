@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>/* reverse-proxy sub-path support: make relative css/js resolve under the deploy prefix (e.g. /sfaexpert), "" locally */
+  (function(){try{var p=location.pathname,m=p.match(/^(.*?)\/u\/\d+(\/|$)/),c=m?m[1]:p.replace(/\/[^\/]*$/,'');document.write('<base href="'+(c||'')+'/">');}catch(e){}})();</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StarSFA &middot; Meeting Type Master</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css" rel="stylesheet" />
+  <link href="css/app.css" rel="stylesheet" />
+  <script>
+    /* Apply the saved theme (mode / layout / density / colours) BEFORE first
+       paint so there is no flash. theme.js re-applies from the server after. */
+    (function () {
+      try {
+        var d = document.documentElement, s = localStorage;
+        var m = location.pathname.match(/\/u\/(\d+)(\/|$)/), q = '_u' + (m ? m[1] : '0');
+        d.setAttribute('data-theme', s.getItem('sfa_mode' + q) || 'light');
+        d.setAttribute('data-nav', s.getItem('sfa_nav' + q) || 'vertical');
+        d.setAttribute('data-density', s.getItem('sfa_density' + q) || 'comfortable');
+        var f = s.getItem('sfa_font' + q); if (f) d.style.setProperty('--sfa-font-scale', f);
+        var c = s.getItem('sfa_theme' + q);
+        if (c) { c = JSON.parse(c); var t = (c.resolved && c.resolved[c.mode]) || {};
+          for (var k in t) d.style.setProperty('--sfa-' + k, t[k]); }
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+<div id="app" data-page="meetingtypemaster" data-title="Meeting Type Master"></div>
+
+<template id="pageContent">
+  <div class="card">
+    <div class="card-header">
+      <i class="bi bi-calendar-event"></i> Meeting Types
+      <div class="card-tools">
+        <button class="btn btn-sm btn-primary" onclick="mtAdd()"><i class="bi bi-plus-lg"></i> Add Single</button>
+        <button class="btn btn-sm btn-outline-primary" onclick="mtMultiAdd()"><i class="bi bi-plus-square"></i> Add Multiple</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table id="mtTable" class="table table-striped table-bordered nowrap" style="width:100%">
+          <thead><tr>
+            <th>S.No</th><th>Code</th><th>Name</th><th>Short Name</th><th>Description</th>
+            <th>Order</th><th>Status</th><th>Created</th><th>Updated</th><th class="no-export">Actions</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add / Edit -->
+  <div class="modal fade" id="mtModal" tabindex="-1"><div class="modal-dialog modal-dialog-scrollable modal-fullscreen-sm-down">
+    <form class="modal-content" onsubmit="mtSave(event)">
+      <div class="modal-header sfa-modal"><h5 class="modal-title" id="mtModalTitle">Add Meeting Type</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body"><div class="row g-3">
+        <input type="hidden" id="mt_id" />
+        <div class="col-md-5"><label class="form-label">Code <span class="required-star">*</span></label>
+          <input class="form-control" id="mt_meetingTypeCode" required placeholder="GEN" maxlength="30" /></div>
+        <div class="col-md-7"><label class="form-label">Name <span class="required-star">*</span></label>
+          <input class="form-control" id="mt_meetingTypeName" required placeholder="General Meeting" maxlength="100" /></div>
+        <div class="col-md-7"><label class="form-label">Short Name</label>
+          <input class="form-control" id="mt_shortName" placeholder="General" maxlength="30" /></div>
+        <div class="col-md-5"><label class="form-label">Display Order</label>
+          <input type="number" class="form-control" id="mt_displayOrder" placeholder="0" value="0" /></div>
+        <div class="col-12"><label class="form-label">Description</label>
+          <input class="form-control" id="mt_description" maxlength="500" /></div>
+      </div></div>
+      <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button></div>
+    </form>
+  </div></div>
+
+  <!-- Add Multiple -->
+  <div class="modal fade" id="mtMultiModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
+    <form class="modal-content" onsubmit="mtSaveMultiple(event)">
+      <div class="modal-header sfa-modal"><h5 class="modal-title">Add Multiple &middot; Meeting Types</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <table class="table table-bordered multi-row-table" id="mtMultiTable">
+          <thead><tr><th style="width:40px">#</th><th>Code *</th><th>Name *</th><th>Short Name</th><th>Order</th><th>Description</th><th style="width:60px"></th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="row-sno">1</td>
+              <td><input class="form-control" name="meetingTypeCode" /></td>
+              <td><input class="form-control" name="meetingTypeName" /></td>
+              <td><input class="form-control" name="shortName" /></td>
+              <td><input type="number" class="form-control" name="displayOrder" value="0" /></td>
+              <td><input class="form-control" name="description" /></td>
+              <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="sfaRemoveRow(this,'mtMultiTable')"><i class="bi bi-x"></i></button></td>
+            </tr>
+          </tbody>
+        </table>
+        <button type="button" class="btn btn-sm btn-outline-primary" onclick="sfaAddRow('mtMultiTable')"><i class="bi bi-plus"></i> Add Row</button>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button></div>
+    </form>
+  </div></div>
+</template>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.colVis.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="js/core/session.js"></script>
+<script src="js/core/endpoints.js"></script>
+<script src="js/core/http.js"></script>
+<script src="js/core/theme.js"></script>
+<script src="js/core/settings.js"></script>
+<script src="js/core/i18n.js"></script>
+<script src="js/app.js"></script>
+<script src="js/core/uikit.js"></script>
+<script src="js/shell.js"></script>
+<script>
+  let DT = null, MODAL = null, MULTI = null;
+
+  // Dates arrive from the API already formatted as dd-MM-yyyy (see @JsonFormat).
+  const auditCell = (by, at) => (by ? `<div>${SFA.esc(by)}</div><small class="text-muted">${SFA.esc(at || '')}</small>` : '');
+  // isActive is a boolean (TINYINT 1/0) for this master.
+  const boolBadge = (b) => (b
+    ? '<span class="badge badge-active">Active</span>'
+    : '<span class="badge badge-inactive">Inactive</span>');
+
+  window.pageInit = async function () {
+    MODAL = new bootstrap.Modal('#mtModal');
+    MULTI = new bootstrap.Modal('#mtMultiModal');
+    try { await reload(); } catch (e) { SFA.toast(e.message, false); }
+  };
+
+  async function reload() {
+    const rows = await Api.get(API.master.meetingTypeMaster.list);
+    if (DT) { DT.destroy(); }
+    document.querySelector('#mtTable tbody').innerHTML = rows.map((r, i) => `
+      <tr>
+        <td>${i + 1}</td><td>${SFA.esc(r.meetingTypeCode)}</td><td>${SFA.esc(r.meetingTypeName)}</td>
+        <td>${SFA.esc(r.shortName)}</td><td>${SFA.esc(r.description)}</td>
+        <td>${r.displayOrder == null ? '' : SFA.esc(r.displayOrder)}</td>
+        <td>${boolBadge(r.isActive)}</td>
+        <td>${auditCell(r.createdBy, r.createdAt)}</td>
+        <td>${auditCell(r.updatedBy, r.updatedAt)}</td>
+        <td class="no-export">
+          <button class="btn btn-sm btn-outline-primary" onclick='mtEdit(${JSON.stringify(r)})'><i class="bi bi-pencil"></i></button>
+          ${r.isActive
+            ? `<button class="btn btn-sm btn-outline-danger" onclick="mtStatus(${r.id},false)"><i class="bi bi-slash-circle"></i></button>`
+            : `<button class="btn btn-sm btn-outline-success" onclick="mtStatus(${r.id},true)"><i class="bi bi-check-circle"></i></button>`}
+        </td>
+      </tr>`).join('');
+    DT = sfaDataTable('#mtTable');
+  }
+
+  function mtAdd() {
+    ['mt_id', 'mt_meetingTypeCode', 'mt_meetingTypeName', 'mt_shortName', 'mt_description'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('mt_displayOrder').value = '0';
+    document.getElementById('mtModalTitle').textContent = 'Add Meeting Type';
+    MODAL.show();
+  }
+  function mtEdit(r) {
+    document.getElementById('mt_id').value = r.id;
+    document.getElementById('mt_meetingTypeCode').value = r.meetingTypeCode || '';
+    document.getElementById('mt_meetingTypeName').value = r.meetingTypeName || '';
+    document.getElementById('mt_shortName').value = r.shortName || '';
+    document.getElementById('mt_displayOrder').value = r.displayOrder == null ? 0 : r.displayOrder;
+    document.getElementById('mt_description').value = r.description || '';
+    document.getElementById('mtModalTitle').textContent = 'Edit Meeting Type';
+    MODAL.show();
+  }
+  async function mtSave(ev) {
+    ev.preventDefault();
+    const v = id => { const x = document.getElementById(id).value; return x === '' ? null : x; };
+    const body = {
+      id: v('mt_id'), meetingTypeCode: v('mt_meetingTypeCode'), meetingTypeName: v('mt_meetingTypeName'),
+      shortName: v('mt_shortName'), description: v('mt_description'),
+      displayOrder: v('mt_displayOrder') == null ? 0 : Number(v('mt_displayOrder'))
+    };
+    try { await Api.post(API.master.meetingTypeMaster.save, body); MODAL.hide(); await reload(); SFA.toast('Saved'); }
+    catch (e) { SFA.toast(e.message, false); }
+  }
+  async function mtStatus(id, isActive) {
+    if (!confirm(isActive ? 'Activate this meeting type?' : 'Deactivate this meeting type?')) return;
+    try { await Api.post(API.master.meetingTypeMaster.status(id), null, { query: { status: isActive } }); await reload(); }
+    catch (e) { SFA.toast(e.message, false); }
+  }
+
+  // ---- Add Multiple ----
+  function mtMultiAdd() {
+    const tb = document.querySelector('#mtMultiTable tbody');
+    const rows = tb.querySelectorAll('tr');
+    for (let i = rows.length - 1; i > 0; i--) rows[i].remove();
+    tb.querySelector('tr').querySelectorAll('input').forEach(x => { x.value = x.name === 'displayOrder' ? '0' : ''; });
+    MULTI.show();
+  }
+  async function mtSaveMultiple(ev) {
+    ev.preventDefault();
+    const rows = collectRows('mtMultiTable', ['meetingTypeCode', 'meetingTypeName', 'shortName', 'displayOrder', 'description']);
+    if (!rows.length) { SFA.toast('No rows to save', false); return; }
+    rows.forEach(r => { r.displayOrder = r.displayOrder == null ? 0 : Number(r.displayOrder); });
+    try {
+      const res = await Api.post(API.master.meetingTypeMaster.saveMultiple, rows);
+      MULTI.hide(); await reload(); SFA.toast(res.saved + ' saved' + (res.skipped ? ', ' + res.skipped + ' skipped' : ''));
+    } catch (e) { SFA.toast(e.message, false); }
+  }
+  function collectRows(tableId, fields) {
+    const rows = [];
+    document.querySelectorAll('#' + tableId + ' tbody tr').forEach(tr => {
+      const o = {}; let any = false;
+      fields.forEach(f => {
+        const el = tr.querySelector('[name="' + f + '"]');
+        const val = el ? String(el.value).trim() : '';
+        o[f] = val === '' ? null : val;
+        if (val && f !== 'displayOrder') any = true;
+      });
+      if (any) rows.push(o);
+    });
+    return rows;
+  }
+</script>
+</body>
+</html>

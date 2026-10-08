@@ -317,7 +317,38 @@ img.sfa-avatar { object-fit: cover; }
   font-size: 12.5px;
 }
 .sfa-crumb-trail { display: flex; align-items: center; gap: 2px; min-width: 0; overflow-x: auto; white-space: nowrap; }
+.sfa-crumb-title-wrap { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; }
 .sfa-crumb-title { flex: 0 0 auto; font-weight: 600; font-size: 14px; color: var(--sfa-text-heading); white-space: nowrap; padding-left: 14px; }
+.sfa-help-btn {
+  width: 20px; height: 20px; border: none; background: transparent; padding: 0;
+  color: var(--sfa-text-muted); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 15px;
+}
+.sfa-help-btn:hover { color: var(--sfa-primary); }
+
+/* ---- help popover: colourful "card" look, not a plain black tooltip ----- */
+.popover.sfa-help-popover {
+  max-width: 320px; border: none; border-radius: 12px; overflow: hidden;
+  box-shadow: 0 12px 32px rgba(0,0,0,.22);
+}
+.popover.sfa-help-popover .popover-header {
+  background: linear-gradient(135deg, var(--sfa-primary), var(--sfa-accent));
+  color: #fff; border: none; font-weight: 700; font-size: 13px;
+  padding: 10px 14px; display: flex; align-items: center; gap: 6px;
+}
+.popover.sfa-help-popover .popover-header i { color: var(--sfa-accent-contrast, #fff); }
+.popover.sfa-help-popover .popover-body {
+  background: var(--sfa-surface); color: var(--sfa-text);
+  font-size: 13px; line-height: 1.65; padding: 14px;
+}
+.popover.sfa-help-popover .popover-body b { color: var(--sfa-text-heading); }
+.bs-popover-bottom.sfa-help-popover > .popover-arrow::before,
+.bs-popover-auto[data-popper-placement^="bottom"].sfa-help-popover > .popover-arrow::before {
+  border-bottom-color: var(--sfa-primary);
+}
+.bs-popover-bottom.sfa-help-popover > .popover-arrow::after,
+.bs-popover-auto[data-popper-placement^="bottom"].sfa-help-popover > .popover-arrow::after {
+  border-bottom-color: var(--sfa-primary);
+}
 .sfa-crumb-home { color: var(--sfa-text-muted); text-decoration: none; display: inline-flex; }
 .sfa-crumb-home:hover { color: var(--sfa-primary); }
 .sfa-crumb-sep { color: var(--sfa-text-muted); font-size: 10px; margin: 0 3px; opacity: .55; }
@@ -365,6 +396,7 @@ a.sfa-crumb:hover { color: var(--sfa-primary); text-decoration: underline; }
   border: 1px solid var(--sfa-border); border-radius: 0 0 10px 10px;
   box-shadow: 0 14px 34px var(--sfa-shadow); padding: 6px; z-index: 1300;
   display: none;
+  max-height: calc(100vh - var(--sfa-navbar-height) - 24px); overflow-y: auto; overflow-x: hidden;
 }
 .sfa-menu-top:hover > .sfa-menu-dropdown,
 .sfa-menu-top:focus-within > .sfa-menu-dropdown,
@@ -376,17 +408,31 @@ a.sfa-crumb:hover { color: var(--sfa-primary); text-decoration: underline; }
   padding: 8px 10px; border-radius: 7px; font-size: 13px;
   color: var(--sfa-navbar-drop-fg); text-decoration: none; background: none; border: 0; cursor: pointer;
 }
+/* flex items default to min-width:auto, which stops a long label (e.g. "Party
+   Client Mapping Approve") from shrinking/wrapping — it would rather push the
+   whole panel wider than its container, forcing horizontal overflow. Letting
+   it shrink + wrap keeps every panel a fixed width, scrolling vertically only. */
+.sfa-menu-sub-toggle span, a.sfa-menu-leaf span {
+  min-width: 0; flex: 1 1 auto; white-space: normal; word-break: break-word; text-align: left;
+}
 .sfa-menu-sub-toggle .sfa-caret { margin-left: auto; }
 .sfa-menu-item:hover > .sfa-menu-sub-toggle,
 a.sfa-menu-leaf:hover { background: var(--sfa-surface-2); color: var(--sfa-primary); }
 a.sfa-menu-leaf.active { background: var(--sfa-primary-soft); color: var(--sfa-primary); font-weight: 600; }
 .sfa-menu-item i, a.sfa-menu-leaf i { width: 16px; text-align: center; }
 
-/* L3 flyout */
+/* L3 flyout — POSITION: FIXED, not absolute. The parent .sfa-menu-dropdown
+   scrolls (overflow-y:auto) once it gets long, and an absolutely-positioned
+   child sitting at left:100% is OUTSIDE that parent's box, so the parent's
+   overflow would clip the whole flyout away (it simply never appeared).
+   position:fixed escapes ancestor overflow clipping entirely; top/left are
+   set per-open by positionFlyout() in shell.js, which also clamps the height
+   to the space available and flips it up/left near a screen edge. */
 .sfa-menu-flyout {
-  position: absolute; top: -6px; left: 100%; min-width: 200px;
+  position: fixed; top: 0; left: 0; min-width: 200px; max-width: 260px; z-index: 1400;
   background: var(--sfa-navbar-drop-bg); border: 1px solid var(--sfa-border); border-radius: 10px;
   box-shadow: 0 14px 34px var(--sfa-shadow); padding: 6px; display: none;
+  max-height: calc(100vh - var(--sfa-navbar-height) - 24px); overflow-y: auto; overflow-x: hidden;
 }
 .sfa-menu-item.has-sub:hover > .sfa-menu-flyout,
 .sfa-menu-item.has-sub:focus-within > .sfa-menu-flyout,
@@ -587,3 +633,218 @@ div.dataTables_scrollHead table.dataTable { margin-bottom: 0 !important; }
   .sfa-footer { padding: 10px 12px; font-size: 11.5px; }
   .sfa-footer-right { display: none; }
 }
+
+/* ---- content protection (deterrent only — see app.js's sfaApplyContentProtection) ---- */
+.sfa-protected, .sfa-protected * {
+  -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none;
+}
+.sfa-protected input, .sfa-protected textarea, .sfa-protected select,
+.sfa-protected [contenteditable="true"] {
+  -webkit-user-select: text; -moz-user-select: text; -ms-user-select: text; user-select: text;
+}
+.sfa-protection-warning {
+  position: fixed; inset: 0; z-index: 99999; background: rgba(10, 14, 22, .94); color: #fff;
+  display: flex; align-items: center; justify-content: center; text-align: center; padding: 24px;
+  font-size: 18px; font-weight: 600;
+}
+
+/* ---- footer online/offline indicator (WhatsApp-Web-style) --------------- */
+.sfa-net-status { display: inline-flex; align-items: center; gap: 5px; }
+.sfa-net-dot { font-size: 8px; }
+.sfa-net-status.sfa-net-online .sfa-net-dot { color: #1a9d63; }
+.sfa-net-status.sfa-net-offline .sfa-net-dot { color: #d64550; }
+.sfa-net-status.sfa-net-checking .sfa-net-dot { color: #d99a1b; animation: sfa-net-pulse 1s ease-in-out infinite; }
+@keyframes sfa-net-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+
+/* ---- Activity Summary (recent-searches replay) — reusable on every report */
+.sfa-activity-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px 4px; border-bottom: 1px solid var(--sfa-border);
+}
+.sfa-activity-row:last-child { border-bottom: none; }
+.sfa-activity-summary { font-size: 13px; color: var(--sfa-text); font-weight: 500; }
+.sfa-activity-time { font-size: 11.5px; color: var(--sfa-text-muted); margin-top: 2px; }
+
+/* ---- click-a-row-to-highlight (every table, via sfaDataTable) -----------
+   Customizable in Appearance > Tables > "Row highlight (on click)". */
+table.dataTable tbody tr.sfa-row-selected,
+table.dataTable tbody tr.sfa-row-selected > * {
+  background-color: var(--sfa-table-row-highlight) !important;
+}
+
+/* ---- Excel-style per-column filter row (thead, toggled via "Filter" button,
+   see sfaInsertFilterRow/sfaWireColumnFilters in app.js) ------------------- */
+.sfa-colfilter-btn {
+  display: flex; align-items: center; gap: 6px; width: 100%;
+  background: var(--sfa-surface); color: var(--sfa-text); border: 1px solid var(--sfa-border);
+  border-radius: 6px; padding: 3px 8px; font-size: 12px; font-weight: 500; text-align: left;
+}
+.sfa-colfilter-btn:hover { background: var(--sfa-surface-2); }
+.sfa-colfilter-btn.sfa-colfilter-active { border-color: var(--sfa-primary); color: var(--sfa-primary); }
+.sfa-colfilter-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sfa-colfilter-btn i { margin-left: auto; font-size: 9px; opacity: .7; flex: none; }
+
+.sfa-colfilter-panel {
+  position: fixed; z-index: 10000; width: 220px; max-height: 320px;
+  background: var(--sfa-surface); border: 1px solid var(--sfa-border); border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .18); padding: 8px; display: flex; flex-direction: column; gap: 6px;
+}
+.sfa-colfilter-actions { display: flex; gap: 12px; font-size: 12px; }
+.sfa-colfilter-actions a { color: var(--sfa-primary); text-decoration: none; cursor: pointer; }
+.sfa-colfilter-actions a:hover { text-decoration: underline; }
+.sfa-colfilter-list { overflow-y: auto; max-height: 220px; display: flex; flex-direction: column; gap: 2px; }
+.sfa-colfilter-item {
+  display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--sfa-text);
+  padding: 3px 4px; border-radius: 4px; cursor: pointer; margin: 0;
+}
+.sfa-colfilter-item:hover { background: var(--sfa-surface-2); }
+
+/* ---- Columns / Filter toolbar buttons — DataTables' Bootstrap5 integration
+   also adds "btn-secondary" to every button, which clashes with Bootstrap's
+   own "btn-outline-secondary" (gray text on gray background). Own class,
+   explicit colors, no clash. */
+.dt-buttons .btn.sfa-btn-outline {
+  background: var(--sfa-surface) !important;
+  color: var(--sfa-text) !important;
+  border: 1px solid var(--sfa-border) !important;
+}
+.dt-buttons .btn.sfa-btn-outline:hover {
+  background: var(--sfa-surface-2) !important;
+  color: var(--sfa-primary) !important;
+}
+
+/* ---- language switcher (topbar) ---------------------------------------- */
+.sfa-lang-btn { font-size: 16px; line-height: 1; }
+.sfa-lang-flag { font-size: 15px; }
+#sfaLangMenu .dropdown-item.active { background: var(--sfa-primary-soft); color: var(--sfa-primary); font-weight: 600; }
+
+/* ---- Menu Visibility management page ------------------------------------ */
+.sfa-mv-legend { background: var(--sfa-surface-2); border: 1px solid var(--sfa-border); border-radius: 8px; padding: 8px 12px; display: flex; gap: 8px; align-items: flex-start; }
+.sfa-mv-tree { border: 1px solid var(--sfa-border); border-radius: 8px; padding: 10px 14px; max-height: 62vh; overflow: auto; }
+.sfa-mv-list { list-style: none; margin: 0; padding-left: 18px; }
+.sfa-mv-tree > .sfa-mv-list { padding-left: 0; }
+.sfa-mv-list li { padding: 1px 0; }
+.sfa-mv-item { display: inline-flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 13.5px; color: var(--sfa-text); }
+.sfa-mv-item:hover { background: var(--sfa-surface-2); }
+.sfa-mv-item .form-check-input { margin: 0; }
+.sfa-mv-item i { color: var(--sfa-text-muted); width: 16px; text-align: center; }
+.sfa-mv-tree > .sfa-mv-list > li > .sfa-mv-item { font-weight: 600; }
+
+/* ---- Menu Visibility: drag handle, favourite star, drop targets --------- */
+.sfa-mv-item { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 6px; font-size: 13.5px; color: var(--sfa-text); }
+.sfa-mv-item:hover { background: var(--sfa-surface-2); }
+.sfa-mv-handle { cursor: grab; color: var(--sfa-text-muted); display: inline-flex; }
+.sfa-mv-handle:active { cursor: grabbing; }
+/* favourite star sits at the FAR RIGHT of the row (label takes the slack),
+   same gold as the sidebar favourite star (#f5b301). */
+.sfa-mv-fav { border: 0; background: none; padding: 0 2px; line-height: 1; color: var(--sfa-text-muted); cursor: pointer; opacity: .55; }
+.sfa-mv-item:hover .sfa-mv-fav { opacity: .85; }
+.sfa-mv-fav.on { color: #f5b301; opacity: 1; }
+.sfa-mv-fav:hover { color: #f5b301; opacity: 1; }
+.sfa-mv-label { display: inline-flex; align-items: center; gap: 6px; flex: 1 1 auto; min-width: 0; }
+.sfa-mv-label i { color: var(--sfa-text-muted); width: 16px; text-align: center; }
+.sfa-mv-tree > .sfa-mv-list > li > .sfa-mv-item .sfa-mv-label { font-weight: 600; }
+/* empty child lists still need to be a droppable target */
+.sfa-mv-list { min-height: 4px; }
+.sfa-mv-list:empty { min-height: 10px; }
+.sfa-mv-ghost { opacity: .5; background: var(--sfa-primary-soft); }
+
+/* unsaved drag changes — nudge the Save button until clicked */
+.sfa-mv-unsaved { box-shadow: 0 0 0 .18rem color-mix(in srgb, var(--sfa-warning) 55%, transparent); }
+
+/* ---- Menu Visibility: two panels (web tree | app cards) ----------------- */
+.sfa-mv-panel-title { font-size: 14px; font-weight: 700; color: var(--sfa-text-heading); margin: 0 0 10px; display: flex; align-items: center; gap: 7px; }
+.sfa-mv-panel-title i { color: var(--sfa-primary); }
+.sfa-mv-appwrap { border: 1px solid var(--sfa-border); border-radius: 8px; padding: 12px; max-height: 62vh; overflow: auto; }
+.sfa-mv-empty { padding: 24px 12px; text-align: center; }
+/* app menu shown as a grid of small launcher-style cards */
+.sfa-mv-appgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+.sfa-mv-card { position: relative; border: 1px solid var(--sfa-border); border-radius: 10px; background: var(--sfa-surface); padding: 10px 8px 12px; text-align: center; }
+.sfa-mv-card-top { display: flex; align-items: center; justify-content: space-between; gap: 4px; min-height: 20px; }
+.sfa-mv-card-icon { font-size: 26px; color: var(--sfa-primary); margin: 6px 0 4px; }
+.sfa-mv-card-label { font-size: 12.5px; color: var(--sfa-text); line-height: 1.2; word-break: break-word; }
+.sfa-mv-card .sfa-mv-handle { cursor: grab; }
+/* phone (send-to-app) toggle on web rows */
+.sfa-mv-phone { border: 0; background: none; padding: 0 2px; line-height: 1; color: var(--sfa-text-muted); opacity: .5; cursor: pointer; }
+.sfa-mv-item:hover .sfa-mv-phone { opacity: .8; }
+.sfa-mv-phone.on { color: var(--sfa-accent); opacity: 1; }
+.sfa-mv-phone:hover { color: var(--sfa-accent); opacity: 1; }
+
+/* ============================================================================
+ * UIKit — collapsible Filters card + mobile per-record cards (js/core/uikit.js)
+ * ==========================================================================*/
+.sfa-filter-toggle{background:transparent;border:0;color:var(--sfa-card-header-fg,inherit);cursor:pointer;padding:2px 8px;font-size:1rem;line-height:1;border-radius:6px;}
+.sfa-filter-toggle:hover{background:var(--sfa-surface-2,#eef2f8);}
+.sfa-filter-head{cursor:pointer;}
+.card.sfa-filter-collapsed>.card-header{border-bottom:0;}
+
+@media (max-width:767px){
+  /* collapse DataTables' horizontal-scroll shell so rows can stack as cards */
+  .dataTables_wrapper .dataTables_scrollHead{display:none!important;}
+  .dataTables_wrapper .dataTables_scrollBody{max-height:none!important;overflow:visible!important;}
+  .table-responsive{overflow:visible!important;}
+
+  .table-responsive>table,
+  .dataTables_scrollBody>table.dataTable{border:0!important;width:100%!important;}
+  .table-responsive>table>thead,
+  .dataTables_scrollBody>table.dataTable>thead{display:none;}
+
+  .table-responsive>table>tbody>tr,
+  .dataTables_scrollBody>table.dataTable>tbody>tr{
+    display:block;width:auto!important;margin:0 0 12px;padding:4px 12px;
+    border:1px solid var(--sfa-card-border,#e3e7ee);border-radius:var(--sfa-card-radius,12px);
+    background:var(--sfa-card-bg,#fff);box-shadow:0 1px 4px rgba(0,0,0,.06);
+  }
+  .table-responsive>table>tbody>tr>td,
+  .dataTables_scrollBody>table.dataTable>tbody>tr>td{
+    display:flex;justify-content:space-between;align-items:center;gap:12px;
+    width:auto!important;border:0!important;border-bottom:1px dashed var(--sfa-border,#e3e7ee)!important;
+    padding:9px 0!important;text-align:right;white-space:normal!important;
+  }
+  .table-responsive>table>tbody>tr>td:last-child,
+  .dataTables_scrollBody>table.dataTable>tbody>tr>td:last-child{border-bottom:0!important;}
+  .table-responsive>table>tbody>tr>td::before,
+  .dataTables_scrollBody>table.dataTable>tbody>tr>td::before{
+    content:attr(data-label);font-weight:600;color:var(--sfa-text-muted,#6b7a90);
+    text-align:left;margin-right:auto;
+  }
+  td[data-label=""]::before{content:"";}
+  tbody tr.sfa-row-selected{outline:2px solid var(--sfa-primary,#1b3a6b);outline-offset:-2px;}
+}
+
+/* ---- UIKit: back-to-top floating button ---- */
+.sfa-scrolltop{position:fixed;right:18px;bottom:18px;z-index:1030;width:44px;height:44px;border-radius:50%;border:0;
+  background:var(--sfa-primary,#1b3a6b);color:#fff;box-shadow:0 4px 14px rgba(0,0,0,.28);
+  display:flex;align-items:center;justify-content:center;font-size:1.15rem;cursor:pointer;
+  opacity:0;visibility:hidden;transform:translateY(8px);transition:opacity .2s,transform .2s,visibility .2s;}
+.sfa-scrolltop.show{opacity:1;visibility:visible;transform:none;}
+.sfa-scrolltop:hover{background:var(--sfa-primary-hover,#2a56a0);}
+.sfa-scrolltop.has-fab{bottom:78px;}   /* stack above a page's own floating action button */
+@media (max-width:767px){.sfa-scrolltop{right:14px;bottom:14px;width:42px;height:42px;}.sfa-scrolltop.has-fab{bottom:72px;}}
+
+/* ---- UIKit: global page loader (spinner overlay) — change here, applies app-wide ---- */
+.sfa-loader{position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;
+  background:rgba(15,23,42,.16);backdrop-filter:blur(1px);}
+.sfa-loader-box{display:flex;flex-direction:column;align-items:center;gap:14px;}
+.sfa-loader-text{color:#fff;font-size:14px;font-weight:600;text-align:center;text-shadow:0 1px 3px rgba(0,0,0,.5);max-width:70vw;}
+.sfa-loader-spinner{width:var(--sfa-loader-size,56px);height:var(--sfa-loader-size,56px);border-radius:50%;
+  border:4px solid var(--sfa-primary-soft,#eef2f8);border-top-color:var(--sfa-primary,#1b3a6b);
+  animation:sfaspin var(--sfa-loader-speed,800ms) linear infinite;}
+@keyframes sfaspin{to{transform:rotate(360deg);}}
+
+/* ---- UIKit: custom-image loader (spin / pulse / none, size & speed via vars) ---- */
+.sfa-loader-img{width:var(--sfa-loader-size,72px);height:var(--sfa-loader-size,72px);object-fit:contain;}
+.sfa-loader-img.anim-spin{animation:sfaspin var(--sfa-loader-speed,900ms) linear infinite;}
+.sfa-loader-img.anim-pulse{animation:sfaloaderpulse var(--sfa-loader-speed,1000ms) ease-in-out infinite;}
+.sfa-loader-img.anim-none{animation:none;}
+@keyframes sfaloaderpulse{0%,100%{transform:scale(.88);opacity:.65;}50%{transform:scale(1.06);opacity:1;}}
+
+/* ---- UIKit: loader shapes — round image, spinning arc ring, progress bar ---- */
+.sfa-loader-img.round{border-radius:50%;}
+.sfa-loader-ring{position:relative;display:inline-flex;align-items:center;justify-content:center;padding:10px;border-radius:50%;}
+.sfa-loader-ring::before{content:"";position:absolute;inset:0;border-radius:50%;
+  border:3px solid var(--sfa-primary-soft,#eef2f8);border-top-color:var(--sfa-primary,#1b3a6b);
+  animation:sfaspin var(--sfa-loader-speed,900ms) linear infinite;}
+.sfa-loader-bar{width:220px;max-width:60vw;height:4px;border-radius:4px;overflow:hidden;position:relative;background:var(--sfa-primary-soft,#eef2f8);}
+.sfa-loader-bar::before{content:"";position:absolute;top:0;left:-40%;height:100%;width:40%;border-radius:4px;background:var(--sfa-primary,#1b3a6b);animation:sfabar 1.2s ease-in-out infinite;}
+@keyframes sfabar{0%{left:-40%;}100%{left:100%;}}

@@ -14,6 +14,6 @@ import java.util.Optional;
 public interface AppUserRepository extends JpaRepository<AppUser, Long> {
 
     Optional<AppUser> findByUsername(String username);
-    Optional<AppUser> findByEmpIdAndTenantId(String empId, String tenantId);
-    List<AppUser> findByTenantId(String tenantId);
+    Optional<AppUser> findByEmpIdAndCompanyCode(String empId, String companyCode);
+    List<AppUser> findByCompanyCode(String companyCode);
 }
