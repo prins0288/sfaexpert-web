@@ -2,6 +2,8 @@ package in.opt.sfa.tenant.master.empdetail.controller;
 
 import in.opt.sfa.common.util.ExcelUtil;
 import in.opt.sfa.tenant.master.empdetail.dto.EmpDetailSaveRequest;
+import in.opt.sfa.tenant.master.empdetail.dto.EmpProfileDto;
+import in.opt.sfa.tenant.master.empdetail.service.EmpProfileService;
 import in.opt.sfa.tenant.master.empdetail.service.EmpDetailService;
 import in.opt.sfa.security.RequiresPermission;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -23,9 +25,11 @@ import java.util.Map;
 public class EmpDetailController {
 
     private final EmpDetailService service;
+    private final EmpProfileService profileService;
 
-    public EmpDetailController(EmpDetailService service) {
+    public EmpDetailController(EmpDetailService service, EmpProfileService profileService) {
         this.service = service;
+        this.profileService = profileService;
     }
 
     @GetMapping
@@ -44,6 +48,18 @@ public class EmpDetailController {
     public Map<String, Object> usernameAvailable(@RequestParam String username,
                                                  @RequestParam(required = false) String empId) {
         return service.usernameAvailability(username, empId);
+    }
+
+    /** Dropdown values for the profile sections that have no master table (relationships, blood groups, …). */
+    @GetMapping("/profile-options")
+    public Map<String, Object> profileOptions() {
+        return profileService.options();
+    }
+
+    /** The optional profile sections (address, bank, nominee, …) of one employee. */
+    @GetMapping("/{empId}/profile")
+    public EmpProfileDto profile(@PathVariable String empId) {
+        return profileService.load(empId);
     }
 
     @GetMapping("/{empId}")

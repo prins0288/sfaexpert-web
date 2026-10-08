@@ -195,6 +195,8 @@
         upload: "/api/master/create-employee/upload",
         suggestLogin: "/api/master/create-employee/suggest-login",          // GET {username, password}
         usernameAvailable: "/api/master/create-employee/username-available", // GET ?username=&empId=
+        profileOptions: "/api/master/create-employee/profile-options",       // GET relationships, blood groups, …
+        profile: (empId) => `/api/master/create-employee/${encodeURIComponent(empId)}/profile`,   // GET full profile
       },
       categoryMaster: {
         base: "/api/master/category-master",

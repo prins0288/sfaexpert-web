@@ -28,6 +28,12 @@
       } catch (e) {}
     })();
   </script>
+  <style>
+    #e_profile .accordion-button { padding: .6rem 1rem; font-weight: 500; }
+    #e_profile .accordion-button .badge { margin-left: .5rem; }
+    .p-row { border: 1px dashed var(--sfa-border, #dee2e6); border-radius: .5rem; padding: .75rem; margin-bottom: .5rem; position: relative; }
+    .p-row .p-remove { position: absolute; top: .25rem; right: .25rem; }
+  </style>
 </head>
 <body>
 <div id="app" data-page="createemployee" data-title="Create Employee"></div>
@@ -58,7 +64,7 @@
   </div>
 
   <!-- Add / Edit -->
-  <div class="modal fade" id="empModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
+  <div class="modal fade" id="empModal" tabindex="-1"><div class="modal-dialog modal-xl modal-dialog-scrollable modal-fullscreen-sm-down">
     <form class="modal-content" onsubmit="empSave(event)" onkeydown="empFormKeydown(event)">
       <div class="modal-header sfa-modal"><h5 class="modal-title" id="empModalTitle">Add Employee</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
@@ -137,6 +143,109 @@
           <div class="col-md-4 e-exit"><label class="form-label">Last Working Date</label>
             <input class="form-control sfa-date" id="e_lastWorkingDate" /></div>
         </div>
+
+        <h6 class="text-muted mt-4">Full profile <small>(optional — click a section to open it)</small></h6>
+        <div class="accordion" id="e_profile">
+
+          <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button"
+              data-bs-toggle="collapse" data-bs-target="#p_personal"><i class="bi bi-person me-2"></i> Personal details
+              <span class="badge bg-success d-none" data-badge="personal"></span></button></h2>
+            <div id="p_personal" class="accordion-collapse collapse"><div class="accordion-body"><div class="row g-3">
+              <div class="col-md-3"><label class="form-label">Date of Birth</label><input class="form-control sfa-date" id="pp_dob" /></div>
+              <div class="col-md-3"><label class="form-label">Father's Name</label><input class="form-control" id="pp_fatherName" maxlength="150" /></div>
+              <div class="col-md-3"><label class="form-label">Mother's Name</label><input class="form-control" id="pp_motherName" maxlength="150" /></div>
+              <div class="col-md-3"><label class="form-label">Marital Status</label>
+                <select class="form-select" id="pp_maritalStatus" onchange="pMarital()"><option value="">--</option><option value="SINGLE">Single</option><option value="MARRIED">Married</option></select></div>
+              <div class="col-md-3 p-married"><label class="form-label">Spouse Name</label><input class="form-control" id="pp_spouseName" maxlength="150" /></div>
+              <div class="col-md-3 p-married"><label class="form-label">Anniversary Date</label><input class="form-control sfa-date" id="pp_anniversaryDate" /></div>
+              <div class="col-md-3"><label class="form-label">Qualification</label><select class="form-select" id="pp_qualificationId"></select></div>
+              <div class="col-md-3"><label class="form-label">Qualification Detail</label><input class="form-control" id="pp_qualificationDetail" maxlength="150" placeholder="e.g. B.Pharm" /></div>
+              <div class="col-md-3"><label class="form-label">Blood Group</label><select class="form-select" id="pp_bloodGroup"></select></div>
+              <div class="col-md-3"><label class="form-label">Personal Email</label><input type="email" class="form-control" id="pp_personalEmail" maxlength="150" /></div>
+              <div class="col-md-3"><label class="form-label">Landline</label><input class="form-control" id="pp_landlineNo" maxlength="20" /></div>
+              <div class="col-md-3"><label class="form-label">Total Experience (yrs)</label><input type="number" step="0.1" min="0" max="999.9" class="form-control" id="pp_totalExperienceYrs" /></div>
+              <div class="col-md-3"><label class="form-label">Shirt Size</label><input type="number" min="0" max="255" class="form-control" id="pp_shirtSize" /></div>
+              <div class="col-md-9"><label class="form-label">Remarks</label><input class="form-control" id="pp_remarks" maxlength="1000" /></div>
+            </div></div></div></div>
+
+          <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button"
+              data-bs-toggle="collapse" data-bs-target="#p_address"><i class="bi bi-house me-2"></i> Address
+              <span class="badge bg-success d-none" data-badge="address"></span></button></h2>
+            <div id="p_address" class="accordion-collapse collapse"><div class="accordion-body">
+              <div class="fw-semibold mb-2">Present address</div>
+              <div class="row g-3 mb-3">
+                <div class="col-12"><label class="form-label">Address</label><textarea class="form-control" rows="2" id="pa_present_addressLine" maxlength="500"></textarea></div>
+                <div class="col-md-3"><label class="form-label">City</label><input class="form-control" id="pa_present_city" maxlength="100" /></div>
+                <div class="col-md-3"><label class="form-label">District</label><input class="form-control" id="pa_present_district" maxlength="100" /></div>
+                <div class="col-md-3"><label class="form-label">State</label><select class="form-select" id="pa_present_stateId"></select></div>
+                <div class="col-md-3"><label class="form-label">Pincode</label><input class="form-control" id="pa_present_pincode" inputmode="numeric" maxlength="6" pattern="[1-9][0-9]{5}" title="6 digits" /></div>
+              </div>
+              <div class="d-flex align-items-center gap-3 mb-2"><span class="fw-semibold">Permanent address</span>
+                <div class="form-check mb-0"><input class="form-check-input" type="checkbox" id="pa_same" onchange="pSameAddress()">
+                  <label class="form-check-label" for="pa_same">Same as present</label></div></div>
+              <div class="row g-3" id="pa_permanentBox">
+                <div class="col-12"><label class="form-label">Address</label><textarea class="form-control" rows="2" id="pa_permanent_addressLine" maxlength="500"></textarea></div>
+                <div class="col-md-3"><label class="form-label">City</label><input class="form-control" id="pa_permanent_city" maxlength="100" /></div>
+                <div class="col-md-3"><label class="form-label">District</label><input class="form-control" id="pa_permanent_district" maxlength="100" /></div>
+                <div class="col-md-3"><label class="form-label">State</label><select class="form-select" id="pa_permanent_stateId"></select></div>
+                <div class="col-md-3"><label class="form-label">Pincode</label><input class="form-control" id="pa_permanent_pincode" inputmode="numeric" maxlength="6" pattern="[1-9][0-9]{5}" title="6 digits" /></div>
+              </div>
+            </div></div></div>
+
+          <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button"
+              data-bs-toggle="collapse" data-bs-target="#p_bank"><i class="bi bi-bank me-2"></i> Bank account
+              <span class="badge bg-success d-none" data-badge="bank"></span></button></h2>
+            <div id="p_bank" class="accordion-collapse collapse"><div class="accordion-body">
+              <div id="pl_bank"></div>
+              <button type="button" class="btn btn-sm btn-outline-primary" onclick="pAddRow('bank')"><i class="bi bi-plus"></i> Add bank account</button>
+            </div></div></div>
+
+          <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button"
+              data-bs-toggle="collapse" data-bs-target="#p_nominee"><i class="bi bi-people me-2"></i> Nominee
+              <span class="badge bg-success d-none" data-badge="nominee"></span></button></h2>
+            <div id="p_nominee" class="accordion-collapse collapse"><div class="accordion-body">
+              <p class="small text-muted mb-2">Shares of one type (PF, ESI, …) must add up to at most 100%.</p>
+              <div id="pl_nominee"></div>
+              <button type="button" class="btn btn-sm btn-outline-primary" onclick="pAddRow('nominee')"><i class="bi bi-plus"></i> Add nominee</button>
+            </div></div></div>
+
+          <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button"
+              data-bs-toggle="collapse" data-bs-target="#p_emergency"><i class="bi bi-telephone me-2"></i> Emergency contact
+              <span class="badge bg-success d-none" data-badge="emergency"></span></button></h2>
+            <div id="p_emergency" class="accordion-collapse collapse"><div class="accordion-body">
+              <div id="pl_emergency"></div>
+              <button type="button" class="btn btn-sm btn-outline-primary" onclick="pAddRow('emergency')"><i class="bi bi-plus"></i> Add emergency contact</button>
+            </div></div></div>
+
+          <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button"
+              data-bs-toggle="collapse" data-bs-target="#p_statutory"><i class="bi bi-file-earmark-text me-2"></i> Statutory (PAN / PF / UAN / ESI)
+              <span class="badge bg-success d-none" data-badge="statutory"></span></button></h2>
+            <div id="p_statutory" class="accordion-collapse collapse"><div class="accordion-body"><div class="row g-3">
+              <div class="col-md-4"><label class="form-label">PAN</label><input class="form-control text-uppercase" id="ps_panNo" maxlength="10" placeholder="ABCDE1234F" /></div>
+              <div class="col-md-4"><label class="form-label">PF Number</label><input class="form-control" id="ps_pfNo" maxlength="30" /></div>
+              <div class="col-md-4"><label class="form-label">UAN</label><input class="form-control" id="ps_uanNo" inputmode="numeric" maxlength="12" placeholder="12 digits" /></div>
+              <div class="col-md-4"><label class="form-label">ESI Number</label><input class="form-control" id="ps_esiNo" maxlength="20" /></div>
+              <div class="col-md-4"><label class="form-label">Mediclaim Policy No.</label><input class="form-control" id="ps_mediclaimPolicyNo" maxlength="50" /></div>
+              <div class="col-md-4"><label class="form-label">Aadhaar</label><input class="form-control" id="ps_aadhaar" disabled placeholder="not captured here" /></div>
+            </div></div></div></div>
+
+          <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button"
+              data-bs-toggle="collapse" data-bs-target="#p_children"><i class="bi bi-emoji-smile me-2"></i> Children
+              <span class="badge bg-success d-none" data-badge="children"></span></button></h2>
+            <div id="p_children" class="accordion-collapse collapse"><div class="accordion-body">
+              <div id="pl_children"></div>
+              <button type="button" class="btn btn-sm btn-outline-primary" onclick="pAddRow('children')"><i class="bi bi-plus"></i> Add child</button>
+            </div></div></div>
+
+          <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button"
+              data-bs-toggle="collapse" data-bs-target="#p_prev"><i class="bi bi-briefcase me-2"></i> Previous employment
+              <span class="badge bg-success d-none" data-badge="prev"></span></button></h2>
+            <div id="p_prev" class="accordion-collapse collapse"><div class="accordion-body">
+              <div id="pl_prev"></div>
+              <button type="button" class="btn btn-sm btn-outline-primary" onclick="pAddRow('prev')"><i class="bi bi-plus"></i> Add previous employer</button>
+            </div></div></div>
+
+        </div>
       </div>
       <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
         <button type="submit" class="btn btn-primary" id="e_saveBtn">Save</button></div>
@@ -144,17 +253,24 @@
   </div></div>
 
   <!-- Bulk Upload -->
-  <div class="modal fade" id="empUploadModal" tabindex="-1"><div class="modal-dialog modal-dialog-scrollable modal-fullscreen-sm-down">
+  <div class="modal fade" id="empUploadModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
     <form class="modal-content" onsubmit="empUpload(event)">
       <div class="modal-header sfa-modal"><h5 class="modal-title">Bulk Upload &middot; Employees</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
       <div class="modal-body">
-        <p class="text-muted small">Every row creates a <b>new</b> employee + login (emp_code is always auto-generated —
-          existing employees are not updated by this upload). <code>division_code</code> and <code>designation_code</code>
-          must match an existing master row.</p>
+        <ul class="text-muted small ps-3">
+          <li><b>emp_code blank</b> = new employee + login. Blank <code>username</code> / <code>password</code> are generated
+            (company prefix + 8 digits / 8 digits) and listed below after the upload.</li>
+          <li><b>emp_code of an existing employee</b> = update it — a blank cell keeps the stored value.</li>
+          <li>Codes (<code>division_code</code>, <code>designation_code</code>, <code>state_code</code>, <code>hq_code</code>,
+            <code>bank_code</code>, <code>qualification_code</code>, <code>manager_emp_code</code>) must match the masters;
+            relationships are names (Father, Mother, Spouse, …); yes/no columns take Y / N; dates 2024-12-25 or 25-12-2024.</li>
+          <li>One bank, nominee and emergency contact per row (add more from the form). Old 8-column sheets still work.</li>
+        </ul>
         <button type="button" class="btn btn-sm btn-outline-secondary mb-3" onclick="Api.download(API.master.createEmployee.template,'employee_template.xlsx')">
           <i class="bi bi-download"></i> Download Template</button>
         <input type="file" class="form-control" id="empFile" name="file" accept=".xlsx,.xls" required />
+        <div id="empUploadResult" class="mt-3"></div>
       </div>
       <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
         <button type="submit" class="btn btn-accent">Upload</button></div>
@@ -182,16 +298,27 @@
 <script src="js/core/uikit.js"></script>
 <script src="js/shell.js"></script>
 <script>
-  let DT = null, MODAL = null, LK = null, EMP = [];
+  let DT = null, MODAL = null, LK = null, EMP = [], OPTS = { relationships: [], nomineeTypes: [], bloodGroups: [] };
 
   window.pageInit = async function () {
     MODAL = new bootstrap.Modal('#empModal');
     try {
-      LK = await Api.get(API.lookups, { query: { keys: 'divisions,designations,states,hqs' } });
+      [LK, OPTS] = await Promise.all([
+        Api.get(API.lookups, { query: { keys: 'divisions,designations,states,hqs,banks,degrees' } }),
+        Api.get(API.master.createEmployee.profileOptions),
+      ]);
       SFA.fillSelect(document.getElementById('e_divisionId'), LK.divisions);
       SFA.fillSelect(document.getElementById('e_designationId'), LK.designations);
       SFA.fillSelect(document.getElementById('e_stateId'), LK.states);
       SFA.fillSelect(document.getElementById('e_hqId'), LK.hqs);
+      SFA.fillSelect(document.getElementById('pp_qualificationId'), LK.degrees);
+      SFA.fillSelect(document.getElementById('pa_present_stateId'), LK.states);
+      SFA.fillSelect(document.getElementById('pa_permanent_stateId'), LK.states);
+      document.getElementById('pp_bloodGroup').innerHTML = '<option value="">--</option>' +
+        (OPTS.bloodGroups || []).map(b => `<option value="${SFA.esc(b)}">${SFA.esc(b)}</option>`).join('');
+      document.getElementById('empModal').addEventListener('input', pBadges);
+      document.getElementById('empModal').addEventListener('change', pBadges);
+      document.getElementById('empUploadModal').addEventListener('show.bs.modal', () => document.getElementById('empUploadResult').innerHTML = '');
       await reload();
     } catch (e) { SFA.toast(e.message, false); }
   };
@@ -247,6 +374,7 @@
     setUsernameState(null);
     empConfirmedChanged();
     empLevelHint();
+    pClear();
   }
 
   async function empAdd() {
@@ -256,6 +384,7 @@
     document.getElementById('e_pwdStar').style.display = '';
     document.querySelectorAll('.e-exit').forEach(el => el.style.display = 'none');   // exit dates only make sense on edit
     document.getElementById('empModalTitle').textContent = 'Add Employee';
+    PROFILE_READY = true;
     MODAL.show();
     try {
       const login = await Api.get(API.master.createEmployee.suggestLogin, { noLoader: true });
@@ -297,6 +426,12 @@
     document.getElementById('empModalTitle').textContent = 'Edit Employee';
     MODAL.show();
     if (r.username) empUsernameChanged(true);
+    // Profile sections: until they are loaded, Save sends NO profile (= untouched),
+    // so a slow / failed load can never wipe the stored address, bank, …
+    PROFILE_READY = false;
+    Api.get(API.master.createEmployee.profile(r.empId), { noLoader: true })
+      .then(pr => { if (document.getElementById('e_empId').value === r.empId) { pFill(pr); PROFILE_READY = true; } })
+      .catch(e => SFA.toast('Could not load the full profile: ' + e.message, false));
   }
 
   function empLevelHint() {
@@ -397,12 +532,174 @@
       confirmed: document.getElementById('e_confirmed').checked,
       confirmationDate: t('e_confirmationDate'),
       resignationDate: t('e_resignationDate'), lastWorkingDate: t('e_lastWorkingDate'),
+      profile: PROFILE_READY ? pCollect() : null,
     };
     try { await Api.post(API.master.createEmployee.save, body); MODAL.hide(); await reload(); SFA.toast('Saved'); }
     catch (e) {
       if (/username/i.test(e.message)) setUsernameState({ value: username, available: false, message: e.message });
       SFA.toast(e.message, false);
     }
+  }
+
+  // ---- full profile (address, bank, nominee, …) ------------------------------
+  let PROFILE_READY = false, ROW_SEQ = 0;
+  const pv = id => { const x = document.getElementById(id).value.trim(); return x === '' ? null : x; };
+  const pnum = v => (v === null || v === '' || v === undefined) ? null : Number(v);
+  const opt = (items, cur) => '<option value="">--</option>' + (items || []).map(i =>
+    `<option value="${SFA.esc(i.oid)}" ${String(i.oid) === String(cur ?? '') ? 'selected' : ''}>${SFA.esc(i.label)}</option>`).join('');
+  const optS = (vals, cur, labels) => '<option value="">--</option>' + (vals || []).map((v, i) =>
+    `<option value="${SFA.esc(v)}" ${v === cur ? 'selected' : ''}>${SFA.esc(labels ? labels[i] : v)}</option>`).join('');
+
+  // One template per repeatable section; every input carries data-k = its DTO field.
+  const ROWS = {
+    bank: d => `
+      <div class="col-md-3"><label class="form-label">Bank</label><select class="form-select" data-k="bankId">${opt(LK.banks, d.bankId)}</select></div>
+      <div class="col-md-3"><label class="form-label">Account No. <span class="required-star">*</span></label><input class="form-control" data-k="accountNo" inputmode="numeric" maxlength="20" value="${SFA.esc(d.accountNo || '')}" /></div>
+      <div class="col-md-2"><label class="form-label">IFSC</label><input class="form-control text-uppercase" data-k="ifscCode" maxlength="11" placeholder="SBIN0001234" value="${SFA.esc(d.ifscCode || '')}" /></div>
+      <div class="col-md-2"><label class="form-label">Branch</label><input class="form-control" data-k="branchName" maxlength="150" value="${SFA.esc(d.branchName || '')}" /></div>
+      <div class="col-md-2 d-flex flex-column justify-content-end gap-1">
+        <div class="form-check"><input class="form-check-input" type="radio" name="p_bank_primary" data-k="primary" ${d.primary ? 'checked' : ''}><label class="form-check-label">Primary</label></div>
+        <div class="form-check"><input class="form-check-input" type="checkbox" data-k="active" ${d.active === false ? '' : 'checked'}><label class="form-check-label">Active</label></div></div>`,
+    nominee: d => `
+      <div class="col-md-2"><label class="form-label">Type <span class="required-star">*</span></label><select class="form-select" data-k="nomineeType">${optS(OPTS.nomineeTypes, d.nomineeType || 'PF')}</select></div>
+      <div class="col-md-3"><label class="form-label">Name <span class="required-star">*</span></label><input class="form-control" data-k="nomineeName" maxlength="150" value="${SFA.esc(d.nomineeName || '')}" /></div>
+      <div class="col-md-2"><label class="form-label">Relationship</label><select class="form-select" data-k="relationshipId">${opt(OPTS.relationships, d.relationshipId)}</select></div>
+      <div class="col-md-2"><label class="form-label">Date of Birth</label><input class="form-control sfa-date" data-k="nomineeDob" data-v="${SFA.esc(d.nomineeDob || '')}" /></div>
+      <div class="col-md-2"><label class="form-label">Contact</label><input class="form-control" data-k="contactNo" inputmode="numeric" maxlength="10" value="${SFA.esc(d.contactNo || '')}" /></div>
+      <div class="col-md-1"><label class="form-label">Share %</label><input type="number" min="0.01" max="100" step="0.01" class="form-control" data-k="sharePct" value="${d.sharePct ?? 100}" /></div>`,
+    emergency: d => `
+      <div class="col-md-3"><label class="form-label">Name</label><input class="form-control" data-k="contactName" maxlength="150" value="${SFA.esc(d.contactName || '')}" /></div>
+      <div class="col-md-3"><label class="form-label">Relationship</label><select class="form-select" data-k="relationshipId">${opt(OPTS.relationships, d.relationshipId)}</select></div>
+      <div class="col-md-3"><label class="form-label">Phone 1 <span class="required-star">*</span></label><input class="form-control" data-k="contactNo1" maxlength="15" value="${SFA.esc(d.contactNo1 || '')}" /></div>
+      <div class="col-md-3"><label class="form-label">Phone 2</label><input class="form-control" data-k="contactNo2" maxlength="15" value="${SFA.esc(d.contactNo2 || '')}" /></div>`,
+    children: d => `
+      <div class="col-md-5"><label class="form-label">Name <span class="required-star">*</span></label><input class="form-control" data-k="childName" maxlength="150" value="${SFA.esc(d.childName || '')}" /></div>
+      <div class="col-md-3"><label class="form-label">Gender</label><select class="form-select" data-k="gender">${optS(['MALE', 'FEMALE', 'OTHER'], d.gender, ['Male', 'Female', 'Other'])}</select></div>
+      <div class="col-md-4"><label class="form-label">Date of Birth</label><input class="form-control sfa-date" data-k="dob" data-v="${SFA.esc(d.dob || '')}" /></div>`,
+    prev: d => `
+      <div class="col-md-3"><label class="form-label">Company <span class="required-star">*</span></label><input class="form-control" data-k="companyName" maxlength="200" value="${SFA.esc(d.companyName || '')}" /></div>
+      <div class="col-md-2"><label class="form-label">Designation</label><input class="form-control" data-k="designation" maxlength="100" value="${SFA.esc(d.designation || '')}" /></div>
+      <div class="col-md-2"><label class="form-label">From</label><input class="form-control sfa-date" data-k="fromDate" data-v="${SFA.esc(d.fromDate || '')}" /></div>
+      <div class="col-md-2"><label class="form-label">To</label><input class="form-control sfa-date" data-k="toDate" data-v="${SFA.esc(d.toDate || '')}" /></div>
+      <div class="col-md-1"><label class="form-label">Yrs</label><input type="number" min="0" step="0.1" class="form-control" data-k="experienceYrs" value="${d.experienceYrs ?? ''}" /></div>
+      <div class="col-md-2"><label class="form-label">Last CTC (yearly)</label><input type="number" min="0" step="1" class="form-control" data-k="lastCtc" value="${d.lastCtc ?? ''}" /></div>`,
+  };
+
+  function pAddRow(kind, data) {
+    const wrap = document.createElement('div');
+    wrap.className = 'p-row';
+    wrap.innerHTML = `<button type="button" class="btn btn-sm btn-link text-danger p-remove" title="Remove" onclick="this.closest('.p-row').remove(); pBadges()"><i class="bi bi-x-lg"></i></button>
+      <div class="row g-2">${ROWS[kind](data || {})}</div>`;
+    wrap.querySelectorAll('.sfa-date').forEach(el => { el.id = 'pd_' + (++ROW_SEQ); });
+    document.getElementById('pl_' + kind).appendChild(wrap);
+    if (window.sfaFlatpickr) sfaFlatpickr(wrap);
+    wrap.querySelectorAll('.sfa-date').forEach(el => sfaSetDate(el.id, el.dataset.v || ''));
+    if (kind === 'bank' && !document.querySelector('#pl_bank [data-k="primary"]:checked')) wrap.querySelector('[data-k="primary"]').checked = true;
+    pBadges();
+    return wrap;
+  }
+
+  function pRows(kind) {
+    return Array.from(document.querySelectorAll('#pl_' + kind + ' .p-row')).map(row => {
+      const o = {};
+      row.querySelectorAll('[data-k]').forEach(el => {
+        const k = el.dataset.k;
+        if (el.type === 'checkbox' || el.type === 'radio') o[k] = el.checked;
+        else if (el.type === 'number') o[k] = pnum(el.value);
+        else o[k] = el.value.trim() === '' ? null : el.value.trim();
+      });
+      return o;
+    });
+  }
+
+  function pAddress(kind) {
+    const g = f => pv('pa_' + kind + '_' + f);
+    return { addressLine: g('addressLine'), city: g('city'), district: g('district'), stateId: g('stateId'), pincode: g('pincode') };
+  }
+
+  function pCollect() {
+    const present = pAddress('present');
+    return {
+      personal: {
+        dob: pv('pp_dob'), fatherName: pv('pp_fatherName'), motherName: pv('pp_motherName'),
+        maritalStatus: pv('pp_maritalStatus'), spouseName: pv('pp_spouseName'), anniversaryDate: pv('pp_anniversaryDate'),
+        qualificationId: pv('pp_qualificationId'), qualificationDetail: pv('pp_qualificationDetail'),
+        bloodGroup: pv('pp_bloodGroup'), personalEmail: pv('pp_personalEmail'), landlineNo: pv('pp_landlineNo'),
+        totalExperienceYrs: pnum(pv('pp_totalExperienceYrs')), shirtSize: pnum(pv('pp_shirtSize')), remarks: pv('pp_remarks'),
+      },
+      presentAddress: present,
+      permanentAddress: document.getElementById('pa_same').checked ? Object.assign({}, present) : pAddress('permanent'),
+      bankAccounts: pRows('bank'),
+      nominees: pRows('nominee'),
+      emergencyContacts: pRows('emergency'),
+      statutory: { panNo: pv('ps_panNo'), pfNo: pv('ps_pfNo'), uanNo: pv('ps_uanNo'), esiNo: pv('ps_esiNo'), mediclaimPolicyNo: pv('ps_mediclaimPolicyNo') },
+      children: pRows('children'),
+      prevEmployment: pRows('prev'),
+    };
+  }
+
+  function pClear() {
+    document.querySelectorAll('#e_profile input:not([type=checkbox]):not([type=radio]), #e_profile select, #e_profile textarea')
+      .forEach(el => { if (!el.classList.contains('sfa-date')) el.value = ''; });
+    document.querySelectorAll('#e_profile .sfa-date[id^="pp_"]').forEach(el => sfaSetDate(el.id, ''));
+    ['bank', 'nominee', 'emergency', 'children', 'prev'].forEach(k => document.getElementById('pl_' + k).innerHTML = '');
+    document.getElementById('pa_same').checked = false;
+    pSameAddress();
+    pMarital();
+    document.querySelectorAll('#e_profile .accordion-collapse.show').forEach(el => bootstrap.Collapse.getOrCreateInstance(el, { toggle: false }).hide());
+    pBadges();
+  }
+
+  function pFill(pr) {
+    pr = pr || {};
+    const per = pr.personal || {};
+    ['fatherName', 'motherName', 'maritalStatus', 'spouseName', 'qualificationId', 'qualificationDetail', 'bloodGroup',
+     'personalEmail', 'landlineNo', 'totalExperienceYrs', 'shirtSize', 'remarks']
+      .forEach(k => document.getElementById('pp_' + k).value = per[k] ?? '');
+    sfaSetDate('pp_dob', per.dob || '');
+    sfaSetDate('pp_anniversaryDate', per.anniversaryDate || '');
+    pMarital();
+    [['present', pr.presentAddress], ['permanent', pr.permanentAddress]].forEach(([kind, a]) => {
+      a = a || {};
+      ['addressLine', 'city', 'district', 'stateId', 'pincode'].forEach(f => document.getElementById('pa_' + kind + '_' + f).value = a[f] ?? '');
+    });
+    const st = pr.statutory || {};
+    ['panNo', 'pfNo', 'uanNo', 'esiNo', 'mediclaimPolicyNo'].forEach(k => document.getElementById('ps_' + k).value = st[k] || '');
+    document.getElementById('ps_aadhaar').value = st.aadhaarLast4 ? 'XXXX-XXXX-' + st.aadhaarLast4 : '';
+    (pr.bankAccounts || []).forEach(b => pAddRow('bank', b));
+    (pr.nominees || []).forEach(n => pAddRow('nominee', n));
+    (pr.emergencyContacts || []).forEach(c => pAddRow('emergency', c));
+    (pr.children || []).forEach(c => pAddRow('children', c));
+    (pr.prevEmployment || []).forEach(w => pAddRow('prev', w));
+    pBadges();
+  }
+
+  function pMarital() {
+    const married = document.getElementById('pp_maritalStatus').value === 'MARRIED';
+    document.querySelectorAll('#e_profile .p-married').forEach(el => el.style.display = married ? '' : 'none');
+  }
+
+  function pSameAddress() {
+    const same = document.getElementById('pa_same').checked;
+    document.getElementById('pa_permanentBox').style.display = same ? 'none' : '';
+  }
+
+  /** Section header badges: ✓ for a filled 1:1 section, the row count for a list. */
+  function pBadges() {
+    const set = (k, text) => {
+      const b = document.querySelector(`[data-badge="${k}"]`);
+      if (!b) return;
+      b.textContent = text || '';
+      b.classList.toggle('d-none', !text);
+    };
+    const filled = sel => Array.from(document.querySelectorAll(sel)).some(el => el.value && el.value.trim() !== '');
+    set('personal', filled('#p_personal input, #p_personal select') ? '✓' : '');
+    set('address', filled('#p_address textarea') ? '✓' : '');
+    set('statutory', filled('#p_statutory input:not([disabled])') ? '✓' : '');
+    ['bank', 'nominee', 'emergency', 'children', 'prev'].forEach(k => {
+      const n = document.querySelectorAll('#pl_' + k + ' .p-row').length;
+      set(k, n ? String(n) : '');
+    });
   }
 
   async function empStatus(empId, active) {
@@ -416,15 +713,40 @@
     const f = document.getElementById('empFile').files[0];
     if (!f) { SFA.toast('Choose a file', false); return; }
     const fd = new FormData(); fd.append('file', f);
+    const out = document.getElementById('empUploadResult');
+    out.innerHTML = '';
     try {
       const res = await Api.post(API.master.createEmployee.upload, fd);
-      bootstrap.Modal.getInstance(document.getElementById('empUploadModal')).hide();
       document.getElementById('empFile').value = '';
       await reload();
-      let msg = res.inserted + ' inserted, ' + res.skipped + ' skipped';
-      SFA.toast(msg, res.skipped === 0);
-      if (res.errors && res.errors.length) console.warn('Bulk upload row errors:', res.errors);
+      LAST_LOGINS = res.created || [];
+      const errs = res.errors || [];
+      out.innerHTML = `
+        <div class="alert ${res.skipped ? 'alert-warning' : 'alert-success'} py-2 small mb-2">
+          <b>${res.inserted}</b> created, <b>${res.updated || 0}</b> updated, <b>${res.skipped}</b> skipped</div>
+        ${errs.length ? `<div class="small text-danger mb-2"><b>Skipped rows</b><ul class="mb-0 ps-3">${errs.map(e => `<li>${SFA.esc(e)}</li>`).join('')}</ul></div>` : ''}
+        ${LAST_LOGINS.length ? `
+          <div class="d-flex align-items-center mb-1"><b class="small">Logins of the new employees</b>
+            <button type="button" class="btn btn-sm btn-outline-primary ms-auto" onclick="empDownloadLogins()"><i class="bi bi-download"></i> Download (CSV)</button></div>
+          <div class="table-responsive" style="max-height:40vh"><table class="table table-sm table-bordered small mb-0">
+            <thead><tr><th>Row</th><th>Emp Code</th><th>Name</th><th>Username</th><th>Password</th></tr></thead>
+            <tbody>${LAST_LOGINS.map(c => `<tr><td>${c.row}</td><td>${SFA.esc(c.empCode)}</td><td>${SFA.esc(c.empName)}</td>
+              <td class="font-monospace">${SFA.esc(c.username)}</td><td class="font-monospace">${SFA.esc(c.password)}</td></tr>`).join('')}</tbody>
+          </table></div>
+          <div class="form-text">Passwords are shown only now — download or note them before closing.</div>` : ''}`;
+      if (errs.length) console.warn('Bulk upload row errors:', errs);
     } catch (e) { SFA.toast(e.message, false); }
+  }
+
+  let LAST_LOGINS = [];
+  function empDownloadLogins() {
+    const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+    const csv = ['Emp Code,Name,Username,Password']
+      .concat(LAST_LOGINS.map(c => [c.empCode, c.empName, c.username, c.password].map(q).join(','))).join('\r\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv' }));
+    a.download = 'employee_logins.csv';
+    document.body.appendChild(a); a.click(); a.remove();
   }
 </script>
 </body>

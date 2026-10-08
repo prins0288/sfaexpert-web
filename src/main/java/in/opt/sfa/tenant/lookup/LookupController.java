@@ -14,6 +14,7 @@ import in.opt.sfa.tenant.master.clienttype.repository.ClientTypeRepository;
 import in.opt.sfa.tenant.master.route.repository.RouteRepository;
 import in.opt.sfa.tenant.master.area.repository.AreaRepository;
 import in.opt.sfa.tenant.master.empdetail.repository.EmpDetailRepository;
+import in.opt.sfa.tenant.master.bank.repository.BankMasterRepository;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -59,13 +60,15 @@ public class LookupController {
     private final DistrictRepository districts;
     private final EmpDetailRepository employees;
     private final CountryRepository countries;
+    private final BankMasterRepository banks;
 
     public LookupController(DivisionRepository divisions, ZoneRepository zones, StateRepository states,
                             HqRepository hqs, HqGroupMasterRepository hqGroups, DegreeMasterRepository degrees, SpecialityMasterRepository specialities,
                             CategoryMasterRepository categories, ClientTypeRepository clientTypes,
                             RouteRepository routes, AreaRepository areas,
                             DesignationRepository designations, DistrictRepository districts,
-                            EmpDetailRepository employees, CountryRepository countries) {
+                            EmpDetailRepository employees, CountryRepository countries,
+                            BankMasterRepository banks) {
         this.divisions = divisions;
         this.zones = zones;
         this.states = states;
@@ -81,6 +84,7 @@ public class LookupController {
         this.districts = districts;
         this.employees = employees;
         this.countries = countries;
+        this.banks = banks;
     }
 
     @GetMapping
@@ -121,6 +125,8 @@ public class LookupController {
                 .map(d -> new Item(d.getOid(), d.getDistrictName())).toList());
         if (want(want, "employees")) res.put("employees", employees.findByActiveTrueOrderByEmpNameAsc().stream()
                 .map(e -> new Item(e.getEmpId(), e.getEmpName())).toList());
+        if (want(want, "banks")) res.put("banks", banks.findByIsActiveOrderByDisplayOrderAscBankNameAsc(true).stream()
+                .map(bk -> new Item(bk.getId(), bk.getBankName())).toList());
         if (want(want, "countries")) res.put("countries", countries.findByStatusOrderByCountryNameAsc(Boolean.TRUE).stream()
                 .map(c -> new Item(c.getOid(), c.getCountryName())).toList());
         return res;

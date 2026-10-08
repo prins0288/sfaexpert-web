@@ -40,4 +40,7 @@ public class EmpDetailSaveRequest {
     private String confirmationDate;  // ISO yyyy-MM-dd
     private String resignationDate;   // ISO yyyy-MM-dd
     private String lastWorkingDate;   // ISO yyyy-MM-dd
+
+    /** Optional profile sections (address, bank, nominee, …); null = leave them as they are. */
+    private EmpProfileDto profile;
 }
