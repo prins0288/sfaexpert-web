@@ -76,6 +76,7 @@ public class PermissionAdminService {
         target.setModule(form.getModule());
         target.setDescription(form.getDescription());
         target.setStatus(form.getStatus() == null ? Boolean.TRUE : form.getStatus());
+        if (form.getDefaultAllowed() != null) target.setDefaultAllowed(form.getDefaultAllowed());
         return toDto(definitions.save(target));
     }
 
@@ -114,6 +115,7 @@ public class PermissionAdminService {
         d.setModule(e.getModule());
         d.setDescription(e.getDescription());
         d.setStatus(e.getStatus());
+        d.setDefaultAllowed(e.getDefaultAllowed());
         d.setCreatedAt(e.getCreatedAt());
         d.setCreatedBy(e.getCreatedBy());
         d.setUpdatedAt(e.getUpdatedAt());

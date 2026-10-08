@@ -41,7 +41,7 @@
   <div class="card">
     <div class="card-header d-flex align-items-center flex-wrap gap-2">
       <span><i class="bi bi-shield-lock"></i> Permission Master</span>
-      <small class="text-muted">Allow / deny actions per employee, designation or emp level &mdash; employee beats designation beats emp level; <b>Default</b> = no rule (allowed)</small>
+      <small class="text-muted">Allow / deny actions per employee, designation or emp level &mdash; employee beats designation beats emp level; <b>Default</b> = no rule (the code's own default)</small>
       <button class="btn btn-sm btn-outline-primary ms-auto" onclick="pmCodeAdd()"><i class="bi bi-plus-lg"></i> Add Permission Code</button>
     </div>
     <div class="card-body">
@@ -88,6 +88,9 @@
           <input class="form-control" id="pc_desc" maxlength="255" /></div>
         <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="pc_status" checked>
           <label class="form-check-label" for="pc_status">Active</label></div>
+        <div class="form-check form-switch mt-2"><input class="form-check-input" type="checkbox" id="pc_default" checked>
+          <label class="form-check-label" for="pc_default">Allowed by default</label></div>
+        <div class="form-text">Off = nobody has it until you Allow it for an employee, designation or emp level (e.g. COLUMN_SETTINGS).</div>
         <div class="form-text">The backend checks a code only where a controller carries <code>@RequiresPermission("CODE")</code>; a new code here is for buttons/features you wire up yourself.</div>
       </div>
       <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
@@ -182,7 +185,7 @@
         <td class="text-center">${c.status ? '<span class="badge badge-active">Active</span>' : '<span class="badge badge-inactive">Inactive</span>'}</td>
         <td><select class="form-select form-select-sm pm-access ${acc === 'ALLOW' ? 'pm-allow' : acc === 'DENY' ? 'pm-deny' : ''}"
                     ${picked ? '' : 'disabled'} onchange="pmSetAccess('${SFA.esc(c.permissionCode)}', this)">
-              <option value="" ${acc === '' ? 'selected' : ''}>Default</option>
+              <option value="" ${acc === '' ? 'selected' : ''}>Default (${c.defaultAllowed === false ? 'Denied' : 'Allowed'})</option>
               <option value="ALLOW" ${acc === 'ALLOW' ? 'selected' : ''}>Allow</option>
               <option value="DENY" ${acc === 'DENY' ? 'selected' : ''}>Deny</option>
             </select></td>
@@ -235,6 +238,7 @@
     ['pc_id', 'pc_code', 'pc_module', 'pc_desc'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('pc_code').readOnly = false;
     document.getElementById('pc_status').checked = true;
+    document.getElementById('pc_default').checked = true;
     CODE_MODAL.show();
   }
 
@@ -246,6 +250,7 @@
     document.getElementById('pc_module').value = c.module || '';
     document.getElementById('pc_desc').value = c.description || '';
     document.getElementById('pc_status').checked = !!c.status;
+    document.getElementById('pc_default').checked = c.defaultAllowed !== false;
     CODE_MODAL.show();
   }
 
@@ -258,6 +263,7 @@
       module: document.getElementById('pc_module').value.trim() || null,
       description: document.getElementById('pc_desc').value.trim() || null,
       status: document.getElementById('pc_status').checked,
+      defaultAllowed: document.getElementById('pc_default').checked,
     };
     try {
       await Api.post(EP.save, body);

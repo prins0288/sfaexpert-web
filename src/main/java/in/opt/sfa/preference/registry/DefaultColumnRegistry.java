@@ -51,6 +51,246 @@ public final class DefaultColumnRegistry {
                 col("status", "common.status"),
                 col("created", "common.created"),
                 col("updated", "common.updated"));
+
+        // master/activity-type.html
+        register("ACTIVITY_TYPE_MASTER",
+                col("code", "common.code"),
+                col("name", "common.name"),
+                col("clientType", "entity.clientType"),
+                col("status", "common.status"));
+
+        // master/area.html
+        register("AREA_MASTER",
+                col("code", "common.code"),
+                col("name", "common.name"),
+                col("city", "common.city"),
+                col("state", "entity.state"),
+                col("hq", "entity.hq"),
+                col("pincode", "common.pincode"),
+                col("type", "common.type"),
+                col("routes", "entity.routes"),
+                col("status", "common.status"));
+
+        // master/bank-master.html
+        register("BANK_MASTER",
+                col("code", "common.code"),
+                col("name", "common.name"),
+                col("shortName", null),
+                col("description", "common.description"),
+                col("order", null),
+                col("status", "common.status"),
+                col("created", "common.created"),
+                col("updated", "common.updated"));
+
+        // master/client-type.html
+        register("CLIENT_TYPE_MASTER",
+                col("code", "common.code"),
+                col("name", "common.name"),
+                col("singular", null),
+                col("plural", null),
+                col("status", "common.status"));
+
+        // master/client.html
+        register("CLIENT_MASTER",
+                col("code", "common.code"),
+                col("type", "common.type"),
+                col("name", "common.name"),
+                col("area", "entity.area"),
+                col("route", "entity.route"),
+                col("mobile", "common.mobile"),
+                col("category", "entity.category"),
+                col("status", "common.status"));
+
+        // master/country.html
+        register("COUNTRY_MASTER",
+                col("code", "common.code"),
+                col("name", "common.name"),
+                col("status", "common.status"));
+
+        // master/create-employee.html
+        register("CREATE_EMPLOYEE_MASTER",
+                col("empCode", null),
+                col("name", "common.name"),
+                col("mobile", "common.mobile"),
+                col("designation", "entity.designation"),
+                col("division", "entity.division"),
+                col("username", null),
+                col("active", "common.active"),
+                hidden("gender", null),
+                hidden("officialEmail", null),
+                hidden("department", null),
+                hidden("dateOfJoining", null),
+                hidden("manager", null),
+                hidden("profileComplete", null));
+
+        // master/degree-master.html
+        register("DEGREE_MASTER",
+                col("code", "common.code"),
+                col("name", "common.name"),
+                col("shortName", null),
+                col("description", "common.description"),
+                col("order", null),
+                col("status", "common.status"),
+                col("created", "common.created"),
+                col("updated", "common.updated"));
+
+        // master/division.html
+        register("DIVISION_MASTER",
+                col("code", "common.code"),
+                col("name", "common.name"),
+                col("status", "common.status"));
+
+        // master/document-master.html
+        register("DOCUMENT_MASTER",
+                col("code", "common.code"),
+                col("name", "common.name"),
+                col("shortName", null),
+                col("description", "common.description"),
+                col("order", null),
+                col("status", "common.status"),
+                col("created", "common.created"),
+                col("updated", "common.updated"));
+
+        // master/hq-group-master.html
+        register("HQ_GROUP_MASTER",
+                col("code", "common.code"),
+                col("name", "common.name"),
+                col("shortName", null),
+                col("description", "common.description"),
+                col("order", null),
+                col("status", "common.status"),
+                col("created", "common.created"),
+                col("updated", "common.updated"));
+
+        // master/hq.html
+        register("HQ_MASTER",
+                col("code", "common.code"),
+                col("name", "common.name"),
+                col("state", "entity.state"),
+                col("hqGroup", null),
+                col("status", "common.status"));
+
+        // master/image-type-master.html
+        register("IMAGE_TYPE_MASTER",
+                col("code", "common.code"),
+                col("name", "common.name"),
+                col("shortName", null),
+                col("description", "common.description"),
+                col("order", null),
+                col("status", "common.status"),
+                col("created", "common.created"),
+                col("updated", "common.updated"));
+
+        // master/item-type-master.html
+        register("ITEM_TYPE_MASTER",
+                col("code", "common.code"),
+                col("name", "common.name"),
+                col("shortName", null),
+                col("description", "common.description"),
+                col("order", null),
+                col("status", "common.status"),
+                col("created", "common.created"),
+                col("updated", "common.updated"));
+
+        // master/meeting-type-master.html
+        register("MEETING_TYPE_MASTER",
+                col("code", "common.code"),
+                col("name", "common.name"),
+                col("shortName", null),
+                col("description", "common.description"),
+                col("order", null),
+                col("status", "common.status"),
+                col("created", "common.created"),
+                col("updated", "common.updated"));
+
+        // master/products.html
+        register("PRODUCTS_MASTER",
+                col("id", null),
+                col("name", "common.name"),
+                col("price", null));
+
+        // master/route-area.html
+        register("ROUTE_AREA_MASTER",
+                col("routeCode", null),
+                col("route", "entity.route"),
+                col("areaCode", null),
+                col("area", "entity.area"),
+                col("visitSeq", null),
+                col("status", "common.status"));
+
+        // master/route.html
+        register("ROUTE_MASTER",
+                col("code", "common.code"),
+                col("name", "common.name"),
+                col("division", "entity.division"),
+                col("zone", "entity.zone"),
+                col("state", "entity.state"),
+                col("hq", "entity.hq"),
+                col("distanceKm", null),
+                col("status", "common.status"));
+
+        // master/speciality-master.html
+        register("SPECIALITY_MASTER",
+                col("code", "common.code"),
+                col("name", "common.name"),
+                col("icon", "common.icon"),
+                col("description", "common.description"),
+                col("status", "common.status"),
+                col("created", "common.created"),
+                col("updated", "common.updated"));
+
+        // master/sponsorship-type-master.html
+        register("SPONSORSHIP_TYPE_MASTER",
+                col("code", "common.code"),
+                col("name", "common.name"),
+                col("shortName", null),
+                col("description", "common.description"),
+                col("order", null),
+                col("status", "common.status"),
+                col("created", "common.created"),
+                col("updated", "common.updated"));
+
+        // master/state.html
+        register("STATE_MASTER",
+                col("code", "common.code"),
+                col("name", "common.name"),
+                col("country", "entity.country"),
+                col("status", "common.status"));
+
+        // master/travel-type-master.html
+        register("TRAVEL_TYPE_MASTER",
+                col("code", "common.code"),
+                col("name", "common.name"),
+                col("shortName", null),
+                col("description", "common.description"),
+                col("order", null),
+                col("status", "common.status"),
+                col("created", "common.created"),
+                col("updated", "common.updated"));
+
+        // master/visit-type.html
+        register("VISIT_TYPE_MASTER",
+                col("code", "common.code"),
+                col("name", "common.name"),
+                col("clientType", "entity.clientType"),
+                col("status", "common.status"));
+
+        // master/zone.html
+        register("ZONE_MASTER",
+                col("code", "common.code"),
+                col("name", "common.name"),
+                col("division", "entity.division"),
+                col("status", "common.status"));
+
+        // utilities/menu-master.html
+        register("MENU_MASTER",
+                col("label", null),
+                col("parent", null),
+                col("type", "common.type"),
+                col("hrefPage", null),
+                col("target", null),
+                col("order", null),
+                col("status", "common.status"));
     }
 
     private DefaultColumnRegistry() { }
@@ -59,8 +299,7 @@ public final class DefaultColumnRegistry {
         return new ColumnConfig(field, labelKey, true);
     }
 
-    /** Use for a column that exists but should start hidden. */
-    @SuppressWarnings("unused")
+    /** Use for a column that exists but should start hidden. labelKey may be null: the page's header text is used. */
     private static ColumnConfig hidden(String field, String labelKey) {
         return new ColumnConfig(field, labelKey, false);
     }

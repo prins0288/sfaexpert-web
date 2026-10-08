@@ -44,11 +44,11 @@
     <div class="card-body">
       <p class="text-muted small">Only the essentials are shown by default — click <b>Columns</b> below the table to show gender / email / department / etc. Creating an employee also creates their login (username + password).</p>
       <div class="table-responsive">
-        <table id="empCreateTable" class="table table-striped table-bordered nowrap" style="width:100%">
+        <table data-screen-key="CREATE_EMPLOYEE_MASTER" id="empCreateTable" class="table table-striped table-bordered nowrap" style="width:100%">
           <thead><tr>
-            <th>S.No</th><th>Emp Code</th><th>Name</th><th>Mobile</th><th>Designation</th><th>Division</th>
-            <th>Username</th><th>Active</th>
-            <th>Gender</th><th>Official Email</th><th>Department</th><th>Date of Joining</th><th>Manager</th><th>Profile Complete</th>
+            <th>S.No</th><th data-field="empCode">Emp Code</th><th data-field="name">Name</th><th data-field="mobile">Mobile</th><th data-field="designation">Designation</th><th data-field="division">Division</th>
+            <th data-field="username">Username</th><th data-field="active">Active</th>
+            <th data-field="gender">Gender</th><th data-field="officialEmail">Official Email</th><th data-field="department">Department</th><th data-field="dateOfJoining">Date of Joining</th><th data-field="manager">Manager</th><th data-field="profileComplete">Profile Complete</th>
             <th class="no-export">Actions</th>
           </tr></thead>
           <tbody></tbody>
@@ -167,7 +167,7 @@
             : `<button data-perm="EMP_DETAIL_STATUS" class="btn btn-sm btn-outline-success" onclick="empStatus('${r.empId}',true)"><i class="bi bi-check-circle"></i></button>`}
         </td>
       </tr>`).join('');
-    DT = sfaDataTable('#empCreateTable', { columnDefs: [{ targets: [8, 9, 10, 11, 12, 13], visible: false }] });
+    DT = sfaDataTable('#empCreateTable');   // Gender..Profile Complete start hidden: see CREATE_EMPLOYEE_MASTER in DefaultColumnRegistry
     fillManagerSelect();
   }
 

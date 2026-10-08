@@ -18,9 +18,10 @@ import java.util.Map;
  *
  * Precedence (most specific wins): a row targeting the user's exact emp_id,
  * then a row targeting their designation, then a row targeting their
- * emp_level. If NONE of those rows exist, the permission is allowed by
- * default — a company that never configures permission_assignment keeps full
- * access everywhere, which is the required fallback.
+ * emp_level. If NONE of those rows exist, the code's own default_allowed
+ * decides — true for almost every code, so a company that never configures
+ * permission_assignment keeps full access; false for opt-in features such as
+ * COLUMN_SETTINGS, which nobody gets until they are granted it.
  */
 @Service
 public class PermissionService {
@@ -42,7 +43,17 @@ public class PermissionService {
         return resolve(u.empId(), u.designationCode(), u.empLevel(), permissionCode);
     }
 
+    /** Effective permission: the most specific assignment, else the code's own default. */
     public boolean resolve(String empId, String designationCode, Integer empLevel, String permissionCode) {
+        Boolean explicit = explicitRule(empId, designationCode, empLevel, permissionCode);
+        if (explicit != null) return explicit;
+        return definitions.findByPermissionCode(permissionCode)
+                .map(d -> !Boolean.FALSE.equals(d.getDefaultAllowed()))
+                .orElse(true);   // code not in the catalog at all -> allowed, as before
+    }
+
+    /** The matching assignment's allowed flag (EMP_ID > DESIGNATION > EMP_LEVEL), or null if none. */
+    private Boolean explicitRule(String empId, String designationCode, Integer empLevel, String permissionCode) {
         if (empId != null) {
             var row = assignments.findByTargetTypeAndTargetValueAndPermissionCode(
                     PermissionTargetType.EMP_ID, empId, permissionCode);
@@ -58,7 +69,7 @@ public class PermissionService {
                     PermissionTargetType.EMP_LEVEL, String.valueOf(empLevel), permissionCode);
             if (row.isPresent()) return row.get().getAllowed();
         }
-        return true; // no assignment configured anywhere -> full permission by default
+        return null;
     }
 
     /**
@@ -73,9 +84,13 @@ public class PermissionService {
         Map<String, Boolean> result = new LinkedHashMap<>();
         boolean superAdmin = u != null && "SUPER_ADMIN".equals(u.role());
         for (PermissionDefinition d : defs) {
-            boolean allowed = superAdmin || u == null
-                    ? superAdmin
-                    : resolve(u.empId(), u.designationCode(), u.empLevel(), d.getPermissionCode());
+            boolean allowed;
+            if (superAdmin || u == null) {
+                allowed = superAdmin;
+            } else {
+                Boolean explicit = explicitRule(u.empId(), u.designationCode(), u.empLevel(), d.getPermissionCode());
+                allowed = explicit != null ? explicit : !Boolean.FALSE.equals(d.getDefaultAllowed());
+            }
             result.put(d.getPermissionCode(), allowed);
         }
         return result;

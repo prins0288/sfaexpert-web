@@ -891,6 +891,8 @@
     get claims() { return Session.claims(); },
     /** SFA.can("ZONE_SAVE") — false only when this user is explicitly denied. */
     can,
+    /** SFA.granted("COLUMN_SETTINGS") — true only when the server said so (for deny-by-default codes). */
+    granted: (code) => PERMS[code] === true,
     /** Drop the cached permission map (e.g. after editing assignments) and re-apply. */
     async reloadPermissions() { Session.cache.clear("perms"); await loadPermissions(); applyPermissions(document); },
     user, companyCode, role, u, esc,

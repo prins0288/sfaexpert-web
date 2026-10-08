@@ -44,7 +44,7 @@
         // gray on both text AND background, so the label goes invisible. Use
         // our own explicitly-styled class instead (see app.css .sfa-btn-outline).
         if (screenKey && sfaCanEditColumns()) {
-            // saved for the whole company (admins only); replaces the session-only colvis toggle
+            // saved for the whole company (COLUMN_SETTINGS permission); replaces the session-only colvis toggle
             buttons.push({ text: '<i class="bi bi-layout-three-columns"></i> <span data-i18n="columns.settings">Column Settings</span>',
                 className: "btn btn-sm sfa-btn-outline",
                 action: function () { sfaOpenColumnSettings($table.get(0)); } });
@@ -120,14 +120,17 @@
     // shell.js). <th>s without data-field (S.No, Actions) are not
     // configurable and keep their position. Any failure -> the page's own
     // column order, all visible: nothing breaks.
-    // The layout is per COMPANY (same for every user); only ADMIN / SUPER_ADMIN
-    // get the Column Settings button — others keep the session-only Columns toggle.
+    // The layout is per COMPANY (same for every user); only users granted the
+    // COLUMN_SETTINGS permission get the Column Settings button — others keep
+    // the session-only Columns toggle and simply see the company layout.
     var SFA_COLPREFS = {};   // screenKey -> { screenKey, customized, columns: [...] } | null
     var SORTABLE_SRC = "https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js";
 
+    // Needs the COLUMN_SETTINGS permission, which is DENIED by default — an
+    // admin grants it per emp_id / designation / emp_level (Permission Master).
+    // The server enforces the same code on save/reset.
     function sfaCanEditColumns() {
-        var role = (window.Session && Session.claims() || {}).role;
-        return role === "ADMIN" || role === "SUPER_ADMIN";
+        return !!(window.SFA && SFA.granted && SFA.granted("COLUMN_SETTINGS"));
     }
 
     function sfaLoadColumnPrefs(key) {
