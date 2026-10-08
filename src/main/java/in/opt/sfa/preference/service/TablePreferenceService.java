@@ -1,7 +1,7 @@
 package in.opt.sfa.preference.service;
 
-import in.opt.sfa.common.entity.UserTablePreference;
-import in.opt.sfa.common.repository.UserTablePreferenceRepository;
+import in.opt.sfa.common.entity.CompanyTablePreference;
+import in.opt.sfa.common.repository.CompanyTablePreferenceRepository;
 import in.opt.sfa.exception.ForbiddenException;
 import in.opt.sfa.preference.dto.ColumnConfig;
 import in.opt.sfa.preference.dto.TablePreferenceDto;
@@ -22,9 +22,9 @@ import java.util.*;
 @Service
 public class TablePreferenceService {
 
-    private final UserTablePreferenceRepository repository;
+    private final CompanyTablePreferenceRepository repository;
 
-    public TablePreferenceService(UserTablePreferenceRepository repository) {
+    public TablePreferenceService(CompanyTablePreferenceRepository repository) {
         this.repository = repository;
     }
 
@@ -47,9 +47,9 @@ public class TablePreferenceService {
             throw new IllegalArgumentException("At least one column must stay visible");
         }
         String companyCode = companyCode();
-        UserTablePreference row = repository.findByCompanyCodeAndScreenKey(companyCode, screenKey)
+        CompanyTablePreference row = repository.findByCompanyCodeAndScreenKey(companyCode, screenKey)
                 .orElseGet(() -> {
-                    UserTablePreference r = new UserTablePreference();
+                    CompanyTablePreference r = new CompanyTablePreference();
                     r.setCompanyCode(companyCode);
                     r.setScreenKey(screenKey);
                     return r;

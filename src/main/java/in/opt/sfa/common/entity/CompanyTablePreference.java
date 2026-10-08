@@ -12,16 +12,16 @@ import java.util.List;
 
 /**
  * A company's saved column layout for one grid (COMMON db, table
- * user_table_preferences) — shared by every user of that company.
+ * company_table_preferences) — shared by every user of that company.
  * company_code is always taken from the verified token, never from the client.
  */
 @Entity
-@Table(name = "user_table_preferences",
-        uniqueConstraints = @UniqueConstraint(name = "uq_user_table_preferences",
+@Table(name = "company_table_preferences",
+        uniqueConstraints = @UniqueConstraint(name = "uq_company_table_preferences",
                 columnNames = {"company_code", "screen_key"}))
 @Getter
 @Setter
-public class UserTablePreference {
+public class CompanyTablePreference {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

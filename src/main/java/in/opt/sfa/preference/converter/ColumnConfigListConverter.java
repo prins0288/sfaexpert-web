@@ -13,7 +13,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * user_table_preferences.column_config (JSON) <-> List<ColumnConfig>.
+ * company_table_preferences.column_config (JSON) <-> List<ColumnConfig>.
  *
  * Uses a private Jackson 2 ObjectMapper (stable on the classpath, same as
  * AiHttp). A row that can't be parsed (hand-edited, truncated) reads as an

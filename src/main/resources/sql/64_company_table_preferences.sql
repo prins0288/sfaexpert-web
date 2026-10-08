@@ -1,5 +1,5 @@
 -- ===========================================================================
--- user_table_preferences (COMMON db) — COMPANY-WIDE column layout for any
+-- company_table_preferences (COMMON db) — COMPANY-WIDE column layout for any
 -- report / grid: column order, visibility and width, keyed by
 -- (company_code, screen_key). Every user of the company sees the same layout;
 -- only ADMIN / SUPER_ADMIN can change or reset it.
@@ -14,17 +14,17 @@
 -- verified JWT, so one company never sees another company's layout.
 --
 -- Run (COMMON db):
---   mysql -u myroot < src/main/resources/sql/64_user_table_preferences.sql
+--   mysql -u myroot < src/main/resources/sql/64_company_table_preferences.sql
 -- ===========================================================================
 
 USE sfa_central;
 
-CREATE TABLE IF NOT EXISTS user_table_preferences (
+CREATE TABLE IF NOT EXISTS company_table_preferences (
     id            BIGINT       NOT NULL AUTO_INCREMENT,
     company_code  VARCHAR(64)  NOT NULL,
     screen_key    VARCHAR(100) NOT NULL,
     column_config JSON         NOT NULL,
     updated_at    DATETIME     NULL,
     PRIMARY KEY (id),
-    UNIQUE KEY uq_user_table_preferences (company_code, screen_key)
+    UNIQUE KEY uq_company_table_preferences (company_code, screen_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
