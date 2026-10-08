@@ -93,13 +93,16 @@
   // This only hides buttons; the server still enforces @RequiresPermission.
   let PERMS = {};
 
+  // Fetched fresh on EVERY page load (one small call), so a permission an admin
+  // just granted / revoked applies on the user's next click — no re-login or new
+  // tab needed. The tab cache is only the fallback when the call fails.
   async function loadPermissions() {
-    const cached = Session.cache.get("perms");
-    if (cached) { PERMS = cached; return; }
     try {
       PERMS = (await Api.get(API.permissions.my, { noLoader: true })) || {};
       Session.cache.set("perms", PERMS);
-    } catch (e) { PERMS = {}; }   // not migrated yet / offline -> show everything, server decides
+    } catch (e) {
+      PERMS = Session.cache.get("perms") || {};   // offline / not migrated -> last known, else show everything (server decides)
+    }
   }
 
   const can = (code) => !code || PERMS[code] !== false;
@@ -892,7 +895,7 @@
     /** SFA.can("ZONE_SAVE") — false only when this user is explicitly denied. */
     can,
     /** SFA.granted("COLUMN_SETTINGS") — true only when the server said so (for deny-by-default codes). */
-    granted: (code) => PERMS[code] === true,
+    granted: (code) => PERMS[code] === true || role === "SUPER_ADMIN",   // super admin always passes, like the server
     /** Drop the cached permission map (e.g. after editing assignments) and re-apply. */
     async reloadPermissions() { Session.cache.clear("perms"); await loadPermissions(); applyPermissions(document); },
     user, companyCode, role, u, esc,
