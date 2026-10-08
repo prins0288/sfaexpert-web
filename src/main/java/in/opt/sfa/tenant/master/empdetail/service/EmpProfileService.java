@@ -47,6 +47,7 @@ public class EmpProfileService {
     private static final Pattern PHONE = Pattern.compile("^[0-9+\\- ]{6,15}$");
     private static final Pattern PAN = Pattern.compile("^[A-Z]{5}[0-9]{4}[A-Z]$");
     private static final Pattern UAN = Pattern.compile("^[0-9]{12}$");
+    private static final Pattern AADHAAR = Pattern.compile("^[2-9][0-9]{11}$");
     private static final Pattern EMAIL = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
 
     private final JdbcTemplate jdbc;   // tenant-routed (@Primary)
@@ -134,7 +135,7 @@ public class EmpProfileService {
             return c;
         }, empId));
 
-        p.setStatutory(jdbc.query("SELECT pan_no, pf_no, uan_no, esi_no, mediclaim_policy_no, aadhaar_last4 FROM emp_statutory WHERE emp_id = ?", rs -> {
+        p.setStatutory(jdbc.query("SELECT pan_no, pf_no, uan_no, esi_no, aadhaar_no, mediclaim_policy_no FROM emp_statutory WHERE emp_id = ?", rs -> {
             if (!rs.next()) return null;
             Statutory s = new Statutory();
             s.setPanNo(rs.getString("pan_no"));
@@ -142,7 +143,7 @@ public class EmpProfileService {
             s.setUanNo(rs.getString("uan_no"));
             s.setEsiNo(rs.getString("esi_no"));
             s.setMediclaimPolicyNo(rs.getString("mediclaim_policy_no"));
-            s.setAadhaarLast4(rs.getString("aadhaar_last4"));
+            s.setAadhaarNo(rs.getString("aadhaar_no"));
             return s;
         }, empId));
 
@@ -274,17 +275,17 @@ public class EmpProfileService {
         }
     }
 
-    /** Only the editable columns — the encrypted Aadhaar columns are never touched here. */
     private void saveStatutory(String empId, Statutory s) {
-        boolean blank = allBlank(s.getPanNo(), s.getPfNo(), s.getUanNo(), s.getEsiNo(), s.getMediclaimPolicyNo());
+        boolean blank = allBlank(s.getPanNo(), s.getPfNo(), s.getUanNo(), s.getEsiNo(), s.getAadhaarNo(), s.getMediclaimPolicyNo());
         Integer exists = jdbc.queryForObject("SELECT COUNT(*) FROM emp_statutory WHERE emp_id = ?", Integer.class, empId);
         if (blank && (exists == null || exists == 0)) return;
         jdbc.update("""
-                INSERT INTO emp_statutory (emp_id, pan_no, pf_no, uan_no, esi_no, mediclaim_policy_no) VALUES (?,?,?,?,?,?)
+                INSERT INTO emp_statutory (emp_id, pan_no, pf_no, uan_no, esi_no, aadhaar_no, mediclaim_policy_no) VALUES (?,?,?,?,?,?,?)
                 ON DUPLICATE KEY UPDATE pan_no = VALUES(pan_no), pf_no = VALUES(pf_no), uan_no = VALUES(uan_no),
-                    esi_no = VALUES(esi_no), mediclaim_policy_no = VALUES(mediclaim_policy_no), version = version + 1
+                    esi_no = VALUES(esi_no), aadhaar_no = VALUES(aadhaar_no),
+                    mediclaim_policy_no = VALUES(mediclaim_policy_no), version = version + 1
                 """, empId, upperOrNull(s.getPanNo()), blankToNull(s.getPfNo()), blankToNull(s.getUanNo()),
-                blankToNull(s.getEsiNo()), blankToNull(s.getMediclaimPolicyNo()));
+                blankToNull(s.getEsiNo()), aadhaarDigits(s.getAadhaarNo()), blankToNull(s.getMediclaimPolicyNo()));
     }
 
     private void saveChildren(String empId, List<Child> rows) {
@@ -376,6 +377,10 @@ public class EmpProfileService {
         if (s != null) {
             if (!Strings.isBlank(s.getPanNo()) && !PAN.matcher(s.getPanNo().trim().toUpperCase()).matches()) fail("Statutory: PAN must look like ABCDE1234F");
             if (!Strings.isBlank(s.getUanNo()) && !UAN.matcher(s.getUanNo().trim()).matches()) fail("Statutory: UAN must be 12 digits");
+            if (!Strings.isBlank(s.getAadhaarNo()) && !AADHAAR.matcher(aadhaarDigits(s.getAadhaarNo())).matches()) {
+                fail("Statutory: Aadhaar must be 12 digits (not starting with 0 or 1)");
+            }
+            unique("aadhaar_no", aadhaarDigits(s.getAadhaarNo()), "Aadhaar", empId);
             unique("pan_no", upperOrNull(s.getPanNo()), "PAN", empId);
             unique("pf_no", blankToNull(s.getPfNo()), "PF number", empId);
             unique("uan_no", blankToNull(s.getUanNo()), "UAN", empId);
@@ -432,6 +437,8 @@ public class EmpProfileService {
 
     private static String blankToNull(String s) { return Strings.isBlank(s) ? null : s.trim(); }
     private static String upperOrNull(String s) { return Strings.isBlank(s) ? null : s.trim().toUpperCase(); }
+    /** "1234 5678 9012" / "1234-5678-9012" -> "123456789012" (stored as plain text). */
+    private static String aadhaarDigits(String s) { return Strings.isBlank(s) ? null : s.replaceAll("[\\s-]", ""); }
 
     private static LocalDate date(String s) {
         if (Strings.isBlank(s)) return null;

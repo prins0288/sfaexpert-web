@@ -263,7 +263,7 @@ public class EmpDetailService {
             "bank_code", "ifsc_code", "account_no", "branch_name",
             "nominee_type", "nominee_name", "nominee_relationship", "nominee_dob", "nominee_contact", "nominee_share_pct",
             "emergency_name", "emergency_relationship", "emergency_phone1", "emergency_phone2",
-            "pan_no", "pf_no", "uan_no", "esi_no", "mediclaim_policy_no");
+            "pan_no", "pf_no", "uan_no", "esi_no", "aadhaar_no", "mediclaim_policy_no");
 
     public byte[] template() throws Exception {
         List<String> sample = List.of(
@@ -278,7 +278,7 @@ public class EmpDetailService {
                 "SBI", "SBIN0001234", "123456789012", "Patna Main",
                 "PF", "Ram Doe", "Father", "1965-01-01", "9876500000", "100",
                 "Ram Doe", "Father", "9876500000", "",
-                "ABCDE1234F", "", "", "", "");
+                "ABCDE1234F", "", "", "", "234567890123", "");
         return ExcelUtil.template("Employees", BULK_COLUMNS, sample);
     }
 
@@ -439,12 +439,13 @@ public class EmpDetailService {
             p.setEmergencyContacts(list);
         }
 
-        if (r.any("pan_no", "pf_no", "uan_no", "esi_no", "mediclaim_policy_no")) {
+        if (r.any("pan_no", "pf_no", "uan_no", "esi_no", "aadhaar_no", "mediclaim_policy_no")) {
             var s = old.getStatutory() != null ? old.getStatutory() : new EmpProfileDto.Statutory();
             if (r.get("pan_no") != null) s.setPanNo(r.upper("pan_no"));
             if (r.get("pf_no") != null) s.setPfNo(r.get("pf_no"));
             if (r.get("uan_no") != null) s.setUanNo(r.get("uan_no"));
             if (r.get("esi_no") != null) s.setEsiNo(r.get("esi_no"));
+            if (r.get("aadhaar_no") != null) s.setAadhaarNo(r.get("aadhaar_no"));
             if (r.get("mediclaim_policy_no") != null) s.setMediclaimPolicyNo(r.get("mediclaim_policy_no"));
             p.setStatutory(s);
         }

@@ -218,7 +218,7 @@
             </div></div></div>
 
           <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button"
-              data-bs-toggle="collapse" data-bs-target="#p_statutory"><i class="bi bi-file-earmark-text me-2"></i> Statutory (PAN / PF / UAN / ESI)
+              data-bs-toggle="collapse" data-bs-target="#p_statutory"><i class="bi bi-file-earmark-text me-2"></i> Statutory (PAN / PF / UAN / ESI / Aadhaar)
               <span class="badge bg-success d-none" data-badge="statutory"></span></button></h2>
             <div id="p_statutory" class="accordion-collapse collapse"><div class="accordion-body"><div class="row g-3">
               <div class="col-md-4"><label class="form-label">PAN</label><input class="form-control text-uppercase" id="ps_panNo" maxlength="10" placeholder="ABCDE1234F" /></div>
@@ -226,7 +226,7 @@
               <div class="col-md-4"><label class="form-label">UAN</label><input class="form-control" id="ps_uanNo" inputmode="numeric" maxlength="12" placeholder="12 digits" /></div>
               <div class="col-md-4"><label class="form-label">ESI Number</label><input class="form-control" id="ps_esiNo" maxlength="20" /></div>
               <div class="col-md-4"><label class="form-label">Mediclaim Policy No.</label><input class="form-control" id="ps_mediclaimPolicyNo" maxlength="50" /></div>
-              <div class="col-md-4"><label class="form-label">Aadhaar</label><input class="form-control" id="ps_aadhaar" disabled placeholder="not captured here" /></div>
+              <div class="col-md-4"><label class="form-label">Aadhaar</label><input class="form-control" id="ps_aadhaarNo" inputmode="numeric" maxlength="14" placeholder="12 digits" /></div>
             </div></div></div></div>
 
           <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button"
@@ -632,7 +632,7 @@
       bankAccounts: pRows('bank'),
       nominees: pRows('nominee'),
       emergencyContacts: pRows('emergency'),
-      statutory: { panNo: pv('ps_panNo'), pfNo: pv('ps_pfNo'), uanNo: pv('ps_uanNo'), esiNo: pv('ps_esiNo'), mediclaimPolicyNo: pv('ps_mediclaimPolicyNo') },
+      statutory: { panNo: pv('ps_panNo'), pfNo: pv('ps_pfNo'), uanNo: pv('ps_uanNo'), esiNo: pv('ps_esiNo'), aadhaarNo: pv('ps_aadhaarNo'), mediclaimPolicyNo: pv('ps_mediclaimPolicyNo') },
       children: pRows('children'),
       prevEmployment: pRows('prev'),
     };
@@ -664,8 +664,7 @@
       ['addressLine', 'city', 'district', 'stateId', 'pincode'].forEach(f => document.getElementById('pa_' + kind + '_' + f).value = a[f] ?? '');
     });
     const st = pr.statutory || {};
-    ['panNo', 'pfNo', 'uanNo', 'esiNo', 'mediclaimPolicyNo'].forEach(k => document.getElementById('ps_' + k).value = st[k] || '');
-    document.getElementById('ps_aadhaar').value = st.aadhaarLast4 ? 'XXXX-XXXX-' + st.aadhaarLast4 : '';
+    ['panNo', 'pfNo', 'uanNo', 'esiNo', 'aadhaarNo', 'mediclaimPolicyNo'].forEach(k => document.getElementById('ps_' + k).value = st[k] || '');
     (pr.bankAccounts || []).forEach(b => pAddRow('bank', b));
     (pr.nominees || []).forEach(n => pAddRow('nominee', n));
     (pr.emergencyContacts || []).forEach(c => pAddRow('emergency', c));
@@ -695,7 +694,7 @@
     const filled = sel => Array.from(document.querySelectorAll(sel)).some(el => el.value && el.value.trim() !== '');
     set('personal', filled('#p_personal input, #p_personal select') ? '✓' : '');
     set('address', filled('#p_address textarea') ? '✓' : '');
-    set('statutory', filled('#p_statutory input:not([disabled])') ? '✓' : '');
+    set('statutory', filled('#p_statutory input') ? '✓' : '');
     ['bank', 'nominee', 'emergency', 'children', 'prev'].forEach(k => {
       const n = document.querySelectorAll('#pl_' + k + ' .p-row').length;
       set(k, n ? String(n) : '');

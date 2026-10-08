@@ -89,9 +89,9 @@ public class EmpProfileDto {
         private String pfNo;
         private String uanNo;
         private String esiNo;
+        /** 12 digits, stored as plain text (emp_statutory.aadhaar_no). */
+        private String aadhaarNo;
         private String mediclaimPolicyNo;
-        /** Read-only: last 4 digits of the stored (encrypted) Aadhaar, if any. */
-        private String aadhaarLast4;
     }
 
     @Getter @Setter @JsonIgnoreProperties(ignoreUnknown = true)
