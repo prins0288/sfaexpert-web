@@ -38,9 +38,9 @@ public class DcrReportController {
             @RequestParam(required = false) Long divisionOid,
             @RequestParam(required = false) Long routeOid,
             @RequestParam(required = false) Long areaOid,
-            @RequestParam(required = false) Long employeeOid,
+            @RequestParam(required = false) String empId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate) {
-        return service.report(divisionOid, routeOid, areaOid, employeeOid, fromDate, toDate);
+        return service.report(divisionOid, routeOid, areaOid, empId, fromDate, toDate);
     }
 }

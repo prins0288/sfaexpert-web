@@ -5,7 +5,7 @@ import in.opt.sfa.tenant.master.sponsorshiptype.dto.SponsorshipTypeMasterDto;
 import in.opt.sfa.tenant.master.sponsorshiptype.entity.SponsorshipTypeMaster;
 import in.opt.sfa.tenant.master.sponsorshiptype.mapper.SponsorshipTypeMasterMapper;
 import in.opt.sfa.tenant.master.sponsorshiptype.repository.SponsorshipTypeMasterRepository;
-import in.opt.sfa.tenant.master.employee.service.EmployeeNameResolver;
+import in.opt.sfa.tenant.master.empdetail.service.EmpNameResolver;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,9 +24,9 @@ public class SponsorshipTypeMasterService {
 
     private final SponsorshipTypeMasterRepository repo;
     private final SponsorshipTypeMasterMapper mapper;
-    private final EmployeeNameResolver employeeNames;
+    private final EmpNameResolver employeeNames;
 
-    public SponsorshipTypeMasterService(SponsorshipTypeMasterRepository repo, SponsorshipTypeMasterMapper mapper, EmployeeNameResolver employeeNames) {
+    public SponsorshipTypeMasterService(SponsorshipTypeMasterRepository repo, SponsorshipTypeMasterMapper mapper, EmpNameResolver employeeNames) {
         this.repo = repo;
         this.mapper = mapper;
         this.employeeNames = employeeNames;

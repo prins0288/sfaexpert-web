@@ -18,8 +18,9 @@ public class DcrReportService {
     }
 
     @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
-    public List<DcrReportRow> report(Long divisionOid, Long routeOid, Long areaOid, Long employeeOid,
+    public List<DcrReportRow> report(Long divisionOid, Long routeOid, Long areaOid, String empId,
                                       LocalDate fromDate, LocalDate toDate) {
-        return dcrs.report(divisionOid, routeOid, areaOid, employeeOid, fromDate, toDate);
+        return dcrs.report(divisionOid, routeOid, areaOid,
+                (empId == null || empId.isBlank()) ? null : empId.trim(), fromDate, toDate);
     }
 }

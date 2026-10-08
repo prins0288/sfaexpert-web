@@ -1,4 +1,4 @@
-package in.opt.sfa.tenant.master.employee.service;
+package in.opt.sfa.tenant.master.empdetail.service;
 
 import in.opt.sfa.tenant.master.empdetail.entity.EmpDetail;
 import in.opt.sfa.tenant.master.empdetail.repository.EmpDetailRepository;
@@ -20,11 +20,11 @@ import java.util.stream.Collectors;
  * so old data still shows something meaningful.
  */
 @Component
-public class EmployeeNameResolver {
+public class EmpNameResolver {
 
     private final EmpDetailRepository employees;
 
-    public EmployeeNameResolver(EmpDetailRepository employees) {
+    public EmpNameResolver(EmpDetailRepository employees) {
         this.employees = employees;
     }
 

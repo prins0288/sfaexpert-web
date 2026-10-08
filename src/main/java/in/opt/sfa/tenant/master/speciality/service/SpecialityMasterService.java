@@ -5,7 +5,7 @@ import in.opt.sfa.tenant.master.speciality.dto.SpecialityMasterDto;
 import in.opt.sfa.tenant.master.speciality.entity.SpecialityMaster;
 import in.opt.sfa.tenant.master.speciality.mapper.SpecialityMasterMapper;
 import in.opt.sfa.tenant.master.speciality.repository.SpecialityMasterRepository;
-import in.opt.sfa.tenant.master.employee.service.EmployeeNameResolver;
+import in.opt.sfa.tenant.master.empdetail.service.EmpNameResolver;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,9 +24,9 @@ public class SpecialityMasterService {
 
     private final SpecialityMasterRepository specialities;
     private final SpecialityMasterMapper mapper;
-    private final EmployeeNameResolver employeeNames;
+    private final EmpNameResolver employeeNames;
 
-    public SpecialityMasterService(SpecialityMasterRepository specialities, SpecialityMasterMapper mapper, EmployeeNameResolver employeeNames) {
+    public SpecialityMasterService(SpecialityMasterRepository specialities, SpecialityMasterMapper mapper, EmpNameResolver employeeNames) {
         this.specialities = specialities;
         this.mapper = mapper;
         this.employeeNames = employeeNames;

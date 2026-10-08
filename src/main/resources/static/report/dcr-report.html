@@ -192,7 +192,7 @@
         divisionOid: v('f_division'),
         routeOid: v('f_route'),
         areaOid: v('f_area'),
-        employeeOid: v('f_employee'),
+        empId: v('f_employee'),
         fromDate: v('f_from'),
         toDate: v('f_to'),
       } });
@@ -209,7 +209,7 @@
       divisionOid: document.getElementById('f_division').value,
       routeOid: document.getElementById('f_route').value,
       areaOid: document.getElementById('f_area').value,
-      employeeOid: document.getElementById('f_employee').value,
+      empId: document.getElementById('f_employee').value,
       workType: document.getElementById('f_workType').value,
       quickRange: document.getElementById('f_quickRange').value,
       fromDate: document.getElementById('f_from').value,
@@ -236,7 +236,7 @@
     document.getElementById('f_division').value = f.divisionOid || '';
     document.getElementById('f_route').value = f.routeOid || '';
     document.getElementById('f_area').value = f.areaOid || '';
-    document.getElementById('f_employee').value = f.employeeOid || '';
+    document.getElementById('f_employee').value = f.empId || '';
     document.getElementById('f_workType').value = f.workType || '';
     document.getElementById('f_quickRange').value = f.quickRange || '';
     sfaSetDate('f_from', f.fromDate || '');

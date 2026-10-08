@@ -5,7 +5,7 @@ import in.opt.sfa.tenant.master.document.dto.DocumentMasterDto;
 import in.opt.sfa.tenant.master.document.entity.DocumentMaster;
 import in.opt.sfa.tenant.master.document.mapper.DocumentMasterMapper;
 import in.opt.sfa.tenant.master.document.repository.DocumentMasterRepository;
-import in.opt.sfa.tenant.master.employee.service.EmployeeNameResolver;
+import in.opt.sfa.tenant.master.empdetail.service.EmpNameResolver;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,9 +24,9 @@ public class DocumentMasterService {
 
     private final DocumentMasterRepository repo;
     private final DocumentMasterMapper mapper;
-    private final EmployeeNameResolver employeeNames;
+    private final EmpNameResolver employeeNames;
 
-    public DocumentMasterService(DocumentMasterRepository repo, DocumentMasterMapper mapper, EmployeeNameResolver employeeNames) {
+    public DocumentMasterService(DocumentMasterRepository repo, DocumentMasterMapper mapper, EmpNameResolver employeeNames) {
         this.repo = repo;
         this.mapper = mapper;
         this.employeeNames = employeeNames;

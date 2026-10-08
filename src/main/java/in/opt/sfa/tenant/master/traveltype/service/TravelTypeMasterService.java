@@ -5,7 +5,7 @@ import in.opt.sfa.tenant.master.traveltype.dto.TravelTypeMasterDto;
 import in.opt.sfa.tenant.master.traveltype.entity.TravelTypeMaster;
 import in.opt.sfa.tenant.master.traveltype.mapper.TravelTypeMasterMapper;
 import in.opt.sfa.tenant.master.traveltype.repository.TravelTypeMasterRepository;
-import in.opt.sfa.tenant.master.employee.service.EmployeeNameResolver;
+import in.opt.sfa.tenant.master.empdetail.service.EmpNameResolver;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,9 +24,9 @@ public class TravelTypeMasterService {
 
     private final TravelTypeMasterRepository travelTypes;
     private final TravelTypeMasterMapper mapper;
-    private final EmployeeNameResolver employeeNames;
+    private final EmpNameResolver employeeNames;
 
-    public TravelTypeMasterService(TravelTypeMasterRepository travelTypes, TravelTypeMasterMapper mapper, EmployeeNameResolver employeeNames) {
+    public TravelTypeMasterService(TravelTypeMasterRepository travelTypes, TravelTypeMasterMapper mapper, EmpNameResolver employeeNames) {
         this.travelTypes = travelTypes;
         this.mapper = mapper;
         this.employeeNames = employeeNames;

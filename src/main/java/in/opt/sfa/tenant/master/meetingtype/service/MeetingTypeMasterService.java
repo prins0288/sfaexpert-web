@@ -5,7 +5,7 @@ import in.opt.sfa.tenant.master.meetingtype.dto.MeetingTypeMasterDto;
 import in.opt.sfa.tenant.master.meetingtype.entity.MeetingTypeMaster;
 import in.opt.sfa.tenant.master.meetingtype.mapper.MeetingTypeMasterMapper;
 import in.opt.sfa.tenant.master.meetingtype.repository.MeetingTypeMasterRepository;
-import in.opt.sfa.tenant.master.employee.service.EmployeeNameResolver;
+import in.opt.sfa.tenant.master.empdetail.service.EmpNameResolver;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,9 +24,9 @@ public class MeetingTypeMasterService {
 
     private final MeetingTypeMasterRepository meetingTypes;
     private final MeetingTypeMasterMapper mapper;
-    private final EmployeeNameResolver employeeNames;
+    private final EmpNameResolver employeeNames;
 
-    public MeetingTypeMasterService(MeetingTypeMasterRepository meetingTypes, MeetingTypeMasterMapper mapper, EmployeeNameResolver employeeNames) {
+    public MeetingTypeMasterService(MeetingTypeMasterRepository meetingTypes, MeetingTypeMasterMapper mapper, EmpNameResolver employeeNames) {
         this.meetingTypes = meetingTypes;
         this.mapper = mapper;
         this.employeeNames = employeeNames;

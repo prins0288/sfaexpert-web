@@ -31,7 +31,7 @@ public interface DcrRepository extends JpaRepository<Dcr, Long> {
                    dv.division_name AS divisionName,
                    co.country_name AS countryName
             FROM dcr d
-            JOIN employee e ON e.oid = d.employee_oid
+            JOIN emp_detail e ON e.emp_id = d.emp_id
             JOIN client c ON c.oid = d.client_oid
             LEFT JOIN client_type ct ON ct.oid = c.client_type_oid
             LEFT JOIN city_master ar ON ar.oid = c.area_oid
@@ -43,7 +43,7 @@ public interface DcrRepository extends JpaRepository<Dcr, Long> {
               AND (:divisionOid IS NULL OR r.division_oid = :divisionOid)
               AND (:routeOid IS NULL OR r.oid = :routeOid)
               AND (:areaOid IS NULL OR ar.oid = :areaOid)
-              AND (:employeeOid IS NULL OR e.oid = :employeeOid)
+              AND (:empId IS NULL OR d.emp_id = :empId)
               AND (:fromDate IS NULL OR d.dcr_date >= :fromDate)
               AND (:toDate IS NULL OR d.dcr_date <= :toDate)
             ORDER BY d.dcr_date DESC, e.emp_name ASC
@@ -51,7 +51,7 @@ public interface DcrRepository extends JpaRepository<Dcr, Long> {
     List<DcrReportRow> report(@Param("divisionOid") Long divisionOid,
                                @Param("routeOid") Long routeOid,
                                @Param("areaOid") Long areaOid,
-                               @Param("employeeOid") Long employeeOid,
+                               @Param("empId") String empId,
                                @Param("fromDate") LocalDate fromDate,
                                @Param("toDate") LocalDate toDate);
 }

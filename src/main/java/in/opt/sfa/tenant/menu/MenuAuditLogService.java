@@ -1,6 +1,6 @@
 package in.opt.sfa.tenant.menu;
 
-import in.opt.sfa.tenant.master.employee.service.EmployeeNameResolver;
+import in.opt.sfa.tenant.master.empdetail.service.EmpNameResolver;
 import in.opt.sfa.tenant.menu.dto.MenuAuditLogDto;
 import in.opt.sfa.tenant.menu.entity.MenuAuditLog;
 import in.opt.sfa.tenant.menu.repository.MenuAuditLogRepository;
@@ -16,9 +16,9 @@ import java.util.stream.Collectors;
 public class MenuAuditLogService {
 
     private final MenuAuditLogRepository repo;
-    private final EmployeeNameResolver employeeNames;
+    private final EmpNameResolver employeeNames;
 
-    public MenuAuditLogService(MenuAuditLogRepository repo, EmployeeNameResolver employeeNames) {
+    public MenuAuditLogService(MenuAuditLogRepository repo, EmpNameResolver employeeNames) {
         this.repo = repo;
         this.employeeNames = employeeNames;
     }

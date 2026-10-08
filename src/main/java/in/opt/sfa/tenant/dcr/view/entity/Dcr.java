@@ -28,8 +28,9 @@ public class Dcr {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long oid;
 
-    @Column(name = "employee_oid", nullable = false)
-    private Long employeeOid;
+    /** The employee who made the call -> emp_detail.emp_id. */
+    @Column(name = "emp_id", nullable = false, length = 40)
+    private String empId;
 
     @Column(name = "client_oid", nullable = false)
     private Long clientOid;

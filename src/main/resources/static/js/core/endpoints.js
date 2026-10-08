@@ -185,13 +185,6 @@
         template: "/api/master/client/template",
         upload: "/api/master/client/upload",
       },
-      employee: {
-        base: "/api/master/employee",
-        list: "/api/master/employee",
-        save: "/api/master/employee",
-        get: (oid) => `/api/master/employee/${oid}`,
-        status: (oid) => `/api/master/employee/${oid}/status`,
-      },
       createEmployee: {
         base: "/api/master/create-employee",
         list: "/api/master/create-employee",
