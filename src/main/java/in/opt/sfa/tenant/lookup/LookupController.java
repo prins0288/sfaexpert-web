@@ -13,7 +13,7 @@ import in.opt.sfa.tenant.master.zone.repository.ZoneRepository;
 import in.opt.sfa.tenant.master.clienttype.repository.ClientTypeRepository;
 import in.opt.sfa.tenant.master.route.repository.RouteRepository;
 import in.opt.sfa.tenant.master.area.repository.AreaRepository;
-import in.opt.sfa.tenant.master.employee.repository.EmployeeRepository;
+import in.opt.sfa.tenant.master.empdetail.repository.EmpDetailRepository;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -36,10 +36,12 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @RequestMapping("/api/lookups")
 public class LookupController {
 
-    /** empLevel is only meaningful for designations; omitted (null) for every other lookup. */
+    /** empLevel is only meaningful for designations; omitted (null) for every other lookup.
+     *  oid is Object because most masters key by a Long surrogate id, but employees now key
+     *  by emp_id (a String business key) since the emp_detail v2 schema. */
     @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-    public record Item(Long oid, String label, Integer empLevel) {
-        public Item(Long oid, String label) { this(oid, label, null); }
+    public record Item(Object oid, String label, Integer empLevel) {
+        public Item(Object oid, String label) { this(oid, label, null); }
     }
 
     private final DivisionRepository divisions;
@@ -55,7 +57,7 @@ public class LookupController {
     private final AreaRepository areas;
     private final DesignationRepository designations;
     private final DistrictRepository districts;
-    private final EmployeeRepository employees;
+    private final EmpDetailRepository employees;
     private final CountryRepository countries;
 
     public LookupController(DivisionRepository divisions, ZoneRepository zones, StateRepository states,
@@ -63,7 +65,7 @@ public class LookupController {
                             CategoryMasterRepository categories, ClientTypeRepository clientTypes,
                             RouteRepository routes, AreaRepository areas,
                             DesignationRepository designations, DistrictRepository districts,
-                            EmployeeRepository employees, CountryRepository countries) {
+                            EmpDetailRepository employees, CountryRepository countries) {
         this.divisions = divisions;
         this.zones = zones;
         this.states = states;
@@ -117,8 +119,8 @@ public class LookupController {
                 .map(d -> new Item(d.getOid(), d.getDesignationName(), d.getEmpLevel())).toList());
         if (want(want, "districts")) res.put("districts", districts.findByStatusOrderByDistrictNameAsc("Y").stream()
                 .map(d -> new Item(d.getOid(), d.getDistrictName())).toList());
-        if (want(want, "employees")) res.put("employees", employees.findByStatusOrderByEmpNameAsc("Y").stream()
-                .map(e -> new Item(e.getOid(), e.getEmpName())).toList());
+        if (want(want, "employees")) res.put("employees", employees.findByActiveTrueOrderByEmpNameAsc().stream()
+                .map(e -> new Item(e.getEmpId(), e.getEmpName())).toList());
         if (want(want, "countries")) res.put("countries", countries.findByStatusOrderByCountryNameAsc(Boolean.TRUE).stream()
                 .map(c -> new Item(c.getOid(), c.getCountryName())).toList());
         return res;

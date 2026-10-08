@@ -1,7 +1,11 @@
 package in.opt.sfa.web;
 
 import in.opt.sfa.security.JwtUtil;
-import in.opt.sfa.tenant.master.employee.repository.EmployeeRepository;
+import in.opt.sfa.tenant.entity.Designation;
+import in.opt.sfa.tenant.master.empdetail.repository.EmpDetailRepository;
+import in.opt.sfa.tenant.master.state.entity.State;
+import in.opt.sfa.tenant.master.state.repository.StateRepository;
+import in.opt.sfa.tenant.repository.DesignationRepository;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,9 +19,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * Current user's profile. Auth fields (username/tenant/role/emp_id) come from
- * the JWT (common DB); the full profile (name/designation/state/district/dob)
- * is fetched from the TENANT database's employee table, linked by emp_id.
- * This is where the common<->tenant relation is resolved at runtime.
+ * the JWT (common DB); the full profile (name/designation/state) is fetched
+ * from the TENANT database's emp_detail table, linked by emp_id. This is where
+ * the common<->tenant relation is resolved at runtime.
  */
 @Tag(name = "Current User", description = "Profile of the signed-in user (login + tenant employee record)")
 @RestController
@@ -25,11 +29,16 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 public class MeController {
 
     private final JwtUtil jwtUtil;
-    private final EmployeeRepository employees;
+    private final EmpDetailRepository employees;
+    private final DesignationRepository designations;
+    private final StateRepository states;
 
-    public MeController(JwtUtil jwtUtil, EmployeeRepository employees) {
+    public MeController(JwtUtil jwtUtil, EmpDetailRepository employees,
+                        DesignationRepository designations, StateRepository states) {
         this.jwtUtil = jwtUtil;
         this.employees = employees;
+        this.designations = designations;
+        this.states = states;
     }
 
     @GetMapping
@@ -51,14 +60,14 @@ public class MeController {
 
         // ---- full profile from the tenant DB ----
         if (empId != null) {
-            employees.findByEmpId(empId).ifPresent(e -> {
+            employees.findById(empId).ifPresent(e -> {
                 res.put("name", e.getEmpName());
-                res.put("designation", e.getDesignationName());
-                res.put("state", e.getStateName());
-                res.put("district", e.getDistrictName());
-                res.put("dob", e.getDob());
+                res.put("designation", e.getDesignationId() == null ? null
+                        : designations.findById(e.getDesignationId()).map(Designation::getDesignationName).orElse(null));
+                res.put("state", e.getStateId() == null ? null
+                        : states.findById(e.getStateId()).map(State::getStateName).orElse(null));
                 res.put("mobile", e.getMobile());
-                res.put("email", e.getEmail());
+                res.put("email", e.getOfficialEmail());
                 res.put("empLevel", e.getEmpLevel());
             });
         }
