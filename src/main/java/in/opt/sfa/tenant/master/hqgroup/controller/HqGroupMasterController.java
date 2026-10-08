@@ -2,6 +2,7 @@ package in.opt.sfa.tenant.master.hqgroup.controller;
 
 import in.opt.sfa.tenant.master.hqgroup.dto.HqGroupMasterDto;
 import in.opt.sfa.tenant.master.hqgroup.service.HqGroupMasterService;
+import in.opt.sfa.security.RequiresPermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
@@ -33,6 +34,7 @@ public class HqGroupMasterController {
         return service.get(id);
     }
 
+    @RequiresPermission("HQ_GROUP_SAVE")
     @PostMapping
     @Operation(summary = "Create or update an HQ group",
             description = "Send id to update, omit it to create. Audit fields are set by the server.")
@@ -40,12 +42,14 @@ public class HqGroupMasterController {
         return service.save(form);
     }
 
+    @RequiresPermission("HQ_GROUP_SAVE")
     @PostMapping("/save-multiple")
     @Operation(summary = "Bulk create HQ groups (blank / duplicate code or name rows are skipped)")
     public Map<String, Object> saveMultiple(@RequestBody List<HqGroupMasterDto> forms) {
         return service.saveMultiple(forms);
     }
 
+    @RequiresPermission("HQ_GROUP_STATUS")
     @PostMapping("/{id}/status")
     @Operation(summary = "Activate / deactivate an HQ group (status = true or false)")
     public HqGroupMasterDto status(@PathVariable Long id, @RequestParam boolean status) {

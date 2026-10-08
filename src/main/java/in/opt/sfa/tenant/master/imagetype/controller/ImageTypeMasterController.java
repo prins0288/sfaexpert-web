@@ -2,6 +2,7 @@ package in.opt.sfa.tenant.master.imagetype.controller;
 
 import in.opt.sfa.tenant.master.imagetype.dto.ImageTypeMasterDto;
 import in.opt.sfa.tenant.master.imagetype.service.ImageTypeMasterService;
+import in.opt.sfa.security.RequiresPermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
@@ -33,6 +34,7 @@ public class ImageTypeMasterController {
         return service.get(id);
     }
 
+    @RequiresPermission("IMAGE_TYPE_SAVE")
     @PostMapping
     @Operation(summary = "Create or update an image type",
             description = "Send id to update, omit it to create. Audit fields are set by the server.")
@@ -40,12 +42,14 @@ public class ImageTypeMasterController {
         return service.save(form);
     }
 
+    @RequiresPermission("IMAGE_TYPE_SAVE")
     @PostMapping("/save-multiple")
     @Operation(summary = "Bulk create image types (blank / duplicate code or name rows are skipped)")
     public Map<String, Object> saveMultiple(@RequestBody List<ImageTypeMasterDto> forms) {
         return service.saveMultiple(forms);
     }
 
+    @RequiresPermission("IMAGE_TYPE_STATUS")
     @PostMapping("/{id}/status")
     @Operation(summary = "Activate / deactivate an image type (status = true or false)")
     public ImageTypeMasterDto status(@PathVariable Long id, @RequestParam boolean status) {

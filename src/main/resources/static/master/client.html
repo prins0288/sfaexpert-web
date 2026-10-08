@@ -45,8 +45,8 @@
         <select id="typeFilter" class="form-select form-select-sm" style="width:auto" onchange="clientFilter()">
           <option value="">All Types</option>
         </select>
-        <button class="btn btn-sm btn-primary" onclick="clientAdd()"><i class="bi bi-plus-lg"></i> Add Single</button>
-        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#clientUploadModal"><i class="bi bi-upload"></i> Bulk Upload</button>
+        <button data-perm="CLIENT_SAVE" class="btn btn-sm btn-primary" onclick="clientAdd()"><i class="bi bi-plus-lg"></i> Add Single</button>
+        <button data-perm="CLIENT_UPLOAD" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#clientUploadModal"><i class="bi bi-upload"></i> Bulk Upload</button>
       </div>
     </div>
     <div class="card-body">
@@ -186,10 +186,10 @@
         <td>${SFA.esc(r.mobile)}</td><td>${SFA.esc(r.categoryName)}</td>
         <td>${SFA.statusBadge(r.status)}</td>
         <td class="no-export">
-          <button class="btn btn-sm btn-outline-primary" onclick='clientEdit(${JSON.stringify(r)})'><i class="bi bi-pencil"></i></button>
+          <button data-perm="CLIENT_SAVE" class="btn btn-sm btn-outline-primary" onclick='clientEdit(${JSON.stringify(r)})'><i class="bi bi-pencil"></i></button>
           ${r.status === 'Y'
-            ? `<button class="btn btn-sm btn-outline-danger" onclick="clientStatus(${r.oid},'N')"><i class="bi bi-slash-circle"></i></button>`
-            : `<button class="btn btn-sm btn-outline-success" onclick="clientStatus(${r.oid},'Y')"><i class="bi bi-check-circle"></i></button>`}
+            ? `<button data-perm="CLIENT_STATUS" class="btn btn-sm btn-outline-danger" onclick="clientStatus(${r.oid},'N')"><i class="bi bi-slash-circle"></i></button>`
+            : `<button data-perm="CLIENT_STATUS" class="btn btn-sm btn-outline-success" onclick="clientStatus(${r.oid},'Y')"><i class="bi bi-check-circle"></i></button>`}
         </td>
       </tr>`).join('');
     DT = sfaDataTable('#clientTable');

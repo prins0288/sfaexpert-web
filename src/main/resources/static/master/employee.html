@@ -42,7 +42,7 @@
     <div class="card-header">
       <i class="bi bi-person-badge"></i> Employees
       <div class="card-tools">
-        <button class="btn btn-sm btn-primary" onclick="empAdd()"><i class="bi bi-plus-lg"></i> Add Employee</button>
+        <button data-perm="EMPLOYEE_SAVE" class="btn btn-sm btn-primary" onclick="empAdd()"><i class="bi bi-plus-lg"></i> Add Employee</button>
       </div>
     </div>
     <div class="card-body">
@@ -145,10 +145,10 @@
         <td>${r.loginEnabled ? '<span class="badge badge-active">Enabled</span>' : '<span class="badge badge-inactive">No login</span>'}</td>
         <td>${SFA.statusBadge(r.status)}</td>
         <td class="no-export">
-          <button class="btn btn-sm btn-outline-primary" onclick='empEdit(${JSON.stringify(r)})'><i class="bi bi-pencil"></i></button>
+          <button data-perm="EMPLOYEE_SAVE" class="btn btn-sm btn-outline-primary" onclick='empEdit(${JSON.stringify(r)})'><i class="bi bi-pencil"></i></button>
           ${r.status === 'Y'
-            ? `<button class="btn btn-sm btn-outline-danger" onclick="empStatus(${r.oid},'N')" title="Deactivate + disable login"><i class="bi bi-slash-circle"></i></button>`
-            : `<button class="btn btn-sm btn-outline-success" onclick="empStatus(${r.oid},'Y')" title="Activate + enable login"><i class="bi bi-check-circle"></i></button>`}
+            ? `<button data-perm="EMPLOYEE_STATUS" class="btn btn-sm btn-outline-danger" onclick="empStatus(${r.oid},'N')" title="Deactivate + disable login"><i class="bi bi-slash-circle"></i></button>`
+            : `<button data-perm="EMPLOYEE_STATUS" class="btn btn-sm btn-outline-success" onclick="empStatus(${r.oid},'Y')" title="Activate + enable login"><i class="bi bi-check-circle"></i></button>`}
         </td>
       </tr>`).join('');
     DT = sfaDataTable('#empTable');

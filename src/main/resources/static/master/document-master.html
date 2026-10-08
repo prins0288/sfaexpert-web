@@ -36,8 +36,8 @@
     <div class="card-header">
       <i class="bi bi-file-earmark-text"></i> Documents
       <div class="card-tools">
-        <button class="btn btn-sm btn-primary" onclick="docAdd()"><i class="bi bi-plus-lg"></i> Add Single</button>
-        <button class="btn btn-sm btn-outline-primary" onclick="docMultiAdd()"><i class="bi bi-plus-square"></i> Add Multiple</button>
+        <button data-perm="DOCUMENT_SAVE" class="btn btn-sm btn-primary" onclick="docAdd()"><i class="bi bi-plus-lg"></i> Add Single</button>
+        <button data-perm="DOCUMENT_SAVE" class="btn btn-sm btn-outline-primary" onclick="docMultiAdd()"><i class="bi bi-plus-square"></i> Add Multiple</button>
       </div>
     </div>
     <div class="card-body">
@@ -146,10 +146,10 @@
         <td>${auditCell(r.createdBy, r.createdAt)}</td>
         <td>${auditCell(r.updatedBy, r.updatedAt)}</td>
         <td class="no-export">
-          <button class="btn btn-sm btn-outline-primary" onclick='docEdit(${JSON.stringify(r)})'><i class="bi bi-pencil"></i></button>
+          <button data-perm="DOCUMENT_SAVE" class="btn btn-sm btn-outline-primary" onclick='docEdit(${JSON.stringify(r)})'><i class="bi bi-pencil"></i></button>
           ${r.isActive
-            ? `<button class="btn btn-sm btn-outline-danger" onclick="docStatus(${r.id},false)"><i class="bi bi-slash-circle"></i></button>`
-            : `<button class="btn btn-sm btn-outline-success" onclick="docStatus(${r.id},true)"><i class="bi bi-check-circle"></i></button>`}
+            ? `<button data-perm="DOCUMENT_STATUS" class="btn btn-sm btn-outline-danger" onclick="docStatus(${r.id},false)"><i class="bi bi-slash-circle"></i></button>`
+            : `<button data-perm="DOCUMENT_STATUS" class="btn btn-sm btn-outline-success" onclick="docStatus(${r.id},true)"><i class="bi bi-check-circle"></i></button>`}
         </td>
       </tr>`).join('');
     DT = sfaDataTable('#docTable');

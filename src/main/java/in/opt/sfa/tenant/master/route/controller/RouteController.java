@@ -3,6 +3,7 @@ package in.opt.sfa.tenant.master.route.controller;
 import in.opt.sfa.common.util.ExcelUtil;
 import in.opt.sfa.tenant.master.route.dto.RouteDto;
 import in.opt.sfa.tenant.master.route.service.RouteService;
+import in.opt.sfa.security.RequiresPermission;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -33,17 +34,20 @@ public class RouteController {
         return service.get(oid);
     }
 
+    @RequiresPermission("ROUTE_SAVE")
     @PostMapping
     public RouteDto save(@RequestBody RouteDto form) {
         return service.save(form);
     }
 
     /** Add Multiple — one insert per submitted row (blank / duplicate code skipped). */
+    @RequiresPermission("ROUTE_SAVE")
     @PostMapping("/save-multiple")
     public Map<String, Object> saveMultiple(@RequestBody List<RouteDto> forms) {
         return service.saveMultiple(forms);
     }
 
+    @RequiresPermission("ROUTE_STATUS")
     @PostMapping("/{oid}/status")
     public RouteDto status(@PathVariable Long oid, @RequestParam String status) {
         return service.updateStatus(oid, status);
@@ -56,6 +60,7 @@ public class RouteController {
     }
 
     /** Bulk upload = upsert by route_code; hq/state resolved by code or name. */
+    @RequiresPermission("ROUTE_UPLOAD")
     @PostMapping("/upload")
     public Map<String, Object> upload(@RequestParam("file") MultipartFile file) throws Exception {
         return service.upload(file);

@@ -2,6 +2,7 @@ package in.opt.sfa.tenant.master.clienttype.controller;
 
 import in.opt.sfa.tenant.master.clienttype.dto.ClientTypeDto;
 import in.opt.sfa.tenant.master.clienttype.service.ClientTypeService;
+import in.opt.sfa.security.RequiresPermission;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,17 +31,20 @@ public class ClientTypeController {
         return service.get(oid);
     }
 
+    @RequiresPermission("CLIENT_TYPE_SAVE")
     @PostMapping
     public ClientTypeDto save(@RequestBody ClientTypeDto form) {
         return service.save(form);
     }
 
     /** Add Multiple — one insert per submitted row (blank / duplicate code skipped). */
+    @RequiresPermission("CLIENT_TYPE_SAVE")
     @PostMapping("/save-multiple")
     public Map<String, Object> saveMultiple(@RequestBody List<ClientTypeDto> forms) {
         return service.saveMultiple(forms);
     }
 
+    @RequiresPermission("CLIENT_TYPE_STATUS")
     @PostMapping("/{oid}/status")
     public ClientTypeDto status(@PathVariable Long oid, @RequestParam boolean status) {
         return service.updateStatus(oid, status);

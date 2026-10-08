@@ -2,6 +2,7 @@ package in.opt.sfa.tenant.master.bank.controller;
 
 import in.opt.sfa.tenant.master.bank.dto.BankMasterDto;
 import in.opt.sfa.tenant.master.bank.service.BankMasterService;
+import in.opt.sfa.security.RequiresPermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
@@ -33,6 +34,7 @@ public class BankMasterController {
         return service.get(id);
     }
 
+    @RequiresPermission("BANK_SAVE")
     @PostMapping
     @Operation(summary = "Create or update a bank",
             description = "Send id to update, omit it to create. Audit fields are set by the server.")
@@ -40,12 +42,14 @@ public class BankMasterController {
         return service.save(form);
     }
 
+    @RequiresPermission("BANK_SAVE")
     @PostMapping("/save-multiple")
     @Operation(summary = "Bulk create banks (blank / duplicate code or name rows are skipped)")
     public Map<String, Object> saveMultiple(@RequestBody List<BankMasterDto> forms) {
         return service.saveMultiple(forms);
     }
 
+    @RequiresPermission("BANK_STATUS")
     @PostMapping("/{id}/status")
     @Operation(summary = "Activate / deactivate a bank (status = true or false)")
     public BankMasterDto status(@PathVariable Long id, @RequestParam boolean status) {

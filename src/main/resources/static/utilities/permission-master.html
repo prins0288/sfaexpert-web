@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>/* reverse-proxy sub-path support: make relative css/js resolve under the deploy prefix (e.g. /sfaexpert), "" locally */
+  (function(){try{var p=location.pathname,m=p.match(/^(.*?)\/u\/\d+(\/|$)/),c=m?m[1]:p.replace(/\/[^\/]*$/,'');document.write('<base href="'+(c||'')+'/">');}catch(e){}})();</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StarSFA &middot; Permission Master</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="css/app.css" rel="stylesheet" />
+  <script>
+    (function () {
+      try {
+        var d = document.documentElement, s = localStorage;
+        var m = location.pathname.match(/\/u\/(\d+)(\/|$)/), q = '_u' + (m ? m[1] : '0');
+        d.setAttribute('data-theme', s.getItem('sfa_mode' + q) || 'light');
+        d.setAttribute('data-nav', s.getItem('sfa_nav' + q) || 'vertical');
+        d.setAttribute('data-density', s.getItem('sfa_density' + q) || 'comfortable');
+        var f = s.getItem('sfa_font' + q); if (f) d.style.setProperty('--sfa-font-scale', f);
+        var c = s.getItem('sfa_theme' + q);
+        if (c) { c = JSON.parse(c); var t = (c.resolved && c.resolved[c.mode]) || {};
+          for (var k in t) d.style.setProperty('--sfa-' + k, t[k]); }
+      } catch (e) {}
+    })();
+  </script>
+  <style>
+    .pm-table td, .pm-table th { vertical-align: middle; }
+    .pm-module td { background: var(--sfa-surface-2, #f6f7f9); font-weight: 600; }
+    .pm-access { min-width: 9rem; }
+    .pm-access.pm-allow { border-color: var(--bs-success); }
+    .pm-access.pm-deny  { border-color: var(--bs-danger); }
+    .pm-row.pm-hidden { display: none; }
+  </style>
+</head>
+<body>
+<div id="app" data-page="permissionmaster" data-title="Permission Master"></div>
+
+<template id="pageContent">
+  <div class="card">
+    <div class="card-header d-flex align-items-center flex-wrap gap-2">
+      <span><i class="bi bi-shield-lock"></i> Permission Master</span>
+      <small class="text-muted">Allow / deny actions per employee, designation or emp level &mdash; employee beats designation beats emp level; <b>Default</b> = no rule (allowed)</small>
+      <button class="btn btn-sm btn-outline-primary ms-auto" onclick="pmCodeAdd()"><i class="bi bi-plus-lg"></i> Add Permission Code</button>
+    </div>
+    <div class="card-body">
+      <div class="row g-3 mb-3">
+        <div class="col-md-3">
+          <label class="form-label">Assign to <span class="required-star">*</span></label>
+          <select class="form-select" id="pm_type" onchange="pmFillValues()">
+            <option value="EMP_ID">Employee</option>
+            <option value="DESIGNATION">Designation</option>
+            <option value="EMP_LEVEL">Emp Level</option>
+          </select>
+        </div>
+        <div class="col-md-5">
+          <label class="form-label" id="pm_valueLabel">Employee <span class="required-star">*</span></label>
+          <select class="form-select" id="pm_value" onchange="pmLoadAssignments()"></select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Search</label>
+          <input type="text" class="form-control" id="pm_search" placeholder="Code, module or description…" oninput="pmFilter()">
+        </div>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table table-sm table-hover pm-table mb-0">
+          <thead><tr><th>Permission</th><th>Description</th><th class="text-center">Catalog</th><th>Access</th></tr></thead>
+          <tbody id="pm_body"><tr><td colspan="4" class="text-muted small">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add / edit a permission code (permission_master) -->
+  <div class="modal fade" id="pmCodeModal" tabindex="-1"><div class="modal-dialog modal-fullscreen-sm-down">
+    <form class="modal-content" onsubmit="pmCodeSave(event)">
+      <div class="modal-header sfa-modal"><h5 class="modal-title" id="pmCodeTitle">Add Permission Code</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <input type="hidden" id="pc_oid" />
+        <div class="mb-3"><label class="form-label">Code <span class="required-star">*</span></label>
+          <input class="form-control text-uppercase" id="pc_code" required maxlength="100" placeholder="e.g. ZONE_SAVE" /></div>
+        <div class="mb-3"><label class="form-label">Module</label>
+          <input class="form-control" id="pc_module" maxlength="100" /></div>
+        <div class="mb-3"><label class="form-label">Description</label>
+          <input class="form-control" id="pc_desc" maxlength="255" /></div>
+        <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="pc_status" checked>
+          <label class="form-check-label" for="pc_status">Active</label></div>
+        <div class="form-text">The backend checks a code only where a controller carries <code>@RequiresPermission("CODE")</code>; a new code here is for buttons/features you wire up yourself.</div>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button></div>
+    </form>
+  </div></div>
+</template>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="js/core/session.js"></script>
+<script src="js/core/endpoints.js"></script>
+<script src="js/core/http.js"></script>
+<script src="js/core/theme.js"></script>
+<script src="js/core/settings.js"></script>
+<script src="js/core/i18n.js"></script>
+<script src="js/app.js"></script>
+<script src="js/core/uikit.js"></script>
+<script src="js/shell.js"></script>
+<script>
+  const EP = API.permissionMaster;
+  let CODES = [], TARGETS = { employees: [], designations: [], empLevels: [] };
+  let CURRENT = {};   // permissionCode -> assignment row for the selected target
+  let CODE_MODAL;
+
+  window.pageInit = async function () {
+    CODE_MODAL = new bootstrap.Modal(document.getElementById('pmCodeModal'));
+    try {
+      [CODES, TARGETS] = await Promise.all([Api.get(EP.list), Api.get(EP.targets)]);
+      pmFillValues();
+    } catch (e) {
+      document.getElementById('pm_body').innerHTML = `<tr><td colspan="4" class="text-danger small">${SFA.esc(e.message)}</td></tr>`;
+    }
+  };
+
+  function pmFillValues() {
+    const type = document.getElementById('pm_type').value;
+    const sel = document.getElementById('pm_value');
+    let opts = [];
+    if (type === 'EMP_ID') {
+      opts = TARGETS.employees.map(e => [e.empId, `${e.name} (${e.empCode || e.empId})`]);
+    } else if (type === 'DESIGNATION') {
+      opts = TARGETS.designations.map(d => [d.code, `${d.name} (${d.code})${d.empLevel != null ? ' · level ' + d.empLevel : ''}`]);
+    } else {
+      opts = TARGETS.empLevels.map(l => [String(l), 'Level ' + l]);
+    }
+    document.getElementById('pm_valueLabel').innerHTML =
+      ({ EMP_ID: 'Employee', DESIGNATION: 'Designation', EMP_LEVEL: 'Emp Level' })[type] + ' <span class="required-star">*</span>';
+    sel.innerHTML = '<option value="">Select…</option>' +
+      opts.map(([v, l]) => `<option value="${SFA.esc(v)}">${SFA.esc(l)}</option>`).join('');
+    pmLoadAssignments();
+  }
+
+  async function pmLoadAssignments() {
+    const targetType = document.getElementById('pm_type').value;
+    const targetValue = document.getElementById('pm_value').value;
+    CURRENT = {};
+    if (targetValue) {
+      try {
+        const rows = await Api.get(EP.assignments, { query: { targetType, targetValue } });
+        rows.forEach(r => { CURRENT[r.permissionCode] = r; });
+      } catch (e) { SFA.toast(e.message, false); }
+    }
+    pmRender();
+  }
+
+  function accessOf(code) {
+    const a = CURRENT[code];
+    return !a ? '' : (a.allowed ? 'ALLOW' : 'DENY');
+  }
+
+  function pmRender() {
+    const picked = !!document.getElementById('pm_value').value;
+    if (!CODES.length) {
+      document.getElementById('pm_body').innerHTML =
+        '<tr><td colspan="4" class="text-muted small">No permission codes yet — run sql/63_permission_seed.sql or add one.</td></tr>';
+      return;
+    }
+    let html = '', module = null;
+    CODES.forEach(c => {
+      const m = c.module || 'Other';
+      if (m !== module) {
+        module = m;
+        html += `<tr class="pm-module pm-row" data-module="${SFA.esc(m.toLowerCase())}"><td colspan="4">${SFA.esc(m)}</td></tr>`;
+      }
+      const acc = accessOf(c.permissionCode);
+      const hay = [c.permissionCode, c.module, c.description].join(' ').toLowerCase();
+      html += `<tr class="pm-row" data-module="${SFA.esc(m.toLowerCase())}" data-hay="${SFA.esc(hay)}">
+        <td><code>${SFA.esc(c.permissionCode)}</code>
+          <button class="btn btn-sm btn-link p-0 ms-1" title="Edit code" onclick='pmCodeEdit(${JSON.stringify(c)})'><i class="bi bi-pencil"></i></button></td>
+        <td class="small">${SFA.esc(c.description || '')}</td>
+        <td class="text-center">${c.status ? '<span class="badge badge-active">Active</span>' : '<span class="badge badge-inactive">Inactive</span>'}</td>
+        <td><select class="form-select form-select-sm pm-access ${acc === 'ALLOW' ? 'pm-allow' : acc === 'DENY' ? 'pm-deny' : ''}"
+                    ${picked ? '' : 'disabled'} onchange="pmSetAccess('${SFA.esc(c.permissionCode)}', this)">
+              <option value="" ${acc === '' ? 'selected' : ''}>Default</option>
+              <option value="ALLOW" ${acc === 'ALLOW' ? 'selected' : ''}>Allow</option>
+              <option value="DENY" ${acc === 'DENY' ? 'selected' : ''}>Deny</option>
+            </select></td>
+      </tr>`;
+    });
+    document.getElementById('pm_body').innerHTML = html;
+    pmFilter();
+  }
+
+  function pmFilter() {
+    const q = document.getElementById('pm_search').value.trim().toLowerCase();
+    const rows = Array.from(document.querySelectorAll('#pm_body tr.pm-row'));
+    const shownModules = new Set();
+    rows.forEach(r => {
+      if (r.classList.contains('pm-module')) return;
+      const hit = !q || r.getAttribute('data-hay').includes(q);
+      r.classList.toggle('pm-hidden', !hit);
+      if (hit) shownModules.add(r.getAttribute('data-module'));
+    });
+    rows.filter(r => r.classList.contains('pm-module'))
+      .forEach(r => r.classList.toggle('pm-hidden', !shownModules.has(r.getAttribute('data-module'))));
+  }
+
+  /** Default = delete the rule; Allow / Deny = upsert it. Saved immediately. */
+  async function pmSetAccess(code, sel) {
+    const targetType = document.getElementById('pm_type').value;
+    const targetValue = document.getElementById('pm_value').value;
+    const prev = accessOf(code);
+    try {
+      if (!sel.value) {
+        if (CURRENT[code]) await Api.del(EP.deleteAssignment(CURRENT[code].oid));
+        delete CURRENT[code];
+      } else {
+        CURRENT[code] = await Api.post(EP.assignments,
+          { targetType, targetValue, permissionCode: code, allowed: sel.value === 'ALLOW' });
+      }
+      sel.classList.toggle('pm-allow', sel.value === 'ALLOW');
+      sel.classList.toggle('pm-deny', sel.value === 'DENY');
+      SFA.toast('Saved');
+      SFA.reloadPermissions();   // in case the admin just changed their own access
+    } catch (e) {
+      sel.value = prev;
+      SFA.toast(e.message, false);
+    }
+  }
+
+  // ---- permission_master (catalog) ----------------------------------------
+  function pmCodeAdd() {
+    document.getElementById('pmCodeTitle').textContent = 'Add Permission Code';
+    ['pc_oid', 'pc_code', 'pc_module', 'pc_desc'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('pc_code').readOnly = false;
+    document.getElementById('pc_status').checked = true;
+    CODE_MODAL.show();
+  }
+
+  function pmCodeEdit(c) {
+    document.getElementById('pmCodeTitle').textContent = 'Edit Permission Code';
+    document.getElementById('pc_oid').value = c.oid;
+    document.getElementById('pc_code').value = c.permissionCode;
+    document.getElementById('pc_code').readOnly = true;   // assignments reference the code by value
+    document.getElementById('pc_module').value = c.module || '';
+    document.getElementById('pc_desc').value = c.description || '';
+    document.getElementById('pc_status').checked = !!c.status;
+    CODE_MODAL.show();
+  }
+
+  async function pmCodeSave(ev) {
+    ev.preventDefault();
+    const oid = document.getElementById('pc_oid').value;
+    const body = {
+      oid: oid ? Number(oid) : null,
+      permissionCode: document.getElementById('pc_code').value.trim().toUpperCase(),
+      module: document.getElementById('pc_module').value.trim() || null,
+      description: document.getElementById('pc_desc').value.trim() || null,
+      status: document.getElementById('pc_status').checked,
+    };
+    try {
+      await Api.post(EP.save, body);
+      CODE_MODAL.hide();
+      CODES = await Api.get(EP.list);
+      pmRender();
+      SFA.toast('Saved');
+    } catch (e) { SFA.toast(e.message, false); }
+  }
+</script>
+</body>
+</html>

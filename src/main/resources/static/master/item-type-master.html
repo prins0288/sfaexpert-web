@@ -38,8 +38,8 @@
     <div class="card-header">
       <i class="bi bi-capsule"></i> Item Types
       <div class="card-tools">
-        <button class="btn btn-sm btn-primary" onclick="itAdd()"><i class="bi bi-plus-lg"></i> Add Single</button>
-        <button class="btn btn-sm btn-outline-primary" onclick="itMultiAdd()"><i class="bi bi-plus-square"></i> Add Multiple</button>
+        <button data-perm="ITEM_TYPE_SAVE" class="btn btn-sm btn-primary" onclick="itAdd()"><i class="bi bi-plus-lg"></i> Add Single</button>
+        <button data-perm="ITEM_TYPE_SAVE" class="btn btn-sm btn-outline-primary" onclick="itMultiAdd()"><i class="bi bi-plus-square"></i> Add Multiple</button>
       </div>
     </div>
     <div class="card-body">
@@ -152,10 +152,10 @@
         <td>${auditCell(r.createdBy, r.createdAt)}</td>
         <td>${auditCell(r.updatedBy, r.updatedAt)}</td>
         <td class="no-export">
-          <button class="btn btn-sm btn-outline-primary" onclick='itEdit(${JSON.stringify(r)})'><i class="bi bi-pencil"></i></button>
+          <button data-perm="ITEM_TYPE_SAVE" class="btn btn-sm btn-outline-primary" onclick='itEdit(${JSON.stringify(r)})'><i class="bi bi-pencil"></i></button>
           ${r.isActive
-            ? `<button class="btn btn-sm btn-outline-danger" onclick="itStatus(${r.id},false)"><i class="bi bi-slash-circle"></i></button>`
-            : `<button class="btn btn-sm btn-outline-success" onclick="itStatus(${r.id},true)"><i class="bi bi-check-circle"></i></button>`}
+            ? `<button data-perm="ITEM_TYPE_STATUS" class="btn btn-sm btn-outline-danger" onclick="itStatus(${r.id},false)"><i class="bi bi-slash-circle"></i></button>`
+            : `<button data-perm="ITEM_TYPE_STATUS" class="btn btn-sm btn-outline-success" onclick="itStatus(${r.id},true)"><i class="bi bi-check-circle"></i></button>`}
         </td>
       </tr>`).join('');
     DT = sfaDataTable('#itTable');

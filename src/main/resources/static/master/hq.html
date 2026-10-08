@@ -39,9 +39,9 @@
     <div class="card-header">
       <i class="bi bi-building"></i> HQs
       <div class="card-tools">
-        <button class="btn btn-sm btn-primary" onclick="hqAdd()"><i class="bi bi-plus-lg"></i> Add Single</button>
-        <button class="btn btn-sm btn-outline-primary" onclick="hqMultiAdd()"><i class="bi bi-plus-square"></i> Add Multiple</button>
-        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#hqUploadModal"><i class="bi bi-upload"></i> Bulk Upload</button>
+        <button data-perm="HQ_SAVE" class="btn btn-sm btn-primary" onclick="hqAdd()"><i class="bi bi-plus-lg"></i> Add Single</button>
+        <button data-perm="HQ_SAVE" class="btn btn-sm btn-outline-primary" onclick="hqMultiAdd()"><i class="bi bi-plus-square"></i> Add Multiple</button>
+        <button data-perm="HQ_UPLOAD" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#hqUploadModal"><i class="bi bi-upload"></i> Bulk Upload</button>
       </div>
     </div>
     <div class="card-body">
@@ -165,10 +165,10 @@
         <td>${SFA.esc(r.hqGroupName)}</td>
         <td>${boolBadge(r.isActive)}</td>
         <td class="no-export">
-          <button class="btn btn-sm btn-outline-primary" onclick='hqEdit(${JSON.stringify(r)})'><i class="bi bi-pencil"></i></button>
+          <button data-perm="HQ_SAVE" class="btn btn-sm btn-outline-primary" onclick='hqEdit(${JSON.stringify(r)})'><i class="bi bi-pencil"></i></button>
           ${r.isActive
-            ? `<button class="btn btn-sm btn-outline-danger" onclick="hqStatus(${r.oid},false)"><i class="bi bi-slash-circle"></i></button>`
-            : `<button class="btn btn-sm btn-outline-success" onclick="hqStatus(${r.oid},true)"><i class="bi bi-check-circle"></i></button>`}
+            ? `<button data-perm="HQ_STATUS" class="btn btn-sm btn-outline-danger" onclick="hqStatus(${r.oid},false)"><i class="bi bi-slash-circle"></i></button>`
+            : `<button data-perm="HQ_STATUS" class="btn btn-sm btn-outline-success" onclick="hqStatus(${r.oid},true)"><i class="bi bi-check-circle"></i></button>`}
         </td>
       </tr>`).join('');
     DT = sfaDataTable('#hqTable');

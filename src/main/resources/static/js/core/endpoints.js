@@ -44,6 +44,17 @@
       setLang: (lang) => "/api/i18n/lang?lang=" + encodeURIComponent(lang),
     },
 
+    permissions: {
+      my: "/api/permissions/my",   // GET { CODE: true|false } for the current user
+    },
+    permissionMaster: {
+      list: "/api/master/permission-master",               // GET catalog, POST create/update a code
+      save: "/api/master/permission-master",
+      targets: "/api/master/permission-master/targets",    // GET employees / designations / emp levels
+      assignments: "/api/master/permission-master/assignments",  // GET ?targetType=&targetValue=, POST upsert
+      deleteAssignment: (oid) => `/api/master/permission-master/assignments/${oid}`,
+    },
+
     menu: {
       get: "/api/menu",
       favorite: (id) => `/api/menu/favorites/${id}`,   // POST to add, DELETE to remove

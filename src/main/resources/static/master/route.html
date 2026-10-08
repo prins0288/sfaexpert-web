@@ -41,9 +41,9 @@
     <div class="card-header">
       <i class="bi bi-signpost-2"></i> Routes
       <div class="card-tools">
-        <button class="btn btn-sm btn-primary" onclick="routeAdd()"><i class="bi bi-plus-lg"></i> Add Single</button>
-        <button class="btn btn-sm btn-outline-primary" onclick="routeMultiAdd()"><i class="bi bi-plus-square"></i> Add Multiple</button>
-        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#routeUploadModal"><i class="bi bi-upload"></i> Bulk Upload</button>
+        <button data-perm="ROUTE_SAVE" class="btn btn-sm btn-primary" onclick="routeAdd()"><i class="bi bi-plus-lg"></i> Add Single</button>
+        <button data-perm="ROUTE_SAVE" class="btn btn-sm btn-outline-primary" onclick="routeMultiAdd()"><i class="bi bi-plus-square"></i> Add Multiple</button>
+        <button data-perm="ROUTE_UPLOAD" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#routeUploadModal"><i class="bi bi-upload"></i> Bulk Upload</button>
       </div>
     </div>
     <div class="card-body">
@@ -175,10 +175,10 @@
         <td>${r.distanceKm == null ? '' : r.distanceKm}</td>
         <td>${SFA.statusBadge(r.status)}</td>
         <td class="no-export">
-          <button class="btn btn-sm btn-outline-primary" onclick='routeEdit(${JSON.stringify(r)})'><i class="bi bi-pencil"></i></button>
+          <button data-perm="ROUTE_SAVE" class="btn btn-sm btn-outline-primary" onclick='routeEdit(${JSON.stringify(r)})'><i class="bi bi-pencil"></i></button>
           ${r.status === 'Y'
-            ? `<button class="btn btn-sm btn-outline-danger" onclick="routeStatus(${r.oid},'N')"><i class="bi bi-slash-circle"></i></button>`
-            : `<button class="btn btn-sm btn-outline-success" onclick="routeStatus(${r.oid},'Y')"><i class="bi bi-check-circle"></i></button>`}
+            ? `<button data-perm="ROUTE_STATUS" class="btn btn-sm btn-outline-danger" onclick="routeStatus(${r.oid},'N')"><i class="bi bi-slash-circle"></i></button>`
+            : `<button data-perm="ROUTE_STATUS" class="btn btn-sm btn-outline-success" onclick="routeStatus(${r.oid},'Y')"><i class="bi bi-check-circle"></i></button>`}
         </td>
       </tr>`).join('');
     DT = sfaDataTable('#routeTable');

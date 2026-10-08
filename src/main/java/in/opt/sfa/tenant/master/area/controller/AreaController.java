@@ -3,6 +3,7 @@ package in.opt.sfa.tenant.master.area.controller;
 import in.opt.sfa.common.util.ExcelUtil;
 import in.opt.sfa.tenant.master.area.dto.AreaDto;
 import in.opt.sfa.tenant.master.area.service.AreaService;
+import in.opt.sfa.security.RequiresPermission;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -33,17 +34,20 @@ public class AreaController {
         return service.get(oid);
     }
 
+    @RequiresPermission("AREA_SAVE")
     @PostMapping
     public AreaDto save(@RequestBody AreaDto form) {
         return service.save(form);
     }
 
     /** Add Multiple — one insert per submitted row (blank / duplicate code skipped). */
+    @RequiresPermission("AREA_SAVE")
     @PostMapping("/save-multiple")
     public Map<String, Object> saveMultiple(@RequestBody List<AreaDto> forms) {
         return service.saveMultiple(forms);
     }
 
+    @RequiresPermission("AREA_STATUS")
     @PostMapping("/{oid}/status")
     public AreaDto status(@PathVariable Long oid, @RequestParam String status) {
         return service.updateStatus(oid, status);
@@ -55,6 +59,7 @@ public class AreaController {
     }
 
     /** Bulk upload = upsert by area_code; hq/state resolved by code or name. */
+    @RequiresPermission("AREA_UPLOAD")
     @PostMapping("/upload")
     public Map<String, Object> upload(@RequestParam("file") MultipartFile file) throws Exception {
         return service.upload(file);

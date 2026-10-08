@@ -2,6 +2,7 @@ package in.opt.sfa.tenant.master.visittype.controller;
 
 import in.opt.sfa.tenant.master.visittype.dto.VisitTypeDto;
 import in.opt.sfa.tenant.master.visittype.service.VisitTypeService;
+import in.opt.sfa.security.RequiresPermission;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,17 +31,20 @@ public class VisitTypeController {
         return service.get(oid);
     }
 
+    @RequiresPermission("VISIT_TYPE_SAVE")
     @PostMapping
     public VisitTypeDto save(@RequestBody VisitTypeDto form) {
         return service.save(form);
     }
 
     /** Add Multiple — one insert per submitted row (blank / duplicate code skipped). */
+    @RequiresPermission("VISIT_TYPE_SAVE")
     @PostMapping("/save-multiple")
     public Map<String, Object> saveMultiple(@RequestBody List<VisitTypeDto> forms) {
         return service.saveMultiple(forms);
     }
 
+    @RequiresPermission("VISIT_TYPE_STATUS")
     @PostMapping("/{oid}/status")
     public VisitTypeDto status(@PathVariable Long oid, @RequestParam boolean status) {
         return service.updateStatus(oid, status);

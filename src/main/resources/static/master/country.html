@@ -39,8 +39,8 @@
     <div class="card-header">
       <i class="bi bi-flag"></i> Countries
       <div class="card-tools">
-        <button class="btn btn-sm btn-primary" onclick="cntAdd()"><i class="bi bi-plus-lg"></i> Add Single</button>
-        <button class="btn btn-sm btn-outline-primary" onclick="cntMultiAdd()"><i class="bi bi-plus-square"></i> Add Multiple</button>
+        <button data-perm="COUNTRY_SAVE" class="btn btn-sm btn-primary" onclick="cntAdd()"><i class="bi bi-plus-lg"></i> Add Single</button>
+        <button data-perm="COUNTRY_SAVE" class="btn btn-sm btn-outline-primary" onclick="cntMultiAdd()"><i class="bi bi-plus-square"></i> Add Multiple</button>
       </div>
     </div>
     <div class="card-body">
@@ -137,10 +137,10 @@
         <td>${i + 1}</td><td>${SFA.esc(r.countryCode)}</td><td>${SFA.esc(r.countryName)}</td>
         <td>${badge(r.status)}</td>
         <td class="no-export">
-          <button class="btn btn-sm btn-outline-primary" onclick='cntEdit(${JSON.stringify(r)})'><i class="bi bi-pencil"></i></button>
+          <button data-perm="COUNTRY_SAVE" class="btn btn-sm btn-outline-primary" onclick='cntEdit(${JSON.stringify(r)})'><i class="bi bi-pencil"></i></button>
           ${r.status
-            ? `<button class="btn btn-sm btn-outline-danger" onclick="cntStatus(${r.oid},false)"><i class="bi bi-slash-circle"></i></button>`
-            : `<button class="btn btn-sm btn-outline-success" onclick="cntStatus(${r.oid},true)"><i class="bi bi-check-circle"></i></button>`}
+            ? `<button data-perm="COUNTRY_STATUS" class="btn btn-sm btn-outline-danger" onclick="cntStatus(${r.oid},false)"><i class="bi bi-slash-circle"></i></button>`
+            : `<button data-perm="COUNTRY_STATUS" class="btn btn-sm btn-outline-success" onclick="cntStatus(${r.oid},true)"><i class="bi bi-check-circle"></i></button>`}
         </td>
       </tr>`).join('');
     DT = sfaDataTable('#cntTable');

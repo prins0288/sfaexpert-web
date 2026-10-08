@@ -2,6 +2,7 @@ package in.opt.sfa.tenant.master.traveltype.controller;
 
 import in.opt.sfa.tenant.master.traveltype.dto.TravelTypeMasterDto;
 import in.opt.sfa.tenant.master.traveltype.service.TravelTypeMasterService;
+import in.opt.sfa.security.RequiresPermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
@@ -33,6 +34,7 @@ public class TravelTypeMasterController {
         return service.get(id);
     }
 
+    @RequiresPermission("TRAVEL_TYPE_SAVE")
     @PostMapping
     @Operation(summary = "Create or update a travel type",
             description = "Send id to update, omit it to create. Audit fields are set by the server.")
@@ -40,12 +42,14 @@ public class TravelTypeMasterController {
         return service.save(form);
     }
 
+    @RequiresPermission("TRAVEL_TYPE_SAVE")
     @PostMapping("/save-multiple")
     @Operation(summary = "Bulk create travel types (blank / duplicate code or name rows are skipped)")
     public Map<String, Object> saveMultiple(@RequestBody List<TravelTypeMasterDto> forms) {
         return service.saveMultiple(forms);
     }
 
+    @RequiresPermission("TRAVEL_TYPE_STATUS")
     @PostMapping("/{id}/status")
     @Operation(summary = "Activate / deactivate a travel type (status = true or false)")
     public TravelTypeMasterDto status(@PathVariable Long id, @RequestParam boolean status) {

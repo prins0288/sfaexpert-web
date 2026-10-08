@@ -3,6 +3,7 @@ package in.opt.sfa.tenant.master.division.controller;
 import in.opt.sfa.common.util.ExcelUtil;
 import in.opt.sfa.tenant.master.division.dto.DivisionDto;
 import in.opt.sfa.tenant.master.division.service.DivisionService;
+import in.opt.sfa.security.RequiresPermission;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -33,17 +34,20 @@ public class DivisionController {
         return service.get(oid);
     }
 
+    @RequiresPermission("DIVISION_SAVE")
     @PostMapping
     public DivisionDto save(@RequestBody DivisionDto form) {
         return service.save(form);
     }
 
     /** Add Multiple — one insert per submitted row (blank / duplicate code skipped). */
+    @RequiresPermission("DIVISION_SAVE")
     @PostMapping("/save-multiple")
     public Map<String, Object> saveMultiple(@RequestBody List<DivisionDto> forms) {
         return service.saveMultiple(forms);
     }
 
+    @RequiresPermission("DIVISION_STATUS")
     @PostMapping("/{oid}/status")
     public DivisionDto status(@PathVariable Long oid, @RequestParam String status) {
         return service.updateStatus(oid, status);
@@ -55,6 +59,7 @@ public class DivisionController {
     }
 
     /** Bulk upload = upsert by division_code. */
+    @RequiresPermission("DIVISION_UPLOAD")
     @PostMapping("/upload")
     public Map<String, Object> upload(@RequestParam("file") MultipartFile file) throws Exception {
         return service.upload(file);

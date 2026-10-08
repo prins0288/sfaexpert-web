@@ -196,7 +196,7 @@
     if (!row) return false;
     var icon = row.querySelector(iconSelector);
     var btn = icon && icon.closest('button, a');
-    if (btn) { btn.click(); return true; }
+    if (btn && !btn.hidden) { btn.click(); return true; }   // hidden = no permission (data-perm)
     return false;
   }
 

@@ -8,10 +8,15 @@ import in.opt.sfa.tenant.master.permission.entity.PermissionDefinition;
 import in.opt.sfa.tenant.master.permission.entity.PermissionTargetType;
 import in.opt.sfa.tenant.master.permission.repository.PermissionAssignmentRepository;
 import in.opt.sfa.tenant.master.permission.repository.PermissionDefinitionRepository;
+import in.opt.sfa.tenant.master.empdetail.entity.EmpDetail;
+import in.opt.sfa.tenant.master.empdetail.repository.EmpDetailRepository;
+import in.opt.sfa.tenant.repository.DesignationRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 /** Admin CRUD for the permission catalog (permission_master) and its assignments (permission_assignment). */
@@ -20,10 +25,38 @@ public class PermissionAdminService {
 
     private final PermissionDefinitionRepository definitions;
     private final PermissionAssignmentRepository assignments;
+    private final EmpDetailRepository empDetails;
+    private final DesignationRepository designations;
 
-    public PermissionAdminService(PermissionDefinitionRepository definitions, PermissionAssignmentRepository assignments) {
+    public PermissionAdminService(PermissionDefinitionRepository definitions, PermissionAssignmentRepository assignments,
+                                  EmpDetailRepository empDetails, DesignationRepository designations) {
         this.definitions = definitions;
         this.assignments = assignments;
+        this.empDetails = empDetails;
+        this.designations = designations;
+    }
+
+    public record EmpOption(String empId, String empCode, String name) {}
+    public record DesignationOption(String code, String name, Integer empLevel) {}
+    /** Everything the admin screen can assign to — the same identity sources the JWT claims come from. */
+    public record Targets(List<EmpOption> employees, List<DesignationOption> designations, List<Integer> empLevels) {}
+
+    // ---- assignable targets (emp_id / designation_code / emp_level) ---------
+
+    @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
+    public Targets targets() {
+        List<EmpDetail> emps = empDetails.findAllByOrderByEmpNameAsc().stream()
+                .filter(e -> e.isActive() && e.getEmpId() != null).toList();
+        List<DesignationOption> desigs = designations.findByStatusOrderByDesignationNameAsc("Y").stream()
+                .filter(d -> !Strings.isBlank(d.getDesignationCode()))
+                .map(d -> new DesignationOption(d.getDesignationCode(), d.getDesignationName(), d.getEmpLevel()))
+                .toList();
+        TreeSet<Integer> levels = new TreeSet<>();
+        emps.stream().map(EmpDetail::getEmpLevel).filter(Objects::nonNull).forEach(levels::add);
+        desigs.stream().map(DesignationOption::empLevel).filter(Objects::nonNull).forEach(levels::add);
+        return new Targets(
+                emps.stream().map(e -> new EmpOption(e.getEmpId(), e.getEmpCode(), e.getEmpName())).toList(),
+                desigs, List.copyOf(levels));
     }
 
     // ---- permission_master (catalog) ---------------------------------------

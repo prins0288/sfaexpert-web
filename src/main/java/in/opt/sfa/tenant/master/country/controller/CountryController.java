@@ -2,6 +2,7 @@ package in.opt.sfa.tenant.master.country.controller;
 
 import in.opt.sfa.tenant.master.country.dto.CountryDto;
 import in.opt.sfa.tenant.master.country.service.CountryService;
+import in.opt.sfa.security.RequiresPermission;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,17 +31,20 @@ public class CountryController {
         return service.get(oid);
     }
 
+    @RequiresPermission("COUNTRY_SAVE")
     @PostMapping
     public CountryDto save(@RequestBody CountryDto form) {
         return service.save(form);
     }
 
     /** Add Multiple — one insert per submitted row (blank / duplicate code skipped). */
+    @RequiresPermission("COUNTRY_SAVE")
     @PostMapping("/save-multiple")
     public Map<String, Object> saveMultiple(@RequestBody List<CountryDto> forms) {
         return service.saveMultiple(forms);
     }
 
+    @RequiresPermission("COUNTRY_STATUS")
     @PostMapping("/{oid}/status")
     public CountryDto status(@PathVariable Long oid, @RequestParam boolean status) {
         return service.updateStatus(oid, status);

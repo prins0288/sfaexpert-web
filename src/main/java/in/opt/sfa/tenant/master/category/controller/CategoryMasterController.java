@@ -2,6 +2,7 @@ package in.opt.sfa.tenant.master.category.controller;
 
 import in.opt.sfa.tenant.master.category.dto.CategoryMasterDto;
 import in.opt.sfa.tenant.master.category.service.CategoryMasterService;
+import in.opt.sfa.security.RequiresPermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
@@ -33,6 +34,7 @@ public class CategoryMasterController {
         return service.get(oid);
     }
 
+    @RequiresPermission("CATEGORY_SAVE")
     @PostMapping
     @Operation(summary = "Create or update a category",
             description = "Send oid to update, omit it to create. Audit fields are set by the server.")
@@ -40,12 +42,14 @@ public class CategoryMasterController {
         return service.save(form);
     }
 
+    @RequiresPermission("CATEGORY_SAVE")
     @PostMapping("/save-multiple")
     @Operation(summary = "Bulk create categories (blank / duplicate code rows are skipped)")
     public Map<String, Object> saveMultiple(@RequestBody List<CategoryMasterDto> forms) {
         return service.saveMultiple(forms);
     }
 
+    @RequiresPermission("CATEGORY_STATUS")
     @PostMapping("/{oid}/status")
     @Operation(summary = "Activate / deactivate a category (status = true or false)")
     public CategoryMasterDto status(@PathVariable Long oid, @RequestParam boolean status) {

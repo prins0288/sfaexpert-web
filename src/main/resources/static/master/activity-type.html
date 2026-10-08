@@ -36,8 +36,8 @@
     <div class="card-header">
       <i class="bi bi-clipboard2-pulse"></i> Activity Types
       <div class="card-tools">
-        <button class="btn btn-sm btn-primary" onclick="atAdd()"><i class="bi bi-plus-lg"></i> Add Single</button>
-        <button class="btn btn-sm btn-outline-primary" onclick="atMultiAdd()"><i class="bi bi-plus-square"></i> Add Multiple</button>
+        <button data-perm="ACTIVITY_TYPE_SAVE" class="btn btn-sm btn-primary" onclick="atAdd()"><i class="bi bi-plus-lg"></i> Add Single</button>
+        <button data-perm="ACTIVITY_TYPE_SAVE" class="btn btn-sm btn-outline-primary" onclick="atMultiAdd()"><i class="bi bi-plus-square"></i> Add Multiple</button>
       </div>
     </div>
     <div class="card-body">
@@ -151,10 +151,10 @@
         <td>${SFA.esc(r.clientTypeName)}</td>
         <td>${boolBadge(r.isActive)}</td>
         <td class="no-export">
-          <button class="btn btn-sm btn-outline-primary" onclick='atEdit(${JSON.stringify(r)})'><i class="bi bi-pencil"></i></button>
+          <button data-perm="ACTIVITY_TYPE_SAVE" class="btn btn-sm btn-outline-primary" onclick='atEdit(${JSON.stringify(r)})'><i class="bi bi-pencil"></i></button>
           ${r.isActive
-            ? `<button class="btn btn-sm btn-outline-danger" onclick="atStatus(${r.oid},false)"><i class="bi bi-slash-circle"></i></button>`
-            : `<button class="btn btn-sm btn-outline-success" onclick="atStatus(${r.oid},true)"><i class="bi bi-check-circle"></i></button>`}
+            ? `<button data-perm="ACTIVITY_TYPE_STATUS" class="btn btn-sm btn-outline-danger" onclick="atStatus(${r.oid},false)"><i class="bi bi-slash-circle"></i></button>`
+            : `<button data-perm="ACTIVITY_TYPE_STATUS" class="btn btn-sm btn-outline-success" onclick="atStatus(${r.oid},true)"><i class="bi bi-check-circle"></i></button>`}
         </td>
       </tr>`).join('');
     DT = sfaDataTable('#atTable');

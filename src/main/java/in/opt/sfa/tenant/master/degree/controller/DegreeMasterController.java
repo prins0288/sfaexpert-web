@@ -2,6 +2,7 @@ package in.opt.sfa.tenant.master.degree.controller;
 
 import in.opt.sfa.tenant.master.degree.dto.DegreeMasterDto;
 import in.opt.sfa.tenant.master.degree.service.DegreeMasterService;
+import in.opt.sfa.security.RequiresPermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
@@ -33,6 +34,7 @@ public class DegreeMasterController {
         return service.get(id);
     }
 
+    @RequiresPermission("DEGREE_SAVE")
     @PostMapping
     @Operation(summary = "Create or update a degree",
             description = "Send id to update, omit it to create. Audit fields are set by the server.")
@@ -40,12 +42,14 @@ public class DegreeMasterController {
         return service.save(form);
     }
 
+    @RequiresPermission("DEGREE_SAVE")
     @PostMapping("/save-multiple")
     @Operation(summary = "Bulk create degrees (blank / duplicate code or name rows are skipped)")
     public Map<String, Object> saveMultiple(@RequestBody List<DegreeMasterDto> forms) {
         return service.saveMultiple(forms);
     }
 
+    @RequiresPermission("DEGREE_STATUS")
     @PostMapping("/{id}/status")
     @Operation(summary = "Activate / deactivate a degree (status = true or false)")
     public DegreeMasterDto status(@PathVariable Long id, @RequestParam boolean status) {

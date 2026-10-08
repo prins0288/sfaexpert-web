@@ -2,6 +2,7 @@ package in.opt.sfa.tenant.master.employee.controller;
 
 import in.opt.sfa.tenant.master.employee.dto.EmployeeDto;
 import in.opt.sfa.tenant.master.employee.service.EmployeeService;
+import in.opt.sfa.security.RequiresPermission;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
 
@@ -31,12 +32,14 @@ public class EmployeeController {
     }
 
     /** Create/update the employee profile (tenant) AND its login (common). */
+    @RequiresPermission("EMPLOYEE_SAVE")
     @PostMapping
     public Map<String, Object> save(@RequestBody Map<String, Object> body) {
         return service.save(body);
     }
 
     /** Soft delete / restore — also enables/disables the login. */
+    @RequiresPermission("EMPLOYEE_STATUS")
     @PostMapping("/{oid}/status")
     public Map<String, Object> status(@PathVariable Long oid, @RequestParam String status) {
         return service.updateStatus(oid, status);

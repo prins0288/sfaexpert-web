@@ -3,6 +3,7 @@ package in.opt.sfa.tenant.master.client.controller;
 import in.opt.sfa.common.util.ExcelUtil;
 import in.opt.sfa.tenant.master.client.dto.ClientDto;
 import in.opt.sfa.tenant.master.client.service.ClientService;
+import in.opt.sfa.security.RequiresPermission;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -33,11 +34,13 @@ public class ClientController {
         return service.get(oid);
     }
 
+    @RequiresPermission("CLIENT_SAVE")
     @PostMapping
     public ClientDto save(@RequestBody ClientDto form) {
         return service.save(form);
     }
 
+    @RequiresPermission("CLIENT_STATUS")
     @PostMapping("/{oid}/status")
     public ClientDto status(@PathVariable Long oid, @RequestParam String status) {
         return service.updateStatus(oid, status);
@@ -49,6 +52,7 @@ public class ClientController {
     }
 
     /** Bulk upload = upsert by client_code; client_type / area resolved by code or name. */
+    @RequiresPermission("CLIENT_UPLOAD")
     @PostMapping("/upload")
     public Map<String, Object> upload(@RequestParam("file") MultipartFile file) throws Exception {
         return service.upload(file);

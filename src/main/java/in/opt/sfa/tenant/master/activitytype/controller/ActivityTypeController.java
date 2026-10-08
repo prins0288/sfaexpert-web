@@ -2,6 +2,7 @@ package in.opt.sfa.tenant.master.activitytype.controller;
 
 import in.opt.sfa.tenant.master.activitytype.dto.ActivityTypeDto;
 import in.opt.sfa.tenant.master.activitytype.service.ActivityTypeService;
+import in.opt.sfa.security.RequiresPermission;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,17 +31,20 @@ public class ActivityTypeController {
         return service.get(oid);
     }
 
+    @RequiresPermission("ACTIVITY_TYPE_SAVE")
     @PostMapping
     public ActivityTypeDto save(@RequestBody ActivityTypeDto form) {
         return service.save(form);
     }
 
     /** Add Multiple — one insert per submitted row (blank / duplicate code skipped). */
+    @RequiresPermission("ACTIVITY_TYPE_SAVE")
     @PostMapping("/save-multiple")
     public Map<String, Object> saveMultiple(@RequestBody List<ActivityTypeDto> forms) {
         return service.saveMultiple(forms);
     }
 
+    @RequiresPermission("ACTIVITY_TYPE_STATUS")
     @PostMapping("/{oid}/status")
     public ActivityTypeDto status(@PathVariable Long oid, @RequestParam boolean status) {
         return service.updateStatus(oid, status);

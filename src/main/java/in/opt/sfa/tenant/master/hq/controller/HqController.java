@@ -3,6 +3,7 @@ package in.opt.sfa.tenant.master.hq.controller;
 import in.opt.sfa.common.util.ExcelUtil;
 import in.opt.sfa.tenant.master.hq.dto.HqDto;
 import in.opt.sfa.tenant.master.hq.service.HqService;
+import in.opt.sfa.security.RequiresPermission;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -33,17 +34,20 @@ public class HqController {
         return service.get(oid);
     }
 
+    @RequiresPermission("HQ_SAVE")
     @PostMapping
     public HqDto save(@RequestBody HqDto form) {
         return service.save(form);
     }
 
     /** Add Multiple — one insert per submitted row (blank / duplicate code skipped). */
+    @RequiresPermission("HQ_SAVE")
     @PostMapping("/save-multiple")
     public Map<String, Object> saveMultiple(@RequestBody List<HqDto> forms) {
         return service.saveMultiple(forms);
     }
 
+    @RequiresPermission("HQ_STATUS")
     @PostMapping("/{oid}/status")
     public HqDto status(@PathVariable Long oid, @RequestParam boolean status) {
         return service.updateStatus(oid, status);
@@ -55,6 +59,7 @@ public class HqController {
     }
 
     /** Bulk upload = upsert by hq_code; state resolved by code or name. */
+    @RequiresPermission("HQ_UPLOAD")
     @PostMapping("/upload")
     public Map<String, Object> upload(@RequestParam("file") MultipartFile file) throws Exception {
         return service.upload(file);

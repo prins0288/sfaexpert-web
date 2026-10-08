@@ -3,6 +3,7 @@ package in.opt.sfa.tenant.master.routearea.controller;
 import in.opt.sfa.tenant.master.routearea.dto.RouteAreaMapDto;
 import in.opt.sfa.tenant.master.routearea.dto.RouteAreaMapRequest;
 import in.opt.sfa.tenant.master.routearea.service.RouteAreaMapService;
+import in.opt.sfa.security.RequiresPermission;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
 
@@ -26,11 +27,13 @@ public class RouteAreaController {
         return service.list();
     }
 
+    @RequiresPermission("ROUTE_AREA_SAVE")
     @PostMapping
     public Map<String, Object> save(@RequestBody RouteAreaMapRequest req) {
         return service.save(req);
     }
 
+    @RequiresPermission("ROUTE_AREA_STATUS")
     @PostMapping("/{oid}/status")
     public RouteAreaMapDto status(@PathVariable Long oid, @RequestParam String status) {
         return service.updateStatus(oid, status);

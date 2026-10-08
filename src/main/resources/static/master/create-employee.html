@@ -37,8 +37,8 @@
     <div class="card-header">
       <i class="bi bi-person-badge"></i> Create Employee
       <div class="card-tools">
-        <button class="btn btn-sm btn-primary" onclick="empAdd()"><i class="bi bi-plus-lg"></i> Add Employee</button>
-        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#empUploadModal"><i class="bi bi-upload"></i> Bulk Upload</button>
+        <button data-perm="EMP_DETAIL_SAVE" class="btn btn-sm btn-primary" onclick="empAdd()"><i class="bi bi-plus-lg"></i> Add Employee</button>
+        <button data-perm="EMP_DETAIL_UPLOAD" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#empUploadModal"><i class="bi bi-upload"></i> Bulk Upload</button>
       </div>
     </div>
     <div class="card-body">
@@ -161,10 +161,10 @@
         <td>${SFA.esc(r.dateOfJoining)}</td><td>${SFA.esc(r.managerId)}</td>
         <td>${r.profileComplete ? '<span class="badge badge-active">Complete</span>' : '<span class="badge badge-inactive">Partial</span>'}</td>
         <td class="no-export">
-          <button class="btn btn-sm btn-outline-primary" onclick='empEdit(${JSON.stringify(r)})'><i class="bi bi-pencil"></i></button>
+          <button data-perm="EMP_DETAIL_SAVE" class="btn btn-sm btn-outline-primary" onclick='empEdit(${JSON.stringify(r)})'><i class="bi bi-pencil"></i></button>
           ${r.active
-            ? `<button class="btn btn-sm btn-outline-danger" onclick="empStatus('${r.empId}',false)"><i class="bi bi-slash-circle"></i></button>`
-            : `<button class="btn btn-sm btn-outline-success" onclick="empStatus('${r.empId}',true)"><i class="bi bi-check-circle"></i></button>`}
+            ? `<button data-perm="EMP_DETAIL_STATUS" class="btn btn-sm btn-outline-danger" onclick="empStatus('${r.empId}',false)"><i class="bi bi-slash-circle"></i></button>`
+            : `<button data-perm="EMP_DETAIL_STATUS" class="btn btn-sm btn-outline-success" onclick="empStatus('${r.empId}',true)"><i class="bi bi-check-circle"></i></button>`}
         </td>
       </tr>`).join('');
     DT = sfaDataTable('#empCreateTable', { columnDefs: [{ targets: [8, 9, 10, 11, 12, 13], visible: false }] });

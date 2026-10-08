@@ -41,6 +41,13 @@ public class PermissionMasterController {
         return service.saveDefinition(form);
     }
 
+    @GetMapping("/targets")
+    @Operation(summary = "Assignable targets: active employees (emp_id), designations (designation_code) and emp levels")
+    public PermissionAdminService.Targets targets() {
+        Authz.requireRole("ADMIN");
+        return service.targets();
+    }
+
     @GetMapping("/assignments")
     @Operation(summary = "List assignments, optionally filtered to one target (targetType + targetValue)")
     public List<PermissionAssignmentDto> listAssignments(

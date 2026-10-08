@@ -87,6 +87,42 @@
     }
   }
 
+  // ---- permissions: what this user may do (GET /api/permissions/my) -------
+  // { CODE: true|false }. A code missing from the map counts as allowed —
+  // same default as the server (no permission_assignment row = full access).
+  // This only hides buttons; the server still enforces @RequiresPermission.
+  let PERMS = {};
+
+  async function loadPermissions() {
+    const cached = Session.cache.get("perms");
+    if (cached) { PERMS = cached; return; }
+    try {
+      PERMS = (await Api.get(API.permissions.my, { noLoader: true })) || {};
+      Session.cache.set("perms", PERMS);
+    } catch (e) { PERMS = {}; }   // not migrated yet / offline -> show everything, server decides
+  }
+
+  const can = (code) => !code || PERMS[code] !== false;
+
+  /** Hide every [data-perm="CODE"] element (inside root) the user isn't allowed. */
+  function applyPermissions(root) {
+    const scope = root && root.querySelectorAll ? root : document;
+    const els = scope.querySelectorAll("[data-perm]");
+    els.forEach((el) => { el.hidden = !can(el.getAttribute("data-perm")); });
+    if (scope !== document && scope.hasAttribute && scope.hasAttribute("data-perm")) {
+      scope.hidden = !can(scope.getAttribute("data-perm"));
+    }
+  }
+
+  // Table rows / modals are rendered after boot (reload() after every save),
+  // so watch the DOM and hide newly added [data-perm] buttons as they appear.
+  function watchPermissions() {
+    applyPermissions(document);
+    new MutationObserver((muts) => {
+      muts.forEach((m) => m.addedNodes.forEach((n) => { if (n.nodeType === 1) applyPermissions(n); }));
+    }).observe(document.body, { childList: true, subtree: true });
+  }
+
   const activePage = () => (document.getElementById("app").getAttribute("data-page") || "");
   const isLeaf = (n) => !n.children || !n.children.length;
   const hasHref = (n) => n.href && String(n.href).trim() !== "";
@@ -853,6 +889,10 @@
   window.SFA = {
     get token() { return Session.token(); },
     get claims() { return Session.claims(); },
+    /** SFA.can("ZONE_SAVE") — false only when this user is explicitly denied. */
+    can,
+    /** Drop the cached permission map (e.g. after editing assignments) and re-apply. */
+    async reloadPermissions() { Session.cache.clear("perms"); await loadPermissions(); applyPermissions(document); },
     user, companyCode, role, u, esc,
     me() { return Api.get(API.me); },
     money: (n) => (n == null || n === "" ? "" : "₹ " + Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2 })),
@@ -901,6 +941,7 @@
       window.I18n ? I18n.load().catch(() => {}) : Promise.resolve(),
       loadMenu(),
       loadIdentity(),
+      loadPermissions(),
       window.Settings ? Settings.load().catch(() => {}) : Promise.resolve(),
       // Deliberately its OWN live server call, not from the Settings cache above —
       // see the big comment on sfaApplyContentProtection in app.js for why.
@@ -912,6 +953,7 @@
     if (window.I18n) I18n.apply();
     bindClock();
     bindNetworkStatus();
+    watchPermissions();
     if (window.pageInit) { try { window.pageInit(); } catch (e) { console.error(e); } }
     // pageInit may have injected more DOM (tables, modals) — re-translate.
     if (window.I18n) I18n.apply();

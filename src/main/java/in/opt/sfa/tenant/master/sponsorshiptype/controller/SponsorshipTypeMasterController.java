@@ -2,6 +2,7 @@ package in.opt.sfa.tenant.master.sponsorshiptype.controller;
 
 import in.opt.sfa.tenant.master.sponsorshiptype.dto.SponsorshipTypeMasterDto;
 import in.opt.sfa.tenant.master.sponsorshiptype.service.SponsorshipTypeMasterService;
+import in.opt.sfa.security.RequiresPermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
@@ -33,6 +34,7 @@ public class SponsorshipTypeMasterController {
         return service.get(id);
     }
 
+    @RequiresPermission("SPONSORSHIP_TYPE_SAVE")
     @PostMapping
     @Operation(summary = "Create or update",
             description = "Send id to update, omit it to create. Audit fields are set by the server.")
@@ -40,12 +42,14 @@ public class SponsorshipTypeMasterController {
         return service.save(form);
     }
 
+    @RequiresPermission("SPONSORSHIP_TYPE_SAVE")
     @PostMapping("/save-multiple")
     @Operation(summary = "Bulk create (blank / duplicate code or name rows are skipped)")
     public Map<String, Object> saveMultiple(@RequestBody List<SponsorshipTypeMasterDto> forms) {
         return service.saveMultiple(forms);
     }
 
+    @RequiresPermission("SPONSORSHIP_TYPE_STATUS")
     @PostMapping("/{id}/status")
     @Operation(summary = "Activate / deactivate (status = true or false)")
     public SponsorshipTypeMasterDto status(@PathVariable Long id, @RequestParam boolean status) {

@@ -39,9 +39,9 @@
     <div class="card-header">
       <i class="bi bi-signpost"></i> States
       <div class="card-tools">
-        <button class="btn btn-sm btn-primary" onclick="stAdd()"><i class="bi bi-plus-lg"></i> Add Single</button>
-        <button class="btn btn-sm btn-outline-primary" onclick="stMultiAdd()"><i class="bi bi-plus-square"></i> Add Multiple</button>
-        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#stUploadModal"><i class="bi bi-upload"></i> Bulk Upload</button>
+        <button data-perm="STATE_SAVE" class="btn btn-sm btn-primary" onclick="stAdd()"><i class="bi bi-plus-lg"></i> Add Single</button>
+        <button data-perm="STATE_SAVE" class="btn btn-sm btn-outline-primary" onclick="stMultiAdd()"><i class="bi bi-plus-square"></i> Add Multiple</button>
+        <button data-perm="STATE_UPLOAD" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#stUploadModal"><i class="bi bi-upload"></i> Bulk Upload</button>
       </div>
     </div>
     <div class="card-body">
@@ -156,10 +156,10 @@
         <td>${i + 1}</td><td>${SFA.esc(r.stateCode)}</td><td>${SFA.esc(r.stateName)}</td><td>${SFA.esc(r.countryName)}</td>
         <td>${SFA.statusBadge(r.status)}</td>
         <td class="no-export">
-          <button class="btn btn-sm btn-outline-primary" onclick='stEdit(${JSON.stringify(r)})'><i class="bi bi-pencil"></i></button>
+          <button data-perm="STATE_SAVE" class="btn btn-sm btn-outline-primary" onclick='stEdit(${JSON.stringify(r)})'><i class="bi bi-pencil"></i></button>
           ${r.status === 'Y'
-            ? `<button class="btn btn-sm btn-outline-danger" onclick="stStatus(${r.oid},'N')"><i class="bi bi-slash-circle"></i></button>`
-            : `<button class="btn btn-sm btn-outline-success" onclick="stStatus(${r.oid},'Y')"><i class="bi bi-check-circle"></i></button>`}
+            ? `<button data-perm="STATE_STATUS" class="btn btn-sm btn-outline-danger" onclick="stStatus(${r.oid},'N')"><i class="bi bi-slash-circle"></i></button>`
+            : `<button data-perm="STATE_STATUS" class="btn btn-sm btn-outline-success" onclick="stStatus(${r.oid},'Y')"><i class="bi bi-check-circle"></i></button>`}
         </td>
       </tr>`).join('');
     DT = sfaDataTable('#stTable');

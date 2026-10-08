@@ -2,6 +2,7 @@ package in.opt.sfa.tenant.master.itemtype.controller;
 
 import in.opt.sfa.tenant.master.itemtype.dto.ItemTypeMasterDto;
 import in.opt.sfa.tenant.master.itemtype.service.ItemTypeMasterService;
+import in.opt.sfa.security.RequiresPermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
@@ -33,6 +34,7 @@ public class ItemTypeMasterController {
         return service.get(id);
     }
 
+    @RequiresPermission("ITEM_TYPE_SAVE")
     @PostMapping
     @Operation(summary = "Create or update an item type",
             description = "Send id to update, omit it to create. Audit fields are set by the server.")
@@ -40,12 +42,14 @@ public class ItemTypeMasterController {
         return service.save(form);
     }
 
+    @RequiresPermission("ITEM_TYPE_SAVE")
     @PostMapping("/save-multiple")
     @Operation(summary = "Bulk create item types (blank / duplicate code or name rows are skipped)")
     public Map<String, Object> saveMultiple(@RequestBody List<ItemTypeMasterDto> forms) {
         return service.saveMultiple(forms);
     }
 
+    @RequiresPermission("ITEM_TYPE_STATUS")
     @PostMapping("/{id}/status")
     @Operation(summary = "Activate / deactivate an item type (status = true or false)")
     public ItemTypeMasterDto status(@PathVariable Long id, @RequestParam boolean status) {

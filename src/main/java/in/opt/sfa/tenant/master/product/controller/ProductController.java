@@ -2,6 +2,7 @@ package in.opt.sfa.tenant.master.product.controller;
 
 import in.opt.sfa.tenant.master.product.dto.ProductDto;
 import in.opt.sfa.tenant.master.product.service.ProductService;
+import in.opt.sfa.security.RequiresPermission;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
 
@@ -28,6 +29,7 @@ public class ProductController {
         return service.list();
     }
 
+    @RequiresPermission("PRODUCT_SAVE")
     @PostMapping
     public ProductDto create(@RequestBody ProductDto product) {
         return service.create(product);

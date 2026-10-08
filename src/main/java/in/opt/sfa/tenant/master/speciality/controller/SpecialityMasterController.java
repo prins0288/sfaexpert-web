@@ -2,6 +2,7 @@ package in.opt.sfa.tenant.master.speciality.controller;
 
 import in.opt.sfa.tenant.master.speciality.dto.SpecialityMasterDto;
 import in.opt.sfa.tenant.master.speciality.service.SpecialityMasterService;
+import in.opt.sfa.security.RequiresPermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
@@ -33,6 +34,7 @@ public class SpecialityMasterController {
         return service.get(oid);
     }
 
+    @RequiresPermission("SPECIALITY_SAVE")
     @PostMapping
     @Operation(summary = "Create or update a speciality",
             description = "Send oid to update, omit it to create. Audit fields are set by the server.")
@@ -40,12 +42,14 @@ public class SpecialityMasterController {
         return service.save(form);
     }
 
+    @RequiresPermission("SPECIALITY_SAVE")
     @PostMapping("/save-multiple")
     @Operation(summary = "Bulk create specialities (blank / duplicate code rows are skipped)")
     public Map<String, Object> saveMultiple(@RequestBody List<SpecialityMasterDto> forms) {
         return service.saveMultiple(forms);
     }
 
+    @RequiresPermission("SPECIALITY_STATUS")
     @PostMapping("/{oid}/status")
     @Operation(summary = "Activate / deactivate a speciality (status = true or false)")
     public SpecialityMasterDto status(@PathVariable Long oid, @RequestParam boolean status) {

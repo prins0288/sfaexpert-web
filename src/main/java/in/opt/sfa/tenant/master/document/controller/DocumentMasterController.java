@@ -2,6 +2,7 @@ package in.opt.sfa.tenant.master.document.controller;
 
 import in.opt.sfa.tenant.master.document.dto.DocumentMasterDto;
 import in.opt.sfa.tenant.master.document.service.DocumentMasterService;
+import in.opt.sfa.security.RequiresPermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
@@ -33,6 +34,7 @@ public class DocumentMasterController {
         return service.get(id);
     }
 
+    @RequiresPermission("DOCUMENT_SAVE")
     @PostMapping
     @Operation(summary = "Create or update",
             description = "Send id to update, omit it to create. Audit fields are set by the server.")
@@ -40,12 +42,14 @@ public class DocumentMasterController {
         return service.save(form);
     }
 
+    @RequiresPermission("DOCUMENT_SAVE")
     @PostMapping("/save-multiple")
     @Operation(summary = "Bulk create (blank / duplicate code or name rows are skipped)")
     public Map<String, Object> saveMultiple(@RequestBody List<DocumentMasterDto> forms) {
         return service.saveMultiple(forms);
     }
 
+    @RequiresPermission("DOCUMENT_STATUS")
     @PostMapping("/{id}/status")
     @Operation(summary = "Activate / deactivate (status = true or false)")
     public DocumentMasterDto status(@PathVariable Long id, @RequestParam boolean status) {

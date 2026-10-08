@@ -41,7 +41,7 @@
     <div class="card-header">
       <i class="bi bi-diagram-3"></i> Route &ndash; Area Mapping
       <div class="card-tools">
-        <button class="btn btn-sm btn-primary" onclick="raAdd()"><i class="bi bi-plus-lg"></i> Map Areas to Route</button>
+        <button data-perm="ROUTE_AREA_SAVE" class="btn btn-sm btn-primary" onclick="raAdd()"><i class="bi bi-plus-lg"></i> Map Areas to Route</button>
       </div>
     </div>
     <div class="card-body">
@@ -119,8 +119,8 @@
         <td>${SFA.statusBadge(r.status)}</td>
         <td class="no-export">
           ${r.status === 'Y'
-            ? `<button class="btn btn-sm btn-outline-danger" onclick="raStatus(${r.oid},'N')"><i class="bi bi-slash-circle"></i></button>`
-            : `<button class="btn btn-sm btn-outline-success" onclick="raStatus(${r.oid},'Y')"><i class="bi bi-check-circle"></i></button>`}
+            ? `<button data-perm="ROUTE_AREA_STATUS" class="btn btn-sm btn-outline-danger" onclick="raStatus(${r.oid},'N')"><i class="bi bi-slash-circle"></i></button>`
+            : `<button data-perm="ROUTE_AREA_STATUS" class="btn btn-sm btn-outline-success" onclick="raStatus(${r.oid},'Y')"><i class="bi bi-check-circle"></i></button>`}
         </td>
       </tr>`).join('');
     DT = sfaDataTable('#raTable');
