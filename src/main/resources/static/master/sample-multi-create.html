@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>/* reverse-proxy sub-path support: make relative css/js resolve under the deploy prefix (e.g. /sfaexpert), "" locally */
+  (function(){try{var p=location.pathname,m=p.match(/^(.*?)\/u\/\d+(\/|$)/),c=m?m[1]:p.replace(/\/[^\/]*$/,'');document.write('<base href="'+(c||'')+'/">');}catch(e){}})();</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StarSFA &middot; Create Multiple Sample</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css" rel="stylesheet" />
+  <link href="css/app.css" rel="stylesheet" />
+  <script>
+    /* Apply the saved theme (mode / layout / density / colours) BEFORE first
+       paint so there is no flash. theme.js re-applies from the server after. */
+    (function () {
+      try {
+        var d = document.documentElement, s = localStorage;
+        // theme is PER TENANT and several tenants can be signed in at once
+        // (/u/0, /u/1...), so these caches are scoped to the account slot —
+        // a shared key would paint the last-customised tenant's colours here.
+        var m = location.pathname.match(/\/u\/(\d+)(\/|$)/), q = '_u' + (m ? m[1] : '0');
+        d.setAttribute('data-theme', s.getItem('sfa_mode' + q) || 'light');
+        d.setAttribute('data-nav', s.getItem('sfa_nav' + q) || 'vertical');
+        d.setAttribute('data-density', s.getItem('sfa_density' + q) || 'comfortable');
+        var f = s.getItem('sfa_font' + q); if (f) d.style.setProperty('--sfa-font-scale', f);
+        var c = s.getItem('sfa_theme' + q);
+        if (c) { c = JSON.parse(c); var t = (c.resolved && c.resolved[c.mode]) || {};
+          for (var k in t) d.style.setProperty('--sfa-' + k, t[k]); }
+      } catch (e) {}
+    })();
+  </script>
+  <style>
+    .sm-scroll { max-height: 62vh; overflow: auto; }
+    .sm-scroll thead th { position: sticky; top: 0; z-index: 1; background: var(--sfa-surface-2, #eef2f8); }
+    #smTable input.form-control { min-width: 110px; }
+    #smTable tr.sm-on { background: rgba(13,110,253,.06); }
+  </style>
+</head>
+<body>
+<div id="app" data-page="samplemulticreate" data-title="Create Multiple Sample"></div>
+
+<template id="pageContent">
+  <div class="row g-3">
+    <div class="col-lg-8">
+      <div class="card h-100">
+        <div class="card-header"><i class="bi bi-capsule"></i> Products
+          <div class="card-tools d-flex gap-2 align-items-center">
+            <input class="form-control form-control-sm" id="smSearch" placeholder="Search product…" oninput="smFilter()" style="width:200px" />
+          </div>
+        </div>
+        <div class="card-body">
+          <p class="small text-muted mb-2">Tick the products, check the pack size and PTS, choose the states and Save. Each ticked product gets
+            one <b>Sample</b> item (code SP01, SP02 …) whose <b>Main Item Code</b> is the product's code. A product that already has a sample
+            does not get a second one — only the chosen states it is missing are added to that sample's rates.</p>
+          <div class="table-responsive sm-scroll">
+            <table class="table table-sm table-bordered align-middle mb-0" id="smTable">
+              <thead><tr>
+                <th style="width:40px">#</th>
+                <th style="width:60px"><input class="form-check-input" type="checkbox" id="smAll" title="Tick all shown" onchange="smTickAll(this.checked)"> </th>
+                <th>Item Name</th><th style="width:170px">Pack Size</th><th style="width:140px">PTS</th><th style="width:120px">Sample</th>
+              </tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="card h-100">
+        <div class="card-header"><i class="bi bi-geo-alt"></i> States</div>
+        <div class="card-body">
+          <p class="small text-muted mb-2">The sample's PTS is saved for each ticked state from today. Tick none = one <b>All India</b> rate.</p>
+          <div class="table-responsive sm-scroll">
+            <table class="table table-sm table-bordered align-middle mb-0" id="stTable">
+              <thead><tr><th style="width:40px">#</th>
+                <th style="width:70px"><input class="form-check-input" type="checkbox" id="stAll" title="Tick all" onchange="stTickAll(this.checked)"></th>
+                <th>State Name</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="d-flex align-items-center gap-2 mt-3">
+    <span class="small text-muted" id="smCount">0 products ticked</span>
+    <button class="btn btn-primary ms-auto" id="smSave" data-perm="ITEM_SAVE" onclick="smSave()"><i class="bi bi-check2-circle"></i> Create Samples</button>
+  </div>
+  <div id="smResult" class="mt-3"></div>
+</template>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.colVis.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="js/core/session.js"></script>
+<script src="js/core/endpoints.js"></script>
+<script src="js/core/http.js"></script>
+<script src="js/core/theme.js"></script>
+<script src="js/core/settings.js"></script>
+<script src="js/core/i18n.js"></script>
+<script src="js/app.js"></script>
+<script src="js/core/uikit.js"></script>
+<script src="js/shell.js"></script>
+<script>
+  const EP = API.master.itemMaster;
+  let ROWS = [], STATES = [];
+  const esc = (v) => SFA.esc(v == null ? '' : v);
+
+  window.pageInit = async function () {
+    try {
+      const [rows, lk] = await Promise.all([Api.get(EP.sampleCandidates), Api.get(API.lookups, { query: { keys: 'states' } })]);
+      ROWS = rows || []; STATES = lk.states || [];
+      renderProducts(); renderStates();
+    } catch (e) { SFA.toast(e.message, false); }
+  };
+
+  function renderProducts() {
+    const tb = document.querySelector('#smTable tbody');
+    tb.innerHTML = ROWS.length ? ROWS.map((r, i) => `
+      <tr data-id="${r.id}" data-text="${esc((r.itemName + ' ' + r.itemCode).toLowerCase())}">
+        <td>${i + 1}</td>
+        <td><input class="form-check-input sm-tick" type="checkbox" onchange="smRow(this)"></td>
+        <td>${esc(r.itemName)} <small class="text-muted">${esc(r.itemCode)}</small></td>
+        <td><input class="form-control form-control-sm sm-pack" maxlength="50" value="${esc(r.packSize)}" /></td>
+        <td><input class="form-control form-control-sm sm-pts" type="number" min="0" step="0.01" value="${r.pts != null ? esc(r.pts) : ''}" /></td>
+        <td>${r.sampleCode ? `<span class="badge bg-secondary" title="Already has a sample — only missing states are added">${esc(r.sampleCode)}</span>` : '<span class="text-muted small">—</span>'}</td>
+      </tr>`).join('') : '<tr><td colspan="6" class="text-center text-muted">No active Product items — add items of type Product in Item Master first.</td></tr>';
+    document.getElementById('smAll').checked = false;
+    smCount();
+  }
+  function renderStates() {
+    document.querySelector('#stTable tbody').innerHTML = STATES.map((s, i) => `
+      <tr><td>${i + 1}</td><td><input class="form-check-input st-tick" type="checkbox" value="${s.oid}" onchange="stSync()"></td><td>${esc(s.label)}</td></tr>`).join('');
+  }
+  function smRow(cb) { cb.closest('tr').classList.toggle('sm-on', cb.checked); smCount(); }
+  function smCount() {
+    const n = document.querySelectorAll('#smTable .sm-tick:checked').length;
+    document.getElementById('smCount').textContent = n + (n === 1 ? ' product' : ' products') + ' ticked';
+  }
+  function smFilter() {
+    const q = document.getElementById('smSearch').value.trim().toLowerCase();
+    document.querySelectorAll('#smTable tbody tr[data-id]').forEach(tr => tr.classList.toggle('d-none', !!q && !tr.dataset.text.includes(q)));
+  }
+  function smTickAll(on) {
+    document.querySelectorAll('#smTable tbody tr[data-id]:not(.d-none) .sm-tick').forEach(cb => { cb.checked = on; smRow(cb); });
+  }
+  function stTickAll(on) { document.querySelectorAll('#stTable .st-tick').forEach(cb => cb.checked = on); }
+  function stSync() {
+    const all = document.querySelectorAll('#stTable .st-tick'), on = document.querySelectorAll('#stTable .st-tick:checked');
+    document.getElementById('stAll').checked = all.length > 0 && on.length === all.length;
+  }
+
+  async function smSave() {
+    const items = [];
+    for (const tr of document.querySelectorAll('#smTable tbody tr[data-id]')) {
+      if (!tr.querySelector('.sm-tick').checked) continue;
+      const pts = tr.querySelector('.sm-pts').value.trim();
+      if (pts !== '' && Number(pts) < 0) { SFA.toast('PTS cannot be negative', false); tr.querySelector('.sm-pts').focus(); return; }
+      items.push({ productId: Number(tr.dataset.id), packSize: tr.querySelector('.sm-pack').value.trim() || null, pts: pts === '' ? null : pts });
+    }
+    if (!items.length) { SFA.toast('Tick at least one product', false); return; }
+    const stateIds = [...document.querySelectorAll('#stTable .st-tick:checked')].map(cb => Number(cb.value));
+    if (!confirm(`Create samples for ${items.length} product(s) — rate for ${stateIds.length ? stateIds.length + ' state(s)' : 'All India'}?`)) return;
+    const btn = document.getElementById('smSave');
+    btn.disabled = true;
+    try {
+      const res = await Api.post(EP.createSamples, { items, stateIds });
+      const list = (title, arr, cls) => arr.length ? `<div class="small ${cls} mb-2"><b>${title} (${arr.length})</b><ul class="mb-0 ps-3">${arr.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : '';
+      document.getElementById('smResult').innerHTML = `<div class="card"><div class="card-body">
+        ${list('Samples created', res.created, 'text-success')}${list('Existing samples — rates added', res.updated, 'text-primary')}${list('Not created', res.skipped, 'text-danger')}
+      </div></div>`;
+      SFA.toast(res.created.length + ' sample(s) created' + (res.updated.length ? ', ' + res.updated.length + ' updated' : ''),
+        res.skipped.length && !res.created.length && !res.updated.length ? 'warning' : true);
+      ROWS = await Api.get(EP.sampleCandidates); renderProducts(); smFilter();
+    } catch (e) { SFA.toast(e.message, false); }
+    finally { btn.disabled = false; }
+  }
+</script>
+</body>
+</html>

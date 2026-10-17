@@ -234,6 +234,8 @@
         status: (id) => `/api/master/item-master/${id}/status`,
         molecules: "/api/master/item-master/molecules",
         nextCode: "/api/master/item-master/next-code",     // ?itemTypeId= -> { itemCode: "PD03" }
+        sampleCandidates: "/api/master/item-master/sample-candidates",
+        createSamples: "/api/master/item-master/create-samples",
         rate: (id) => `/api/master/item-master/${id}/rate`,
         template: "/api/master/item-master/template",
         upload: "/api/master/item-master/upload",

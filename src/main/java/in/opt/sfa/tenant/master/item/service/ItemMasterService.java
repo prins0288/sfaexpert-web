@@ -12,6 +12,7 @@ import in.opt.sfa.tenant.master.empdetail.service.EmpNameResolver;
 import in.opt.sfa.tenant.master.item.dto.ItemCompositionDto;
 import in.opt.sfa.tenant.master.item.dto.ItemMasterDto;
 import in.opt.sfa.tenant.master.item.dto.ItemRateDto;
+import in.opt.sfa.tenant.master.item.dto.SampleCreateRequest;
 import in.opt.sfa.tenant.master.item.entity.ItemComposition;
 import in.opt.sfa.tenant.master.item.entity.ItemMaster;
 import in.opt.sfa.tenant.master.item.entity.ItemRate;
@@ -205,6 +206,155 @@ public class ItemMasterService {
             afterCommit(() -> uploads.delete(Arrays.stream(oldFiles).filter(p -> p != null && !keep.contains(p)).toArray(String[]::new)));
         }
         return fullDto(item, n);
+    }
+
+    // ---- Create Multiple Sample ------------------------------------------------------
+
+    public static final String SAMPLE_TYPE = "SAMPLE";
+
+    /**
+     * Active Product items for the Create Multiple Sample page: pack size, today's
+     * All-India PTS, and the code of the sample already made from it (if any).
+     */
+    @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
+    public List<Map<String, Object>> sampleCandidates() {
+        Names n = names();
+        List<ItemMaster> all = items.findAllByOrderByItemNameAsc();
+        Map<String, ItemMaster> sampleByMain = samplesByMainCode(all, n);
+        Map<Long, List<ItemRate>> ratesByItem = rates.findAllByOrderByItemIdAscEffectiveFromAsc().stream()
+                .collect(Collectors.groupingBy(ItemRate::getItemId));
+        LocalDate today = LocalDate.now();
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (ItemMaster i : all) {
+            if (!Boolean.TRUE.equals(i.getStatus()) || !isProduct(i, n)) continue;
+            BigDecimal pts = ratesByItem.getOrDefault(i.getId(), List.of()).stream()
+                    .filter(r -> Boolean.TRUE.equals(r.getStatus()) && validOn(r, today))
+                    .min(Comparator.comparing((ItemRate r) -> r.getStateId() != null)
+                            .thenComparing(ItemRate::getEffectiveFrom, Comparator.reverseOrder()))
+                    .map(ItemRate::getPts).orElse(null);
+            ItemMaster sample = sampleByMain.get(i.getItemCode().toUpperCase(Locale.ROOT));
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", i.getId());
+            m.put("itemCode", i.getItemCode());
+            m.put("itemName", i.getItemName());
+            m.put("packSize", i.getSamplePackSize() != null ? i.getSamplePackSize() : i.getPackSize());
+            m.put("pts", pts);
+            m.put("sampleCode", sample == null ? null : sample.getItemCode());
+            out.add(m);
+        }
+        return out;
+    }
+
+    /**
+     * One Sample item per ticked product: type Sample, code SP01 ..., item_code_main
+     * = the product's item_code, details and composition copied from the product,
+     * pack size + PTS from the page, a rate for each chosen state (none = All India)
+     * from today. A product that already has a sample gets NO second one — only the
+     * rates of chosen states its sample does not have yet are added.
+     */
+    @Transactional(transactionManager = "tenantTransactionManager")
+    public Map<String, Object> createSamples(SampleCreateRequest req) {
+        if (req == null || req.getItems() == null || req.getItems().isEmpty()) throw new IllegalStateException("Tick at least one product");
+        Names n = names();
+        ItemTypeMaster sampleType = n.typesById.values().stream().filter(t -> SAMPLE_TYPE.equalsIgnoreCase(t.getItemTypeCode()))
+                .findFirst().orElseThrow(() -> new IllegalStateException("Item type SAMPLE not found — add it in Item Type Master (code SAMPLE)"));
+        List<Long> stateIds = req.getStateIds() == null ? List.of() : req.getStateIds().stream().filter(Objects::nonNull).distinct().toList();
+        for (Long s : stateIds) if (!n.statesById.containsKey(s)) throw new IllegalStateException("Unknown state: " + s);
+        List<Long> rateStates = stateIds.isEmpty() ? Collections.singletonList(null) : stateIds;   // null = All India
+        Map<String, ItemMaster> sampleByMain = samplesByMainCode(items.findAllByOrderByItemNameAsc(), n);
+        LocalDate today = LocalDate.now();
+
+        List<String> created = new ArrayList<>(), updated = new ArrayList<>(), skipped = new ArrayList<>();
+        Set<Long> seen = new HashSet<>();
+        for (SampleCreateRequest.Line line : req.getItems()) {
+            if (line == null || line.getProductId() == null || !seen.add(line.getProductId())) continue;
+            ItemMaster product = items.findById(line.getProductId()).orElse(null);
+            if (product == null) { skipped.add("Item " + line.getProductId() + ": not found"); continue; }
+            String label = product.getItemName() + " (" + product.getItemCode() + ")";
+            try {
+                if (!isProduct(product, n)) throw new IllegalStateException("is not a Product");
+                String pack = trim(line.getPackSize());
+                if (pack != null && pack.length() > 50) throw new IllegalStateException("pack size can be at most 50 characters");
+                BigDecimal pts = line.getPts();
+                if (pts != null && pts.signum() < 0) throw new IllegalStateException("PTS cannot be negative");
+                if (pts != null && pts.stripTrailingZeros().scale() > 2) throw new IllegalStateException("PTS can have at most 2 decimals");
+
+                ItemMaster sample = sampleByMain.get(product.getItemCode().toUpperCase(Locale.ROOT));
+                boolean isNew = sample == null;
+                if (isNew) {
+                    sample = new ItemMaster();
+                    sample.setItemTypeId(sampleType.getId());
+                    sample.setItemCode(generateCode(sampleType.getId(), n));
+                    String name = product.getItemName() + " (Sample)";
+                    sample.setItemName(name.length() > 200 ? name.substring(0, 200) : name);
+                    sample.setShortName(product.getShortName());
+                    sample.setBrandId(product.getBrandId());
+                    sample.setDivisionId(product.getDivisionId());
+                    sample.setItemClass(product.getItemClass());
+                    sample.setManufacturer(product.getManufacturer());
+                    sample.setUom(product.getUom());
+                    sample.setHsnCode(product.getHsnCode());
+                    sample.setGstRate(product.getGstRate());
+                    sample.setItemCodeMain(product.getItemCode());   // link back to the product
+                    sample.setPackSize(pack);
+                    sample.setStatus(true);
+                    items.saveAndFlush(sample);
+                    List<ItemCompositionDto> comp = compositions.findByItemIdOrderBySortOrderAscIdAsc(product.getId()).stream().map(c -> {
+                        ItemCompositionDto x = new ItemCompositionDto();
+                        x.setMoleculeName(c.getMoleculeName());
+                        x.setStrength(c.getStrength());
+                        x.setStrengthUnit(c.getStrengthUnit());
+                        x.setPerQty(c.getPerQty());
+                        return x;
+                    }).toList();
+                    if (!comp.isEmpty()) replaceCompositions(sample, comp);
+                    sampleByMain.put(product.getItemCode().toUpperCase(Locale.ROOT), sample);
+                } else if (pack != null && !pack.equals(sample.getPackSize())) {
+                    sample.setPackSize(pack);
+                }
+
+                // add a rate only for chosen states the sample has no rate for yet
+                List<ItemRateDto> wanted = new ArrayList<>(rates.findByItemIdOrderByEffectiveFromAscIdAsc(sample.getId())
+                        .stream().map(r -> toDto(r, n)).toList());
+                Set<Long> has = wanted.stream().map(r -> r.getStateId() == null ? 0L : r.getStateId()).collect(Collectors.toSet());
+                List<String> added = new ArrayList<>();
+                for (Long st : rateStates) {
+                    if (has.contains(st == null ? 0L : st)) continue;
+                    ItemRateDto r = new ItemRateDto();
+                    r.setStateId(st);
+                    r.setEffectiveFrom(today);
+                    r.setPts(pts);
+                    r.setSampleRate(pts);
+                    wanted.add(r);
+                    added.add(stateName(st, n));
+                }
+                if (!added.isEmpty()) replaceRates(sample, wanted, false, n);
+                items.saveAndFlush(sample);
+
+                if (isNew) created.add(sample.getItemCode() + " = " + label + (added.isEmpty() ? "" : " · rate: " + String.join(", ", added)));
+                else if (!added.isEmpty()) updated.add(sample.getItemCode() + " (already the sample of " + label + ") · rate added: " + String.join(", ", added));
+                else skipped.add(label + ": sample " + sample.getItemCode() + " already exists with these states");
+            } catch (IllegalStateException e) {
+                skipped.add(label + ": " + e.getMessage());
+            }
+        }
+        Map<String, Object> res = new LinkedHashMap<>();
+        res.put("created", created);
+        res.put("updated", updated);
+        res.put("skipped", skipped);
+        return res;
+    }
+
+    /** Sample items by the product code in their item_code_main (upper case). */
+    private static Map<String, ItemMaster> samplesByMainCode(List<ItemMaster> all, Names n) {
+        Map<String, ItemMaster> m = new HashMap<>();
+        for (ItemMaster i : all) {
+            ItemTypeMaster t = n.typesById.get(i.getItemTypeId());
+            if (t != null && SAMPLE_TYPE.equalsIgnoreCase(t.getItemTypeCode()) && i.getItemCodeMain() != null) {
+                m.putIfAbsent(i.getItemCodeMain().toUpperCase(Locale.ROOT), i);
+            }
+        }
+        return m;
     }
 
     @Transactional(transactionManager = "tenantTransactionManager")

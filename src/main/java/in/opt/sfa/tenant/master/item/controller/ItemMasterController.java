@@ -47,6 +47,21 @@ public class ItemMasterController {
         return service.moleculeNames();
     }
 
+    @GetMapping("/sample-candidates")
+    @Operation(summary = "Create Multiple Sample: active Product items with pack size, today's PTS and their existing sample code")
+    public List<Map<String, Object>> sampleCandidates() {
+        return service.sampleCandidates();
+    }
+
+    @RequiresPermission("ITEM_SAVE")
+    @PostMapping("/create-samples")
+    @Operation(summary = "Create one Sample item per ticked product (item_code_main = product code); no duplicates",
+            description = "Body: { items: [{productId, packSize, pts}], stateIds: [..] } — no states = All-India rate. "
+                    + "A product that already has a sample only gets the missing state rates.")
+    public Map<String, Object> createSamples(@RequestBody in.opt.sfa.tenant.master.item.dto.SampleCreateRequest req) {
+        return service.createSamples(req);
+    }
+
     @GetMapping("/next-code")
     @Operation(summary = "Preview of the code the next new item of this type gets (PD01 / GP01 / IP01 / SP01 ...); taken for real on save")
     public Map<String, String> nextCode(@RequestParam Long itemTypeId) {
