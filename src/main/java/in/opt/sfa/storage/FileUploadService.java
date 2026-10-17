@@ -84,12 +84,6 @@ public class FileUploadService {
                 .map(String::trim).filter(w -> !w.isEmpty()).map(w -> w.toLowerCase(Locale.ROOT)).toList();
     }
 
-    /** Short constructor for tools / tests: built-in default image, no extra blocked words. */
-    public FileUploadService(FileStorageService storage, long maxImageMb, long maxDocumentMb) {
-        this(storage, maxImageMb, maxDocumentMb,
-                new org.springframework.core.io.ClassPathResource("defaults/no-image.jpg"), "");
-    }
-
     /** Validate, store and (for images) thumbnail one file for the current tenant. */
     public StoredFile upload(String module, MultipartFile file, Kind kind) throws IOException {
         return upload(module, file, kind, false);
