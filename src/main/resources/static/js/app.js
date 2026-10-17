@@ -913,6 +913,141 @@
         return { thumb: thumb, open: open, picker: picker, hydrate: hydrate, load: load, prettySize: prettySize, checkName: checkName };
     })();
 
+    // ---- SFAQuickAdd: "+" next to a master dropdown creates a new master row ----
+    // Mark a <select> with data-quick-add="state" (division / state / hq /
+    // designation / degree / bank / document) and call SFAQuickAdd.decorate(root).
+    // "+" opens a small form ABOVE any open popup, saves through that master's
+    // normal save API (its permission applies), reloads the list, refills every
+    // select of that kind on the page (keeping their values) and selects the new
+    // row in the one that was clicked. Pages listen to "sfa:quick-added"
+    // (detail = { kind, lookup, list, id }) to refresh their own cached lists.
+    window.SFAQuickAdd = (function () {
+        var CODE = function (k) { return { k: k, label: "Code", req: true, max: 30, code: true }; };
+        var NAME = function (k, max) { return { k: k, label: "Name", req: true, max: max || 120, name: true }; };
+        var KINDS = {
+            division:    { title: "Division", perm: "DIVISION_SAVE", ep: function () { return API.master.division.save; }, lookup: "divisions", id: "oid",
+                           fields: [CODE("divisionCode"), NAME("divisionName")], extra: { status: "Y" } },
+            state:       { title: "State", perm: "STATE_SAVE", ep: function () { return API.master.state.save; }, lookup: "states", id: "oid",
+                           fields: [CODE("stateCode"), NAME("stateName")], extra: { status: "Y" } },
+            hq:          { title: "HQ", perm: "HQ_SAVE", ep: function () { return API.master.hq.save; }, lookup: "hqs", id: "oid",
+                           fields: [CODE("hqCode"), NAME("hqName"), { k: "stateOid", label: "State", type: "select", lookup: "states" }], extra: { isActive: true } },
+            designation: { title: "Designation", perm: "DESIGNATION_SAVE", ep: function () { return API.master.designationMaster.save; }, lookup: "designations", id: "oid",
+                           fields: [CODE("designationCode"), NAME("designationName"),
+                                    { k: "empLevel", label: "Emp level (1-4 User, 5-8 Manager, 9-20 Admin)", req: true, type: "number", min: 1, max: 99 }],
+                           extra: { status: true } },
+            degree:      { title: "Qualification", perm: "DEGREE_SAVE", ep: function () { return API.master.degreeMaster.save; }, lookup: "degrees", id: "id",
+                           fields: [CODE("degreeCode"), NAME("degreeName")], extra: { isActive: true, displayOrder: 0 } },
+            bank:        { title: "Bank", perm: "BANK_SAVE", ep: function () { return API.master.bankMaster.save; }, lookup: "banks", id: "id",
+                           fields: [CODE("bankCode"), NAME("bankName")], extra: { isActive: true, displayOrder: 0 } },
+            document:    { title: "Document type", perm: "DOCUMENT_SAVE", ep: function () { return API.master.documentMaster.save; }, lookup: "documents", id: "id",
+                           fields: [CODE("documentCode"), NAME("documentName")], extra: { isActive: true, displayOrder: 0 } }
+        };
+        var esc = function (v) { return window.SFA ? SFA.esc(v == null ? "" : v) : String(v == null ? "" : v); };
+        var allowed = function (cfg) { return !window.SFA || !SFA.can || SFA.can(cfg.perm); };
+
+        function decorate(root) {
+            $(root || document).find("select[data-quick-add]").each(function () {
+                var sel = this, kind = sel.getAttribute("data-quick-add"), cfg = KINDS[kind];
+                if (!cfg || sel.dataset.qaDone || !allowed(cfg)) return;
+                sel.dataset.qaDone = "1";
+                var group = document.createElement("div");
+                group.className = "input-group sfa-qa-group";
+                sel.parentNode.insertBefore(group, sel);
+                group.appendChild(sel);
+                var btn = document.createElement("button");
+                btn.type = "button";
+                btn.className = "btn btn-outline-primary sfa-qa-btn";
+                btn.title = "Add a new " + cfg.title;
+                btn.innerHTML = '<i class="bi bi-plus-lg"></i>';
+                btn.addEventListener("click", function () { open(sel); });
+                group.appendChild(btn);
+            });
+        }
+
+        function codeFrom(name) {
+            return String(name || "").toUpperCase().replace(/[^A-Z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 20);
+        }
+
+        async function open(sel) {
+            var kind = sel.getAttribute("data-quick-add"), cfg = KINDS[kind];
+            var lists = {};
+            var need = cfg.fields.filter(function (f) { return f.lookup; }).map(function (f) { return f.lookup; });
+            if (need.length) {
+                try { lists = await Api.get(API.lookups, { query: { keys: need.join(",") } }); } catch (e) { lists = {}; }
+            }
+            var ov = document.createElement("div");
+            ov.className = "sfa-qa-overlay";
+            ov.innerHTML = '<form class="sfa-qa-card card shadow" novalidate>' +
+                '<div class="card-header d-flex align-items-center"><b>Add ' + esc(cfg.title) + '</b>' +
+                '<button type="button" class="btn-close ms-auto" data-qa-close aria-label="Close"></button></div>' +
+                '<div class="card-body"><div class="row g-2">' + cfg.fields.map(function (f) {
+                    var label = '<label class="form-label small mb-0">' + esc(f.label) + (f.req ? ' <span class="required-star">*</span>' : '') + '</label>';
+                    if (f.type === "select") {
+                        return '<div class="col-12">' + label + '<select class="form-select" data-qa="' + f.k + '"><option value="">--</option>' +
+                            (lists[f.lookup] || []).map(function (o) { return '<option value="' + esc(o.oid) + '">' + esc(o.label) + '</option>'; }).join("") +
+                            '</select></div>';
+                    }
+                    var attrs = f.type === "number" ? ' type="number" min="' + f.min + '" max="' + f.max + '"' : ' maxlength="' + f.max + '"';
+                    return '<div class="' + (f.code ? 'col-5' : f.name ? 'col-7' : 'col-12') + '">' + label +
+                        '<input class="form-control' + (f.code ? ' text-uppercase' : '') + '" data-qa="' + f.k + '"' + attrs + ' /></div>';
+                }).join("") + '</div><div class="small text-danger mt-2" data-qa-err></div></div>' +
+                '<div class="card-footer text-end"><button type="button" class="btn btn-light btn-sm" data-qa-close>Cancel</button> ' +
+                '<button type="submit" class="btn btn-primary btn-sm">Save &amp; select</button></div></form>';
+            document.body.appendChild(ov);
+            var form = ov.querySelector("form"), err = ov.querySelector("[data-qa-err]");
+            var codeF = cfg.fields.find(function (f) { return f.code; }), nameF = cfg.fields.find(function (f) { return f.name; });
+            var codeIn = codeF && form.querySelector('[data-qa="' + codeF.k + '"]');
+            var nameIn = nameF && form.querySelector('[data-qa="' + nameF.k + '"]');
+            var codeTouched = false;
+            if (codeIn) codeIn.addEventListener("input", function () { codeTouched = true; });
+            if (nameIn && codeIn) nameIn.addEventListener("input", function () { if (!codeTouched) codeIn.value = codeFrom(nameIn.value); });
+            (nameIn || form.querySelector("[data-qa]")).focus();
+            var close = function () { ov.remove(); sel.focus(); };
+            ov.querySelectorAll("[data-qa-close]").forEach(function (b) { b.addEventListener("click", close); });
+            ov.addEventListener("keydown", function (ev) { if (ev.key === "Escape") { ev.stopPropagation(); close(); } });
+            form.addEventListener("submit", async function (ev) {
+                ev.preventDefault();
+                ev.stopPropagation();   // never submit the page form behind
+                err.textContent = "";
+                var body = Object.assign({}, cfg.extra || {});
+                for (var i = 0; i < cfg.fields.length; i++) {
+                    var f = cfg.fields[i], el = form.querySelector('[data-qa="' + f.k + '"]'), v = el.value.trim();
+                    if (f.code) v = v.toUpperCase();
+                    if (f.req && !v) { err.textContent = f.label + " is required"; el.focus(); return; }
+                    body[f.k] = v === "" ? null : (f.type === "number" || f.type === "select" ? Number(v) : v);
+                }
+                var btn = form.querySelector('[type="submit"]');
+                btn.disabled = true;
+                try {
+                    var saved = await Api.post(cfg.ep(), body);
+                    var res = await Api.get(API.lookups, { query: { keys: cfg.lookup } });
+                    var list = res[cfg.lookup] || [], id = saved && saved[cfg.id];
+                    refill(kind, list, sel, id);
+                    sel.dispatchEvent(new CustomEvent("sfa:quick-added", { bubbles: true, detail: { kind: kind, lookup: cfg.lookup, list: list, id: id } }));
+                    if (window.SFA) SFA.toast(cfg.title + " added");
+                    ov.remove();
+                    sel.focus();
+                } catch (e) { err.textContent = e.message; }
+                finally { btn.disabled = false; }
+            });
+        }
+
+        /** Refill every select of this kind on the page (keeping values), then select id in `target`. */
+        function refill(kind, list, target, id) {
+            document.querySelectorAll('select[data-quick-add="' + kind + '"]').forEach(function (s) {
+                var keep = s === target && id != null ? String(id) : s.value;
+                var first = s.options.length && s.options[0].value === "" ? s.options[0].text : "--";
+                s.innerHTML = '<option value="">' + esc(first) + '</option>' + list.map(function (o) {
+                    return '<option value="' + esc(o.oid) + '">' + esc(o.label) + '</option>';
+                }).join("");
+                s.value = keep;
+                if (s === target) s.dispatchEvent(new Event("change", { bubbles: true }));
+            });
+        }
+
+        return { decorate: decorate, kinds: KINDS };
+    })();
+
     $(function () { sfaSelect2(document); sfaFlatpickr(document); });
 
 })(jQuery);

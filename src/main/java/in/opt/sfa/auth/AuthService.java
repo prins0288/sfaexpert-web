@@ -88,6 +88,9 @@ public class AuthService {
 
         // Open (warm up) the tenant datasource now, and verify it connects.
         openTenantDatasource(companyCode);
+        if (isVacant(companyCode, user.getEmpId())) {
+            throw new BadCredentialsException("This position is vacant — login is not allowed. Contact your admin.");
+        }
 
         // Role + profile snapshot (designation, emp_level, state) from emp_detail.
         EmpInfo info = resolveEmpInfo(companyCode, user.getEmpId(), null);
@@ -103,6 +106,25 @@ public class AuthService {
                 user.getEmpId(), user.getUsername(), companyCode, role, info.claims());
         String refreshToken = issueRefreshToken(user.getId());
         return new LoginResponse(accessToken, companyCode, role, previousLogin, refreshToken);
+    }
+
+    /**
+     * Is this employee marked vacant (emp_detail.is_vacant)? A vacant position
+     * cannot log in. Unknown employee / column not migrated yet = not vacant.
+     */
+    private boolean isVacant(String companyCode, String empId) {
+        if (empId == null || empId.isBlank()) return false;
+        try {
+            TenantContext.setCompanyCode(companyCode);
+            Boolean v = tenantJdbc.query("SELECT is_vacant FROM emp_detail WHERE emp_id = ?",
+                    rs -> rs.next() ? rs.getBoolean(1) : Boolean.FALSE, empId);
+            return Boolean.TRUE.equals(v);
+        } catch (Exception e) {
+            log.warn("Could not read emp_detail.is_vacant for emp_id '{}': {}", empId, e.getMessage());
+            return false;
+        } finally {
+            TenantContext.clear();
+        }
     }
 
     /** Role + JWT profile claims. The login row's emp_id links to emp_detail.emp_id
@@ -169,6 +191,9 @@ public class AuthService {
                 .orElseThrow(() -> new BadCredentialsException("Invalid refresh token"));
         if (!user.isActive()) {
             throw new BadCredentialsException("Account disabled");
+        }
+        if (isVacant(user.getCompanyCode(), user.getEmpId())) {
+            throw new BadCredentialsException("This position is vacant — login is not allowed. Contact your admin.");
         }
 
         existing.setRevoked(true);

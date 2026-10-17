@@ -109,6 +109,7 @@ public final class DefaultColumnRegistry {
 
         // master/create-employee.html
         register("CREATE_EMPLOYEE_MASTER",
+                col("photo", null),
                 col("empCode", null),
                 col("name", "common.name"),
                 col("mobile", "common.mobile"),
@@ -116,6 +117,7 @@ public final class DefaultColumnRegistry {
                 col("division", "entity.division"),
                 col("username", null),
                 col("active", "common.active"),
+                col("vacant", null),
                 hidden("gender", null),
                 hidden("officialEmail", null),
                 hidden("department", null),
@@ -131,6 +133,17 @@ public final class DefaultColumnRegistry {
                 col("status", "common.status"),
                 col("created", "common.created"),
                 col("updated", "common.updated"));
+
+        // master/password-reset.html
+        register("PASSWORD_RESET",
+                col("empCode", null),
+                col("name", "common.name"),
+                col("designation", "entity.designation"),
+                hidden("division", "entity.division"),
+                col("username", null),
+                col("login", null),
+                col("vacant", null),
+                col("lastLogin", null));
 
         // master/item-master.html
         register("ITEM_MASTER",

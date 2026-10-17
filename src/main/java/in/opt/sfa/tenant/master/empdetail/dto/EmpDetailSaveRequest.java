@@ -36,6 +36,8 @@ public class EmpDetailSaveRequest {
 
     // ---- employment status ----
     private Boolean officeStaff;
+    /** true = vacant position (login refused), false = working. null on update = unchanged. */
+    private Boolean vacant;
     private Boolean confirmed;
     private String confirmationDate;  // ISO yyyy-MM-dd
     private String resignationDate;   // ISO yyyy-MM-dd

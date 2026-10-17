@@ -48,7 +48,8 @@ import java.util.stream.Collectors;
  *
  * Item code of a new item is generated from its type: Product PD01, PD02 ...,
  * Gift GP01, Input IP01, Sample SP01 (other types: first 2 letters of the type
- * code). Numbers grow past 99 as PD100. Existing codes are never changed.
+ * code). Numbers grow past 99 as PD100. A code typed by the user is used as
+ * it is (must be unique); codes can also be changed on edit.
  */
 @Service
 public class ItemMasterService {
@@ -165,8 +166,8 @@ public class ItemMasterService {
             throw new IllegalStateException("This item was changed by someone else meanwhile — close the form, reload and try again.");
         }
         Names n = names();
-        if (isNew) form.setItemCode(generateCode(form.getItemTypeId(), n));   // new item: code always generated
-        else form.setItemCode(item.getItemCode());                          // existing code never changes here
+        // new item without a code: generated from the type; a typed code is used as it is
+        if (isNew && Strings.isBlank(form.getItemCode())) form.setItemCode(generateCode(form.getItemTypeId(), n));
         applyHeader(item, form, n, true);
         validateUnique(item);
 

@@ -178,6 +178,11 @@ public class EmpDetailService {
             if (Strings.isBlank(req.getUsername())) throw new IllegalStateException("Username is required");
             if (Strings.isBlank(req.getPassword())) throw new IllegalStateException("Password is required for a new employee");
         }
+        if (!isNew && credentials.findLogin(TenantContext.getCompanyCode(), e.getEmpId()).isPresent()) {
+            // an existing login is never changed from this form — use Password Reset instead
+            req.setUsername(null);
+            req.setPassword(null);
+        }
         validate(req, e, isNew);
         profiles.check(isNew ? "" : e.getEmpId(), req.getProfile());   // before ANY write
 
@@ -210,6 +215,7 @@ public class EmpDetailService {
         if (req.getOfficialEmail() != null) e.setOfficialEmail(Strings.isBlank(req.getOfficialEmail()) ? null : req.getOfficialEmail().trim());
         if (req.getDepartment() != null) e.setDepartment(Strings.isBlank(req.getDepartment()) ? null : req.getDepartment().trim());
         if (req.getOfficeStaff() != null) e.setOfficeStaff(req.getOfficeStaff());
+        if (req.getVacant() != null) e.setVacant(req.getVacant());
         if (req.getConfirmed() != null) e.setConfirmed(req.getConfirmed());
         if (req.getConfirmationDate() != null) e.setConfirmationDate(parseDate(req.getConfirmationDate()));
         if (req.getResignationDate() != null) e.setResignationDate(parseDate(req.getResignationDate()));
@@ -263,7 +269,8 @@ public class EmpDetailService {
             "bank_code", "ifsc_code", "account_no", "branch_name",
             "nominee_type", "nominee_name", "nominee_relationship", "nominee_dob", "nominee_contact", "nominee_share_pct",
             "emergency_name", "emergency_relationship", "emergency_phone1", "emergency_phone2",
-            "pan_no", "pf_no", "uan_no", "esi_no", "aadhaar_no", "mediclaim_policy_no");
+            "pan_no", "pf_no", "uan_no", "esi_no", "aadhaar_no", "mediclaim_policy_no",
+            "vacant");
 
     public byte[] template() throws Exception {
         List<String> sample = List.of(
@@ -278,7 +285,8 @@ public class EmpDetailService {
                 "SBI", "SBIN0001234", "123456789012", "Patna Main",
                 "PF", "Ram Doe", "Father", "1965-01-01", "9876500000", "100",
                 "Ram Doe", "Father", "9876500000", "",
-                "ABCDE1234F", "", "", "", "234567890123", "");
+                "ABCDE1234F", "", "", "", "234567890123", "",
+                "N");
         return ExcelUtil.template("Employees", BULK_COLUMNS, sample);
     }
 
@@ -324,6 +332,7 @@ public class EmpDetailService {
                 req.setOfficialEmail(r.get("official_email"));
                 req.setDepartment(r.get("department"));
                 req.setOfficeStaff(r.bool("office_staff"));
+                req.setVacant(r.bool("vacant"));
                 req.setConfirmed(r.bool("confirmed"));
                 req.setConfirmationDate(r.date("confirmation_date"));
 
@@ -602,9 +611,13 @@ public class EmpDetailService {
         m.put("resignationDate", e.getResignationDate());
         m.put("lastWorkingDate", e.getLastWorkingDate());
         m.put("active", e.isActive());
+        m.put("vacant", e.isVacant());
+        m.put("photoPath", e.getPhotoPath());
+        m.put("photoThumbnailPath", e.getPhotoThumbnailPath());
         m.put("profileComplete", e.isProfileComplete());
         m.put("username", user == null ? null : user.getUsername());
         m.put("loginActive", user != null && user.isActive());
+        m.put("lastLoginAt", user == null ? null : user.getLastLoginAt());
         m.put("createdAt", e.getCreatedAt());
         m.put("updatedAt", e.getUpdatedAt());
         return m;

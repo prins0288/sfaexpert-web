@@ -890,3 +890,9 @@ table.dataTable tbody tr.sfa-row-selected > * {
 @keyframes sfa-toast-life { from { transform: scaleX(1); } to { transform: scaleX(0); } }
 [data-theme="dark"] .sfa-toast { background: var(--sfa-surface, #1f2430); color: var(--sfa-text, #e9ecef); border-color: rgba(255,255,255,.12); }
 @media (prefers-reduced-motion: reduce) { .sfa-toast, .sfa-toast.hide { transition: none; transform: none; } }
+
+/* ---- SFAQuickAdd: "+" beside a master dropdown, small form above popups ---- */
+.sfa-qa-group > .form-select { min-width: 0; }
+.sfa-qa-overlay { position: fixed; inset: 0; z-index: 1900; background: rgba(0,0,0,.35); display: flex; align-items: flex-start;
+  justify-content: center; padding: 10vh 1rem 1rem; }
+.sfa-qa-card { width: min(460px, 100%); }

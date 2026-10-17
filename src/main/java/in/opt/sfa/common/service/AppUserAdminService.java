@@ -75,6 +75,21 @@ public class AppUserAdminService {
                 .orElse(true);
     }
 
+    /** The login of an employee, if it has one. */
+    @Transactional(transactionManager = "commonTransactionManager", readOnly = true)
+    public java.util.Optional<AppUser> findLogin(String companyCode, String empId) {
+        return users.findByEmpIdAndCompanyCode(empId, companyCode);
+    }
+
+    /** Set a new password for an employee's login (admin reset; plain text like everywhere else). */
+    @Transactional(transactionManager = "commonTransactionManager")
+    public AppUser resetPassword(String companyCode, String empId, String newRaw) {
+        AppUser u = users.findByEmpIdAndCompanyCode(empId, companyCode)
+                .orElseThrow(() -> new IllegalStateException("This employee has no login yet"));
+        u.setPassword(newRaw);
+        return users.save(u);
+    }
+
     /** Link a login to an employee id if it isn't linked yet (so future JWTs carry it). */
     @Transactional(transactionManager = "commonTransactionManager")
     public void linkEmpId(String username, String empId) {

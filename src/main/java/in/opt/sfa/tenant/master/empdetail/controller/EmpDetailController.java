@@ -5,6 +5,7 @@ import in.opt.sfa.tenant.master.empdetail.dto.EmpDetailSaveRequest;
 import in.opt.sfa.tenant.master.empdetail.dto.EmpProfileDto;
 import in.opt.sfa.tenant.master.empdetail.service.EmpProfileService;
 import in.opt.sfa.tenant.master.empdetail.service.EmpDetailService;
+import in.opt.sfa.tenant.master.empdetail.service.EmpFileService;
 import in.opt.sfa.security.RequiresPermission;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
@@ -26,8 +27,10 @@ public class EmpDetailController {
 
     private final EmpDetailService service;
     private final EmpProfileService profileService;
+    private final EmpFileService files;
 
-    public EmpDetailController(EmpDetailService service, EmpProfileService profileService) {
+    public EmpDetailController(EmpDetailService service, EmpProfileService profileService, EmpFileService files) {
+        this.files = files;
         this.service = service;
         this.profileService = profileService;
     }
@@ -71,6 +74,42 @@ public class EmpDetailController {
     @PostMapping
     public Map<String, Object> save(@RequestBody EmpDetailSaveRequest form) {
         return service.save(form);
+    }
+
+    @RequiresPermission("EMP_DETAIL_SAVE")
+    @PostMapping(value = "/{empId}/photo", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    @io.swagger.v3.oas.annotations.Operation(summary = "Set the employee's photo (image only); shown in the top-right avatar when they log in")
+    public Map<String, Object> photo(@PathVariable String empId, @RequestParam("file") MultipartFile file) throws Exception {
+        return files.setPhoto(empId, file);
+    }
+
+    @RequiresPermission("EMP_DETAIL_SAVE")
+    @DeleteMapping("/{empId}/photo")
+    public Map<String, Object> removePhoto(@PathVariable String empId) throws Exception {
+        return files.setPhoto(empId, null);
+    }
+
+    @GetMapping("/{empId}/documents")
+    @io.swagger.v3.oas.annotations.Operation(summary = "The employee's uploaded documents (type from Document Master)")
+    public List<Map<String, Object>> documents(@PathVariable String empId) {
+        return files.list(empId);
+    }
+
+    @RequiresPermission("EMP_DETAIL_SAVE")
+    @PostMapping(value = "/{empId}/documents", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    @io.swagger.v3.oas.annotations.Operation(summary = "Upload one document (PDF or image) for the employee")
+    public Map<String, Object> uploadDocument(@PathVariable String empId, @RequestParam("documentTypeId") Long documentTypeId,
+                                              @RequestParam(value = "documentNo", required = false) String documentNo,
+                                              @RequestParam(value = "remarks", required = false) String remarks,
+                                              @RequestParam("file") MultipartFile file) throws Exception {
+        return files.upload(empId, documentTypeId, documentNo, remarks, file);
+    }
+
+    @RequiresPermission("EMP_DETAIL_SAVE")
+    @DeleteMapping("/{empId}/documents/{documentId}")
+    public Map<String, Object> removeDocument(@PathVariable String empId, @PathVariable Long documentId) {
+        files.remove(empId, documentId);
+        return Map.of("removed", true);
     }
 
     @RequiresPermission("EMP_DETAIL_STATUS")

@@ -85,7 +85,8 @@
             <div class="invalid-feedback">Choose the item type</div>
             <div class="form-text" id="i_typeHelp">Product / Sample / Gift / Input — from Item Type Master</div></div>
           <div class="col-md-3"><label class="form-label">Item Code</label>
-            <input class="form-control bg-body-secondary" id="i_itemCode" readonly tabindex="-1" placeholder="Auto — choose the Type" />
+            <input class="form-control text-uppercase" id="i_itemCode" maxlength="50" placeholder="Auto — choose the Type"
+                   oninput="CODE_SUGGESTED = null; document.getElementById('i_codeHelp').textContent = 'Your own code — must be unique'" />
             <div class="form-text" id="i_codeHelp">Made automatically: Product PD01, Gift GP01, Input IP01, Sample SP01</div></div>
           <div class="col-md-6"><label class="form-label">Item Name <span class="required-star">*</span></label>
             <input class="form-control" id="i_itemName" required maxlength="200" placeholder="Dolo 650" />
@@ -276,8 +277,9 @@
     document.getElementById('i_version').value = r && r.version != null ? r.version : '';
     FIELDS.forEach(f => { document.getElementById('i_' + f).value = r && r[f] != null ? r[f] : ''; });
     document.querySelectorAll('#itForm .is-invalid').forEach(el => el.classList.remove('is-invalid'));
-    document.getElementById('i_codeHelp').textContent = r ? 'Item code cannot be changed'
-      : 'Made automatically: Product PD01, Gift GP01, Input IP01, Sample SP01';
+    CODE_SUGGESTED = null;
+    document.getElementById('i_codeHelp').textContent = r ? 'You can change the code (must stay unique)'
+      : 'Made automatically: Product PD01, Gift GP01, Input IP01, Sample SP01 — or type your own';
     document.getElementById('il_comp').innerHTML = '';
     document.getElementById('il_rates').innerHTML = '';
     ((r && r.compositions) || []).forEach(c => itAddComp(c));
@@ -289,20 +291,22 @@
   }
 
   // new item: show the code it will get (the real one is given on Save)
-  let codeReq = 0;
+  // CODE_SUGGESTED = the auto code shown in the box (null once the user types their own)
+  let codeReq = 0, CODE_SUGGESTED = null;
   async function itTypeChanged() {
     const sel = document.getElementById('i_itemTypeId');
     sel.classList.remove('is-invalid');
-    if (document.getElementById('i_id').value) return;            // existing code never changes
+    if (document.getElementById('i_id').value) return;            // edit: type change keeps the code
     const code = document.getElementById('i_itemCode'), help = document.getElementById('i_codeHelp');
-    code.value = '';
+    if (code.value.trim() && CODE_SUGGESTED === null) return;     // keep a code the user typed
+    code.value = ''; CODE_SUGGESTED = null;
     if (!sel.value) { help.textContent = 'Made automatically: Product PD01, Gift GP01, Input IP01, Sample SP01'; return; }
     const mine = ++codeReq;
     try {
       const res = await Api.get(EP.nextCode, { query: { itemTypeId: sel.value } });
-      if (mine !== codeReq) return;
-      code.value = res.itemCode;
-      help.textContent = 'Next free code — given for real on Save';
+      if (mine !== codeReq || (code.value.trim() && CODE_SUGGESTED === null)) return;
+      code.value = res.itemCode; CODE_SUGGESTED = res.itemCode;
+      help.textContent = 'Next free code (given for real on Save) — you can type your own';
     } catch (e) { help.textContent = 'Code is made on Save'; }
   }
 
@@ -442,7 +446,8 @@
     if (missingName >= 0) { openSectionFor('composition'); SFA.toast('Composition line ' + (missingName + 1) + ': salt name is required', false); return; }
     const data = { id: v('i_id'), version: v('i_version') };
     FIELDS.forEach(f => data[f] = v('i_' + f));
-    if (!data.id) data.itemCode = null;   // the server gives the code
+    // new item still showing the suggested code: let the server give the next free one on save
+    if (!data.id && (CODE_SUGGESTED !== null && (data.itemCode || '').toUpperCase() === CODE_SUGGESTED)) data.itemCode = null;
     data.compositions = compLines();
     data.rates = rateLines().map(r => ({ ...r, id: r.id ? Number(r.id) : null }));
     data.removeImage = PICK.removed();

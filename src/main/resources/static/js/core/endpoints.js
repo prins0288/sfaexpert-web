@@ -198,6 +198,9 @@
         status: (empId) => `/api/master/create-employee/${empId}/status`,
         template: "/api/master/create-employee/template",
         upload: "/api/master/create-employee/upload",
+        photo: (empId) => `/api/master/create-employee/${encodeURIComponent(empId)}/photo`,          // POST multipart file / DELETE
+        documents: (empId) => `/api/master/create-employee/${encodeURIComponent(empId)}/documents`,  // GET list / POST multipart
+        document: (empId, id) => `/api/master/create-employee/${encodeURIComponent(empId)}/documents/${id}`,  // DELETE
         suggestLogin: "/api/master/create-employee/suggest-login",          // GET {username, password}
         usernameAvailable: "/api/master/create-employee/username-available", // GET ?username=&empId=
         profileOptions: "/api/master/create-employee/profile-options",       // GET relationships, blood groups, …
@@ -218,6 +221,11 @@
         saveMultiple: "/api/master/brand-master/save-multiple",
         get: (id) => `/api/master/brand-master/${id}`,
         status: (id) => `/api/master/brand-master/${id}/status`,
+      },
+      passwordReset: {
+        list: "/api/master/password-reset",
+        generate: "/api/master/password-reset/generate",
+        reset: (empId) => `/api/master/password-reset/${encodeURIComponent(empId)}`,
       },
       itemMaster: {
         list: "/api/master/item-master",

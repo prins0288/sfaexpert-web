@@ -52,8 +52,8 @@
       <div class="table-responsive">
         <table data-screen-key="CREATE_EMPLOYEE_MASTER" id="empCreateTable" class="table table-striped table-bordered nowrap" style="width:100%">
           <thead><tr>
-            <th>S.No</th><th data-field="empCode">Emp Code</th><th data-field="name">Name</th><th data-field="mobile">Mobile</th><th data-field="designation">Designation</th><th data-field="division">Division</th>
-            <th data-field="username">Username</th><th data-field="active">Active</th>
+            <th>S.No</th><th data-field="photo" class="no-export">Photo</th><th data-field="empCode">Emp Code</th><th data-field="name">Name</th><th data-field="mobile">Mobile</th><th data-field="designation">Designation</th><th data-field="division">Division</th>
+            <th data-field="username">Username</th><th data-field="active">Active</th><th data-field="vacant">Working / Vacant</th>
             <th data-field="gender">Gender</th><th data-field="officialEmail">Official Email</th><th data-field="department">Department</th><th data-field="dateOfJoining">Date of Joining</th><th data-field="manager">Manager</th><th data-field="profileComplete">Profile Complete</th>
             <th class="no-export">Actions</th>
           </tr></thead>
@@ -78,14 +78,23 @@
             <input class="form-control" id="e_mobile" inputmode="numeric" maxlength="10" pattern="[6-9][0-9]{9}"
                    title="10 digits starting with 6-9" placeholder="9876543210" /></div>
           <div class="col-md-6"><label class="form-label">Division <small class="text-muted">(leave blank for a company-wide role like Super Admin)</small></label>
-            <select class="form-select" id="e_divisionId"></select></div>
+            <select class="form-select" id="e_divisionId" data-quick-add="division"></select></div>
           <div class="col-md-6"><label class="form-label">Designation <span class="required-star">*</span>
               <small class="text-muted" id="e_levelHint"></small></label>
-            <select class="form-select" id="e_designationId" required onchange="empLevelHint()"></select></div>
+            <select class="form-select" id="e_designationId" data-quick-add="designation" required onchange="empLevelHint()"></select></div>
           <div class="col-md-6"><label class="form-label">State</label>
-            <select class="form-select" id="e_stateId"></select></div>
+            <select class="form-select" id="e_stateId" data-quick-add="state"></select></div>
           <div class="col-md-6"><label class="form-label">HQ</label>
-            <select class="form-select" id="e_hqId"></select></div>
+            <select class="form-select" id="e_hqId" data-quick-add="hq"></select></div>
+          <div class="col-md-6"><label class="form-label d-block">Position</label>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="e_position" id="e_working" value="working" checked>
+              <label class="form-check-label" for="e_working">Working <small class="text-muted">(can log in)</small></label></div>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="e_position" id="e_vacant" value="vacant">
+              <label class="form-check-label" for="e_vacant">Vacant <small class="text-muted">(login blocked)</small></label></div></div>
+          <div class="col-md-6"><label class="form-label">Photo <small class="text-muted">(shown at the top-right after this employee logs in)</small></label>
+            <div id="e_photo"></div></div>
         </div>
 
         <h6 class="text-muted">Login</h6>
@@ -109,7 +118,10 @@
               <button type="button" class="btn btn-outline-secondary" title="Copy username + password"
                       onclick="empCopyLogin()"><i class="bi bi-clipboard"></i></button>
             </div>
-            <div class="form-text">Share it with the employee — it is shown only here.</div></div>
+            <div class="form-text" id="e_pwdHelp">Share it with the employee — it is shown only here.</div></div>
+          <div class="col-12 d-none" id="e_loginLocked"><div class="alert alert-secondary py-2 small mb-0">
+            <i class="bi bi-lock"></i> Username and password cannot be changed here. To set a new password use
+            <a href="master/password-reset.html">Master Entry &gt; Password Reset</a>.</div></div>
         </div>
 
         <h6 class="text-muted">More details <small>(optional — fill now or update later)</small></h6>
@@ -158,7 +170,7 @@
                 <select class="form-select" id="pp_maritalStatus" onchange="pMarital()"><option value="">--</option><option value="SINGLE">Single</option><option value="MARRIED">Married</option></select></div>
               <div class="col-md-3 p-married"><label class="form-label">Spouse Name</label><input class="form-control" id="pp_spouseName" maxlength="150" /></div>
               <div class="col-md-3 p-married"><label class="form-label">Anniversary Date</label><input class="form-control sfa-date" id="pp_anniversaryDate" /></div>
-              <div class="col-md-3"><label class="form-label">Qualification</label><select class="form-select" id="pp_qualificationId"></select></div>
+              <div class="col-md-3"><label class="form-label">Qualification</label><select class="form-select" id="pp_qualificationId" data-quick-add="degree"></select></div>
               <div class="col-md-3"><label class="form-label">Qualification Detail</label><input class="form-control" id="pp_qualificationDetail" maxlength="150" placeholder="e.g. B.Pharm" /></div>
               <div class="col-md-3"><label class="form-label">Blood Group</label><select class="form-select" id="pp_bloodGroup"></select></div>
               <div class="col-md-3"><label class="form-label">Personal Email</label><input type="email" class="form-control" id="pp_personalEmail" maxlength="150" /></div>
@@ -177,7 +189,7 @@
                 <div class="col-12"><label class="form-label">Address</label><textarea class="form-control" rows="2" id="pa_present_addressLine" maxlength="500"></textarea></div>
                 <div class="col-md-3"><label class="form-label">City</label><input class="form-control" id="pa_present_city" maxlength="100" /></div>
                 <div class="col-md-3"><label class="form-label">District</label><input class="form-control" id="pa_present_district" maxlength="100" /></div>
-                <div class="col-md-3"><label class="form-label">State</label><select class="form-select" id="pa_present_stateId"></select></div>
+                <div class="col-md-3"><label class="form-label">State</label><select class="form-select" id="pa_present_stateId" data-quick-add="state"></select></div>
                 <div class="col-md-3"><label class="form-label">Pincode</label><input class="form-control" id="pa_present_pincode" inputmode="numeric" maxlength="6" pattern="[1-9][0-9]{5}" title="6 digits" /></div>
               </div>
               <div class="d-flex align-items-center gap-3 mb-2"><span class="fw-semibold">Permanent address</span>
@@ -187,7 +199,7 @@
                 <div class="col-12"><label class="form-label">Address</label><textarea class="form-control" rows="2" id="pa_permanent_addressLine" maxlength="500"></textarea></div>
                 <div class="col-md-3"><label class="form-label">City</label><input class="form-control" id="pa_permanent_city" maxlength="100" /></div>
                 <div class="col-md-3"><label class="form-label">District</label><input class="form-control" id="pa_permanent_district" maxlength="100" /></div>
-                <div class="col-md-3"><label class="form-label">State</label><select class="form-select" id="pa_permanent_stateId"></select></div>
+                <div class="col-md-3"><label class="form-label">State</label><select class="form-select" id="pa_permanent_stateId" data-quick-add="state"></select></div>
                 <div class="col-md-3"><label class="form-label">Pincode</label><input class="form-control" id="pa_permanent_pincode" inputmode="numeric" maxlength="6" pattern="[1-9][0-9]{5}" title="6 digits" /></div>
               </div>
             </div></div></div>
@@ -245,6 +257,17 @@
               <button type="button" class="btn btn-sm btn-outline-primary" onclick="pAddRow('prev')"><i class="bi bi-plus"></i> Add previous employer</button>
             </div></div></div>
 
+          <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button"
+              data-bs-toggle="collapse" data-bs-target="#p_docs"><i class="bi bi-folder2-open me-2"></i> Documents
+              <span class="badge bg-success d-none" data-badge="docs"></span></button></h2>
+            <div id="p_docs" class="accordion-collapse collapse"><div class="accordion-body">
+              <p class="small text-muted mb-2">PDF or image, up to 20 MB each. Type comes from Document Master (use + to add a new type).
+                New files are uploaded when you click Save.</p>
+              <div id="d_existing"></div>
+              <div id="d_new"></div>
+              <button type="button" class="btn btn-sm btn-outline-primary" onclick="dAddRow()"><i class="bi bi-plus"></i> Add document</button>
+            </div></div></div>
+
         </div>
       </div>
       <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
@@ -298,13 +321,13 @@
 <script src="js/core/uikit.js"></script>
 <script src="js/shell.js"></script>
 <script>
-  let DT = null, MODAL = null, LK = null, EMP = [], OPTS = { relationships: [], nomineeTypes: [], bloodGroups: [] };
+  let DT = null, MODAL = null, LK = null, EMP = [], PHOTO = null, LOGIN_LOCKED = false, DOCS_EXISTING = [], DOCS_REMOVED = new Set(), OPTS = { relationships: [], nomineeTypes: [], bloodGroups: [] };
 
   window.pageInit = async function () {
     MODAL = new bootstrap.Modal('#empModal');
     try {
       [LK, OPTS] = await Promise.all([
-        Api.get(API.lookups, { query: { keys: 'divisions,designations,states,hqs,banks,degrees' } }),
+        Api.get(API.lookups, { query: { keys: 'divisions,designations,states,hqs,banks,degrees,documents' } }),
         Api.get(API.master.createEmployee.profileOptions),
       ]);
       SFA.fillSelect(document.getElementById('e_divisionId'), LK.divisions);
@@ -316,6 +339,13 @@
       SFA.fillSelect(document.getElementById('pa_permanent_stateId'), LK.states);
       document.getElementById('pp_bloodGroup').innerHTML = '<option value="">--</option>' +
         (OPTS.bloodGroups || []).map(b => `<option value="${SFA.esc(b)}">${SFA.esc(b)}</option>`).join('');
+      PHOTO = SFAFiles.picker(document.getElementById('e_photo'), { maxMb: 5 });
+      SFAQuickAdd.decorate(document.getElementById('empModal'));
+      // a master row added with "+": keep the page's own lists in step
+      document.getElementById('empModal').addEventListener('sfa:quick-added', ev => {
+        LK[ev.detail.lookup] = ev.detail.list;
+        if (ev.detail.kind === 'designation') empLevelHint();
+      });
       document.getElementById('empModal').addEventListener('input', pBadges);
       document.getElementById('empModal').addEventListener('change', pBadges);
       document.getElementById('empUploadModal').addEventListener('show.bs.modal', () => document.getElementById('empUploadResult').innerHTML = '');
@@ -328,9 +358,12 @@
     if (DT) { DT.destroy(); }
     document.querySelector('#empCreateTable tbody').innerHTML = EMP.map((r, i) => `
       <tr>
-        <td>${i + 1}</td><td>${SFA.esc(r.empCode)}</td><td>${SFA.esc(r.empName)}</td><td>${SFA.esc(r.mobile)}</td>
+        <td>${i + 1}</td>
+        <td class="no-export">${r.photoPath ? SFAFiles.thumb(r.photoPath, r.photoThumbnailPath, { name: r.empName }) : ''}</td>
+        <td>${SFA.esc(r.empCode)}</td><td>${SFA.esc(r.empName)}</td><td>${SFA.esc(r.mobile)}</td>
         <td>${SFA.esc(r.designationName)}</td><td>${SFA.esc(r.divisionName)}</td>
         <td>${SFA.esc(r.username)}</td><td>${SFA.statusBadge(r.active ? 'Y' : 'N')}</td>
+        <td>${r.vacant ? '<span class="badge bg-warning text-dark">Vacant</span>' : '<span class="badge badge-active">Working</span>'}</td>
         <td>${SFA.esc(r.gender)}</td><td>${SFA.esc(r.officialEmail)}</td><td>${SFA.esc(r.department)}</td>
         <td>${SFA.esc(r.dateOfJoining)}</td><td>${SFA.esc(managerName(r.managerId))}</td>
         <td>${r.profileComplete ? '<span class="badge badge-active">Complete</span>' : '<span class="badge badge-inactive">Partial</span>'}</td>
@@ -372,6 +405,10 @@
     document.getElementById('e_officeStaff').checked = false;
     document.getElementById('e_confirmed').checked = false;
     setUsernameState(null);
+    document.getElementById('e_working').checked = true;
+    PHOTO.reset();
+    dClear();
+    setLoginLocked(false);
     empConfirmedChanged();
     empLevelHint();
     pClear();
@@ -415,6 +452,10 @@
     document.getElementById('e_department').value = r.department || '';
     document.getElementById('e_officeStaff').checked = !!r.officeStaff;
     document.getElementById('e_confirmed').checked = !!r.confirmed;
+    document.getElementById(r.vacant ? 'e_vacant' : 'e_working').checked = true;
+    PHOTO.set(r.photoPath ? { path: r.photoPath, thumbPath: r.photoThumbnailPath, name: r.empName } : null);
+    setLoginLocked(!!r.username);   // an existing login is changed only from Password Reset
+    dLoad(r.empId);
     sfaSetDate('e_dateOfJoining', r.dateOfJoining || '');
     sfaSetDate('e_reportingDate', r.reportingDate || '');
     sfaSetDate('e_confirmationDate', r.confirmationDate || '');
@@ -425,7 +466,7 @@
     empLevelHint();
     document.getElementById('empModalTitle').textContent = 'Edit Employee';
     MODAL.show();
-    if (r.username) empUsernameChanged(true);
+    if (r.username && !LOGIN_LOCKED) empUsernameChanged(true);
     // Profile sections: until they are loaded, Save sends NO profile (= untouched),
     // so a slow / failed load can never wipe the stored address, bank, …
     PROFILE_READY = false;
@@ -458,7 +499,7 @@
     input.classList.toggle('is-invalid', !!(state && state.available === false));
     document.getElementById('e_userOk').textContent = state && state.available ? state.message : '';
     document.getElementById('e_userBad').textContent = state && state.available === false ? state.message : '';
-    document.getElementById('e_saveBtn').disabled = !(state && state.available);
+    document.getElementById('e_saveBtn').disabled = !LOGIN_LOCKED && !(state && state.available);   // locked login: nothing to check
   }
 
   function empUsernameChanged(immediate) {
@@ -514,7 +555,7 @@
   async function empSave(ev) {
     ev.preventDefault();
     const username = document.getElementById('e_username').value.trim();
-    if (!USERNAME || USERNAME.value !== username || !USERNAME.available) {
+    if (!LOGIN_LOCKED && (!USERNAME || USERNAME.value !== username || !USERNAME.available)) {
       SFA.toast(USERNAME && USERNAME.message ? USERNAME.message : 'Please wait — checking the username', false);
       return;
     }
@@ -524,7 +565,8 @@
       empId: v('e_empId'), empName: t('e_empName'), mobile: t('e_mobile'),
       divisionId: v('e_divisionId'), designationId: v('e_designationId'),
       stateId: v('e_stateId'), hqId: v('e_hqId'),
-      username, password: v('e_password'),
+      username: LOGIN_LOCKED ? null : username, password: LOGIN_LOCKED ? null : v('e_password'),
+      vacant: document.getElementById('e_vacant').checked,
       gender: document.getElementById('e_gender').value, managerId: document.getElementById('e_managerId').value,
       officialEmail: t('e_officialEmail'), department: t('e_department'),
       dateOfJoining: t('e_dateOfJoining'), reportingDate: t('e_reportingDate'),
@@ -534,11 +576,118 @@
       resignationDate: t('e_resignationDate'), lastWorkingDate: t('e_lastWorkingDate'),
       profile: PROFILE_READY ? pCollect() : null,
     };
-    try { await Api.post(API.master.createEmployee.save, body); MODAL.hide(); await reload(); SFA.toast('Saved'); }
+    const newDocs = dPending();
+    if (newDocs.error) { bootstrap.Collapse.getOrCreateInstance(document.getElementById('p_docs'), { toggle: false }).show(); SFA.toast(newDocs.error, false); return; }
+    const btn = document.getElementById('e_saveBtn');
+    btn.disabled = true;
+    try {
+      const saved = await Api.post(API.master.createEmployee.save, body);
+      const empId = saved.empId, problems = [];
+      // photo + documents need the employee to exist, so they go right after it is saved
+      try {
+        if (PHOTO.file()) { const fd = new FormData(); fd.append('file', PHOTO.file()); await Api.post(API.master.createEmployee.photo(empId), fd); }
+        else if (PHOTO.removed()) await Api.del(API.master.createEmployee.photo(empId));
+      } catch (e) { problems.push('Photo: ' + e.message); }
+      for (const id of DOCS_REMOVED) {
+        try { await Api.del(API.master.createEmployee.document(empId, id)); } catch (e) { problems.push('Remove document: ' + e.message); }
+      }
+      for (const d of newDocs.list) {
+        const fd = new FormData();
+        fd.append('file', d.file); fd.append('documentTypeId', d.documentTypeId);
+        if (d.documentNo) fd.append('documentNo', d.documentNo);
+        if (d.remarks) fd.append('remarks', d.remarks);
+        try { await Api.post(API.master.createEmployee.documents(empId), fd); } catch (e) { problems.push(d.file.name + ': ' + e.message); }
+      }
+      MODAL.hide(); await reload();
+      if (problems.length) { SFA.toast((body.empId ? 'Employee updated' : 'Employee ' + saved.empCode + ' created') + ', but:', 'warning'); problems.forEach(m => SFA.toast(m, false, 6000)); }
+      else SFA.toast(body.empId ? 'Employee updated' : 'Employee ' + saved.empCode + ' created');
+      const me = window.SFA && SFA.claims; if (me && me.sub === empId && window.Shell) Shell.refreshIdentity();   // my own photo changed
+    }
     catch (e) {
       if (/username/i.test(e.message)) setUsernameState({ value: username, available: false, message: e.message });
       SFA.toast(e.message, false);
     }
+    finally { btn.disabled = false; }
+  }
+
+  // ---- login lock on edit ---------------------------------------------------------
+  function setLoginLocked(on) {
+    LOGIN_LOCKED = on;
+    ['e_username', 'e_password'].forEach(id => { const el = document.getElementById(id); el.readOnly = on; el.classList.toggle('bg-body-secondary', on); });
+    document.getElementById('e_password').value = '';
+    document.getElementById('e_password').placeholder = on ? 'Hidden — use Password Reset' : '';
+    document.querySelectorAll('#e_userGen, #e_password ~ button').forEach(b => b.classList.toggle('d-none', on));
+    document.getElementById('e_loginLocked').classList.toggle('d-none', !on);
+    document.getElementById('e_pwdHelp').classList.toggle('d-none', on);
+    if (on) { document.getElementById('e_username').classList.remove('is-valid', 'is-invalid'); }
+    document.getElementById('e_saveBtn').disabled = !on && !(USERNAME && USERNAME.available);
+  }
+
+  // ---- documents --------------------------------------------------------------------
+  function dClear() {
+    DOCS_EXISTING = []; DOCS_REMOVED = new Set();
+    document.getElementById('d_existing').innerHTML = '';
+    document.getElementById('d_new').innerHTML = '';
+    pBadges();
+  }
+  async function dLoad(empId) {
+    try {
+      const list = await Api.get(API.master.createEmployee.documents(empId), { noLoader: true });
+      if (document.getElementById('e_empId').value !== empId) return;
+      DOCS_EXISTING = list || [];
+      dRenderExisting();
+    } catch (e) { SFA.toast('Could not load the documents: ' + e.message, false); }
+  }
+  function dRenderExisting() {
+    const box = document.getElementById('d_existing');
+    box.innerHTML = DOCS_EXISTING.length ? `<div class="table-responsive mb-2"><table class="table table-sm table-bordered align-middle mb-0 small">
+      <thead><tr><th style="width:56px"></th><th>Type</th><th>No.</th><th>File</th><th>Uploaded</th><th style="width:40px"></th></tr></thead><tbody>
+      ${DOCS_EXISTING.map(d => {
+        const gone = DOCS_REMOVED.has(d.id);
+        return `<tr class="${gone ? 'text-decoration-line-through text-muted' : ''}">
+          <td>${SFAFiles.thumb(d.path, d.thumbnailPath, { name: d.fileName, type: d.type, size: d.size })}</td>
+          <td>${SFA.esc(d.documentTypeName)}</td><td>${SFA.esc(d.documentNo || '')}</td>
+          <td>${SFA.esc(d.fileName)}${d.remarks ? `<div class="text-muted">${SFA.esc(d.remarks)}</div>` : ''}</td>
+          <td>${SFA.esc(d.uploadedAt || '')}</td>
+          <td>${gone
+            ? `<button type="button" class="btn btn-sm btn-link p-0" title="Keep" onclick="dToggleRemove(${d.id})"><i class="bi bi-arrow-counterclockwise"></i></button>`
+            : `<button type="button" class="btn btn-sm btn-link text-danger p-0" title="Remove (on Save)" onclick="dToggleRemove(${d.id})"><i class="bi bi-trash"></i></button>`}</td></tr>`;
+      }).join('')}</tbody></table></div>` : '';
+    SFAFiles.hydrate(box);
+    pBadges();
+  }
+  function dToggleRemove(id) { DOCS_REMOVED.has(id) ? DOCS_REMOVED.delete(id) : DOCS_REMOVED.add(id); dRenderExisting(); }
+  function dAddRow() {
+    const wrap = document.createElement('div');
+    wrap.className = 'p-row d-row';
+    wrap.innerHTML = `<button type="button" class="btn btn-sm btn-link text-danger p-remove" title="Remove" onclick="this.closest('.p-row').remove(); pBadges()"><i class="bi bi-x-lg"></i></button>
+      <div class="row g-2">
+        <div class="col-md-3"><label class="form-label">Type <span class="required-star">*</span></label>
+          <select class="form-select" data-k="documentTypeId" data-quick-add="document">${opt(LK.documents)}</select></div>
+        <div class="col-md-2"><label class="form-label">Document No.</label><input class="form-control" data-k="documentNo" maxlength="50" /></div>
+        <div class="col-md-3"><label class="form-label">Remarks</label><input class="form-control" data-k="remarks" maxlength="255" /></div>
+        <div class="col-md-4"><label class="form-label">File <span class="required-star">*</span></label>
+          <input type="file" class="form-control" data-k="file" accept="application/pdf,image/png,image/jpeg,image/gif,image/webp,image/bmp" /></div>
+      </div>`;
+    document.getElementById('d_new').appendChild(wrap);
+    SFAQuickAdd.decorate(wrap);
+    pBadges();
+  }
+  /** New document rows to upload: { list } or { error }. Empty rows are ignored. */
+  function dPending() {
+    const list = [];
+    const rows = document.querySelectorAll('#d_new .d-row');
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i], g = k => r.querySelector(`[data-k="${k}"]`);
+      const file = g('file').files[0], type = g('documentTypeId').value;
+      const no = g('documentNo').value.trim(), rem = g('remarks').value.trim();
+      if (!file && !type && !no && !rem) continue;
+      if (!file) return { error: 'Document ' + (i + 1) + ': choose the file' };
+      if (!type) return { error: 'Document ' + (i + 1) + ' (' + file.name + '): choose the type' };
+      if (file.size > 20 * 1048576) return { error: file.name + ' is larger than 20 MB' };
+      list.push({ file, documentTypeId: type, documentNo: no, remarks: rem });
+    }
+    return { list };
   }
 
   // ---- full profile (address, bank, nominee, …) ------------------------------
@@ -553,7 +702,7 @@
   // One template per repeatable section; every input carries data-k = its DTO field.
   const ROWS = {
     bank: d => `
-      <div class="col-md-3"><label class="form-label">Bank</label><select class="form-select" data-k="bankId">${opt(LK.banks, d.bankId)}</select></div>
+      <div class="col-md-3"><label class="form-label">Bank</label><select class="form-select" data-k="bankId" data-quick-add="bank">${opt(LK.banks, d.bankId)}</select></div>
       <div class="col-md-3"><label class="form-label">Account No. <span class="required-star">*</span></label><input class="form-control" data-k="accountNo" inputmode="numeric" maxlength="20" value="${SFA.esc(d.accountNo || '')}" /></div>
       <div class="col-md-2"><label class="form-label">IFSC</label><input class="form-control text-uppercase" data-k="ifscCode" maxlength="11" placeholder="SBIN0001234" value="${SFA.esc(d.ifscCode || '')}" /></div>
       <div class="col-md-2"><label class="form-label">Branch</label><input class="form-control" data-k="branchName" maxlength="150" value="${SFA.esc(d.branchName || '')}" /></div>
@@ -593,6 +742,7 @@
     wrap.querySelectorAll('.sfa-date').forEach(el => { el.id = 'pd_' + (++ROW_SEQ); });
     document.getElementById('pl_' + kind).appendChild(wrap);
     if (window.sfaFlatpickr) sfaFlatpickr(wrap);
+    SFAQuickAdd.decorate(wrap);
     wrap.querySelectorAll('.sfa-date').forEach(el => sfaSetDate(el.id, el.dataset.v || ''));
     if (kind === 'bank' && !document.querySelector('#pl_bank [data-k="primary"]:checked')) wrap.querySelector('[data-k="primary"]').checked = true;
     pBadges();
@@ -695,6 +845,8 @@
     set('personal', filled('#p_personal input, #p_personal select') ? '✓' : '');
     set('address', filled('#p_address textarea') ? '✓' : '');
     set('statutory', filled('#p_statutory input') ? '✓' : '');
+    const nDocs = (DOCS_EXISTING || []).filter(d => !DOCS_REMOVED.has(d.id)).length + document.querySelectorAll('#d_new .d-row').length;
+    set('docs', nDocs ? String(nDocs) : '');
     ['bank', 'nominee', 'emergency', 'children', 'prev'].forEach(k => {
       const n = document.querySelectorAll('#pl_' + k + ' .p-row').length;
       set(k, n ? String(n) : '');

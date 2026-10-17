@@ -85,6 +85,14 @@ public class EmpDetail {
     @Column(name = "photo_path")
     private String photoPath;
 
+    /** Thumbnail of a photo uploaded from the employee form (null for a My Profile photo). */
+    @Column(name = "photo_thumbnail_path")
+    private String photoThumbnailPath;
+
+    /** Vacant position (no person in it): its login is refused (AuthService). */
+    @Column(name = "is_vacant", nullable = false)
+    private boolean vacant;
+
     /** True once gender/DOJ/email/department (the "extra" fields) are all filled in. */
     @Column(name = "profile_complete")
     private boolean profileComplete;
