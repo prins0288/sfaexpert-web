@@ -892,7 +892,12 @@ table.dataTable tbody tr.sfa-row-selected > * {
 @media (prefers-reduced-motion: reduce) { .sfa-toast, .sfa-toast.hide { transition: none; transform: none; } }
 
 /* ---- SFAQuickAdd: "+" beside a master dropdown, small form above popups ---- */
+.sfa-qa-group { flex-wrap: nowrap; }
 .sfa-qa-group > .form-select { min-width: 0; }
+/* the Select2 box (searchable dropdown) takes the room left of "+", not a full line */
+.sfa-qa-group > .select2-container { flex: 1 1 auto; width: 1% !important; min-width: 0; }
+.sfa-qa-group > .select2-container .select2-selection { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.sfa-qa-group > .sfa-qa-btn { flex: 0 0 auto; }
 .sfa-qa-overlay { position: fixed; inset: 0; z-index: 1900; background: rgba(0,0,0,.35); display: flex; align-items: flex-start;
   justify-content: center; padding: 10vh 1rem 1rem; }
 .sfa-qa-card { width: min(460px, 100%); }

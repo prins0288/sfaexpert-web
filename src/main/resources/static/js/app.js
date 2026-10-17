@@ -954,6 +954,9 @@
                 group.className = "input-group sfa-qa-group";
                 sel.parentNode.insertBefore(group, sel);
                 group.appendChild(sel);
+                // already a Select2 widget? its box sits right after the select — keep them together
+                var s2 = group.nextElementSibling;
+                if (s2 && s2.classList.contains("select2-container")) group.appendChild(s2);
                 var btn = document.createElement("button");
                 btn.type = "button";
                 btn.className = "btn btn-outline-primary sfa-qa-btn";
@@ -961,6 +964,10 @@
                 btn.innerHTML = '<i class="bi bi-plus-lg"></i>';
                 btn.addEventListener("click", function () { open(sel); });
                 group.appendChild(btn);
+                // Select2 applied later inserts its box after the select (inside the group): keep "+" last
+                new MutationObserver(function () {
+                    if (group.lastElementChild !== btn) group.appendChild(btn);
+                }).observe(group, { childList: true });
             });
         }
 
@@ -983,7 +990,7 @@
                 '<div class="card-body"><div class="row g-2">' + cfg.fields.map(function (f) {
                     var label = '<label class="form-label small mb-0">' + esc(f.label) + (f.req ? ' <span class="required-star">*</span>' : '') + '</label>';
                     if (f.type === "select") {
-                        return '<div class="col-12">' + label + '<select class="form-select" data-qa="' + f.k + '"><option value="">--</option>' +
+                        return '<div class="col-12">' + label + '<select class="form-select" data-no-search data-qa="' + f.k + '"><option value="">--</option>' +
                             (lists[f.lookup] || []).map(function (o) { return '<option value="' + esc(o.oid) + '">' + esc(o.label) + '</option>'; }).join("") +
                             '</select></div>';
                     }
