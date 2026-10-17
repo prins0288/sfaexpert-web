@@ -461,7 +461,7 @@
         <span class="sfa-footer-right"><span data-i18n="footer.company">Company:</span> <b>${esc(companyCode)}</b> · <span data-i18n="footer.signedInAs">signed in as:</span> <b>${esc(user)}</b>
           · <span data-i18n="footer.lastLogin">last login:</span> <b>${esc(lastLoginText)}</b> · <b id="sfaClockNow">${esc(fmtDateTime(new Date()))}</b></span>
       </footer>`;
-    const content = `<main class="sfa-content"><div id="sfaMsg" class="alert py-2 small" style="display:none"></div><div id="sfaContent"></div></main>`;
+    const content = `<main class="sfa-content"><div id="sfaContent"></div></main>`;
 
     app.className = "sfa-shell";
     app.setAttribute("data-layout", layout);
@@ -919,13 +919,50 @@
       return Api.post(path, opts.body, cfg);
     },
     download(path, filename) { return Api.download(path, filename); },
-    toast(msg, ok) {
-      const el = document.getElementById("sfaMsg");
-      if (!el) return;
-      el.className = "alert py-2 small " + (ok === false ? "alert-danger" : "alert-success");
-      el.textContent = msg;
-      el.style.display = "block";
-      setTimeout(() => { el.style.display = "none"; }, ok === false ? 8000 : 3000);
+    /**
+     * Global toast: top-right corner, above every popup (modal), several can
+     * show at once and each closes on its own timer (default 3 s; hover pauses
+     * it, x closes it now).
+     *   SFA.toast("Saved")                 success
+     *   SFA.toast(err.message, false)      error
+     *   SFA.toast("Check rates", "warning", 5000)   type: success | error | warning | info, ms
+     */
+    toast(msg, ok, ms) {
+      if (msg == null || msg === "") return;
+      const type = ok === false ? "error" : ok === true || ok == null ? "success" : String(ok);
+      const icon = { success: "check-circle-fill", error: "x-circle-fill", warning: "exclamation-triangle-fill", info: "info-circle-fill" }[type] || "info-circle-fill";
+      let host = document.getElementById("sfaToasts");
+      if (!host) {
+        host = document.createElement("div");
+        host.id = "sfaToasts";
+        host.className = "sfa-toasts";
+        host.setAttribute("aria-live", "polite");
+        document.body.appendChild(host);
+      }
+      while (host.children.length >= 6) host.firstElementChild.remove();   // keep the stack short
+      const t = document.createElement("div");
+      t.className = "sfa-toast sfa-toast-" + type;
+      t.setAttribute("role", type === "error" ? "alert" : "status");
+      t.innerHTML = '<i class="bi bi-' + icon + ' sfa-toast-icon"></i><div class="sfa-toast-msg"></div>' +
+        '<button type="button" class="sfa-toast-close" aria-label="Close">&times;</button><div class="sfa-toast-bar"></div>';
+      t.querySelector(".sfa-toast-msg").textContent = String(msg);
+      const life = ms > 0 ? ms : 3000;
+      t.querySelector(".sfa-toast-bar").style.animationDuration = life + "ms";
+      host.appendChild(t);
+      requestAnimationFrame(() => t.classList.add("show"));
+
+      let left = life, started = Date.now(), timer = null;
+      const close = () => {
+        clearTimeout(timer);
+        t.classList.remove("show");
+        t.classList.add("hide");
+        setTimeout(() => t.remove(), 250);
+      };
+      const run = () => { started = Date.now(); timer = setTimeout(close, left); };
+      t.addEventListener("mouseenter", () => { clearTimeout(timer); left -= Date.now() - started; t.classList.add("paused"); });
+      t.addEventListener("mouseleave", () => { t.classList.remove("paused"); run(); });
+      t.querySelector(".sfa-toast-close").addEventListener("click", close);
+      run();
     },
   };
 

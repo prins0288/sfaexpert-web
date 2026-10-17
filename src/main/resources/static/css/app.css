@@ -863,3 +863,30 @@ table.dataTable tbody tr.sfa-row-selected > * {
   border: 1px dashed var(--sfa-border, #dee2e6); border-radius: 8px; overflow: hidden; background: #fff; }
 .sfa-file-picker-preview img { width: 100%; height: 100%; object-fit: contain; }
 .sfa-file-picker-preview .sfa-file-thumb { width: 70px; height: 70px; border: 0; }
+
+
+/* ---- Global toasts (SFA.toast): top-right, above modals, stacked ---- */
+.sfa-toasts { position: fixed; top: 1rem; right: 1rem; z-index: 2000; display: flex; flex-direction: column; gap: .5rem;
+  width: min(380px, calc(100vw - 2rem)); pointer-events: none; }
+.sfa-toast { position: relative; display: flex; align-items: flex-start; gap: .6rem; padding: .7rem 2.2rem .8rem .85rem;
+  border-radius: .6rem; background: var(--sfa-surface, #fff); color: var(--sfa-text, #212529); overflow: hidden;
+  border: 1px solid var(--sfa-border, rgba(0,0,0,.1)); border-left: 4px solid var(--t-color);
+  box-shadow: 0 .5rem 1.5rem rgba(0,0,0,.18); font-size: .875rem; line-height: 1.35; pointer-events: auto;
+  opacity: 0; transform: translateX(110%); transition: transform .25s ease, opacity .25s ease; }
+.sfa-toast.show { opacity: 1; transform: none; }
+.sfa-toast.hide { opacity: 0; transform: translateX(110%); }
+.sfa-toast-success { --t-color: #198754; }
+.sfa-toast-error   { --t-color: #dc3545; }
+.sfa-toast-warning { --t-color: #f0ad00; }
+.sfa-toast-info    { --t-color: #0d6efd; }
+.sfa-toast-icon { color: var(--t-color); font-size: 1.1rem; line-height: 1.2; }
+.sfa-toast-msg { flex: 1; word-break: break-word; white-space: pre-line; }
+.sfa-toast-close { position: absolute; top: .35rem; right: .5rem; border: 0; background: none; color: inherit; opacity: .55;
+  font-size: 1.25rem; line-height: 1; padding: 0 .2rem; cursor: pointer; }
+.sfa-toast-close:hover { opacity: 1; }
+.sfa-toast-bar { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: var(--t-color); opacity: .6;
+  transform-origin: left; animation: sfa-toast-life linear forwards; }
+.sfa-toast.paused .sfa-toast-bar { animation-play-state: paused; }
+@keyframes sfa-toast-life { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+[data-theme="dark"] .sfa-toast { background: var(--sfa-surface, #1f2430); color: var(--sfa-text, #e9ecef); border-color: rgba(255,255,255,.12); }
+@media (prefers-reduced-motion: reduce) { .sfa-toast, .sfa-toast.hide { transition: none; transform: none; } }
