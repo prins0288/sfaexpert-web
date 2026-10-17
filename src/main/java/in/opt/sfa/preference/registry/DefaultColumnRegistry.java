@@ -123,6 +123,15 @@ public final class DefaultColumnRegistry {
                 hidden("manager", null),
                 hidden("profileComplete", null));
 
+        // master/brand-master.html
+        register("BRAND_MASTER",
+                col("image", null),
+                col("code", "common.code"),
+                col("name", "common.name"),
+                col("status", "common.status"),
+                col("created", "common.created"),
+                col("updated", "common.updated"));
+
         // master/designation-master.html
         register("DESIGNATION_MASTER",
                 col("code", "common.code"),

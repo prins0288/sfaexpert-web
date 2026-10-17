@@ -44,6 +44,11 @@
       setLang: (lang) => "/api/i18n/lang?lang=" + encodeURIComponent(lang),
     },
 
+    files: {
+      // any file stored through FileUploadService (relative path from the table)
+      view: (path, download, name) => "/api/files?path=" + encodeURIComponent(path)
+        + (download ? "&download=true" : "") + (name ? "&name=" + encodeURIComponent(name) : ""),
+    },
     preferences: {
       screen: (screenKey) => `/api/preferences/${encodeURIComponent(screenKey)}`,   // GET layout, POST save, DELETE reset
     },
@@ -205,6 +210,14 @@
         saveMultiple: "/api/master/category-master/save-multiple",
         get: (oid) => `/api/master/category-master/${oid}`,
         status: (oid) => `/api/master/category-master/${oid}/status`,
+      },
+      brandMaster: {
+        base: "/api/master/brand-master",
+        list: "/api/master/brand-master",
+        save: "/api/master/brand-master",                  // multipart: data + image
+        saveMultiple: "/api/master/brand-master/save-multiple",
+        get: (id) => `/api/master/brand-master/${id}`,
+        status: (id) => `/api/master/brand-master/${id}/status`,
       },
       designationMaster: {
         base: "/api/master/designation-master",

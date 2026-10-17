@@ -627,6 +627,249 @@
         setTimeout(function () { var e = document.getElementById("sfaProtectionWarning"); if (e) e.remove(); }, 4000);
     };
 
+    // ---- SFAFiles: ONE way to show / pick uploaded files on every screen ------
+    // Files saved by the server's FileUploadService are read through
+    // GET /api/files?path=… with the Bearer token (a bare <img src> could not
+    // send it), turned into object URLs and cached per path.
+    //
+    //   List cell:   SFAFiles.thumb(row.imagePath, row.thumbnailPath, { name, type, size })
+    //                -> small thumbnail; hover = zoomed preview, click = full image
+    //                   in a popup with a Download button. Works anywhere in the
+    //                   DOM (rows rendered later are picked up automatically).
+    //   Form field:  const pick = SFAFiles.picker(el, { maxMb: 5 });
+    //                pick.set(record) on edit, pick.reset() on add,
+    //                pick.file() / pick.removed() / pick.compress() on save.
+    window.SFAFiles = (function () {
+        var cache = {};   // path -> Promise<objectURL>
+
+        function load(path) {
+            if (!path) return Promise.reject(new Error("no file"));
+            if (!cache[path]) {
+                cache[path] = Api.blob(API.files.view(path)).then(function (b) { return URL.createObjectURL(b); });
+                cache[path].catch(function () { delete cache[path]; });   // allow a retry later
+            }
+            return cache[path];
+        }
+
+        function isImage(type, path) {
+            return (type && type.indexOf("image/") === 0) || /\.(png|jpe?g|gif|webp|bmp)$/i.test(path || "");
+        }
+
+        function prettySize(n) {
+            if (n == null) return "";
+            if (n < 1024) return n + " B";
+            if (n < 1048576) return (n / 1024).toFixed(1) + " KB";
+            return (n / 1048576).toFixed(1) + " MB";
+        }
+
+        /** HTML for a list cell. path = original, thumbPath = thumbnail (falls back to the original). */
+        function thumb(path, thumbPath, meta) {
+            if (!path) return '<span class="text-muted">—</span>';
+            meta = meta || {};
+            var esc = SFA.esc;
+            if (!isImage(meta.type, path)) {
+                return '<a href="#" class="sfa-file-link" data-path="' + esc(path) + '" data-name="' + esc(meta.name || "") +
+                    '"><i class="bi bi-file-earmark-arrow-down"></i> ' + esc(meta.name || "file") + '</a>';
+            }
+            return '<span class="sfa-file-thumb" tabindex="0" role="button" title="' + esc(meta.name || "") + '"' +
+                ' data-path="' + esc(path) + '" data-thumb="' + esc(thumbPath || path) + '"' +
+                ' data-name="' + esc(meta.name || "") + '" data-type="' + esc(meta.type || "") + '"' +
+                ' data-size="' + esc(meta.size == null ? "" : meta.size) + '">' +
+                '<i class="bi bi-image text-muted"></i></span>';
+        }
+
+        // load thumbnails as they appear (lazy, once each)
+        var io = ("IntersectionObserver" in window) ? new IntersectionObserver(function (entries) {
+            entries.forEach(function (e) { if (e.isIntersecting) { io.unobserve(e.target); fill(e.target); } });
+        }, { rootMargin: "200px" }) : null;
+
+        function fill(el) {
+            load(el.getAttribute("data-thumb")).then(function (url) {
+                el.innerHTML = '<img alt="" src="' + url + '">';
+            }).catch(function () { el.innerHTML = '<i class="bi bi-image-alt text-muted" title="File not found"></i>'; });
+        }
+
+        function hydrate(root) {
+            var els = (root && root.querySelectorAll) ? root.querySelectorAll(".sfa-file-thumb:not([data-sfa-h])") : [];
+            Array.prototype.forEach.call(els, function (el) {
+                el.setAttribute("data-sfa-h", "1");
+                if (io) io.observe(el); else fill(el);
+            });
+            if (root && root.classList && root.classList.contains("sfa-file-thumb") && !root.hasAttribute("data-sfa-h")) {
+                root.setAttribute("data-sfa-h", "1");
+                if (io) io.observe(root); else fill(root);
+            }
+        }
+
+        // ---- hover zoom ----
+        var zoom = null, zoomFor = null;
+        function zoomBox() {
+            if (!zoom) {
+                zoom = document.createElement("div");
+                zoom.className = "sfa-file-zoom";
+                document.body.appendChild(zoom);
+            }
+            return zoom;
+        }
+        function placeZoom(ev) {
+            if (!zoom) return;
+            var pad = 16, w = zoom.offsetWidth, h = zoom.offsetHeight;
+            var x = ev.clientX + pad, y = ev.clientY + pad;
+            if (x + w > window.innerWidth - 8) x = ev.clientX - w - pad;
+            if (y + h > window.innerHeight - 8) y = Math.max(8, window.innerHeight - h - 8);
+            zoom.style.left = Math.max(8, x) + "px";
+            zoom.style.top = y + "px";
+        }
+        function showZoom(el, ev) {
+            zoomFor = el;
+            var box = zoomBox();
+            box.innerHTML = '<div class="sfa-file-zoom-loading"><span class="spinner-border spinner-border-sm"></span></div>';
+            box.style.display = "block";
+            placeZoom(ev);
+            load(el.getAttribute("data-path")).then(function (url) {
+                if (zoomFor !== el) return;
+                box.innerHTML = '<img alt="" src="' + url + '">';
+                var img = box.querySelector("img");
+                img.onload = function () { placeZoom(ev); };
+            }).catch(function () { if (zoomFor === el) box.style.display = "none"; });
+        }
+        function hideZoom() { zoomFor = null; if (zoom) zoom.style.display = "none"; }
+
+        // ---- full-size viewer with download ----
+        function viewer() {
+            var el = document.getElementById("sfaFileViewer");
+            if (el) return el;
+            el = document.createElement("div");
+            el.className = "modal fade";
+            el.id = "sfaFileViewer";
+            el.tabIndex = -1;
+            el.innerHTML =
+                '<div class="modal-dialog modal-xl modal-dialog-centered modal-fullscreen-sm-down"><div class="modal-content">' +
+                '<div class="modal-header sfa-modal"><h5 class="modal-title text-truncate" id="sfaFileViewerTitle"></h5>' +
+                '<button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>' +
+                '<div class="modal-body text-center sfa-file-viewer-body" id="sfaFileViewerBody"></div>' +
+                '<div class="modal-footer"><small class="text-muted me-auto" id="sfaFileViewerMeta"></small>' +
+                '<button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>' +
+                '<button type="button" class="btn btn-primary" id="sfaFileViewerDl"><i class="bi bi-download"></i> Download</button>' +
+                '</div></div></div>';
+            document.body.appendChild(el);
+            return el;
+        }
+        function open(path, meta) {
+            meta = meta || {};
+            var el = viewer();
+            var name = meta.name || path.substring(path.lastIndexOf("/") + 1);
+            el.querySelector("#sfaFileViewerTitle").textContent = name;
+            el.querySelector("#sfaFileViewerMeta").textContent = [meta.type, prettySize(meta.size)].filter(Boolean).join(" · ");
+            var body = el.querySelector("#sfaFileViewerBody");
+            body.innerHTML = '<div class="py-5"><span class="spinner-border"></span></div>';
+            el.querySelector("#sfaFileViewerDl").onclick = function () {
+                Api.download(API.files.view(path, true, name), name).catch(function (e) { SFA.toast(e.message, false); });
+            };
+            bootstrap.Modal.getOrCreateInstance(el).show();
+            load(path).then(function (url) {
+                body.innerHTML = isImage(meta.type, path)
+                    ? '<img alt="" src="' + url + '">'
+                    : '<p class="py-4 text-muted">Preview not available — use Download.</p>';
+            }).catch(function (e) { body.innerHTML = '<p class="py-4 text-danger">' + SFA.esc(e.message) + '</p>'; });
+        }
+        function metaOf(el) {
+            var size = el.getAttribute("data-size");
+            return { name: el.getAttribute("data-name") || "", type: el.getAttribute("data-type") || "", size: size === "" || size == null ? null : Number(size) };
+        }
+
+        // ---- picker (upload field with preview) ----
+        function picker(host, opts) {
+            opts = opts || {};
+            var maxMb = opts.maxMb || 5;
+            var accept = opts.accept || "image/png,image/jpeg,image/gif,image/webp,image/bmp";
+            host.innerHTML =
+                '<div class="sfa-file-picker d-flex align-items-start gap-3">' +
+                '<div class="sfa-file-picker-preview"><i class="bi bi-image text-muted fs-3"></i></div>' +
+                '<div class="flex-grow-1">' +
+                '<input type="file" class="form-control" accept="' + accept + '">' +
+                '<div class="form-text sfa-file-picker-info">PNG, JPG, GIF, WebP or BMP · max ' + maxMb + ' MB · a thumbnail is made automatically</div>' +
+                '<div class="d-flex flex-wrap gap-3 mt-1">' +
+                '<div class="form-check"><input class="form-check-input sfa-file-compress" type="checkbox" checked>' +
+                '<label class="form-check-label small">Compress (lossless — quality is never reduced)</label></div>' +
+                '<button type="button" class="btn btn-sm btn-link text-danger p-0 sfa-file-remove d-none"><i class="bi bi-trash"></i> Remove image</button>' +
+                '</div><div class="small text-danger sfa-file-error"></div></div></div>';
+            var input = host.querySelector("input[type=file]");
+            var preview = host.querySelector(".sfa-file-picker-preview");
+            var removeBtn = host.querySelector(".sfa-file-remove");
+            var err = host.querySelector(".sfa-file-error");
+            var state = { record: null, file: null, removed: false, localUrl: null };
+
+            function showCurrent() {
+                if (state.localUrl) { URL.revokeObjectURL(state.localUrl); state.localUrl = null; }
+                var r = state.record;
+                if (r && r.path && !state.removed) {
+                    preview.innerHTML = thumb(r.path, r.thumbPath, r);
+                    hydrate(preview);
+                    removeBtn.classList.remove("d-none");
+                } else {
+                    preview.innerHTML = '<i class="bi bi-image text-muted fs-3"></i>';
+                    removeBtn.classList.add("d-none");
+                }
+            }
+            input.addEventListener("change", function () {
+                err.textContent = "";
+                var f = input.files && input.files[0];
+                if (!f) { state.file = null; showCurrent(); return; }
+                if (accept.split(",").indexOf(f.type) === -1) {
+                    err.textContent = "Please choose a PNG, JPG, GIF, WebP or BMP image."; input.value = ""; state.file = null; showCurrent(); return;
+                }
+                if (f.size > maxMb * 1048576) {
+                    err.textContent = "File is " + prettySize(f.size) + " — the limit is " + maxMb + " MB."; input.value = ""; state.file = null; showCurrent(); return;
+                }
+                state.file = f;
+                state.removed = false;
+                if (state.localUrl) URL.revokeObjectURL(state.localUrl);
+                state.localUrl = URL.createObjectURL(f);
+                preview.innerHTML = '<img alt="" src="' + state.localUrl + '">';
+                removeBtn.classList.remove("d-none");
+            });
+            removeBtn.addEventListener("click", function () {
+                input.value = "";
+                state.file = null;
+                state.removed = !!(state.record && state.record.path);
+                showCurrent();
+            });
+            return {
+                /** record = { path, thumbPath, name, type, size } of the stored file (or null). */
+                set: function (record) { state.record = record && record.path ? record : null; state.file = null; state.removed = false; input.value = ""; err.textContent = ""; showCurrent(); },
+                reset: function () { this.set(null); },
+                file: function () { return state.file; },
+                removed: function () { return state.removed && !state.file; },
+                compress: function () { return host.querySelector(".sfa-file-compress").checked; },
+            };
+        }
+
+        // global wiring (once)
+        $(function () {
+            hydrate(document);
+            new MutationObserver(function (muts) {
+                muts.forEach(function (m) { m.addedNodes.forEach(function (n) { if (n.nodeType === 1) hydrate(n); }); });
+            }).observe(document.body, { childList: true, subtree: true });
+            $(document)
+                .on("mouseenter", ".sfa-file-thumb", function (ev) { showZoom(this, ev); })
+                .on("mousemove", ".sfa-file-thumb", function (ev) { placeZoom(ev); })
+                .on("mouseleave", ".sfa-file-thumb", hideZoom)
+                .on("click keydown", ".sfa-file-thumb", function (ev) {
+                    if (ev.type === "keydown" && ev.key !== "Enter" && ev.key !== " ") return;
+                    ev.preventDefault();
+                    hideZoom();
+                    open(this.getAttribute("data-path"), metaOf(this));
+                })
+                .on("click", ".sfa-file-link", function (ev) {
+                    ev.preventDefault();
+                    open(this.getAttribute("data-path"), { name: this.getAttribute("data-name") });
+                });
+        });
+
+        return { thumb: thumb, open: open, picker: picker, hydrate: hydrate, load: load, prettySize: prettySize };
+    })();
+
     $(function () { sfaSelect2(document); sfaFlatpickr(document); });
 
 })(jQuery);

@@ -38,12 +38,21 @@ spring:
       enabled: true
 
 app:
-  # ---- External file storage (uploaded loader image, and future assets) ----
-  # Base folder ON DISK, OUTSIDE the app. Files are saved under
-  # <base-dir>/<tenantId>/. Set this to your folder (or via the STORAGE_BASE_DIR
-  # env var). Default is ./sfa-storage next to the running app.
+  # ---- External file storage — EVERY uploaded file is read / written here ----
+  # Base folder ON DISK, OUTSIDE the app (FileStorageService is the only class
+  # that touches it). Layout, one folder per tenant and per module:
+  #   <base-dir>/<companyCode>/<module>/<file>              e.g. acme/brandMaster/ab12.png
+  #   <base-dir>/<companyCode>/<module>/thumbnail/<file>    e.g. acme/brandMaster/thumbnail/ab12_thumb.jpg
+  # Set this to your folder (or via the STORAGE_BASE_DIR env var), e.g.
+  #   base-dir: D:/sfa-storage        (Windows)      /var/sfa-storage   (Linux)
+  # Default is ./sfa-storage next to the running app.
   storage:
     base-dir: ${STORAGE_BASE_DIR:./sfa-storage}
+
+  # ---- Upload limits for FileUploadService (per file, in MB) ----
+  upload:
+    max-image-mb: 5          # brand / item / photo images
+    max-document-mb: 20      # PDFs and other documents
 
   # ---- COMMON database (users + tenant_config live here) ----
   # These bind straight to the HikariDataSource (see CommonDataSourceConfig),
