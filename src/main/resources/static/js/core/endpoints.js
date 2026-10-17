@@ -225,6 +225,7 @@
         get: (id) => `/api/master/item-master/${id}`,
         status: (id) => `/api/master/item-master/${id}/status`,
         molecules: "/api/master/item-master/molecules",
+        nextCode: "/api/master/item-master/next-code",     // ?itemTypeId= -> { itemCode: "PD03" }
         rate: (id) => `/api/master/item-master/${id}/rate`,
         template: "/api/master/item-master/template",
         upload: "/api/master/item-master/upload",

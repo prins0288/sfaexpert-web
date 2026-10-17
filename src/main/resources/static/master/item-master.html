@@ -80,13 +80,16 @@
       <div class="modal-body">
         <input type="hidden" id="i_id" /><input type="hidden" id="i_version" />
         <div class="row g-3">
-          <div class="col-md-3"><label class="form-label">Item Code <span class="required-star">*</span></label>
-            <input class="form-control text-uppercase" id="i_itemCode" required maxlength="50" placeholder="DOLO650" /></div>
-          <div class="col-md-6"><label class="form-label">Item Name <span class="required-star">*</span></label>
-            <input class="form-control" id="i_itemName" required maxlength="200" placeholder="Dolo 650" /></div>
           <div class="col-md-3"><label class="form-label">Type <span class="required-star">*</span></label>
-            <select class="form-select" id="i_itemTypeId" required></select>
-            <div class="form-text">Product / Sample / Gift / Input — from Item Type Master</div></div>
+            <select class="form-select" id="i_itemTypeId" required onchange="itTypeChanged()"></select>
+            <div class="invalid-feedback">Choose the item type</div>
+            <div class="form-text" id="i_typeHelp">Product / Sample / Gift / Input — from Item Type Master</div></div>
+          <div class="col-md-3"><label class="form-label">Item Code</label>
+            <input class="form-control bg-body-secondary" id="i_itemCode" readonly tabindex="-1" placeholder="Auto — choose the Type" />
+            <div class="form-text" id="i_codeHelp">Made automatically: Product PD01, Gift GP01, Input IP01, Sample SP01</div></div>
+          <div class="col-md-6"><label class="form-label">Item Name <span class="required-star">*</span></label>
+            <input class="form-control" id="i_itemName" required maxlength="200" placeholder="Dolo 650" />
+            <div class="invalid-feedback">Enter the item name</div></div>
         </div>
 
         <h6 class="text-muted mt-4">More details <small>(optional — click a section to open it)</small></h6>
@@ -165,7 +168,8 @@
       <div class="modal-body">
         <ul class="text-muted small ps-3">
           <li>One Excel file, 3 sheets — <b>Items</b>, <b>Rates</b>, <b>Composition</b>. Each sheet is optional (e.g. upload only Rates to change prices).</li>
-          <li><b>Items:</b> a new <code>item_code</code> creates the item; an existing one updates it (blank cell = keep the stored value).
+          <li><b>Items:</b> <code>item_code</code> blank = new item, code made from the type (PD01, GP01, IP01, SP01 …) and listed below;
+            an existing <code>item_code</code> updates that item (blank cell = keep the stored value).
             <code>item_type</code>, <code>division</code>, <code>brand</code> = code or name from the masters.</li>
           <li><b>Rates:</b> one row per item &times; state &times; <code>effective_from</code> (state blank = All India). The same item + state + date again updates that rate.</li>
           <li><b>Composition:</b> an item's lines in this sheet <b>replace</b> its stored composition, in row order.</li>
@@ -218,6 +222,7 @@
     const form = document.getElementById('itForm');
     form.addEventListener('input', itBadges);
     form.addEventListener('change', itBadges);
+    document.getElementById('i_itemName').addEventListener('input', e => e.target.classList.remove('is-invalid'));
     document.getElementById('itUploadModal').addEventListener('show.bs.modal', () => document.getElementById('itUploadResult').innerHTML = '');
     try {
       LK = await Api.get(API.lookups, { query: { keys: 'itemTypes,brands,divisions,states' } });
@@ -270,6 +275,9 @@
     document.getElementById('i_id').value = r ? r.id : '';
     document.getElementById('i_version').value = r && r.version != null ? r.version : '';
     FIELDS.forEach(f => { document.getElementById('i_' + f).value = r && r[f] != null ? r[f] : ''; });
+    document.querySelectorAll('#itForm .is-invalid').forEach(el => el.classList.remove('is-invalid'));
+    document.getElementById('i_codeHelp').textContent = r ? 'Item code cannot be changed'
+      : 'Made automatically: Product PD01, Gift GP01, Input IP01, Sample SP01';
     document.getElementById('il_comp').innerHTML = '';
     document.getElementById('il_rates').innerHTML = '';
     ((r && r.compositions) || []).forEach(c => itAddComp(c));
@@ -278,6 +286,24 @@
     // every optional section starts closed; the badges show what is filled
     document.querySelectorAll('#i_sections .accordion-collapse.show').forEach(el => bootstrap.Collapse.getOrCreateInstance(el, { toggle: false }).hide());
     itBadges();
+  }
+
+  // new item: show the code it will get (the real one is given on Save)
+  let codeReq = 0;
+  async function itTypeChanged() {
+    const sel = document.getElementById('i_itemTypeId');
+    sel.classList.remove('is-invalid');
+    if (document.getElementById('i_id').value) return;            // existing code never changes
+    const code = document.getElementById('i_itemCode'), help = document.getElementById('i_codeHelp');
+    code.value = '';
+    if (!sel.value) { help.textContent = 'Made automatically: Product PD01, Gift GP01, Input IP01, Sample SP01'; return; }
+    const mine = ++codeReq;
+    try {
+      const res = await Api.get(EP.nextCode, { query: { itemTypeId: sel.value } });
+      if (mine !== codeReq) return;
+      code.value = res.itemCode;
+      help.textContent = 'Next free code — given for real on Save';
+    } catch (e) { help.textContent = 'Code is made on Save'; }
   }
 
   function itAdd() {
@@ -398,13 +424,25 @@
   async function itSave(ev) {
     ev.preventDefault();
     const v = id => { const x = document.getElementById(id).value.trim(); return x === '' ? null : x; };
-    if (!v('i_itemCode') || !v('i_itemName') || !v('i_itemTypeId')) { SFA.toast('Item code, name and type are required', false); return; }
+    // say exactly which required field is empty, and point at it
+    const missing = [];
+    if (!v('i_itemTypeId')) missing.push(['i_itemTypeId', (LK.itemTypes || []).length
+      ? 'Choose the item Type' : 'No item types found — add Product / Sample / Gift / Input in Item Type Master (or run 72_item_master.sql)']);
+    if (!v('i_itemName')) missing.push(['i_itemName', 'Enter the Item Name']);
+    document.querySelectorAll('#itForm .is-invalid').forEach(el => el.classList.remove('is-invalid'));
+    if (missing.length) {
+      missing.forEach(([id]) => document.getElementById(id).classList.add('is-invalid'));
+      document.getElementById(missing[0][0]).focus();
+      missing.forEach(([, msg]) => SFA.toast(msg, false));
+      return;
+    }
     const missingFrom = rateLines().findIndex(r => !r.effectiveFrom);
     if (missingFrom >= 0) { openSectionFor('rate'); SFA.toast('Rate line ' + (missingFrom + 1) + ': From date is required', false); return; }
     const missingName = compLines().findIndex(c => !c.moleculeName);
     if (missingName >= 0) { openSectionFor('composition'); SFA.toast('Composition line ' + (missingName + 1) + ': salt name is required', false); return; }
     const data = { id: v('i_id'), version: v('i_version') };
     FIELDS.forEach(f => data[f] = v('i_' + f));
+    if (!data.id) data.itemCode = null;   // the server gives the code
     data.compositions = compLines();
     data.rates = rateLines().map(r => ({ ...r, id: r.id ? Number(r.id) : null }));
     data.removeImage = PICK.removed();
@@ -412,9 +450,9 @@
     const btn = document.getElementById('i_saveBtn');
     btn.disabled = true;
     try {
-      await Api.saveWithFiles(EP.save, data, { image: PICK.file() });
+      const saved = await Api.saveWithFiles(EP.save, data, { image: PICK.file() });
       MODAL.hide(); await reload();
-      SFA.toast('Saved');
+      SFA.toast(data.id ? 'Item ' + saved.itemCode + ' updated' : 'Item ' + saved.itemCode + ' created');
     } catch (e) { openSectionFor(e.message); SFA.toast(e.message, false); }
     finally { btn.disabled = false; }
   }
@@ -444,6 +482,7 @@
         <div class="alert ${res.skipped ? 'alert-warning' : 'alert-success'} py-2 small mb-2">
           Items: <b>${res.created}</b> created, <b>${res.updated}</b> updated &middot; Rates: <b>${res.rates}</b> saved
           &middot; Composition: <b>${res.compositionItems}</b> items &middot; <b>${res.skipped}</b> rows skipped</div>
+        ${(res.generatedCodes || []).length ? `<div class="small mb-2"><b>New item codes</b><ul class="mb-0 ps-3">${res.generatedCodes.map(g => `<li>${esc(g)}</li>`).join('')}</ul></div>` : ''}
         ${errs.length ? `<div class="small text-danger"><b>Skipped</b><ul class="mb-0 ps-3">${errs.map(e => `<li>${esc(e)}</li>`).join('')}</ul></div>` : ''}`;
     } catch (e) { SFA.toast(e.message, false); }
     finally { btn.disabled = false; }

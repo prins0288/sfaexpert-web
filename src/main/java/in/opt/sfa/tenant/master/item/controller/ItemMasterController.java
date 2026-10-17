@@ -47,6 +47,12 @@ public class ItemMasterController {
         return service.moleculeNames();
     }
 
+    @GetMapping("/next-code")
+    @Operation(summary = "Preview of the code the next new item of this type gets (PD01 / GP01 / IP01 / SP01 ...); taken for real on save")
+    public Map<String, String> nextCode(@RequestParam Long itemTypeId) {
+        return Map.of("itemCode", service.nextCode(itemTypeId));
+    }
+
     @GetMapping("/{id}/rate")
     @Operation(summary = "Rate of an item for a state on a date (the state's own rate, else All India); empty = no rate")
     public ItemRateDto rate(@PathVariable Long id, @RequestParam(required = false) Long stateId,

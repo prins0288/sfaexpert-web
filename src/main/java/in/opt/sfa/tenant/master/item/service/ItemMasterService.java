@@ -45,6 +45,10 @@ import java.util.stream.Collectors;
  * rate is closed automatically the day before a newer one for the same state
  * starts. MRP >= PTR >= PTS, nothing negative, discount 0-100. For the item
  * type PRODUCT, PTS / PTR / MRP are required; Sample / Gift / Input need none.
+ *
+ * Item code of a new item is generated from its type: Product PD01, PD02 ...,
+ * Gift GP01, Input IP01, Sample SP01 (other types: first 2 letters of the type
+ * code). Numbers grow past 99 as PD100. Existing codes are never changed.
  */
 @Service
 public class ItemMasterService {
@@ -116,6 +120,41 @@ public class ItemMasterService {
         return found.isEmpty() ? null : toDto(found.get(0), names());
     }
 
+    // ---- item code ---------------------------------------------------------------
+
+    /** Prefix of generated item codes per item type code. */
+    private static final Map<String, String> CODE_PREFIX = Map.of("PRODUCT", "PD", "GIFT", "GP", "INPUT", "IP", "SAMPLE", "SP");
+
+    static String codePrefix(ItemTypeMaster t) {
+        String code = t.getItemTypeCode() == null ? "" : t.getItemTypeCode().toUpperCase(Locale.ROOT);
+        String p = CODE_PREFIX.get(code);
+        if (p != null) return p;
+        String letters = code.replaceAll("[^A-Z0-9]", "");
+        return letters.length() >= 2 ? letters.substring(0, 2) : (letters + "IT").substring(0, 2);
+    }
+
+    /** The code the next new item of this type will get (preview for the form; taken for real on save). */
+    @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
+    public String nextCode(Long itemTypeId) {
+        ItemTypeMaster t = types.findById(itemTypeId).orElseThrow(() -> new IllegalStateException("Unknown item type: " + itemTypeId));
+        return formatCode(codePrefix(t));
+    }
+
+    /** Generate a new code inside the saving transaction (type row locked, so no two saves get the same). */
+    private String generateCode(Long itemTypeId, Names n) {
+        if (itemTypeId == null) throw new IllegalStateException("Item type is required");
+        ItemTypeMaster t = n.typesById.get(itemTypeId);
+        if (t == null) throw new IllegalStateException("Unknown item type: " + itemTypeId);
+        items.lockItemType(itemTypeId);
+        return formatCode(codePrefix(t));
+    }
+
+    private String formatCode(String prefix) {
+        Long max = items.maxCodeNumber(prefix.length() + 1, "^" + prefix + "[0-9]+$");
+        long next = (max == null ? 0 : max) + 1;
+        return prefix + (next < 10 ? "0" + next : String.valueOf(next));
+    }
+
     // ---- save (form) -------------------------------------------------------------
 
     @Transactional(transactionManager = "tenantTransactionManager")
@@ -126,6 +165,8 @@ public class ItemMasterService {
             throw new IllegalStateException("This item was changed by someone else meanwhile — close the form, reload and try again.");
         }
         Names n = names();
+        if (isNew) form.setItemCode(generateCode(form.getItemTypeId(), n));   // new item: code always generated
+        else form.setItemCode(item.getItemCode());                          // existing code never changes here
         applyHeader(item, form, n, true);
         validateUnique(item);
 
@@ -197,7 +238,9 @@ public class ItemMasterService {
                         List.of("DOLOCOLD", "Phenylephrine", "10", "mg", "per tablet"),
                         List.of("DOLOCOLD", "Cetirizine", "5", "mg", "per tablet"))),
                 new ExcelUtil.SheetSpec("Help", List.of("Notes"), List.of(
-                        List.of("Items: one row per item. A new item_code creates the item; an existing one updates it (blank cell = keep stored value)."),
+                        List.of("Items: one row per item. item_code blank = new item, code generated from the type (Product PD01, Gift GP01, Input IP01, Sample SP01)."),
+                        List.of("Items: an existing item_code updates that item (blank cell = keep stored value); a new code you type is used as it is."),
+                        List.of("Rates / Composition of a new item need its code: upload Items first, then Rates / Composition with the generated codes."),
                         List.of("item_type, division, brand, state: code or name from the masters. state blank = All India."),
                         List.of("Rates: one row per item x state x effective_from. Same item + state + effective_from again = update that rate."),
                         List.of("Rates: a current rate is closed automatically the day before a newer one for the same state starts."),
@@ -227,6 +270,7 @@ public class ItemMasterService {
         List<String> errors = new ArrayList<>();
         int created = 0, updated = 0, rateRowsSaved = 0, compItems = 0, skipped = 0;
         Map<String, ItemMaster> byCode = new HashMap<>();
+        List<String> generated = new ArrayList<>();
 
         // ---- Items ----
         int r = 1;
@@ -235,10 +279,14 @@ public class ItemMasterService {
             Cells c = new Cells(raw);
             String code = upper(c.get("item_code"));
             try {
-                if (code == null) throw new IllegalStateException("item_code is required");
-                ItemMaster item = byCode.containsKey(code) ? byCode.get(code) : items.findByItemCode(code).orElse(null);
+                ItemMaster item = code == null ? null : byCode.containsKey(code) ? byCode.get(code) : items.findByItemCode(code).orElse(null);
                 boolean isNew = item == null;
                 if (isNew) item = new ItemMaster();
+                if (code == null) {   // blank item_code = new item with a generated code
+                    if (!c.has("item_type")) throw new IllegalStateException("item_type is required (the item code is made from it)");
+                    code = generateCode(n.typeId(c.get("item_type")), n);
+                    generated.add("Items row " + r + ": " + code + " = " + Objects.toString(c.get("item_name"), ""));
+                }
                 ItemMasterDto f = new ItemMasterDto();
                 f.setItemCode(code);
                 f.setItemName(c.get("item_name"));
@@ -354,6 +402,7 @@ public class ItemMasterService {
         res.put("updated", updated);
         res.put("rates", rateRowsSaved);
         res.put("compositionItems", compItems);
+        res.put("generatedCodes", generated);
         res.put("skipped", skipped);
         res.put("errors", errors);
         return res;
