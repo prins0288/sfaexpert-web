@@ -636,7 +636,10 @@
     //                -> small thumbnail; hover = zoomed preview, click = full image
     //                   in a popup with a Download button. Works anywhere in the
     //                   DOM (rows rendered later are picked up automatically).
-    //   Form field:  const pick = SFAFiles.picker(el, { maxMb: 5 });
+    //   Form field:  const pick = SFAFiles.picker(el, { maxMb: 5, keepName: true });
+    //                keepName = the server stores the user's own file name, so
+    //                auto-generated names (WhatsApp Image…, IMG_2024…) are refused
+    //                here with an alert (same rules as FileUploadService.checkFileName).
     //                pick.set(record) on edit, pick.reset() on add,
     //                pick.file() / pick.removed() / pick.compress() on save.
     window.SFAFiles = (function () {
@@ -778,6 +781,38 @@
             return { name: el.getAttribute("data-name") || "", type: el.getAttribute("data-type") || "", size: size === "" || size == null ? null : Number(size) };
         }
 
+        // ---- file-name rules for uploads that keep the user's name ----
+        // Keep in sync with FileUploadService.GENERIC_NAMES / SAFE_NAME.
+        var GENERIC_NAMES = [
+            /^whats ?app/,
+            /^(screenshot|screen ?shot|scrnshot|snip)/,
+            /^(img|pxl|dsc|dscn|dcim|mvimg|vid|pic|fb_img|snapchat|telegram|signal)[ _-]?[0-9]/,
+            /^(image|images|img|photo|picture|pic|file|download|downloaded|untitled|unnamed|new|new image|scan|document|received|copy)[ _-]*(\([0-9]+\)|[0-9]+)?$/,
+            /^[0-9 _.()-]+$/,
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-/,
+            /^(cam|camscanner|scanned|scanner|lens)[ _-]/
+        ];
+        var EXT_TYPES = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", bmp: "image/bmp", pdf: "application/pdf" };
+
+        /** null when the name can be kept, else the message telling the user to rename the file. */
+        function checkName(name, type) {
+            name = (name || "").trim();
+            var dot = name.lastIndexOf(".");
+            if (dot <= 0 || dot === name.length - 1) return '"' + name + '" has no file extension.\nPlease rename the file first (e.g. Dolo 650.jpg), then upload it.';
+            if (!/^[A-Za-z0-9][A-Za-z0-9 ._()-]{0,149}$/.test(name)) {
+                return '"' + name + '" has characters a file name cannot keep.\nUse only letters, digits, space and . _ - ( ) — rename the file first, then upload it.';
+            }
+            var base = name.substring(0, dot).trim().toLowerCase(), ext = name.substring(dot + 1).toLowerCase();
+            if (type && EXT_TYPES[ext] && EXT_TYPES[ext] !== type) {
+                return '"' + name + '" is really a ' + type.split("/")[1].toUpperCase() + ' file.\nRename it with the right extension first, then upload it.';
+            }
+            if (GENERIC_NAMES.some(function (re) { return re.test(base); })) {
+                return '"' + name + '" looks like an automatic name (WhatsApp / camera / screenshot / download).\n\n'
+                    + 'Please rename the file first (e.g. Dolo 650.jpg), then upload it.';
+            }
+            return null;
+        }
+
         // ---- picker (upload field with preview) ----
         function picker(host, opts) {
             opts = opts || {};
@@ -788,7 +823,9 @@
                 '<div class="sfa-file-picker-preview"><i class="bi bi-image text-muted fs-3"></i></div>' +
                 '<div class="flex-grow-1">' +
                 '<input type="file" class="form-control" accept="' + accept + '">' +
-                '<div class="form-text sfa-file-picker-info">PNG, JPG, GIF, WebP or BMP · max ' + maxMb + ' MB · a thumbnail is made automatically</div>' +
+                '<div class="form-text sfa-file-picker-info">PNG, JPG, GIF, WebP or BMP · max ' + maxMb + ' MB · a thumbnail is made automatically' +
+                (opts.keepName ? '<br>The file is saved with its own name — rename WhatsApp / camera / screenshot files first (e.g. Dolo 650.jpg)' : '') +
+                (opts.defaultNote ? '<br>' + opts.defaultNote : '') + '</div>' +
                 '<div class="d-flex flex-wrap gap-3 mt-1">' +
                 '<div class="form-check"><input class="form-check-input sfa-file-compress" type="checkbox" checked>' +
                 '<label class="form-check-label small">Compress (lossless — quality is never reduced)</label></div>' +
@@ -806,7 +843,8 @@
                 if (r && r.path && !state.removed) {
                     preview.innerHTML = thumb(r.path, r.thumbPath, r);
                     hydrate(preview);
-                    removeBtn.classList.remove("d-none");
+                    // the default "no image" picture cannot be removed, only replaced
+                    removeBtn.classList.toggle("d-none", !!r.isDefault);
                 } else {
                     preview.innerHTML = '<i class="bi bi-image text-muted fs-3"></i>';
                     removeBtn.classList.add("d-none");
@@ -822,6 +860,11 @@
                 if (f.size > maxMb * 1048576) {
                     err.textContent = "File is " + prettySize(f.size) + " — the limit is " + maxMb + " MB."; input.value = ""; state.file = null; showCurrent(); return;
                 }
+                var bad = opts.keepName ? checkName(f.name, f.type) : null;
+                if (bad) {
+                    window.alert(bad);
+                    err.textContent = "Rename the file first, then choose it again."; input.value = ""; state.file = null; showCurrent(); return;
+                }
                 state.file = f;
                 state.removed = false;
                 if (state.localUrl) URL.revokeObjectURL(state.localUrl);
@@ -836,7 +879,7 @@
                 showCurrent();
             });
             return {
-                /** record = { path, thumbPath, name, type, size } of the stored file (or null). */
+                /** record = { path, thumbPath, name, type, size, isDefault } of the stored file (or null). */
                 set: function (record) { state.record = record && record.path ? record : null; state.file = null; state.removed = false; input.value = ""; err.textContent = ""; showCurrent(); },
                 reset: function () { this.set(null); },
                 file: function () { return state.file; },
@@ -867,7 +910,7 @@
                 });
         });
 
-        return { thumb: thumb, open: open, picker: picker, hydrate: hydrate, load: load, prettySize: prettySize };
+        return { thumb: thumb, open: open, picker: picker, hydrate: hydrate, load: load, prettySize: prettySize, checkName: checkName };
     })();
 
     $(function () { sfaSelect2(document); sfaFlatpickr(document); });

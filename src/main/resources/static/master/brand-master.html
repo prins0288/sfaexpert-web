@@ -131,12 +131,15 @@
   const boolBadge = (b) => (b
     ? '<span class="badge badge-active">Active</span>'
     : '<span class="badge badge-inactive">Inactive</span>');
-  const fileMeta = (r) => ({ path: r.imagePath, thumbPath: r.thumbnailPath, name: r.imageName, type: r.imageType, size: r.imageSize });
+  // default "no image" picture: no uploaded name, so show the stored file name (<brand name>.jpg)
+  const fileMeta = (r) => ({ path: r.imagePath, thumbPath: r.thumbnailPath, type: r.imageType, size: r.imageSize,
+    name: r.imageName || (r.imagePath ? r.imagePath.split('/').pop() : null), isDefault: !!r.imageIsDefault });
 
   window.pageInit = async function () {
     MODAL = new bootstrap.Modal('#brModal');
     MULTI = new bootstrap.Modal('#brMultiModal');
-    PICK = SFAFiles.picker(document.getElementById('b_image'), { maxMb: 5 });
+    PICK = SFAFiles.picker(document.getElementById('b_image'), { maxMb: 5, keepName: true,
+      defaultNote: 'No image? The default "No image" picture is saved automatically with the brand name.' });
     try { await reload(); } catch (e) { SFA.toast(e.message, false); }
   };
 
@@ -146,7 +149,7 @@
     document.querySelector('#brTable tbody').innerHTML = ROWS.map((r, i) => `
       <tr>
         <td>${i + 1}</td>
-        <td class="no-export">${SFAFiles.thumb(r.imagePath, r.thumbnailPath, { name: r.imageName, type: r.imageType, size: r.imageSize })}</td>
+        <td class="no-export">${SFAFiles.thumb(r.imagePath, r.thumbnailPath, fileMeta(r))}</td>
         <td>${SFA.esc(r.brandCode)}</td><td>${SFA.esc(r.brandName)}</td>
         <td>${boolBadge(r.status)}</td>
         <td>${auditCell(r.createdBy, r.createdAt)}</td>

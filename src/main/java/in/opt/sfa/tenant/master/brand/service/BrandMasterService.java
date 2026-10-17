@@ -14,12 +14,17 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.*;
+import java.util.stream.Stream;
 
 /**
- * Brand master with an optional image. The image goes through the global
- * FileUploadService (module folder "brandMaster", thumbnail auto-created).
- * Files and the row stay consistent: a new file is deleted again if the save
- * fails, and the previous file is deleted only after the row is committed.
+ * Brand master with an image. The image goes through the global
+ * FileUploadService (module folder "brandMaster", thumbnail auto-created):
+ * an uploaded file keeps the user's own file name (auto-generated names like
+ * "WhatsApp Image …" are refused), and a brand with no uploaded image gets its
+ * own copy of the default "no image" picture named after the brand
+ * ("<brand name>.jpg", made unique). Files and the row stay consistent: a new
+ * file is deleted again if the save fails, and the previous file is deleted
+ * only after the row is committed.
  */
 @Service
 public class BrandMasterService {
@@ -36,10 +41,18 @@ public class BrandMasterService {
         this.employeeNames = employeeNames;
     }
 
-    @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
-    public List<BrandMasterDto> list() {
+    /** All brands; a brand still without any image (older rows) gets its default picture here. */
+    @Transactional(transactionManager = "tenantTransactionManager")
+    public List<BrandMasterDto> list() throws Exception {
         Map<String, String> names = employeeNames.nameMap();
-        return brands.findAllByOrderByBrandNameAsc().stream().map(b -> withNames(toDto(b), names)).toList();
+        List<BrandMaster> all = brands.findAllByOrderByBrandNameAsc();
+        for (BrandMaster b : all) {
+            if (b.getImagePath() == null) {
+                setDefaultImage(b);
+                brands.save(b);
+            }
+        }
+        return all.stream().map(b -> withNames(toDto(b), names)).toList();
     }
 
     @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
@@ -51,6 +64,7 @@ public class BrandMasterService {
     public BrandMasterDto save(BrandMasterDto form, MultipartFile image) throws Exception {
         boolean isNew = form.getId() == null;
         BrandMaster b = isNew ? new BrandMaster() : find(form.getId());
+        String oldName = b.getBrandName();
         String code = Strings.isBlank(form.getBrandCode()) ? null : form.getBrandCode().trim().toUpperCase();
         String name = Strings.isBlank(form.getBrandName()) ? null : form.getBrandName().trim();
         validate(code, name, isNew ? null : b.getId());
@@ -60,30 +74,32 @@ public class BrandMasterService {
         if (form.getStatus() != null) b.setStatus(form.getStatus());
 
         String[] oldFiles = { b.getImagePath(), b.getThumbnailPath() };
+        boolean wasDefault = Boolean.TRUE.equals(b.getImageIsDefault());
+        boolean renamed = !isNew && !name.equals(oldName);
         boolean replace = image != null && !image.isEmpty();
-        boolean remove = !replace && Boolean.TRUE.equals(form.getRemoveImage());
+        boolean toDefault = !replace && (b.getImagePath() == null
+                || (Boolean.TRUE.equals(form.getRemoveImage()) && !wasDefault)
+                || (wasDefault && renamed));   // default picture follows the brand name
         if (replace) {
-            StoredFile f = uploads.upload(MODULE, image, FileUploadService.Kind.IMAGE,
-                    Boolean.TRUE.equals(form.getCompressImage()));
-            // if the row does not commit, the new files must not stay behind
-            afterRollback(() -> uploads.delete(f.path(), f.thumbnailPath()));
-            b.setImagePath(f.path());
-            b.setImageType(f.type());
-            b.setImageSize(f.size());
-            b.setImageName(f.originalName());
-            b.setThumbnailPath(f.thumbnailPath());
-            b.setThumbnailType(f.thumbnailType());
-        } else if (remove) {
-            clearImage(b);
+            // the user's own file name is kept; it may overwrite only this brand's own current file
+            StoredFile f = uploads.uploadKeepingName(MODULE, image, FileUploadService.Kind.IMAGE,
+                    Boolean.TRUE.equals(form.getCompressImage()), b.getImagePath());
+            setImage(b, f, false);
+        } else if (toDefault) {
+            setDefaultImage(b);
         }
         brands.saveAndFlush(b);
-        if (replace || remove) afterCommit(() -> uploads.delete(oldFiles));
+        if (replace || toDefault) {
+            // never delete a path the new image reuses (same file name uploaded again)
+            Set<String> keep = new HashSet<>(Arrays.asList(b.getImagePath(), b.getThumbnailPath()));
+            afterCommit(() -> uploads.delete(Arrays.stream(oldFiles).filter(p -> p != null && !keep.contains(p)).toArray(String[]::new)));
+        }
         return withNames(toDto(b), employeeNames.nameMap());
     }
 
-    /** Add Multiple (no images): invalid / duplicate rows are skipped with the reason. */
+    /** Add Multiple (each brand gets the default picture): invalid / duplicate rows are skipped with the reason. */
     @Transactional(transactionManager = "tenantTransactionManager")
-    public Map<String, Object> saveMultiple(List<BrandMasterDto> forms) {
+    public Map<String, Object> saveMultiple(List<BrandMasterDto> forms) throws Exception {
         int saved = 0, skipped = 0, row = 0;
         List<String> errors = new ArrayList<>();
         Set<String> seenCodes = new HashSet<>(), seenNames = new HashSet<>();
@@ -104,6 +120,7 @@ public class BrandMasterService {
             b.setBrandCode(code);
             b.setBrandName(name);
             b.setStatus(true);
+            setDefaultImage(b);
             brands.save(b);
             saved++;
         }
@@ -135,13 +152,24 @@ public class BrandMasterService {
                 .ifPresent(o -> { throw new IllegalStateException("Brand name " + name + " already exists (" + o.getBrandCode() + ")"); });
     }
 
-    private static void clearImage(BrandMaster b) {
-        b.setImagePath(null);
-        b.setImageType(null);
-        b.setImageSize(null);
-        b.setImageName(null);
-        b.setThumbnailPath(null);
-        b.setThumbnailType(null);
+    /** Give the brand its own copy of the default picture, named after the brand. */
+    private void setDefaultImage(BrandMaster b) throws Exception {
+        setImage(b, uploads.storeDefaultImage(MODULE, b.getBrandName()), true);
+    }
+
+    private void setImage(BrandMaster b, StoredFile f, boolean isDefault) {
+        // if the row does not commit, the new files must not stay behind
+        // (except a path the brand already had: the same file name uploaded again)
+        Set<String> had = new HashSet<>(Arrays.asList(b.getImagePath(), b.getThumbnailPath()));
+        afterRollback(() -> uploads.delete(Stream.of(f.path(), f.thumbnailPath())
+                .filter(p -> p != null && !had.contains(p)).toArray(String[]::new)));
+        b.setImagePath(f.path());
+        b.setImageType(f.type());
+        b.setImageSize(f.size());
+        b.setImageName(isDefault ? null : f.originalName());
+        b.setThumbnailPath(f.thumbnailPath());
+        b.setThumbnailType(f.thumbnailType());
+        b.setImageIsDefault(isDefault);
     }
 
     private static void afterCommit(Runnable r) {
@@ -180,6 +208,7 @@ public class BrandMasterService {
         d.setImageName(b.getImageName());
         d.setThumbnailPath(b.getThumbnailPath());
         d.setThumbnailType(b.getThumbnailType());
+        d.setImageIsDefault(b.getImageIsDefault());
         d.setCreatedAt(b.getCreatedAt());
         d.setCreatedBy(b.getCreatedBy());
         d.setUpdatedAt(b.getUpdatedAt());

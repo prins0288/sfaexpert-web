@@ -29,7 +29,7 @@ public class BrandMaster {
     @Column(name = "brand_name", nullable = false, length = 150)
     private String brandName;
 
-    // ---- image (all null when the brand has no image) ----
+    // ---- image (a brand without an uploaded image gets its own copy of the default picture) ----
     @Column(name = "image_path", length = 255)
     private String imagePath;
 
@@ -47,6 +47,10 @@ public class BrandMaster {
 
     @Column(name = "thumbnail_type", length = 100)
     private String thumbnailType;
+
+    /** TINYINT(1): true = the image is the automatic "no image" picture (no file was uploaded). */
+    @Column(name = "image_is_default", nullable = false)
+    private Boolean imageIsDefault = false;
 
     /** TINYINT(1): true = active. */
     @Column(nullable = false)
@@ -73,6 +77,7 @@ public class BrandMaster {
         this.createdBy = who;
         this.updatedBy = who;
         if (this.status == null) this.status = true;
+        if (this.imageIsDefault == null) this.imageIsDefault = false;
     }
 
     @PreUpdate

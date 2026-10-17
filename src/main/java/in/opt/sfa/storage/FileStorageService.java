@@ -71,6 +71,16 @@ public class FileStorageService {
         return Files.readAllBytes(target);
     }
 
+    /** Does {@code <base>/<companyCode>/<relativePath>} exist? (false for any illegal path) */
+    public boolean exists(String companyCode, String relativePath) {
+        try {
+            Path target = resolveInside(companyCodeDir(companyCode), relativePath);
+            return Files.isRegularFile(target);
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
     /** Delete a file if present (never throws). */
     public void delete(String companyCode, String filename) {
         if (filename == null || filename.isBlank()) return;
@@ -114,7 +124,10 @@ public class FileStorageService {
     private static String safeName(String name) {
         if (name == null || name.isBlank()) return "_";
         String base = Paths.get(name).getFileName().toString();   // strip any directory parts
-        String cleaned = base.replaceAll("[^A-Za-z0-9._-]", "_");
+        // letters, digits, space . _ - ( ) are kept as typed (a user's own file name
+        // is stored unchanged); anything else — incl. / \\ : * ? " < > | — becomes "_"
+        String cleaned = base.replaceAll("[^A-Za-z0-9 ._()-]", "_").trim();
+        if (cleaned.equals(".") || cleaned.equals("..")) cleaned = "_";
         return cleaned.isBlank() ? "_" : cleaned;
     }
 }

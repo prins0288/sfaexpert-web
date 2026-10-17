@@ -13,7 +13,7 @@ public class BrandMasterDto {
     private String brandCode;
     private String brandName;
     private Boolean status;
-    /** On save: true = delete the current image (ignored when a new image is uploaded). */
+    /** On save: true = drop the uploaded image and go back to the default picture (ignored when a new image is uploaded). */
     private Boolean removeImage;
     /** On save with a new image: true = lossless compression (PNG/BMP only; never lowers quality). */
     private Boolean compressImage;
@@ -25,6 +25,8 @@ public class BrandMasterDto {
     private String imageName;
     private String thumbnailPath;
     private String thumbnailType;
+    /** true = no image was uploaded; the brand shows its own copy of the default "no image" picture. */
+    private Boolean imageIsDefault;
 
     @JsonFormat(pattern = "dd-MM-yyyy")
     private LocalDateTime createdAt;

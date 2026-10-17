@@ -53,6 +53,12 @@ app:
   upload:
     max-image-mb: 5          # brand / item / photo images
     max-document-mb: 20      # PDFs and other documents
+    # picture saved (as "<record name>.jpg") when no image is uploaded;
+    # replace src/main/resources/defaults/no-image.jpg, or point to a file:  file:D:/sfa/no-image.jpg
+    default-image: classpath:defaults/no-image.jpg
+    # extra words (comma separated) that make an uploaded file name "auto-generated"
+    # on top of the built-in WhatsApp / IMG_ / Screenshot / download … rules
+    blocked-name-words: ""
 
   # ---- COMMON database (users + tenant_config live here) ----
   # These bind straight to the HikariDataSource (see CommonDataSourceConfig),

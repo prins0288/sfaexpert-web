@@ -26,7 +26,7 @@ public class BrandMasterController {
 
     @GetMapping
     @Operation(summary = "List all brands (active + inactive)")
-    public List<BrandMasterDto> list() {
+    public List<BrandMasterDto> list() throws Exception {
         return service.list();
     }
 
@@ -48,8 +48,8 @@ public class BrandMasterController {
 
     @RequiresPermission("BRAND_SAVE")
     @PostMapping("/save-multiple")
-    @Operation(summary = "Bulk create brands (no images; invalid / duplicate rows are skipped with a reason)")
-    public Map<String, Object> saveMultiple(@RequestBody List<BrandMasterDto> forms) {
+    @Operation(summary = "Bulk create brands (each gets the default picture; invalid / duplicate rows are skipped with a reason)")
+    public Map<String, Object> saveMultiple(@RequestBody List<BrandMasterDto> forms) throws Exception {
         return service.saveMultiple(forms);
     }
 

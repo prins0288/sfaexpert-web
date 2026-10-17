@@ -68,13 +68,26 @@ public class FileUploadService {
     private final FileStorageService storage;
     private final long maxImageBytes;
     private final long maxDocumentBytes;
+    private final org.springframework.core.io.Resource defaultImage;
+    private final java.util.List<String> extraBlockedWords;
 
     public FileUploadService(FileStorageService storage,
                              @Value("${app.upload.max-image-mb:5}") long maxImageMb,
-                             @Value("${app.upload.max-document-mb:20}") long maxDocumentMb) {
+                             @Value("${app.upload.max-document-mb:20}") long maxDocumentMb,
+                             @Value("${app.upload.default-image:classpath:defaults/no-image.jpg}") org.springframework.core.io.Resource defaultImage,
+                             @Value("${app.upload.blocked-name-words:}") String extraBlockedWords) {
         this.storage = storage;
         this.maxImageBytes = maxImageMb * 1024 * 1024;
         this.maxDocumentBytes = maxDocumentMb * 1024 * 1024;
+        this.defaultImage = defaultImage;
+        this.extraBlockedWords = java.util.Arrays.stream(extraBlockedWords.split(","))
+                .map(String::trim).filter(w -> !w.isEmpty()).map(w -> w.toLowerCase(Locale.ROOT)).toList();
+    }
+
+    /** Short constructor for tools / tests: built-in default image, no extra blocked words. */
+    public FileUploadService(FileStorageService storage, long maxImageMb, long maxDocumentMb) {
+        this(storage, maxImageMb, maxDocumentMb,
+                new org.springframework.core.io.ClassPathResource("defaults/no-image.jpg"), "");
     }
 
     /** Validate, store and (for images) thumbnail one file for the current tenant. */
@@ -82,14 +95,98 @@ public class FileUploadService {
         return upload(module, file, kind, false);
     }
 
-    /** Same, with optional lossless compression (see class comment). */
+    /** Same, with optional lossless compression (see class comment). Stored under a random name. */
     public StoredFile upload(String module, MultipartFile file, Kind kind, boolean compress) throws IOException {
+        byte[] data = readChecked(file, kind);
+        String type = checkedType(data, kind);
+        String id = UUID.randomUUID().toString().replace("-", "");
+        return storeCore(module, data, type, cleanName(file.getOriginalFilename()), id, compress, true, null);
+    }
+
+    /**
+     * Upload keeping the user's OWN file name — the file on disk is exactly
+     * "<module>/<their name>" and the thumbnail "<module>/thumbnail/<their name>_thumb.jpg".
+     * Refused (with a message telling the user to rename the file) when the name
+     * looks auto-generated (WhatsApp Image…, IMG_2024…, Screenshot…, download…),
+     * has characters a file name cannot keep, its extension does not match the
+     * real content, or another file of that name already exists in the module
+     * folder. ownPath = this record's current file, which may be overwritten.
+     * Lossless compression keeps the format (BMP is not converted, so the name
+     * never changes).
+     */
+    public StoredFile uploadKeepingName(String module, MultipartFile file, Kind kind, boolean compress, String ownPath) throws IOException {
+        byte[] data = readChecked(file, kind);
+        String type = checkedType(data, kind);
+        String name = cleanName(file.getOriginalFilename());
+        checkFileName(name, type);
+        String stem = name.substring(0, name.lastIndexOf('.'));
+        String ownStem = ownPath == null ? null : stemOf(ownPath.substring(ownPath.lastIndexOf('/') + 1));
+        if (!stem.equalsIgnoreCase(ownStem) && taken(module, name)) {
+            throw new IllegalStateException("A file named \"" + name + "\" already exists — rename the file and upload again.");
+        }
+        return storeCore(module, data, type, name, stem, compress, false, name);
+    }
+
+    /**
+     * Store the default "no image" picture for a record that has none, named
+     * after it ("<baseName>.jpg", made unique with " (2)", " (3)" … if taken),
+     * with its thumbnail — so every record has its own image file.
+     */
+    public StoredFile storeDefaultImage(String module, String baseName) throws IOException {
+        byte[] data;
+        try (var in = defaultImage.getInputStream()) {
+            data = in.readAllBytes();
+        }
+        String type = detectType(data);
+        if (type == null || !type.startsWith("image/")) throw new IllegalStateException("Default image is not a valid image: " + defaultImage);
+        String ext = extension(type);
+        String base = safeBase(baseName);
+        String name = base + "." + ext;
+        for (int i = 2; taken(module, name); i++) name = base + " (" + i + ")." + ext;
+        return storeCore(module, data, type, name, name.substring(0, name.lastIndexOf('.')), false, false, name);
+    }
+
+    /**
+     * File-name rules for uploads that keep the user's name. Public so any screen
+     * can run the same check before calling uploadKeepingName.
+     */
+    public void checkFileName(String name, String type) {
+        if (name == null || name.isBlank()) throw new IllegalStateException("The file has no name — rename it and upload again.");
+        int dot = name.lastIndexOf('.');
+        if (dot <= 0 || dot == name.length() - 1) {
+            throw new IllegalStateException("\"" + name + "\" has no file extension — rename it (e.g. Dolo 650.jpg) and upload again.");
+        }
+        if (!SAFE_NAME.matcher(name).matches()) {
+            throw new IllegalStateException("\"" + name + "\" has characters a file name cannot keep — use only letters, digits, "
+                    + "space and . _ - ( ) (max 150), rename it and upload again.");
+        }
+        String base = name.substring(0, dot).trim().toLowerCase(Locale.ROOT);
+        String ext = name.substring(dot + 1).toLowerCase(Locale.ROOT);
+        if (type != null && !type.equals(TYPE_BY_EXT.get(ext))) {
+            throw new IllegalStateException("\"" + name + "\" is really a " + type.substring(type.indexOf('/') + 1).toUpperCase(Locale.ROOT)
+                    + " file — rename it to ." + extension(type) + " and upload again.");
+        }
+        boolean junk = GENERIC_NAMES.stream().anyMatch(p -> p.matcher(base).find())
+                || extraBlockedWords.stream().anyMatch(base::contains);
+        if (junk) {
+            throw new IllegalStateException("\"" + name + "\" looks like an automatic name (WhatsApp / camera / screenshot / download). "
+                    + "Please rename the file first (e.g. Dolo 650.jpg), then upload it.");
+        }
+    }
+
+    // ---- shared core ----------------------------------------------------------
+
+    private byte[] readChecked(MultipartFile file, Kind kind) throws IOException {
         if (file == null || file.isEmpty()) throw new IllegalStateException("Please choose a file");
         byte[] data = file.getBytes();
         long max = kind == Kind.IMAGE ? maxImageBytes : maxDocumentBytes;
         if (data.length > max) {
             throw new IllegalStateException("File is too large: " + mb(data.length) + " MB (max " + mb(max) + " MB)");
         }
+        return data;
+    }
+
+    private static String checkedType(byte[] data, Kind kind) {
         String type = detectType(data);
         Set<String> allowed = kind == Kind.IMAGE ? IMAGE_TYPES : DOCUMENT_TYPES;
         if (type == null || !allowed.contains(type)) {
@@ -97,11 +194,20 @@ public class FileUploadService {
                     ? "Only PNG, JPG, GIF, WebP or BMP images are allowed"
                     : "Only PDF or image files are allowed");
         }
+        return type;
+    }
 
+    /**
+     * Write the file (+ thumbnail) under module/. fixedName = exact stored file
+     * name, or null to use stem + the type's extension; convertBmp = BMP may
+     * become PNG when compressing (only when the name is ours to choose).
+     */
+    private StoredFile storeCore(String module, byte[] data, String type, String originalName, String stem,
+                                 boolean compress, boolean convertBmp, String fixedName) throws IOException {
         long originalSize = data.length;
         BufferedImage img = type.startsWith("image/") ? readImage(data) : null;
         boolean compressed = false;
-        if (compress && img != null) {
+        if (compress && img != null && (convertBmp || type.equals("image/png"))) {
             byte[] smaller = losslessCompress(type, data);
             if (smaller != null) {
                 data = smaller;
@@ -111,8 +217,8 @@ public class FileUploadService {
         }
 
         String company = TenantContext.getCompanyCode();
-        String id = UUID.randomUUID().toString().replace("-", "");
-        String path = storage.storeIn(company, module, id + "." + extension(type), data);
+        String fileName = fixedName != null ? fixedName : stem + "." + extension(type);
+        String path = storage.storeIn(company, module, fileName, data);
 
         Integer width = null, height = null;
         String thumbPath = null, thumbType = null;
@@ -123,11 +229,62 @@ public class FileUploadService {
             thumbType = alpha ? "image/png" : "image/jpeg";
             byte[] thumb = encode(scale(img, alpha), alpha);
             thumbPath = storage.storeIn(company, module + "/" + THUMB_FOLDER,
-                    id + "_thumb." + (alpha ? "png" : "jpg"), thumb);
+                    stem + "_thumb." + (alpha ? "png" : "jpg"), thumb);
         }
-        return new StoredFile(path, type, data.length, originalSize, compressed, cleanName(file.getOriginalFilename()),
+        return new StoredFile(path, type, data.length, originalSize, compressed, originalName,
                 width, height, thumbPath, thumbType);
     }
+
+    /**
+     * A kept name is taken when any file with the same name WITHOUT extension
+     * exists in the module folder, or its thumbnail does ("Dolo.png" and
+     * "Dolo.jpg" would share the thumbnail "Dolo_thumb.jpg").
+     */
+    private boolean taken(String module, String name) {
+        String company = TenantContext.getCompanyCode();
+        String stem = stemOf(name);
+        for (String ext : TYPE_BY_EXT.keySet()) {
+            if (storage.exists(company, module + "/" + stem + "." + ext)
+                    || storage.exists(company, module + "/" + stem + "." + ext.toUpperCase(Locale.ROOT))) return true;
+        }
+        return storage.exists(company, module + "/" + THUMB_FOLDER + "/" + stem + "_thumb.jpg")
+                || storage.exists(company, module + "/" + THUMB_FOLDER + "/" + stem + "_thumb.png");
+    }
+
+    private static String stemOf(String name) {
+        int dot = name.lastIndexOf('.');
+        return dot > 0 ? name.substring(0, dot) : name;
+    }
+
+    /** A record name made usable as a file name (unsafe characters -> space-free "_"). */
+    private static String safeBase(String s) {
+        String b = (s == null ? "" : s).replaceAll("[^A-Za-z0-9 ._()-]", "_").replaceAll("\\s+", " ").trim();
+        b = b.replaceAll("^[._ -]+", "");
+        if (b.length() > 120) b = b.substring(0, 120).trim();
+        return b.isEmpty() ? "image" : b;
+    }
+
+    /** Letters/digits first, then letters, digits, space . _ - ( ) — 150 chars max. */
+    private static final java.util.regex.Pattern SAFE_NAME = java.util.regex.Pattern.compile("^[A-Za-z0-9][A-Za-z0-9 ._()-]{0,149}$");
+
+    private static final java.util.Map<String, String> TYPE_BY_EXT = java.util.Map.of(
+            "png", "image/png", "jpg", "image/jpeg", "jpeg", "image/jpeg", "gif", "image/gif",
+            "webp", "image/webp", "bmp", "image/bmp", "pdf", "application/pdf");
+
+    /**
+     * Base names (lower-case, no extension) that are someone else's automatic
+     * naming, not a name for this record. Keep in sync with SFAFiles.checkName (app.js).
+     */
+    private static final java.util.List<java.util.regex.Pattern> GENERIC_NAMES = java.util.stream.Stream.of(
+            "^whats ?app",                                        // WhatsApp Image 2024-10-17 at 10.15.32
+            "^(screenshot|screen ?shot|scrnshot|snip)",            // Screenshot 2024-…, Snip…
+            "^(img|pxl|dsc|dscn|dcim|mvimg|vid|pic|fb_img|snapchat|telegram|signal)[ _-]?[0-9]",   // IMG_20241017_…
+            "^(image|images|img|photo|picture|pic|file|download|downloaded|untitled|unnamed|new|new image|scan|document|received|copy)"
+                    + "[ _-]*(\\([0-9]+\\)|[0-9]+)?$",                       // image, image (2), download1, untitled
+            "^[0-9 _.()-]+$",                                      // only digits: 20241017, 1 (1)
+            "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-",               // uuid-like
+            "^(cam|camscanner|scanned|scanner|lens)[ _-]")
+            .map(java.util.regex.Pattern::compile).toList();
 
     /** Remove stored files (original and/or thumbnail) of the current tenant; nulls are ignored. */
     public void delete(String... paths) {
@@ -332,6 +489,7 @@ public class FileUploadService {
         if (name == null || name.isBlank()) return null;
         String base = name.replace('\\', '/');
         base = base.substring(base.lastIndexOf('/') + 1);
+        base = base.trim();
         return base.length() > 200 ? base.substring(base.length() - 200) : base;
     }
 
