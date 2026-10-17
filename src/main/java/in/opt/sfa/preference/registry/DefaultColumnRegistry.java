@@ -132,6 +132,27 @@ public final class DefaultColumnRegistry {
                 col("created", "common.created"),
                 col("updated", "common.updated"));
 
+        // master/item-master.html
+        register("ITEM_MASTER",
+                col("image", null),
+                col("code", "common.code"),
+                col("name", "common.name"),
+                col("type", null),
+                col("brand", null),
+                hidden("division", null),
+                col("packSize", null),
+                col("composition", null),
+                hidden("hsn", null),
+                hidden("gst", null),
+                col("pts", null),
+                col("ptr", null),
+                col("mrp", null),
+                hidden("rateCount", null),
+                hidden("manufacturer", null),
+                col("status", "common.status"),
+                hidden("created", "common.created"),
+                hidden("updated", "common.updated"));
+
         // master/designation-master.html
         register("DESIGNATION_MASTER",
                 col("code", "common.code"),

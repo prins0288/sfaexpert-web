@@ -219,6 +219,16 @@
         get: (id) => `/api/master/brand-master/${id}`,
         status: (id) => `/api/master/brand-master/${id}/status`,
       },
+      itemMaster: {
+        list: "/api/master/item-master",
+        save: "/api/master/item-master",                   // multipart: data + image
+        get: (id) => `/api/master/item-master/${id}`,
+        status: (id) => `/api/master/item-master/${id}/status`,
+        molecules: "/api/master/item-master/molecules",
+        rate: (id) => `/api/master/item-master/${id}/rate`,
+        template: "/api/master/item-master/template",
+        upload: "/api/master/item-master/upload",
+      },
       designationMaster: {
         base: "/api/master/designation-master",
         list: "/api/master/designation-master",

@@ -22,28 +22,80 @@ public final class ExcelUtil {
 
     /** Read the first sheet into a list of {header -> value} maps. */
     public static List<Map<String, String>> read(InputStream in) throws IOException {
-        List<Map<String, String>> rows = new ArrayList<>();
         try (Workbook wb = WorkbookFactory.create(in)) {
-            Sheet sheet = wb.getSheetAt(0);
-            if (sheet == null) return rows;
-            Row header = sheet.getRow(sheet.getFirstRowNum());
-            if (header == null) return rows;
+            return wb.getNumberOfSheets() == 0 ? new ArrayList<>() : readSheet(wb.getSheetAt(0));
+        }
+    }
 
-            List<String> keys = new ArrayList<>();
-            for (Cell c : header) keys.add(cellText(c).trim());
+    /**
+     * Read every sheet: {sheet name in lower case -> rows}. For multi-sheet
+     * uploads (e.g. Items / Rates / Composition in one file).
+     */
+    public static Map<String, List<Map<String, String>>> readAll(InputStream in) throws IOException {
+        Map<String, List<Map<String, String>>> res = new LinkedHashMap<>();
+        try (Workbook wb = WorkbookFactory.create(in)) {
+            for (Sheet sheet : wb) res.put(sheet.getSheetName().trim().toLowerCase(java.util.Locale.ROOT), readSheet(sheet));
+        }
+        return res;
+    }
 
-            for (int r = sheet.getFirstRowNum() + 1; r <= sheet.getLastRowNum(); r++) {
-                Row row = sheet.getRow(r);
-                if (row == null || isBlank(row)) continue;
-                Map<String, String> map = new LinkedHashMap<>();
-                for (int c = 0; c < keys.size(); c++) {
-                    Cell cell = row.getCell(c, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
-                    map.put(keys.get(c), cell == null ? "" : cellText(cell).trim());
-                }
-                rows.add(map);
+    private static List<Map<String, String>> readSheet(Sheet sheet) {
+        List<Map<String, String>> rows = new ArrayList<>();
+        if (sheet == null) return rows;
+        Row header = sheet.getRow(sheet.getFirstRowNum());
+        if (header == null) return rows;
+
+        List<String> keys = new ArrayList<>();
+        for (int c = 0; c < header.getLastCellNum(); c++) keys.add(cellText(header.getCell(c)).trim());
+
+        for (int r = sheet.getFirstRowNum() + 1; r <= sheet.getLastRowNum(); r++) {
+            Row row = sheet.getRow(r);
+            if (row == null || isBlank(row)) continue;
+            Map<String, String> map = new LinkedHashMap<>();
+            for (int c = 0; c < keys.size(); c++) {
+                Cell cell = row.getCell(c, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
+                map.put(keys.get(c), cell == null ? "" : cellText(cell).trim());
             }
+            rows.add(map);
         }
         return rows;
+    }
+
+    /** One sheet of a multi-sheet template: name, header columns, sample rows (may be empty). */
+    public record SheetSpec(String name, List<String> headers, List<List<String>> samples) { }
+
+    /** Build a template workbook with several sheets. */
+    public static byte[] template(List<SheetSpec> sheets) throws IOException {
+        try (Workbook wb = new XSSFWorkbook(); ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
+            CellStyle head = headStyle(wb);
+            for (SheetSpec spec : sheets) {
+                Sheet sheet = wb.createSheet(spec.name());
+                Row h = sheet.createRow(0);
+                for (int i = 0; i < spec.headers().size(); i++) {
+                    Cell c = h.createCell(i);
+                    c.setCellValue(spec.headers().get(i));
+                    c.setCellStyle(head);
+                    sheet.setColumnWidth(i, 5000);
+                }
+                int r = 1;
+                for (List<String> sample : spec.samples()) {
+                    Row s = sheet.createRow(r++);
+                    for (int i = 0; i < sample.size(); i++) s.createCell(i).setCellValue(sample.get(i));
+                }
+            }
+            wb.write(bos);
+            return bos.toByteArray();
+        }
+    }
+
+    private static CellStyle headStyle(Workbook wb) {
+        CellStyle head = wb.createCellStyle();
+        Font f = wb.createFont();
+        f.setBold(true);
+        head.setFont(f);
+        head.setFillForegroundColor(IndexedColors.PALE_BLUE.getIndex());
+        head.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        return head;
     }
 
     /** Build a single-sheet template workbook with the given header columns. */
@@ -51,12 +103,7 @@ public final class ExcelUtil {
             throws IOException {
         try (Workbook wb = new XSSFWorkbook(); ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
             Sheet sheet = wb.createSheet(sheetName);
-            CellStyle head = wb.createCellStyle();
-            Font f = wb.createFont();
-            f.setBold(true);
-            head.setFont(f);
-            head.setFillForegroundColor(IndexedColors.PALE_BLUE.getIndex());
-            head.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            CellStyle head = headStyle(wb);
 
             Row h = sheet.createRow(0);
             for (int i = 0; i < headers.size(); i++) {

@@ -16,6 +16,7 @@ import in.opt.sfa.tenant.master.area.repository.AreaRepository;
 import in.opt.sfa.tenant.master.empdetail.repository.EmpDetailRepository;
 import in.opt.sfa.tenant.master.bank.repository.BankMasterRepository;
 import in.opt.sfa.tenant.master.brand.repository.BrandMasterRepository;
+import in.opt.sfa.tenant.master.itemtype.repository.ItemTypeMasterRepository;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -63,6 +64,7 @@ public class LookupController {
     private final CountryRepository countries;
     private final BankMasterRepository banks;
     private final BrandMasterRepository brands;
+    private final ItemTypeMasterRepository itemTypes;
 
     public LookupController(DivisionRepository divisions, ZoneRepository zones, StateRepository states,
                             HqRepository hqs, HqGroupMasterRepository hqGroups, DegreeMasterRepository degrees, SpecialityMasterRepository specialities,
@@ -70,7 +72,8 @@ public class LookupController {
                             RouteRepository routes, AreaRepository areas,
                             DesignationRepository designations, DistrictRepository districts,
                             EmpDetailRepository employees, CountryRepository countries,
-                            BankMasterRepository banks, BrandMasterRepository brands) {
+                            BankMasterRepository banks, BrandMasterRepository brands,
+                            ItemTypeMasterRepository itemTypes) {
         this.divisions = divisions;
         this.zones = zones;
         this.states = states;
@@ -88,6 +91,7 @@ public class LookupController {
         this.countries = countries;
         this.banks = banks;
         this.brands = brands;
+        this.itemTypes = itemTypes;
     }
 
     @GetMapping
@@ -132,6 +136,8 @@ public class LookupController {
                 .map(bk -> new Item(bk.getId(), bk.getBankName())).toList());
         if (want(want, "brands")) res.put("brands", brands.findByStatusTrueOrderByBrandNameAsc().stream()
                 .map(br -> new Item(br.getId(), br.getBrandName())).toList());
+        if (want(want, "itemTypes")) res.put("itemTypes", itemTypes.findByIsActiveOrderByDisplayOrderAscItemTypeNameAsc(true).stream()
+                .map(t -> new Item(t.getId(), t.getItemTypeName())).toList());
         if (want(want, "countries")) res.put("countries", countries.findByStatusOrderByCountryNameAsc(Boolean.TRUE).stream()
                 .map(c -> new Item(c.getOid(), c.getCountryName())).toList());
         return res;
