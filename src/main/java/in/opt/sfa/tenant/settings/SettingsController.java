@@ -24,7 +24,9 @@ public class SettingsController {
     /** Applied when a key has never been saved for this tenant. */
     private static final Map<String, String> DEFAULTS = Map.of(
             "dateFormat", "dd-MM-yyyy",
-            "contentProtection", "N"
+            "contentProtection", "N",
+            in.opt.sfa.tenant.master.clientmaster.service.ClientMasterService.FLOW_KEY,
+            in.opt.sfa.tenant.master.clientmaster.service.ClientMasterService.DEFAULT_FLOW
     );
 
     private final CompanySettingStore settings;
@@ -45,6 +47,14 @@ public class SettingsController {
     @Operation(summary = "Upsert one or more settings; returns the full merged map")
     @Transactional(transactionManager = "commonTransactionManager")
     public Map<String, String> save(@RequestBody Map<String, String> body) {
+        String flowKey = in.opt.sfa.tenant.master.clientmaster.service.ClientMasterService.FLOW_KEY;
+        if (body.containsKey(flowKey)) {
+            // who approves clients is a company policy: admins only, and only a known flow
+            in.opt.sfa.security.Authz.requireRole("ADMIN");
+            if (!in.opt.sfa.tenant.master.clientmaster.service.ClientMasterService.FLOWS.contains(body.get(flowKey))) {
+                throw new IllegalStateException("Client approval must be one of " + in.opt.sfa.tenant.master.clientmaster.service.ClientMasterService.FLOWS);
+            }
+        }
         body.forEach(settings::put);
         return get();
     }

@@ -64,9 +64,16 @@ public class ClientMasterController {
 
     @RequiresPermission("CLIENT_MASTER_APPROVE")
     @PostMapping("/{id}/approve")
-    @Operation(summary = "Approve (approved=true) or un-approve a client")
-    public ClientMasterDto approve(@PathVariable Long id, @RequestParam boolean approved) {
-        return service.approve(id, approved);
+    @Operation(summary = "Approve the step the client waits for (manager / admin, per the company's client approval flow)")
+    public ClientMasterDto approve(@PathVariable Long id) {
+        return service.approve(id);
+    }
+
+    @RequiresPermission("CLIENT_MASTER_APPROVE")
+    @PostMapping("/{id}/reject")
+    @Operation(summary = "Reject at the current step; body {reason}. Editing the client sends it for approval again")
+    public ClientMasterDto reject(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        return service.reject(id, body == null ? null : body.get("reason"));
     }
 
     @RequiresPermission("CLIENT_MASTER_SAVE")

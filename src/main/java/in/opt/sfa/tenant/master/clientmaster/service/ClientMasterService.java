@@ -51,15 +51,31 @@ import java.util.stream.Collectors;
  *
  * Code: typed by the user, or generated from the client type (first 2 letters of
  * its code + 5 digits, e.g. DR00001; no type = CL00001).
- * Approval: a client saved by someone with CLIENT_MASTER_APPROVE is approved at
- * once; anyone else's new client waits for approval. A delete request only
- * flags the client; an approver accepts it (client deactivated) or rejects it.
+ * Approval follows the company setting clientApprovalFlow (Settings > General):
+ *   AUTO           approved at once
+ *   MANAGER        a manager of the client's employee approves -> APPROVED
+ *   ADMIN          an admin approves -> APPROVED
+ *   MANAGER_ADMIN  manager approves (PENDING_ADMIN), then an admin -> APPROVED  (default)
+ * Roles come from the emp level (5-8 manager, 9-20 admin, 21+ super admin). A
+ * manager acts only for employees in his reporting chain (emp_detail.manager_id);
+ * an admin cannot skip the manager step unless the employee has no manager above
+ * him; the super admin can approve any step. A new client starts at the first
+ * step above its creator (a manager's own client waits only for the admin).
+ * Rejected clients go back into approval when they are edited. The client's
+ * "owner" for these rules is its mapped employee, else whoever created it.
+ * A delete request only flags the client; whoever gives the last approval
+ * step of the flow accepts it (client deactivated) or rejects it.
  */
 @Service
 public class ClientMasterService {
 
     public static final String PHOTO_MODULE = "clientPhoto";
     public static final String APPROVE = "CLIENT_MASTER_APPROVE";
+    public static final String FLOW_KEY = "clientApprovalFlow";
+    public static final List<String> FLOWS = List.of("AUTO", "MANAGER", "ADMIN", "MANAGER_ADMIN");
+    public static final String DEFAULT_FLOW = "MANAGER_ADMIN";
+    public static final String PENDING_MANAGER = "PENDING_MANAGER", PENDING_ADMIN = "PENDING_ADMIN",
+            APPROVED = "APPROVED", REJECTED = "REJECTED";
     public static final List<String> LOCALITY_TYPES = List.of("Urban", "Semi-Urban", "Rural");
     public static final List<String> GENDERS = List.of("Male", "Female", "Other");
     public static final List<String> VISIT_DAYS = List.of("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN");
@@ -86,13 +102,16 @@ public class ClientMasterService {
     private final PermissionService permissions;
     private final FileUploadService uploads;
     private final EmpNameResolver employeeNames;
+    private final in.opt.sfa.common.service.CompanySettingStore settings;
 
     public ClientMasterService(ClientMasterRepository clients, ClientMasterChildRepository children,
                                ClientTypeRepository clientTypes, CategoryMasterRepository categories,
                                SpecialityMasterRepository specialities, DegreeMasterRepository degrees,
                                StateRepository states, DistrictRepository districts, AreaRepository areas,
                                EmpDetailRepository employees, PermissionService permissions,
-                               FileUploadService uploads, EmpNameResolver employeeNames) {
+                               FileUploadService uploads, EmpNameResolver employeeNames,
+                               in.opt.sfa.common.service.CompanySettingStore settings) {
+        this.settings = settings;
         this.clients = clients;
         this.children = children;
         this.clientTypes = clientTypes;
@@ -113,15 +132,17 @@ public class ClientMasterService {
     @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
     public List<ClientMasterDto> list() {
         Names n = names();
+        Me me = me(n);
         Map<Long, ClientMasterChild> social = children.findAll().stream()
                 .collect(Collectors.toMap(ClientMasterChild::getClientId, Function.identity(), (a, b) -> a));
-        return clients.findAllByOrderByClientNameAsc().stream().map(c -> toDto(c, social.get(c.getId()), n)).toList();
+        return clients.findAllByOrderByClientNameAsc().stream().map(c -> rights(toDto(c, social.get(c.getId()), n), c, me)).toList();
     }
 
     @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
     public ClientMasterDto get(Long id) {
         ClientMaster c = find(id);
-        return toDto(c, children.findByClientId(id).orElse(null), names());
+        Names n = names();
+        return rights(toDto(c, children.findByClientId(id).orElse(null), n), c, me(n));
     }
 
     /** Everything the form needs in one call (dropdowns with their state for filtering, fixed lists). */
@@ -145,7 +166,7 @@ public class ClientMasterService {
         m.put("genders", GENDERS);
         m.put("visitDays", VISIT_DAYS);
         m.put("frequencies", FREQUENCIES);
-        m.put("canApprove", permissions.isAllowed(APPROVE));
+        m.put("approvalFlow", flow());
         return m;
     }
 
@@ -183,12 +204,14 @@ public class ClientMasterService {
         if (isNew) {
             c.setCreatedBy(me);
             c.setActive(true);
-            if (permissions.isAllowed(APPROVE)) approveNow(c, me);   // an approver's own client needs no second approval
+            startApproval(c);
+        } else if (REJECTED.equals(c.getApprovalStatus())) {
+            startApproval(c);   // corrected after a rejection: goes for approval again
         }
         c.setUpdatedBy(me);
         clients.saveAndFlush(c);
         saveSocial(c, form, true);
-        return toDto(c, children.findByClientId(c.getId()).orElse(null), n);
+        return rights(toDto(c, children.findByClientId(c.getId()).orElse(null), n), c, me(n));
     }
 
     @Transactional(transactionManager = "tenantTransactionManager")
@@ -200,12 +223,48 @@ public class ClientMasterService {
         return get(id);
     }
 
+    /** Approve the step the client is waiting for (manager step or final admin step). */
     @Transactional(transactionManager = "tenantTransactionManager")
-    public ClientMasterDto approve(Long id, boolean approved) {
+    public ClientMasterDto approve(Long id) {
         ClientMaster c = find(id);
-        if (approved) approveNow(c, currentUser());
-        else { c.setApproved(false); c.setApprovedByEmpCode(null); c.setApprovedOn(null); }
-        c.setUpdatedBy(currentUser());
+        Names n = names();
+        Me me = me(n);
+        String why = whyNotApprove(c, me);
+        if (why != null) throw new IllegalStateException(why);
+        LocalDateTime now = LocalDateTime.now();
+        String flow = flow();
+        if (PENDING_MANAGER.equals(c.getApprovalStatus())) {
+            c.setManagerApprovedBy(me.empId);
+            c.setManagerApprovedOn(now);
+            // a manager's approval is final unless the flow also needs an admin
+            boolean needsAdmin = (MANAGER_ADMIN_FLOW(flow) || "ADMIN".equals(flow)) && me.rank < ADMIN_RANK;
+            if (needsAdmin) c.setApprovalStatus(PENDING_ADMIN);
+            else finalApprove(c, me.empId, now);
+        } else {
+            finalApprove(c, me.empId, now);
+        }
+        c.setUpdatedBy(me.empId);
+        clients.save(c);
+        return get(id);
+    }
+
+    /** Reject at the current step (reason required). Editing the client sends it for approval again. */
+    @Transactional(transactionManager = "tenantTransactionManager")
+    public ClientMasterDto reject(Long id, String reason) {
+        ClientMaster c = find(id);
+        Names n = names();
+        Me me = me(n);
+        String why = whyNotApprove(c, me);
+        if (why != null) throw new IllegalStateException(why.replace("approve", "reject"));
+        String r = Strings.isBlank(reason) ? null : reason.trim();
+        if (r == null) throw new IllegalStateException("Please give the reason for rejecting this client");
+        if (r.length() > 255) throw new IllegalStateException("Reason can be at most 255 characters");
+        c.setApprovalStatus(REJECTED);
+        c.setApproved(false);
+        c.setRejectedBy(me.empId);
+        c.setRejectedOn(LocalDateTime.now());
+        c.setRejectReason(r);
+        c.setUpdatedBy(me.empId);
         clients.save(c);
         return get(id);
     }
@@ -230,6 +289,7 @@ public class ClientMasterService {
     public ClientMasterDto decideDelete(Long id, boolean accept) {
         ClientMaster c = find(id);
         if (!Boolean.TRUE.equals(c.getDeleteRequested())) throw new IllegalStateException("There is no delete request for this client");
+        if (!canDecideDelete(c, me(names()))) throw new IllegalStateException("Only the final approver of this client can decide its delete request");
         if (accept) c.setActive(false);
         c.setDeleteRequested(false);
         c.setUpdatedBy(currentUser());
@@ -301,7 +361,6 @@ public class ClientMasterService {
             throw new IllegalStateException("Could not read the file — use the .xlsx template");
         }
         Names n = names();
-        boolean approver = permissions.isAllowed(APPROVE);
         String me = currentUser();
         int created = 0, updated = 0, skipped = 0, r = 1;
         List<String> errors = new ArrayList<>(), codes = new ArrayList<>();
@@ -380,7 +439,7 @@ public class ClientMasterService {
                         clients.findByClientCode(c.getClientCode()).ifPresent(o -> { throw new IllegalStateException("client_code " + self.getClientCode() + " already exists"); });
                         c.setCreatedBy(me);
                         c.setActive(active == null || active);
-                        if (approver) approveNow(c, me);
+                        startApproval(c);
                     } else if (active != null) {
                         c.setActive(active);
                     }
@@ -571,10 +630,159 @@ public class ClientMasterService {
         children.save(ch);
     }
 
-    private static void approveNow(ClientMaster c, String who) {
+    // ---- approval rules ------------------------------------------------------------
+
+    private static final int USER_RANK = 0, MANAGER_RANK = 1, ADMIN_RANK = 2, SUPER_RANK = 3;
+
+    private static boolean MANAGER_ADMIN_FLOW(String flow) { return "MANAGER_ADMIN".equals(flow); }
+
+    /** The company's flow (Settings > General > Client approval). */
+    public String flow() {
+        String f = settings.value(FLOW_KEY, DEFAULT_FLOW);
+        return FLOWS.contains(f) ? f : DEFAULT_FLOW;
+    }
+
+    private static int rank(String role) {
+        if (role == null) return USER_RANK;
+        return switch (role) {
+            case "SUPER_ADMIN" -> SUPER_RANK;
+            case "ADMIN" -> ADMIN_RANK;
+            case "MANAGER" -> MANAGER_RANK;
+            default -> USER_RANK;
+        };
+    }
+
+    /** First status for a new (or resubmitted) client: the steps its creator already covers are done. */
+    private void startApproval(ClientMaster c) {
+        UserContext.CurrentUser u = UserContext.get();
+        int r = rank(u == null ? null : u.role());
+        String who = currentUser();
+        LocalDateTime now = LocalDateTime.now();
+        c.setManagerApprovedBy(null); c.setManagerApprovedOn(null);
+        c.setApprovedByEmpCode(null); c.setApprovedOn(null);
+        c.setRejectedBy(null); c.setRejectedOn(null); c.setRejectReason(null);
+        c.setApproved(false);
+        switch (flow()) {
+            case "AUTO" -> finalApprove(c, who, now);
+            case "MANAGER" -> {
+                if (r >= MANAGER_RANK) { c.setManagerApprovedBy(who); c.setManagerApprovedOn(now); finalApprove(c, who, now); }
+                else c.setApprovalStatus(PENDING_MANAGER);
+            }
+            case "ADMIN" -> {
+                if (r >= ADMIN_RANK) finalApprove(c, who, now);
+                else c.setApprovalStatus(PENDING_ADMIN);
+            }
+            default -> {   // MANAGER_ADMIN
+                if (r >= MANAGER_RANK) { c.setManagerApprovedBy(who); c.setManagerApprovedOn(now); }
+                if (r >= ADMIN_RANK) finalApprove(c, who, now);
+                else c.setApprovalStatus(r >= MANAGER_RANK ? PENDING_ADMIN : PENDING_MANAGER);
+            }
+        }
+    }
+
+    private static void finalApprove(ClientMaster c, String who, LocalDateTime when) {
+        c.setApprovalStatus(APPROVED);
         c.setApproved(true);
         c.setApprovedByEmpCode(who);
-        c.setApprovedOn(LocalDateTime.now());
+        c.setApprovedOn(when);
+    }
+
+    /** null = this user may approve (or reject) the client's current step; else the reason why not. */
+    private String whyNotApprove(ClientMaster c, Me me) {
+        String st = c.getApprovalStatus();
+        if (!Boolean.TRUE.equals(c.getActive())) return "This client is inactive";
+        if (APPROVED.equals(st)) return "This client is already approved";
+        if (REJECTED.equals(st)) return "This client was rejected — it goes for approval again when it is edited";
+        if (!me.allowed) return "You are not allowed to approve clients (permission CLIENT_MASTER_APPROVE)";
+        if (me.rank >= SUPER_RANK) return null;
+        String owner = owner(c);
+        if (PENDING_ADMIN.equals(st)) {
+            return me.rank >= ADMIN_RANK ? null : "Waiting for an admin's final approval";
+        }
+        // PENDING_MANAGER
+        if (me.rank == MANAGER_RANK) {
+            return owner == null || me.team.contains(owner) ? null
+                    : "Only the manager of " + me.name(owner) + " can approve this client";
+        }
+        if (me.rank >= ADMIN_RANK) {
+            // Manager -> Admin flow: the manager step belongs to the manager; the admin takes it
+            // only when nobody of manager level is above the employee. Other flows: an admin may stand in.
+            if (!MANAGER_ADMIN_FLOW(flow())) return null;
+            return owner == null || !me.hasManagerAbove(owner) ? null
+                    : "Waiting for the manager's approval first (then the admin gives the final approval)";
+        }
+        return "Only a manager or an admin can approve clients";
+    }
+
+    /** Delete requests are decided at the flow's last step. */
+    private boolean canDecideDelete(ClientMaster c, Me me) {
+        if (!Boolean.TRUE.equals(c.getDeleteRequested()) || !me.allowed) return false;
+        if (me.rank >= ADMIN_RANK) return true;
+        String flow = flow();
+        if (me.rank == MANAGER_RANK && ("MANAGER".equals(flow) || "AUTO".equals(flow))) {
+            String owner = owner(c);
+            return owner == null || me.team.contains(owner);
+        }
+        return false;
+    }
+
+    private ClientMasterDto rights(ClientMasterDto d, ClientMaster c, Me me) {
+        d.setCanApprove(whyNotApprove(c, me) == null);
+        d.setCanDecideDelete(canDecideDelete(c, me));
+        return d;
+    }
+
+    /** The employee the client belongs to: mapped employee, else its creator (when that is an employee). */
+    private static String owner(ClientMaster c) {
+        return c.getMappedEmpCode() != null ? c.getMappedEmpCode() : c.getCreatedBy();
+    }
+
+    private Me me(Names n) {
+        UserContext.CurrentUser u = UserContext.get();
+        return new Me(u == null ? null : u.empId(), rank(u == null ? null : u.role()), permissions.isAllowed(APPROVE), n);
+    }
+
+    /** The signed-in user: rank, the employees reporting to them (any depth), and who has a manager above. */
+    private static final class Me {
+        final String empId;
+        final int rank;
+        final boolean allowed;
+        final Set<String> team = new HashSet<>();
+        private final Names n;
+
+        Me(String empId, int rank, boolean allowed, Names n) {
+            this.empId = empId;
+            this.rank = rank;
+            this.allowed = allowed;
+            this.n = n;
+            if (empId == null) return;
+            Map<String, List<String>> reports = new HashMap<>();
+            n.employees.values().forEach(e -> { if (e.getManagerId() != null) reports.computeIfAbsent(e.getManagerId(), k -> new ArrayList<>()).add(e.getEmpId()); });
+            Deque<String> todo = new ArrayDeque<>(reports.getOrDefault(empId, List.of()));
+            while (!todo.isEmpty()) {
+                String id = todo.pop();
+                if (team.add(id)) todo.addAll(reports.getOrDefault(id, List.of()));
+            }
+        }
+
+        /** Is anyone of manager level (5-8) above this employee in the reporting chain? */
+        boolean hasManagerAbove(String empId) {
+            Set<String> seen = new HashSet<>();
+            EmpDetail e = n.employees.get(empId);
+            while (e != null && e.getManagerId() != null && seen.add(e.getEmpId())) {
+                EmpDetail m = n.employees.get(e.getManagerId());
+                if (m == null) return false;
+                int lvl = m.getEmpLevel() == null ? 0 : m.getEmpLevel();
+                if (lvl >= 5 && lvl <= 8 && m.isActive()) return true;
+                e = m;
+            }
+            return false;
+        }
+
+        String name(String empId) {
+            EmpDetail e = n.employees.get(empId);
+            return e == null ? empId : e.getEmpName();
+        }
     }
 
     private static String checkCode(String raw) {
@@ -715,6 +923,14 @@ public class ClientMasterService {
         d.setCityName(ar == null ? null : ar.getAreaName());
         d.setMappedEmpName(e.getMappedEmpCode() == null ? null : employeeNames.resolve(n.empNames, e.getMappedEmpCode()));
         d.setApprovedByName(e.getApprovedByEmpCode() == null ? null : employeeNames.resolve(n.empNames, e.getApprovedByEmpCode()));
+        d.setApprovalStatus(e.getApprovalStatus());
+        d.setManagerApprovedBy(e.getManagerApprovedBy());
+        d.setManagerApprovedOn(e.getManagerApprovedOn());
+        d.setManagerApprovedByName(e.getManagerApprovedBy() == null ? null : employeeNames.resolve(n.empNames, e.getManagerApprovedBy()));
+        d.setRejectedBy(e.getRejectedBy());
+        d.setRejectedOn(e.getRejectedOn());
+        d.setRejectedByName(e.getRejectedBy() == null ? null : employeeNames.resolve(n.empNames, e.getRejectedBy()));
+        d.setRejectReason(e.getRejectReason());
         d.setCreatedByName(e.getCreatedBy() == null ? null : employeeNames.resolve(n.empNames, e.getCreatedBy()));
         d.setUpdatedByName(e.getUpdatedBy() == null ? null : employeeNames.resolve(n.empNames, e.getUpdatedBy()));
         return d;

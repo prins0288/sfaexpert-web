@@ -214,6 +214,25 @@ public class ClientMaster {
     @Column(name = "approved_on")
     private LocalDateTime approvedOn;
 
+    /** PENDING_MANAGER / PENDING_ADMIN / APPROVED / REJECTED (77_client_approval_flow.sql). */
+    @Column(name = "approval_status", length = 20, nullable = false)
+    private String approvalStatus = "PENDING_MANAGER";
+
+    @Column(name = "manager_approved_by", length = 40)
+    private String managerApprovedBy;
+
+    @Column(name = "manager_approved_on")
+    private LocalDateTime managerApprovedOn;
+
+    @Column(name = "rejected_by", length = 40)
+    private String rejectedBy;
+
+    @Column(name = "rejected_on")
+    private LocalDateTime rejectedOn;
+
+    @Column(name = "reject_reason", length = 255)
+    private String rejectReason;
+
     @Column(name = "has_fund_support", nullable = false)
     private Boolean fundSupport = false;
 

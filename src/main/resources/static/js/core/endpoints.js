@@ -229,7 +229,8 @@
         nextCode: "/api/master/client-master/next-code",            // ?clientTypeId=
         get: (id) => `/api/master/client-master/${id}`,
         status: (id) => `/api/master/client-master/${id}/status`,   // ?active=
-        approve: (id) => `/api/master/client-master/${id}/approve`, // ?approved=
+        approve: (id) => `/api/master/client-master/${id}/approve`, // the step it waits for
+        reject: (id) => `/api/master/client-master/${id}/reject`,   // body { reason }
         deleteRequest: (id) => `/api/master/client-master/${id}/delete-request`,
         deleteDecision: (id) => `/api/master/client-master/${id}/delete-decision`,  // ?accept=
         photo: (id) => `/api/master/client-master/${id}/photo`,

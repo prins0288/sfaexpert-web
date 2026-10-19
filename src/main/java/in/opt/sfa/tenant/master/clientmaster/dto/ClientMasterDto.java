@@ -91,6 +91,21 @@ public class ClientMasterDto {
     @JsonFormat(pattern = "dd-MM-yyyy HH:mm")
     private LocalDateTime updatedOn;
 
+    // ---- approval steps (read-only) ----
+    private String approvalStatus;
+    private String managerApprovedBy;
+    @JsonFormat(pattern = "dd-MM-yyyy HH:mm")
+    private LocalDateTime managerApprovedOn;
+    private String rejectedBy;
+    @JsonFormat(pattern = "dd-MM-yyyy HH:mm")
+    private LocalDateTime rejectedOn;
+    private String rejectReason;
+    private String managerApprovedByName;
+    private String rejectedByName;
+    /** For the signed-in user: may they approve / reject this client now, decide its delete request? */
+    private Boolean canApprove;
+    private Boolean canDecideDelete;
+
     // ---- social handles (client_master_child) ----
     private String instagramHandle;
     private String facebookHandle;
