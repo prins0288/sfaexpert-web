@@ -80,6 +80,7 @@ public class ClientMasterDto {
     private Boolean active;
     private Boolean deleteRequested;
     private String deleteRequestedBy;
+    private String deleteRequestedByName;
     private String deleteRequestReason;
     private Boolean approved;
     private String approvedByEmpCode;
@@ -106,6 +107,11 @@ public class ClientMasterDto {
     private String rejectedByName;
     /** For the signed-in user: may they approve / reject this client now, decide its delete request? */
     private Boolean canApprove;
+    /** The request waiting for approval: ADD, DELETE or null. */
+    private String pendingRequest;
+    private String deleteStatus;
+    private String addRequestedBy;
+    private String addRequestedByName;
     private Boolean canDecideDelete;
 
     // ---- social handles (client_master_child) ----

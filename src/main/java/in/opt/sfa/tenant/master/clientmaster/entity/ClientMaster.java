@@ -222,6 +222,14 @@ public class ClientMaster {
     @Column(name = "approval_status", length = 20, nullable = false)
     private String approvalStatus = "PENDING_MANAGER";
 
+    /** Who asked for the client (create / resubmit after a rejection). */
+    @Column(name = "add_requested_by", length = 40)
+    private String addRequestedBy;
+
+    /** Delete request: PENDING_MANAGER / PENDING_ADMIN / APPROVED / REJECTED (null = never requested). */
+    @Column(name = "delete_status", length = 20)
+    private String deleteStatus;
+
     @Column(name = "manager_approved_by", length = 40)
     private String managerApprovedBy;
 

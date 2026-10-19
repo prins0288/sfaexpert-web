@@ -62,14 +62,13 @@ public class ClientMasterController {
         return service.updateStatus(id, active);
     }
 
-    @RequiresPermission("CLIENT_MASTER_APPROVE")
+    // Rights are checked in the service: CLIENT_ADD_APPROVE / CLIENT_DELETE_APPROVE by the request, role, team, never your own
     @PostMapping("/{id}/approve")
-    @Operation(summary = "Approve the step the client waits for (manager / admin, per the company's client approval flow)")
+    @Operation(summary = "Approve the step the client's add / delete request waits for (manager / admin, per the company's client approval flow)")
     public ClientMasterDto approve(@PathVariable Long id) {
         return service.approve(id);
     }
 
-    @RequiresPermission("CLIENT_MASTER_APPROVE")
     @PostMapping("/{id}/reject")
     @Operation(summary = "Reject at the current step; body {reason}. Editing the client sends it for approval again")
     public ClientMasterDto reject(@PathVariable Long id, @RequestBody Map<String, String> body) {
@@ -83,11 +82,16 @@ public class ClientMasterController {
         return service.requestDelete(id, body == null ? null : body.get("reason"));
     }
 
-    @RequiresPermission("CLIENT_MASTER_APPROVE")
     @PostMapping("/{id}/delete-decision")
-    @Operation(summary = "accept=true deactivates the client, false keeps it; closes the request")
+    @Operation(summary = "accept=true approves the delete request's current step, false rejects it")
     public ClientMasterDto decideDelete(@PathVariable Long id, @RequestParam boolean accept) {
         return service.decideDelete(id, accept);
+    }
+
+    @GetMapping("/{id}/approvals")
+    @Operation(summary = "Approval history: every request / approval / rejection with who did it")
+    public List<in.opt.sfa.tenant.master.clientmaster.entity.ClientMasterApproval> approvals(@PathVariable Long id) {
+        return service.history(id);
     }
 
     @RequiresPermission("CLIENT_MASTER_SAVE")

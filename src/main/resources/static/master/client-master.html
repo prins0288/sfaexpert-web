@@ -51,7 +51,7 @@
       </div>
     </div>
     <div class="card-body">
-      <p class="text-muted small" id="cmFlowNote">New clients go through the approval set in Settings &gt; General &gt; Client approval. A delete request only flags the client — the final approver accepts it (client deactivated) or rejects it.
+      <p class="text-muted small" id="cmFlowNote">New clients go through the approval set in Settings &gt; General &gt; Client approval — delete requests the same way. A new client stays inactive until approved; a client asked to be deleted stays active until the delete is approved.
         Use <b>Columns</b> / <b>Column Settings</b> to show district, locality, visit days and more.</p>
       <div class="table-responsive">
         <table id="cmTable" data-screen-key="CLIENT_MASTER_V2" class="table table-striped table-bordered nowrap" style="width:100%">
@@ -211,6 +211,15 @@
     </form>
   </div></div>
 
+  <!-- Approval history -->
+  <div class="modal fade" id="cmHistModal" tabindex="-1"><div class="modal-dialog modal-xl modal-dialog-scrollable modal-fullscreen-lg-down">
+    <div class="modal-content">
+      <div class="modal-header sfa-modal"><h5 class="modal-title" id="cmHistTitle">Approval history</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body" id="cmHistBody"></div>
+    </div>
+  </div></div>
+
   <!-- Bulk upload -->
   <div class="modal fade" id="cmUploadModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
     <form class="modal-content" onsubmit="cmUpload(event)">
@@ -271,7 +280,7 @@
       await loadOptions(false);
       const flowText = { AUTO: 'approved at once', MANAGER: 'approved by the employee\'s manager', ADMIN: 'approved by an admin',
         MANAGER_ADMIN: 'approved by the employee\'s manager, then finally by an admin' }[OPT.approvalFlow];
-      if (flowText) document.getElementById('cmFlowNote').firstChild.textContent = 'New clients are ' + flowText + ' (Settings > General > Client approval). A delete request only flags the client — the final approver accepts it (client deactivated) or rejects it. ';
+      if (flowText) document.getElementById('cmFlowNote').firstChild.textContent = 'New clients are ' + flowText + ' (Settings > General > Client approval) — delete requests the same way. A new client stays inactive and a client asked to be deleted stays active until the final approval. Nobody approves their own request. ';
       SFAQuickAdd.decorate(form);
       await reload();
     } catch (e) { SFA.toast(e.message, false); }
@@ -331,19 +340,22 @@
     ROWS = await Api.get(EP.list);
     render();
   }
+  const STEP = { PENDING_MANAGER: 'Manager', PENDING_ADMIN: 'Admin' };
   function approvalBadge(r) {
-    const del = r.deleteRequested ? ` <span class="badge bg-danger" title="${esc(r.deleteRequestReason)}">Delete requested</span>` : '';
+    const del = r.deleteRequested && STEP[r.deleteStatus]
+      ? ` <span class="badge bg-danger" title="${esc((r.deleteRequestedByName ? r.deleteRequestedByName + ': ' : '') + (r.deleteRequestReason || ''))}">Delete pending · ${STEP[r.deleteStatus]}</span>`
+      : r.deleteStatus === 'REJECTED' && r.active ? ' <span class="badge bg-light text-dark border" title="The last delete request was rejected">Delete rejected</span>' : '';
     const mgr = r.managerApprovedByName ? 'Manager: ' + r.managerApprovedByName + ' ' + (r.managerApprovedOn || '') : '';
     switch (r.approvalStatus) {
       case 'APPROVED': return `<span class="badge badge-active" title="${esc((mgr ? mgr + ' | ' : '') + 'Final: ' + (r.approvedByName || '') + ' ' + (r.approvedOn || ''))}">Approved</span>` + del;
-      case 'PENDING_ADMIN': return `<span class="badge bg-info text-dark" title="${esc(mgr)}">Pending · Admin</span>` + del;
+      case 'PENDING_ADMIN': return `<span class="badge bg-info text-dark" title="${esc(mgr)}">Add pending · Admin</span>` + del;
       case 'REJECTED': return `<span class="badge bg-secondary" title="${esc((r.rejectedByName || '') + ': ' + (r.rejectReason || ''))}">Rejected</span>` + del;
-      default: return '<span class="badge bg-warning text-dark">Pending · Manager</span>' + del;
+      default: return '<span class="badge bg-warning text-dark">Add pending · Manager</span>' + del;
     }
   }
   function render() {
     const f = document.getElementById('cmFilter').value;
-    const rows = ROWS.filter(r => !f || (f === 'pending' && /^PENDING/.test(r.approvalStatus) && r.active) || (f === 'mine' && r.canApprove)
+    const rows = ROWS.filter(r => !f || (f === 'pending' && !!r.pendingRequest) || (f === 'mine' && r.canApprove)
       || (f === 'rejected' && r.approvalStatus === 'REJECTED') || (f === 'delete' && r.deleteRequested)
       || (f === 'active' && r.active) || (f === 'inactive' && !r.active));
     if (DT) { DT.destroy(); }
@@ -360,14 +372,15 @@
         <td>${auditCell(r.createdByName, r.createdOn)}</td><td>${auditCell(r.updatedByName, r.updatedOn)}</td>
         <td class="no-export">
           <button data-perm="CLIENT_MASTER_SAVE" class="btn btn-sm btn-outline-primary" title="Edit" onclick="cmEdit(${r.id})"><i class="bi bi-pencil"></i></button>
-          ${r.canApprove ? `<button class="btn btn-sm btn-outline-success" title="Approve${r.approvalStatus === 'PENDING_MANAGER' ? ' (manager step)' : ' (final)'}" onclick="cmApprove(${r.id})"><i class="bi bi-patch-check"></i></button>
-            <button class="btn btn-sm btn-outline-danger" title="Reject" onclick="cmReject(${r.id})"><i class="bi bi-hand-thumbs-down"></i></button>` : ''}
-          ${r.canDecideDelete ? `<button class="btn btn-sm btn-danger" title="Accept delete (deactivate)" onclick="cmDecide(${r.id},true)"><i class="bi bi-trash"></i></button>
-            <button class="btn btn-sm btn-outline-secondary" title="Reject delete request" onclick="cmDecide(${r.id},false)"><i class="bi bi-x-circle"></i></button>` : ''}
+          ${r.canApprove && r.pendingRequest === 'ADD' ? `<button class="btn btn-sm btn-outline-success" title="Approve new client" onclick="cmApprove(${r.id})"><i class="bi bi-patch-check"></i></button>
+            <button class="btn btn-sm btn-outline-danger" title="Reject new client" onclick="cmReject(${r.id})"><i class="bi bi-hand-thumbs-down"></i></button>` : ''}
+          ${r.canApprove && r.pendingRequest === 'DELETE' ? `<button class="btn btn-sm btn-danger" title="Approve delete request" onclick="cmApprove(${r.id})"><i class="bi bi-trash"></i></button>
+            <button class="btn btn-sm btn-outline-secondary" title="Reject delete request" onclick="cmReject(${r.id})"><i class="bi bi-x-circle"></i></button>` : ''}
+          <button class="btn btn-sm btn-outline-info" title="Approval history" onclick="cmHistory(${r.id})"><i class="bi bi-clock-history"></i></button>
           ${r.active && !r.deleteRequested ? `<button data-perm="CLIENT_MASTER_SAVE" class="btn btn-sm btn-outline-warning" title="Request delete" onclick="cmRequestDelete(${r.id})"><i class="bi bi-flag"></i></button>` : ''}
           ${r.active
             ? `<button data-perm="CLIENT_MASTER_STATUS" class="btn btn-sm btn-outline-danger" title="Deactivate" onclick="cmStatus(${r.id},false)"><i class="bi bi-slash-circle"></i></button>`
-            : `<button data-perm="CLIENT_MASTER_STATUS" class="btn btn-sm btn-outline-success" title="Activate" onclick="cmStatus(${r.id},true)"><i class="bi bi-check-circle"></i></button>`}
+            : r.approvalStatus !== 'APPROVED' ? '' : `<button data-perm="CLIENT_MASTER_STATUS" class="btn btn-sm btn-outline-success" title="Activate" onclick="cmStatus(${r.id},true)"><i class="bi bi-check-circle"></i></button>`}
         </td>
       </tr>`).join('');
     DT = sfaDataTable('#cmTable');
@@ -399,10 +412,12 @@
     const note = document.getElementById('c_statusNote');
     const msg = !r.id ? '' : r.approvalStatus === 'REJECTED'
       ? 'Rejected by ' + (r.rejectedByName || '') + ': ' + (r.rejectReason || '') + ' — saving sends it for approval again.'
-      : r.approvalStatus === 'PENDING_MANAGER' ? 'Waiting for the manager\'s approval.'
-      : r.approvalStatus === 'PENDING_ADMIN' ? 'Approved by the manager' + (r.managerApprovedByName ? ' (' + r.managerApprovedByName + ')' : '') + ' — waiting for the admin\'s final approval.'
+      : r.approvalStatus === 'PENDING_MANAGER' ? 'New client: waiting for the manager\'s approval (inactive till approved).'
+      : r.approvalStatus === 'PENDING_ADMIN' ? 'New client: ' + (r.managerApprovedByName ? 'approved by the manager (' + r.managerApprovedByName + ') — ' : '') + 'waiting for the admin\'s final approval (inactive till approved).'
       : '';
-    note.textContent = (r.deleteRequested ? 'Delete requested: ' + (r.deleteRequestReason || '') + '. ' : '') + msg;
+    const delMsg = r.deleteRequested ? 'Delete requested' + (r.deleteRequestedByName ? ' by ' + r.deleteRequestedByName : '') + ': ' + (r.deleteRequestReason || '')
+      + ' — waiting for the ' + (r.deleteStatus === 'PENDING_ADMIN' ? 'admin' : 'manager') + '\'s approval. ' : '';
+    note.textContent = delMsg + msg;
     note.classList.toggle('d-none', !note.textContent);
     document.getElementById('c_codeHelp').textContent = r.id ? 'You can change the code (must stay unique)' : 'Made from the type (e.g. DO00001) — or type your own';
     document.querySelectorAll('#cmForm .is-invalid').forEach(el => el.classList.remove('is-invalid'));
@@ -490,7 +505,7 @@
         else if (PHOTO.removed()) await Api.del(EP.photo(saved.id));
       } catch (e) { photoErr = e.message; }
       MODAL.hide(); await reload();
-      const wait = { PENDING_MANAGER: ' — waiting for the manager\'s approval', PENDING_ADMIN: ' — waiting for the admin\'s approval' }[saved.approvalStatus] || '';
+      const wait = { PENDING_MANAGER: ' — inactive till the manager approves', PENDING_ADMIN: ' — inactive till the admin approves' }[saved.approvalStatus] || '';
       SFA.toast('Client ' + saved.clientCode + (o.id ? ' updated' : ' created') + wait, wait ? 'info' : true);
       if (photoErr) SFA.toast('Photo: ' + photoErr, false, 6000);
     } catch (e) { openSectionFor(e.message); SFA.toast(e.message, false); }
@@ -504,27 +519,54 @@
     if (!confirm(active ? 'Activate this client?' : 'Deactivate this client?')) return;
     act(() => Api.post(EP.status(id), null, { query: { active } }), active ? 'Client activated' : 'Client deactivated');
   }
+  const DONE = { ADD: 'New client approved — it is active now', DELETE: 'Delete request approved — client deactivated' };
   function cmApprove(id) {
+    const row = ROWS.find(x => x.id === id) || {};
+    const req = row.pendingRequest;
+    if (req === 'DELETE' && !confirm('Approve the delete request of ' + (row.clientName || 'this client') + '?')) return;
     act(async () => {
       const r = await Api.post(EP.approve(id));
-      SFA.toast(r.approvalStatus === 'APPROVED' ? 'Client approved' : 'Approved — now waiting for the admin\'s final approval', r.approvalStatus === 'APPROVED' ? true : 'info');
+      const final = req === 'DELETE' ? !r.deleteRequested : r.approvalStatus === 'APPROVED';
+      SFA.toast(final ? DONE[req] : 'Approved — now waiting for the admin\'s final approval', final ? true : 'info');
     });
   }
   function cmReject(id) {
-    const reason = prompt('Why is this client rejected? (the creator sees this and can correct the client)');
+    const row = ROWS.find(x => x.id === id) || {};
+    const del = row.pendingRequest === 'DELETE';
+    const reason = prompt(del ? 'Why is the delete request rejected? (the client stays active)' : 'Why is this client rejected? (the creator sees this and can correct the client)');
     if (reason === null) return;
     if (!reason.trim()) { SFA.toast('Please give the reason', false); return; }
-    act(() => Api.post(EP.reject(id), { reason: reason.trim() }), 'Client rejected');
+    act(() => Api.post(EP.reject(id), { reason: reason.trim() }), del ? 'Delete request rejected — client stays active' : 'Client rejected');
   }
   function cmRequestDelete(id) {
-    const reason = prompt('Why should this client be deleted? (an approver will decide)');
+    const reason = prompt('Why should this client be deleted? (it stays active until the request is approved)');
     if (reason === null) return;
     if (!reason.trim()) { SFA.toast('Please give the reason', false); return; }
-    act(() => Api.post(EP.deleteRequest(id), { reason: reason.trim() }), 'Delete request sent for approval');
+    act(async () => {
+      const r = await Api.post(EP.deleteRequest(id), { reason: reason.trim() });
+      SFA.toast(!r.active ? 'Client deactivated' : 'Delete request sent — waiting for the ' + (r.deleteStatus === 'PENDING_ADMIN' ? 'admin' : 'manager') + '\'s approval', !r.active ? true : 'info');
+    });
   }
-  function cmDecide(id, accept) {
-    if (!confirm(accept ? 'Accept the delete request? The client will be deactivated.' : 'Reject the delete request? The client stays active.')) return;
-    act(() => Api.post(EP.deleteDecision(id), null, { query: { accept } }), accept ? 'Client deactivated' : 'Delete request rejected');
+  const ACTION = { REQUESTED: ['Requested', 'bg-primary'], APPROVED: ['Approved', 'bg-success'], REJECTED: ['Rejected', 'bg-danger'] };
+  async function cmHistory(id) {
+    const row = ROWS.find(x => x.id === id) || {};
+    document.getElementById('cmHistTitle').textContent = 'Approval history · ' + (row.clientCode || '') + ' ' + (row.clientName || '');
+    const body = document.getElementById('cmHistBody');
+    body.innerHTML = '<div class="text-muted">Loading…</div>';
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('cmHistModal')).show();
+    try {
+      const list = await Api.get(EP.approvals(id));
+      body.innerHTML = !list.length ? '<div class="text-muted">No approval history (client made before the approval log).</div>' : `
+        <div class="table-responsive"><table class="table table-sm table-bordered align-middle mb-0">
+          <thead><tr><th>When</th><th>Request</th><th>Step</th><th>Action</th><th>By</th><th>Designation</th><th>Level / Role</th><th>Status after</th><th>Remarks</th></tr></thead>
+          <tbody>${list.map(a => `<tr>
+            <td class="text-nowrap">${esc((a.actionAt || '').replace('T', ' ').slice(0, 19))}</td>
+            <td>${a.requestType === 'DELETE' ? 'Delete' : 'Add'}</td><td>${esc(a.step)}</td>
+            <td><span class="badge ${(ACTION[a.action] || [0, 'bg-secondary'])[1]}">${esc((ACTION[a.action] || [a.action])[0])}</span></td>
+            <td>${esc(a.empName || a.empId)}${a.empCode ? ' <small class="text-muted">(' + esc(a.empCode) + ')</small>' : ''}</td>
+            <td>${esc(a.designationName)}</td><td>${a.empLevel != null ? esc(a.empLevel) + ' / ' : ''}${esc(a.role)}</td>
+            <td>${esc(a.statusAfter)}</td><td>${esc(a.remarks)}</td></tr>`).join('')}</tbody></table></div>`;
+    } catch (e) { body.innerHTML = '<div class="text-danger">' + esc(e.message) + '</div>'; }
   }
 
   async function cmUpload(ev) {

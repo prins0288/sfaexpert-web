@@ -238,6 +238,7 @@
         reject: (id) => `/api/master/client-master/${id}/reject`,   // body { reason }
         deleteRequest: (id) => `/api/master/client-master/${id}/delete-request`,
         deleteDecision: (id) => `/api/master/client-master/${id}/delete-decision`,  // ?accept=
+        approvals: (id) => `/api/master/client-master/${id}/approvals`,           // history: who requested / approved / rejected
         photo: (id) => `/api/master/client-master/${id}/photo`,
         template: "/api/master/client-master/template",
         upload: "/api/master/client-master/upload",
