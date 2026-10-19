@@ -14,11 +14,11 @@ import java.util.List;
 /**
  * Admin screens: the catalog of permission codes (permission_master) and who
  * they're assigned to (permission_assignment) — by emp_id, designation, or
- * emp_level. ADMIN / SUPER_ADMIN only.
+ * hierarchy level. ADMIN / SUPER_ADMIN only.
  */
 @RestController
 @RequestMapping("/api/master/permission-master")
-@Tag(name = "Permission Master", description = "Permission catalog + emp_id/designation/emp_level assignments")
+@Tag(name = "Permission Master", description = "Permission catalog + emp_id / designation / hierarchy level assignments")
 public class PermissionMasterController {
 
     private final PermissionAdminService service;
@@ -42,7 +42,7 @@ public class PermissionMasterController {
     }
 
     @GetMapping("/targets")
-    @Operation(summary = "Assignable targets: active employees (emp_id), designations (designation_code) and emp levels")
+    @Operation(summary = "Assignable targets: active employees (emp_id), designations (id) and hierarchy levels")
     public PermissionAdminService.Targets targets() {
         Authz.requireRole("ADMIN");
         return service.targets();
@@ -58,10 +58,10 @@ public class PermissionMasterController {
     }
 
     @PostMapping("/assignments")
-    @Operation(summary = "Grant or deny a permission to an emp_id, a designation, or an emp_level",
+    @Operation(summary = "Grant or deny a permission to an emp_id, a designation, or a hierarchy level",
             description = "Upserts on (targetType, targetValue, permissionCode). allowed=false denies even if the " +
-                    "designation/emp_level above it is allowed — emp_id rows take precedence over designation, which " +
-                    "takes precedence over emp_level.")
+                    "designation/hierarchy level above it is allowed — emp_id rows take precedence over designation, which " +
+                    "takes precedence over hierarchy level.")
     public PermissionAssignmentDto saveAssignment(@RequestBody PermissionAssignmentDto form) {
         Authz.requireRole("ADMIN");
         return service.saveAssignment(form);

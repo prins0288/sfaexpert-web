@@ -46,13 +46,14 @@
       </div>
     </div>
     <div class="card-body">
-      <p class="text-muted small mb-2">The <b>emp level</b> of a designation is copied to every employee holding it and decides
-        their role: 1-4 User, 5-8 Manager, 9-20 Admin, 21+ Super Admin. Changing it updates those employees (from their next login).</p>
+      <p class="text-muted small mb-2" id="dsgNote">Each employee holds a designation; its <b>hierarchy level</b> (unique, higher = more senior) decides their role
+        by the ranges in Settings &gt; General &gt; Role by hierarchy level. Changes apply from the employee's next login.</p>
       <div class="table-responsive">
         <table id="dsgTable" data-screen-key="DESIGNATION_MASTER" class="table table-striped table-bordered nowrap" style="width:100%">
           <thead><tr>
-            <th>S.No</th><th data-field="code">Code</th><th data-field="name">Name</th><th data-field="empLevel">Emp Level</th>
-            <th data-field="role">Role</th><th data-field="employees">Employees</th><th data-field="status">Status</th><th class="no-export">Actions</th>
+            <th>S.No</th><th data-field="name">Designation</th><th data-field="hierarchyLevel">Hierarchy Level</th><th data-field="displayOrder">Display Order</th>
+            <th data-field="grade">Grade</th><th data-field="category">Category</th><th data-field="role">Role</th><th data-field="employees">Employees</th>
+            <th data-field="status">Status</th><th class="no-export">Actions</th>
           </tr></thead>
           <tbody></tbody>
         </table>
@@ -66,14 +67,19 @@
       <div class="modal-header sfa-modal"><h5 class="modal-title" id="dsgModalTitle">Add Designation</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
       <div class="modal-body"><div class="row g-3">
-        <input type="hidden" id="d_oid" />
-        <div class="col-md-5"><label class="form-label">Code <span class="required-star">*</span></label>
-          <input class="form-control text-uppercase" id="d_designationCode" required maxlength="30" placeholder="DSG-MR" /></div>
-        <div class="col-md-7"><label class="form-label">Name <span class="required-star">*</span></label>
-          <input class="form-control" id="d_designationName" required maxlength="120" placeholder="Medical Representative" /></div>
-        <div class="col-md-5"><label class="form-label">Emp Level <span class="required-star">*</span></label>
-          <input type="number" class="form-control" id="d_empLevel" required min="1" max="99" step="1" placeholder="1" oninput="dsgRoleHint()" /></div>
-        <div class="col-md-7 d-flex align-items-end"><div class="mb-2">Role: <span id="d_roleHint" class="badge bg-secondary">—</span></div></div>
+        <input type="hidden" id="d_id" />
+        <div class="col-md-7"><label class="form-label">Designation <span class="required-star">*</span></label>
+          <input class="form-control" id="d_designation" required maxlength="50" placeholder="MR / ABM / Dy. RSM" /></div>
+        <div class="col-md-5"><label class="form-label">Hierarchy level <span class="required-star">*</span></label>
+          <input type="number" class="form-control" id="d_hierarchyLevel" required min="1" max="9999" step="1" placeholder="10" oninput="dsgRoleHint()" /></div>
+        <div class="col-md-4"><label class="form-label">Display order</label>
+          <input type="number" class="form-control" id="d_displayOrder" min="0" max="9999" step="1" placeholder="Auto" /></div>
+        <div class="col-md-4"><label class="form-label">Grade</label>
+          <input class="form-control" id="d_grade" maxlength="20" list="d_gradeList" placeholder="Junior / Senior" />
+          <datalist id="d_gradeList"><option>Junior</option><option>Senior</option></datalist></div>
+        <div class="col-md-4"><label class="form-label">Category</label>
+          <select class="form-select" id="d_designationCategory" data-no-search><option value="">--</option></select></div>
+        <div class="col-12">Role: <span id="d_roleHint" class="badge bg-secondary">—</span> <small class="text-muted" id="d_rangeText"></small></div>
         <div class="col-12"><div class="form-text" id="d_levelWarn"></div></div>
       </div></div>
       <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
@@ -82,19 +88,23 @@
   </div></div>
 
   <!-- Add Multiple -->
-  <div class="modal fade" id="dsgMultiModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
+  <div class="modal fade" id="dsgMultiModal" tabindex="-1"><div class="modal-dialog modal-xl modal-dialog-scrollable modal-fullscreen-sm-down">
     <form class="modal-content" onsubmit="dsgSaveMultiple(event)">
       <div class="modal-header sfa-modal"><h5 class="modal-title">Add Multiple &middot; Designations</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
       <div class="modal-body">
         <table class="table table-bordered multi-row-table" id="dsgMultiTable">
-          <thead><tr><th style="width:40px">#</th><th>Code *</th><th>Name *</th><th style="width:140px">Emp Level *</th><th style="width:60px"></th></tr></thead>
+          <thead><tr><th style="width:40px">#</th><th>Designation *</th><th style="width:130px">Hierarchy level *</th><th style="width:120px">Display order</th>
+            <th style="width:130px">Grade</th><th style="width:150px">Category</th><th style="width:60px"></th></tr></thead>
           <tbody>
             <tr>
               <td class="row-sno">1</td>
-              <td><input class="form-control text-uppercase" name="designationCode" maxlength="30" /></td>
-              <td><input class="form-control" name="designationName" maxlength="120" /></td>
-              <td><input type="number" class="form-control" name="empLevel" min="1" max="99" step="1" /></td>
+              <td><input class="form-control" name="designation" maxlength="50" /></td>
+              <td><input type="number" class="form-control" name="hierarchyLevel" min="1" max="9999" step="1" /></td>
+              <td><input type="number" class="form-control" name="displayOrder" min="0" max="9999" step="1" placeholder="Auto" /></td>
+              <td><input class="form-control" name="grade" maxlength="20" list="d_gradeList" /></td>
+              <td><select class="form-select" name="designationCategory" data-no-search><option value="">--</option>
+                <option>Field</option><option>Manager</option><option>Admin</option><option>Support</option></select></td>
               <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="sfaRemoveRow(this,'dsgMultiTable')"><i class="bi bi-x"></i></button></td>
             </tr>
           </tbody>
@@ -128,20 +138,30 @@
 <script src="js/shell.js"></script>
 <script>
   let DT = null, MODAL = null, MULTI = null, ROWS = [], EDIT_LEVEL = null;
+  let OPT = { categories: ['Field', 'Manager', 'Admin', 'Support'], managerFrom: 15, adminFrom: 50, superAdminFrom: 90 };
   const EP = API.master.designationMaster;
+  const esc = (v) => SFA.esc(v == null ? '' : v);
 
   const boolBadge = (b) => (b
     ? '<span class="badge badge-active">Active</span>'
     : '<span class="badge badge-inactive">Inactive</span>');
-  // same bands as RoleLevelMapper on the server
-  const roleFor = (lvl) => lvl == null || lvl === '' ? '' : (lvl >= 21 ? 'SUPER_ADMIN' : lvl >= 9 ? 'ADMIN' : lvl >= 5 ? 'MANAGER' : 'USER');
+  // same ranges as LevelRoleService on the server (company setting)
+  const roleFor = (lvl) => lvl == null || lvl === '' || isNaN(lvl) ? ''
+    : (lvl >= OPT.superAdminFrom ? 'SUPER_ADMIN' : lvl >= OPT.adminFrom ? 'ADMIN' : lvl >= OPT.managerFrom ? 'MANAGER' : 'USER');
   const ROLE_CLASS = { SUPER_ADMIN: 'bg-danger', ADMIN: 'bg-primary', MANAGER: 'bg-info text-dark', USER: 'bg-secondary' };
-  const roleBadge = (role) => role ? `<span class="badge ${ROLE_CLASS[role] || 'bg-secondary'}">${SFA.esc(role)}</span>` : '';
+  const roleBadge = (role) => role ? `<span class="badge ${ROLE_CLASS[role] || 'bg-secondary'}">${esc(role)}</span>` : '';
 
   window.pageInit = async function () {
     MODAL = new bootstrap.Modal('#dsgModal');
     MULTI = new bootstrap.Modal('#dsgMultiModal');
-    try { await reload(); } catch (e) { SFA.toast(e.message, false); }
+    try {
+      OPT = await Api.get(EP.options);
+      const sel = document.getElementById('d_designationCategory');
+      sel.innerHTML = '<option value="">--</option>' + OPT.categories.map(c => `<option>${esc(c)}</option>`).join('');
+      document.getElementById('d_rangeText').textContent =
+        `(User below ${OPT.managerFrom}, Manager ${OPT.managerFrom}+, Admin ${OPT.adminFrom}+, Super Admin ${OPT.superAdminFrom}+)`;
+      await reload();
+    } catch (e) { SFA.toast(e.message, false); }
   };
 
   async function reload() {
@@ -149,65 +169,68 @@
     if (DT) { DT.destroy(); }
     document.querySelector('#dsgTable tbody').innerHTML = ROWS.map((r, i) => `
       <tr>
-        <td>${i + 1}</td><td>${SFA.esc(r.designationCode)}</td><td>${SFA.esc(r.designationName)}</td>
-        <td>${r.empLevel ?? ''}</td><td>${roleBadge(r.role)}</td><td>${r.employeeCount ?? 0}</td>
-        <td>${boolBadge(r.status)}</td>
+        <td>${i + 1}</td><td>${esc(r.designation)}</td><td>${r.hierarchyLevel ?? ''}</td><td>${r.displayOrder ?? ''}</td>
+        <td>${esc(r.grade)}</td><td>${esc(r.designationCategory)}</td><td>${roleBadge(r.role)}</td><td>${r.employeeCount ?? 0}</td>
+        <td>${boolBadge(r.active)}</td>
         <td class="no-export">
-          <button data-perm="DESIGNATION_SAVE" class="btn btn-sm btn-outline-primary" onclick="dsgEdit(${r.oid})"><i class="bi bi-pencil"></i></button>
-          ${r.status
-            ? `<button data-perm="DESIGNATION_STATUS" class="btn btn-sm btn-outline-danger" onclick="dsgStatus(${r.oid},false)"><i class="bi bi-slash-circle"></i></button>`
-            : `<button data-perm="DESIGNATION_STATUS" class="btn btn-sm btn-outline-success" onclick="dsgStatus(${r.oid},true)"><i class="bi bi-check-circle"></i></button>`}
+          <button data-perm="DESIGNATION_SAVE" class="btn btn-sm btn-outline-primary" title="Edit" onclick="dsgEdit(${r.id})"><i class="bi bi-pencil"></i></button>
+          ${r.active
+            ? `<button data-perm="DESIGNATION_STATUS" class="btn btn-sm btn-outline-danger" title="Deactivate" onclick="dsgStatus(${r.id},false)"><i class="bi bi-slash-circle"></i></button>`
+            : `<button data-perm="DESIGNATION_STATUS" class="btn btn-sm btn-outline-success" title="Activate" onclick="dsgStatus(${r.id},true)"><i class="bi bi-check-circle"></i></button>`}
         </td>
       </tr>`).join('');
     DT = sfaDataTable('#dsgTable');
   }
 
   function dsgRoleHint() {
-    const raw = document.getElementById('d_empLevel').value;
+    const raw = document.getElementById('d_hierarchyLevel').value;
     const lvl = raw === '' ? null : Number(raw);
     const role = roleFor(lvl);
     const el = document.getElementById('d_roleHint');
     el.textContent = role || '—';
     el.className = 'badge ' + (ROLE_CLASS[role] || 'bg-secondary');
-    const r = ROWS.find(x => String(x.oid) === document.getElementById('d_oid').value);
-    document.getElementById('d_levelWarn').textContent = (r && r.employeeCount && EDIT_LEVEL != null && lvl !== EDIT_LEVEL)
-      ? `Saving will change the level (and role) of ${r.employeeCount} employee(s) with this designation.` : '';
+    const r = ROWS.find(x => String(x.id) === document.getElementById('d_id').value);
+    const taken = lvl != null && ROWS.find(x => x.hierarchyLevel === lvl && String(x.id) !== document.getElementById('d_id').value);
+    document.getElementById('d_levelWarn').textContent = taken ? `Level ${lvl} is already used by ${taken.designation}.`
+      : (r && r.employeeCount && EDIT_LEVEL != null && lvl !== EDIT_LEVEL && roleFor(EDIT_LEVEL) !== role)
+        ? `Saving changes the role of ${r.employeeCount} employee(s) with this designation to ${role} (from their next login).` : '';
   }
 
   function dsgAdd() {
-    ['d_oid', 'd_designationCode', 'd_designationName', 'd_empLevel'].forEach(id => document.getElementById(id).value = '');
+    ['d_id', 'd_designation', 'd_hierarchyLevel', 'd_displayOrder', 'd_grade', 'd_designationCategory'].forEach(id => document.getElementById(id).value = '');
     EDIT_LEVEL = null;
     dsgRoleHint();
     document.getElementById('dsgModalTitle').textContent = 'Add Designation';
     MODAL.show();
   }
-  function dsgEdit(oid) {
-    const r = ROWS.find(x => x.oid === oid);
+  function dsgEdit(id) {
+    const r = ROWS.find(x => x.id === id);
     if (!r) return;
-    document.getElementById('d_oid').value = r.oid;
-    document.getElementById('d_designationCode').value = r.designationCode || '';
-    document.getElementById('d_designationName').value = r.designationName || '';
-    document.getElementById('d_empLevel').value = r.empLevel ?? '';
-    EDIT_LEVEL = r.empLevel ?? null;
+    document.getElementById('d_id').value = r.id;
+    document.getElementById('d_designation').value = r.designation || '';
+    document.getElementById('d_hierarchyLevel').value = r.hierarchyLevel ?? '';
+    document.getElementById('d_displayOrder').value = r.displayOrder ?? '';
+    document.getElementById('d_grade').value = r.grade || '';
+    document.getElementById('d_designationCategory').value = r.designationCategory || '';
+    EDIT_LEVEL = r.hierarchyLevel ?? null;
     dsgRoleHint();
     document.getElementById('dsgModalTitle').textContent = 'Edit Designation';
     MODAL.show();
   }
+  const num = (x) => x === null ? null : Number(x);
   async function dsgSave(ev) {
     ev.preventDefault();
     const v = id => { const x = document.getElementById(id).value.trim(); return x === '' ? null : x; };
     const body = {
-      oid: v('d_oid'), designationCode: v('d_designationCode'), designationName: v('d_designationName'),
-      empLevel: v('d_empLevel') === null ? null : Number(v('d_empLevel'))
+      id: v('d_id'), designation: v('d_designation'), hierarchyLevel: num(v('d_hierarchyLevel')),
+      displayOrder: num(v('d_displayOrder')), grade: v('d_grade'), designationCategory: v('d_designationCategory')
     };
-    try { await Api.post(EP.save, body); MODAL.hide(); await reload(); SFA.toast('Saved'); }
+    try { await Api.post(EP.save, body); MODAL.hide(); await reload(); SFA.toast(body.id ? 'Designation updated' : 'Designation added'); }
     catch (e) { SFA.toast(e.message, false); }
   }
-  async function dsgStatus(oid, status) {
-    const r = ROWS.find(x => x.oid === oid);
-    const extra = (!status && r && r.employeeCount) ? '\n' + r.employeeCount + ' employee(s) still have this designation.' : '';
-    if (!confirm((status ? 'Activate this designation?' : 'Deactivate this designation?') + extra)) return;
-    try { await Api.post(EP.status(oid), null, { query: { status } }); await reload(); }
+  async function dsgStatus(id, status) {
+    if (!confirm(status ? 'Activate this designation?' : 'Deactivate this designation?')) return;
+    try { await Api.post(EP.status(id), null, { query: { status } }); await reload(); SFA.toast(status ? 'Activated' : 'Deactivated'); }
     catch (e) { SFA.toast(e.message, false); }
   }
 
@@ -216,7 +239,7 @@
     const tb = document.querySelector('#dsgMultiTable tbody');
     const rows = tb.querySelectorAll('tr');
     for (let i = rows.length - 1; i > 0; i--) rows[i].remove();
-    tb.querySelector('tr').querySelectorAll('input').forEach(x => x.value = '');
+    tb.querySelector('tr').querySelectorAll('input, select').forEach(x => x.value = '');
     document.getElementById('dsgMultiResult').innerHTML = '';
     MULTI.show();
   }
@@ -225,15 +248,16 @@
     const rows = [];
     document.querySelectorAll('#dsgMultiTable tbody tr').forEach(tr => {
       const g = n => { const x = tr.querySelector('[name="' + n + '"]').value.trim(); return x === '' ? null : x; };
-      const o = { designationCode: g('designationCode'), designationName: g('designationName'), empLevel: g('empLevel') === null ? null : Number(g('empLevel')) };
-      if (o.designationCode || o.designationName || o.empLevel != null) rows.push(o);
+      const o = { designation: g('designation'), hierarchyLevel: num(g('hierarchyLevel')), displayOrder: num(g('displayOrder')),
+                  grade: g('grade'), designationCategory: g('designationCategory') };
+      if (o.designation || o.hierarchyLevel != null) rows.push(o);
     });
     if (!rows.length) { SFA.toast('No rows to save', false); return; }
     try {
       const res = await Api.post(EP.saveMultiple, rows);
       await reload();
       if (res.skipped) {
-        document.getElementById('dsgMultiResult').innerHTML = (res.errors || []).map(e => SFA.esc(e)).join('<br>');
+        document.getElementById('dsgMultiResult').innerHTML = (res.errors || []).map(e => esc(e)).join('<br>');
         SFA.toast(res.saved + ' saved, ' + res.skipped + ' skipped', false);
       } else {
         MULTI.hide(); SFA.toast(res.saved + ' saved');

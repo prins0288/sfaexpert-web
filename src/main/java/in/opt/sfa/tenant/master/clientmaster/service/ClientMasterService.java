@@ -1,5 +1,7 @@
 package in.opt.sfa.tenant.master.clientmaster.service;
 
+import in.opt.sfa.common.service.LevelRoleService;
+
 import in.opt.sfa.common.util.ExcelUtil;
 import in.opt.sfa.common.util.Strings;
 import in.opt.sfa.security.UserContext;
@@ -112,6 +114,7 @@ public class ClientMasterService {
     private final in.opt.sfa.tenant.master.salutation.service.SalutationMasterService salutations;
     private final in.opt.sfa.tenant.master.clientmaster.repository.ClientMasterApprovalRepository approvals;
     private final in.opt.sfa.tenant.repository.DesignationRepository designations;
+    private final LevelRoleService levelRoles;
 
     public ClientMasterService(ClientMasterRepository clients, ClientMasterChildRepository children,
                                ClientTypeRepository clientTypes, CategoryMasterRepository categories,
@@ -122,7 +125,9 @@ public class ClientMasterService {
                                in.opt.sfa.common.service.CompanySettingStore settings,
                                in.opt.sfa.tenant.master.salutation.service.SalutationMasterService salutations,
                                in.opt.sfa.tenant.master.clientmaster.repository.ClientMasterApprovalRepository approvals,
-                               in.opt.sfa.tenant.repository.DesignationRepository designations) {
+                               in.opt.sfa.tenant.repository.DesignationRepository designations,
+                               LevelRoleService levelRoles) {
+        this.levelRoles = levelRoles;
         this.approvals = approvals;
         this.designations = designations;
         this.settings = settings;
@@ -806,8 +811,11 @@ public class ClientMasterService {
         if (e != null) {
             a.setEmpCode(e.getEmpCode());
             a.setEmpName(e.getEmpName());
-            a.setEmpLevel(e.getEmpLevel());
-            if (e.getDesignationId() != null) designations.findById(e.getDesignationId()).ifPresent(d -> a.setDesignationName(d.getDesignationName()));
+            in.opt.sfa.tenant.entity.Designation d = e.getDesignationId() == null ? null : me.desig.get(e.getDesignationId());
+            if (d != null) {
+                a.setDesignationName(d.getDesignation());
+                a.setHierarchyLevel(d.getHierarchyLevel());
+            }
         }
         approvals.save(a);
     }
@@ -854,7 +862,9 @@ public class ClientMasterService {
     private Me me(Names n) {
         UserContext.CurrentUser u = UserContext.get();
         String role = u == null ? null : u.role();
-        return new Me(u == null ? null : u.empId(), role, rank(role), permissions.isAllowed(ADD_APPROVE), permissions.isAllowed(DELETE_APPROVE), n);
+        Map<Integer, in.opt.sfa.tenant.entity.Designation> desig = new HashMap<>();
+        designations.findAll().forEach(d -> desig.put(d.getId(), d));
+        return new Me(u == null ? null : u.empId(), role, rank(role), permissions.isAllowed(ADD_APPROVE), permissions.isAllowed(DELETE_APPROVE), n, desig, levelRoles.ranges());
     }
 
     /** The signed-in user: rank, permissions, the employees reporting to them (any depth). */
@@ -864,8 +874,13 @@ public class ClientMasterService {
         final boolean addAllowed, deleteAllowed;
         final Set<String> team = new HashSet<>();
         final Names n;
+        final Map<Integer, in.opt.sfa.tenant.entity.Designation> desig;
+        final int[] ranges;
 
-        Me(String empId, String role, int rank, boolean addAllowed, boolean deleteAllowed, Names n) {
+        Me(String empId, String role, int rank, boolean addAllowed, boolean deleteAllowed, Names n,
+           Map<Integer, in.opt.sfa.tenant.entity.Designation> desig, int[] ranges) {
+            this.desig = desig;
+            this.ranges = ranges;
             this.empId = empId;
             this.role = role;
             this.rank = rank;
@@ -884,15 +899,16 @@ public class ClientMasterService {
 
         boolean allowed(String req) { return ADD.equals(req) ? addAllowed : deleteAllowed; }
 
-        /** Is anyone of manager level (5-8), other than `except`, above this employee in the reporting chain? */
+        /** Is anyone with a Manager designation, other than `except`, above this employee in the reporting chain? */
         boolean hasManagerAbove(String empId, String except) {
             Set<String> seen = new HashSet<>();
             EmpDetail e = n.employees.get(empId);
             while (e != null && e.getManagerId() != null && seen.add(e.getEmpId())) {
                 EmpDetail m = n.employees.get(e.getManagerId());
                 if (m == null) return false;
-                int lvl = m.getEmpLevel() == null ? 0 : m.getEmpLevel();
-                if (lvl >= 5 && lvl <= 8 && m.isActive() && !m.getEmpId().equals(except)) return true;
+                in.opt.sfa.tenant.entity.Designation d = m.getDesignationId() == null ? null : desig.get(m.getDesignationId());
+                boolean manager = d != null && LevelRoleService.MANAGER.equals(LevelRoleService.roleFor(d.getHierarchyLevel(), ranges));
+                if (manager && m.isActive() && !m.getEmpId().equals(except)) return true;
                 e = m;
             }
             return false;

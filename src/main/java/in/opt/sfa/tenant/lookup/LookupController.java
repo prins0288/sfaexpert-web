@@ -41,12 +41,12 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @RequestMapping("/api/lookups")
 public class LookupController {
 
-    /** empLevel is only meaningful for designations; omitted (null) for every other lookup.
+    /** hierarchyLevel / category are only meaningful for designations; omitted (null) for every other lookup.
      *  oid is Object because most masters key by a Long surrogate id, but employees now key
      *  by emp_id (a String business key) since the emp_detail v2 schema. */
     @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-    public record Item(Object oid, String label, Integer empLevel) {
-        public Item(Object oid, String label) { this(oid, label, null); }
+    public record Item(Object oid, String label, Integer hierarchyLevel, String category) {
+        public Item(Object oid, String label) { this(oid, label, null, null); }
     }
 
     private final DivisionRepository divisions;
@@ -133,8 +133,8 @@ public class LookupController {
                 .map(r -> new Item(r.getOid(), r.getRouteName())).toList());
         if (want(want, "areas")) res.put("areas", areas.findByStatusOrderByAreaNameAsc("Y").stream()
                 .map(a -> new Item(a.getOid(), a.getAreaName())).toList());
-        if (want(want, "designations")) res.put("designations", designations.findByStatusTrueOrderByDesignationNameAsc().stream()
-                .map(d -> new Item(d.getOid(), d.getDesignationName(), d.getEmpLevel())).toList());
+        if (want(want, "designations")) res.put("designations", designations.findByActiveTrueOrderByDisplayOrderAscHierarchyLevelAsc().stream()
+                .map(d -> new Item(d.getId(), d.getDesignation(), d.getHierarchyLevel(), d.getDesignationCategory())).toList());
         if (want(want, "districts")) res.put("districts", districts.findByStatusOrderByDistrictNameAsc("Y").stream()
                 .map(d -> new Item(d.getOid(), d.getDistrictName())).toList());
         if (want(want, "employees")) res.put("employees", employees.findByActiveTrueOrderByEmpNameAsc().stream()

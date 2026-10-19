@@ -17,8 +17,8 @@ import java.util.Map;
  * Resolves whether the current user has a given permission.
  *
  * Precedence (most specific wins): a row targeting the user's exact emp_id,
- * then a row targeting their designation, then a row targeting their
- * emp_level. If NONE of those rows exist, the code's own default_allowed
+ * then a row targeting their designation (id), then a row targeting their
+ * designation's hierarchy level. If NONE of those rows exist, the code's own default_allowed
  * decides — true for almost every code, so a company that never configures
  * permission_assignment keeps full access; false for opt-in features such as
  * COLUMN_SETTINGS, which nobody gets until they are granted it.
@@ -40,33 +40,33 @@ public class PermissionService {
         UserContext.CurrentUser u = UserContext.get();
         if (u == null) return false; // no verified identity on the thread -> deny
         if ("SUPER_ADMIN".equals(u.role())) return true;
-        return resolve(u.empId(), u.designationCode(), u.empLevel(), permissionCode);
+        return resolve(u.empId(), u.designationId(), u.hierarchyLevel(), permissionCode);
     }
 
     /** Effective permission: the most specific assignment, else the code's own default. */
-    public boolean resolve(String empId, String designationCode, Integer empLevel, String permissionCode) {
-        Boolean explicit = explicitRule(empId, designationCode, empLevel, permissionCode);
+    public boolean resolve(String empId, Integer designationId, Integer hierarchyLevel, String permissionCode) {
+        Boolean explicit = explicitRule(empId, designationId, hierarchyLevel, permissionCode);
         if (explicit != null) return explicit;
         return definitions.findByPermissionCode(permissionCode)
                 .map(d -> !Boolean.FALSE.equals(d.getDefaultAllowed()))
                 .orElse(true);   // code not in the catalog at all -> allowed, as before
     }
 
-    /** The matching assignment's allowed flag (EMP_ID > DESIGNATION > EMP_LEVEL), or null if none. */
-    private Boolean explicitRule(String empId, String designationCode, Integer empLevel, String permissionCode) {
+    /** The matching assignment's allowed flag (EMP_ID > DESIGNATION > HIERARCHY_LEVEL), or null if none. */
+    private Boolean explicitRule(String empId, Integer designationId, Integer hierarchyLevel, String permissionCode) {
         if (empId != null) {
             var row = assignments.findByTargetTypeAndTargetValueAndPermissionCode(
                     PermissionTargetType.EMP_ID, empId, permissionCode);
             if (row.isPresent()) return row.get().getAllowed();
         }
-        if (designationCode != null) {
+        if (designationId != null) {
             var row = assignments.findByTargetTypeAndTargetValueAndPermissionCode(
-                    PermissionTargetType.DESIGNATION, designationCode, permissionCode);
+                    PermissionTargetType.DESIGNATION, String.valueOf(designationId), permissionCode);
             if (row.isPresent()) return row.get().getAllowed();
         }
-        if (empLevel != null) {
+        if (hierarchyLevel != null) {
             var row = assignments.findByTargetTypeAndTargetValueAndPermissionCode(
-                    PermissionTargetType.EMP_LEVEL, String.valueOf(empLevel), permissionCode);
+                    PermissionTargetType.HIERARCHY_LEVEL, String.valueOf(hierarchyLevel), permissionCode);
             if (row.isPresent()) return row.get().getAllowed();
         }
         return null;
@@ -88,7 +88,7 @@ public class PermissionService {
             if (superAdmin || u == null) {
                 allowed = superAdmin;
             } else {
-                Boolean explicit = explicitRule(u.empId(), u.designationCode(), u.empLevel(), d.getPermissionCode());
+                Boolean explicit = explicitRule(u.empId(), u.designationId(), u.hierarchyLevel(), d.getPermissionCode());
                 allowed = explicit != null ? explicit : !Boolean.FALSE.equals(d.getDefaultAllowed());
             }
             result.put(d.getPermissionCode(), allowed);

@@ -38,12 +38,10 @@ public class EmpDetail {
     @Column(name = "hq_id")
     private Long hqId;
 
-    /** -> designation_master.oid. Column is literally named "designation" in the DB. */
-    @Column(name = "designation", nullable = false)
-    private Long designationId;
-
-    @Column(name = "emp_level")
-    private Integer empLevel;
+    /** -> designation_master.id. Column is literally named "designation" in the DB; the
+     *  employee's level and role come from the designation (no level is stored here). */
+    @Column(name = "designation")
+    private Integer designationId;
 
     /** Immediate manager -> emp_detail.emp_id. */
     @Column(name = "manager_id", length = 40)

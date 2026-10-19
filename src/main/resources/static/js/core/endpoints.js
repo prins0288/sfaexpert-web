@@ -58,7 +58,7 @@
     permissionMaster: {
       list: "/api/master/permission-master",               // GET catalog, POST create/update a code
       save: "/api/master/permission-master",
-      targets: "/api/master/permission-master/targets",    // GET employees / designations / emp levels
+      targets: "/api/master/permission-master/targets",    // GET employees / designations / hierarchy levels
       assignments: "/api/master/permission-master/assignments",  // GET ?targetType=&targetValue=, POST upsert
       deleteAssignment: (id) => `/api/master/permission-master/assignments/${id}`,
     },
@@ -266,8 +266,9 @@
         list: "/api/master/designation-master",
         save: "/api/master/designation-master",
         saveMultiple: "/api/master/designation-master/save-multiple",
-        get: (oid) => `/api/master/designation-master/${oid}`,
-        status: (oid) => `/api/master/designation-master/${oid}/status`,
+        options: "/api/master/designation-master/options",          // categories + role ranges
+        get: (id) => `/api/master/designation-master/${id}`,
+        status: (id) => `/api/master/designation-master/${id}/status`,
       },
       degreeMaster: {
         base: "/api/master/degree-master",

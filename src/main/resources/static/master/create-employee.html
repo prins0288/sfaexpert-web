@@ -83,7 +83,7 @@
             <select class="form-select" id="e_divisionId" data-quick-add="division"></select></div>
           <div class="col-md-6"><label class="form-label">Designation <span class="required-star">*</span>
               <small class="text-muted" id="e_levelHint"></small></label>
-            <select class="form-select" id="e_designationId" data-quick-add="designation" required onchange="empLevelHint()"></select></div>
+            <select class="form-select" id="e_designationId" data-quick-add="designation" required onchange="designationLevelHint()"></select></div>
           <div class="col-md-6"><label class="form-label">State</label>
             <select class="form-select" id="e_stateId" data-quick-add="state"></select></div>
           <div class="col-md-6"><label class="form-label">HQ</label>
@@ -287,8 +287,8 @@
           <li><b>emp_code blank</b> = new employee + login. Blank <code>username</code> / <code>password</code> are generated
             (company prefix + 8 digits / 8 digits) and listed below after the upload.</li>
           <li><b>emp_code of an existing employee</b> = update it — a blank cell keeps the stored value.</li>
-          <li>Codes (<code>division_code</code>, <code>designation_code</code>, <code>state_code</code>, <code>hq_code</code>,
-            <code>bank_code</code>, <code>qualification_code</code>, <code>manager_emp_code</code>) must match the masters;
+          <li>Codes (<code>division_code</code>, <code>state_code</code>, <code>hq_code</code>,
+            <code>bank_code</code>, <code>qualification_code</code>, <code>manager_emp_code</code>) and the <code>designation</code> name must match the masters;
             relationships are names (Father, Mother, Spouse, …); yes/no columns take Y / N; dates 2024-12-25 or 25-12-2024.</li>
           <li>One bank, nominee and emergency contact per row (add more from the form). Old 8-column sheets still work.</li>
         </ul>
@@ -347,7 +347,7 @@
       // a master row added with "+": keep the page's own lists in step
       document.getElementById('empModal').addEventListener('sfa:quick-added', ev => {
         LK[ev.detail.lookup] = ev.detail.list;
-        if (ev.detail.kind === 'designation') empLevelHint();
+        if (ev.detail.kind === 'designation') designationLevelHint();
       });
       document.getElementById('empModal').addEventListener('input', pBadges);
       document.getElementById('empModal').addEventListener('change', pBadges);
@@ -413,7 +413,7 @@
     dClear();
     setLoginLocked(false);
     empConfirmedChanged();
-    empLevelHint();
+    designationLevelHint();
     pClear();
   }
 
@@ -471,7 +471,7 @@
     sfaSetDate('e_lastWorkingDate', r.lastWorkingDate || '');
     document.querySelectorAll('.e-exit').forEach(el => el.style.display = '');
     empConfirmedChanged();
-    empLevelHint();
+    designationLevelHint();
     document.getElementById('empModalTitle').textContent = 'Edit Employee';
     MODAL.show();
     if (r.username && !LOGIN_LOCKED) empUsernameChanged(true);
@@ -483,10 +483,10 @@
       .catch(e => SFA.toast('Could not load the full profile: ' + e.message, false));
   }
 
-  function empLevelHint() {
+  function designationLevelHint() {
     const id = document.getElementById('e_designationId').value;
     const d = id && (LK.designations || []).find(x => String(x.oid) === String(id));
-    document.getElementById('e_levelHint').textContent = d && d.empLevel != null ? '(level ' + d.empLevel + ')' : '';
+    document.getElementById('e_levelHint').textContent = d && d.hierarchyLevel != null ? '(level ' + d.hierarchyLevel + ')' : '';
   }
 
   function empConfirmedChanged() {

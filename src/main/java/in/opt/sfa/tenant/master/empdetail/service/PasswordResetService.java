@@ -7,6 +7,8 @@ import in.opt.sfa.security.UserContext;
 import in.opt.sfa.tenant.context.TenantContext;
 import in.opt.sfa.tenant.master.empdetail.entity.EmpDetail;
 import in.opt.sfa.tenant.master.empdetail.repository.EmpDetailRepository;
+import in.opt.sfa.tenant.entity.Designation;
+import in.opt.sfa.tenant.repository.DesignationRepository;
 import org.springframework.stereotype.Service;
 
 import java.security.SecureRandom;
@@ -28,8 +30,11 @@ public class PasswordResetService {
     private final EmpDetailService employeesService;
     private final EmpDetailRepository employees;
     private final AppUserAdminService credentials;
+    private final DesignationRepository designations;
 
-    public PasswordResetService(EmpDetailService employeesService, EmpDetailRepository employees, AppUserAdminService credentials) {
+    public PasswordResetService(EmpDetailService employeesService, EmpDetailRepository employees, AppUserAdminService credentials,
+                                DesignationRepository designations) {
+        this.designations = designations;
         this.employeesService = employeesService;
         this.employees = employees;
         this.credentials = credentials;
@@ -52,8 +57,9 @@ public class PasswordResetService {
         UserContext.CurrentUser me = UserContext.get();
         boolean superAdmin = me != null && "SUPER_ADMIN".equals(me.role());
         if (!superAdmin) {
-            int myLevel = me == null || me.empLevel() == null ? 0 : me.empLevel();
-            int theirLevel = target.getEmpLevel() == null ? 0 : target.getEmpLevel();
+            int myLevel = me == null || me.hierarchyLevel() == null ? 0 : me.hierarchyLevel();
+            int theirLevel = target.getDesignationId() == null ? 0
+                    : designations.findById(target.getDesignationId()).map(Designation::getHierarchyLevel).orElse(0);
             if (theirLevel > myLevel) {
                 throw new ForbiddenException("You cannot reset the password of a higher-level user (" + target.getEmpName() + ")");
             }

@@ -53,8 +53,8 @@ public class ClientMasterApproval {
     @Column(name = "designation_name", length = 120)
     private String designationName;
 
-    @Column(name = "emp_level")
-    private Integer empLevel;
+    @Column(name = "hierarchy_level")
+    private Integer hierarchyLevel;
 
     @Column(length = 20)
     private String role;

@@ -127,7 +127,7 @@
     var SORTABLE_SRC = "https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js";
 
     // Needs the COLUMN_SETTINGS permission, which is DENIED by default — an
-    // admin grants it per emp_id / designation / emp_level (Permission Master).
+    // admin grants it per emp_id / designation / hierarchy level (Permission Master).
     // The server enforces the same code on save/reset.
     function sfaCanEditColumns() {
         return !!(window.SFA && SFA.granted && SFA.granted("COLUMN_SETTINGS"));
@@ -931,10 +931,10 @@
                            fields: [CODE("stateCode"), NAME("stateName")], extra: { status: "Y" } },
             hq:          { title: "HQ", perm: "HQ_SAVE", ep: function () { return API.master.hq.save; }, lookup: "hqs", id: "oid",
                            fields: [CODE("hqCode"), NAME("hqName"), { k: "stateOid", label: "State", type: "select", lookup: "states" }], extra: { isActive: true } },
-            designation: { title: "Designation", perm: "DESIGNATION_SAVE", ep: function () { return API.master.designationMaster.save; }, lookup: "designations", id: "oid",
-                           fields: [CODE("designationCode"), NAME("designationName"),
-                                    { k: "empLevel", label: "Emp level (1-4 User, 5-8 Manager, 9-20 Admin)", req: true, type: "number", min: 1, max: 99 }],
-                           extra: { status: true } },
+            designation: { title: "Designation", perm: "DESIGNATION_SAVE", ep: function () { return API.master.designationMaster.save; }, lookup: "designations", id: "id",
+                           fields: [{ k: "designation", label: "Designation", req: true, max: 50, name: true },
+                                    { k: "hierarchyLevel", label: "Hierarchy level (unique, higher = senior; decides the role)", req: true, type: "number", min: 1, max: 9999 }],
+                           extra: { active: true } },
             degree:      { title: "Qualification", perm: "DEGREE_SAVE", ep: function () { return API.master.degreeMaster.save; }, lookup: "degrees", id: "id",
                            fields: [CODE("degreeCode"), NAME("degreeName")], extra: { isActive: true, displayOrder: 0 } },
             bank:        { title: "Bank", perm: "BANK_SAVE", ep: function () { return API.master.bankMaster.save; }, lookup: "banks", id: "id",

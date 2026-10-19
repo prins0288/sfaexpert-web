@@ -8,7 +8,7 @@ import in.opt.sfa.common.repository.AppUserRepository;
 import in.opt.sfa.common.repository.RefreshTokenRepository;
 import in.opt.sfa.common.repository.TenantConfigRepository;
 import in.opt.sfa.exception.BadCredentialsException;
-import in.opt.sfa.common.util.RoleLevelMapper;
+import in.opt.sfa.common.service.LevelRoleService;
 import in.opt.sfa.security.JwtUtil;
 import in.opt.sfa.security.TokenDenylist;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -40,7 +40,8 @@ public class AuthService {
     private final TenantDataSourceManager dataSourceManager;
     private final JwtUtil jwtUtil;
     private final TokenDenylist denylist;
-    private final JdbcTemplate tenantJdbc;   // @Primary (tenant-routed) — reads emp_detail.emp_level
+    private final LevelRoleService levelRoles;
+    private final JdbcTemplate tenantJdbc;   // @Primary (tenant-routed) — reads emp_detail + designation_master
     private final SecureRandom secureRandom = new SecureRandom();
 
     /** How many DAYS a refresh token stays valid — set this in application.yml (app.jwt.refresh-expiration-days). */
@@ -53,6 +54,7 @@ public class AuthService {
                        JwtUtil jwtUtil,
                        TokenDenylist denylist,
                        JdbcTemplate tenantJdbc,
+                       LevelRoleService levelRoles,
                        @Value("${app.jwt.refresh-expiration-days:30}") long refreshExpirationDays) {
         this.appUserRepository = appUserRepository;
         this.tenantConfigRepository = tenantConfigRepository;
@@ -61,6 +63,7 @@ public class AuthService {
         this.jwtUtil = jwtUtil;
         this.denylist = denylist;
         this.tenantJdbc = tenantJdbc;
+        this.levelRoles = levelRoles;
         this.refreshExpirationDays = refreshExpirationDays;
     }
 
@@ -92,7 +95,7 @@ public class AuthService {
             throw new BadCredentialsException("This position is vacant — login is not allowed. Contact your admin.");
         }
 
-        // Role + profile snapshot (designation, emp_level, state) from emp_detail.
+        // Role + profile snapshot (designation, hierarchy level, state) from emp_detail + designation_master.
         EmpInfo info = resolveEmpInfo(companyCode, user.getEmpId(), null);
         String role = info.role();
 
@@ -128,38 +131,37 @@ public class AuthService {
     }
 
     /** Role + JWT profile claims. The login row's emp_id links to emp_detail.emp_id
-     *  (the developer/system stable key). Role comes from emp_detail.emp_level via
-     *  RoleLevelMapper; designation/emp_level/state ride along as token
-     *  claims. Falls back to RoleLevelMapper.USER (and no extra claims) if the user
+     *  (the developer/system stable key). Role comes from the designation's hierarchy
+     *  level by the company's ranges (LevelRoleService); designation/hierarchy level/state
+     *  ride along as token claims. Falls back to USER (and no extra claims) if the user
      *  has no emp_detail row yet. */
     private record EmpInfo(String role, Map<String, Object> claims) { }
 
     private EmpInfo resolveEmpInfo(String companyCode, String empId, String fallbackRole) {
-        String role = (fallbackRole == null || fallbackRole.isBlank()) ? RoleLevelMapper.USER : fallbackRole;
+        String role = (fallbackRole == null || fallbackRole.isBlank()) ? LevelRoleService.USER : fallbackRole;
         Map<String, Object> claims = new LinkedHashMap<>();
         if (empId != null && !empId.isBlank()) {
             try {
                 TenantContext.setCompanyCode(companyCode);
                 Map<String, Object> row = tenantJdbc.query(
-                        "SELECT e.emp_level, e.state_id, d.designation_name, d.designation_code " +
-                        "FROM emp_detail e LEFT JOIN designation_master d ON d.oid = e.designation " +
+                        "SELECT d.id, d.designation, d.hierarchy_level, e.state_id " +
+                        "FROM emp_detail e LEFT JOIN designation_master d ON d.id = e.designation " +
                         "WHERE e.emp_id = ?",
                         rs -> {
                             if (!rs.next()) return null;
                             Map<String, Object> m = new LinkedHashMap<>();
-                            Object lvl = rs.getObject("emp_level");
-                            m.put("emp_level", lvl == null ? null : ((Number) lvl).intValue());
-                            m.put("designation", rs.getString("designation_name"));
-                            m.put("designation_code", rs.getString("designation_code"));
+                            Object id = rs.getObject("id"), lvl = rs.getObject("hierarchy_level");
+                            m.put("designation_id", id == null ? null : ((Number) id).intValue());
+                            m.put("hierarchy_level", lvl == null ? null : ((Number) lvl).intValue());
+                            m.put("designation", rs.getString("designation"));
                             m.put("state", rs.getObject("state_id"));
                             return m;
                         }, empId);
                 if (row != null) {
-                    Integer level = (Integer) row.get("emp_level");
-                    if (level != null) role = RoleLevelMapper.roleFor(level);
-                    claims.put("emp_level", level);
+                    if (row.get("designation_id") != null) role = levelRoles.roleFor((Integer) row.get("hierarchy_level"));
+                    claims.put("hierarchy_level", row.get("hierarchy_level"));
                     claims.put("designation", row.get("designation"));
-                    claims.put("designation_code", row.get("designation_code"));
+                    claims.put("designation_id", row.get("designation_id"));
                     claims.put("state", row.get("state"));
                 }
             } catch (Exception e) {

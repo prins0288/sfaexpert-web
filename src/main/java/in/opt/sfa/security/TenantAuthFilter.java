@@ -69,15 +69,14 @@ public class TenantAuthFilter extends OncePerRequestFilter {
             String empId = claims.get("emp_id", String.class);
             if (empId == null || empId.isBlank()) empId = claims.getSubject();
 
-            Integer empLevel = claims.get("emp_level", Integer.class);
             TenantContext.setCompanyCode(companyCode);
             UserContext.set(new UserContext.CurrentUser(
                     username,
                     claims.get("role", String.class),
                     empId,
                     companyCode,
-                    claims.get("designation_code", String.class),
-                    empLevel));
+                    claims.get("designation_id", Integer.class),
+                    claims.get("hierarchy_level", Integer.class)));
             filterChain.doFilter(request, response);
         } catch (JwtException e) {
             unauthorized(response, "Invalid token");

@@ -63,12 +63,13 @@ public class MeController {
             employees.findById(empId).ifPresent(e -> {
                 res.put("name", e.getEmpName());
                 res.put("designation", e.getDesignationId() == null ? null
-                        : designations.findById(e.getDesignationId()).map(Designation::getDesignationName).orElse(null));
+                        : designations.findById(e.getDesignationId()).map(Designation::getDesignation).orElse(null));
                 res.put("state", e.getStateId() == null ? null
                         : states.findById(e.getStateId()).map(State::getStateName).orElse(null));
                 res.put("mobile", e.getMobile());
                 res.put("email", e.getOfficialEmail());
-                res.put("empLevel", e.getEmpLevel());
+                res.put("hierarchyLevel", e.getDesignationId() == null ? null
+                        : designations.findById(e.getDesignationId()).map(Designation::getHierarchyLevel).orElse(null));
             });
         }
         return res;

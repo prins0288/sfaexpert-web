@@ -14,7 +14,7 @@ import java.util.List;
  * Column Settings for ANY registered grid (see DefaultColumnRegistry) — one
  * controller for every report. The layout is COMPANY-WIDE: every user of the
  * company reads the same one; changing or resetting it needs the COLUMN_SETTINGS
- * permission (denied by default — granted per emp_id / designation / emp_level).
+ * permission (denied by default — granted per emp_id / designation / hierarchy level).
  * The company comes from the JWT; nothing identifying is sent by the client.
  */
 @RestController

@@ -80,12 +80,11 @@ public class ProfileController {
     }
 
     @PostMapping
-    @Operation(summary = "Update my profile fields (name, contact, designation)")
+    @Operation(summary = "Update my profile fields (name, contact). The designation decides the role, so only the employee master changes it")
     @Transactional(transactionManager = "tenantTransactionManager")
     public Map<String, Object> update(@RequestBody Map<String, Object> body) {
         EmpDetail e = employee();
         e.setEmpName(str(body.get("name")));
-        e.setDesignationId(lng(body.get("designationOid")));
         e.setStateId(lng(body.get("stateOid")));
         e.setMobile(str(body.get("mobile")));
         e.setOfficialEmail(str(body.get("email")));
@@ -172,9 +171,9 @@ public class ProfileController {
         return e;
     }
 
-    private String designationName(Long designationId) {
+    private String designationName(Integer designationId) {
         if (designationId == null) return null;
-        return designations.findById(designationId).map(Designation::getDesignationName).orElse(null);
+        return designations.findById(designationId).map(Designation::getDesignation).orElse(null);
     }
 
     private String stateName(Long stateId) {

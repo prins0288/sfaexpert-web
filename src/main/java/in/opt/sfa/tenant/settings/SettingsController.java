@@ -1,6 +1,7 @@
 package in.opt.sfa.tenant.settings;
 
 import in.opt.sfa.common.service.CompanySettingStore;
+import in.opt.sfa.common.service.LevelRoleService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,13 +27,18 @@ public class SettingsController {
             "dateFormat", "dd-MM-yyyy",
             "contentProtection", "N",
             in.opt.sfa.tenant.master.clientmaster.service.ClientMasterService.FLOW_KEY,
-            in.opt.sfa.tenant.master.clientmaster.service.ClientMasterService.DEFAULT_FLOW
+            in.opt.sfa.tenant.master.clientmaster.service.ClientMasterService.DEFAULT_FLOW,
+            LevelRoleService.MANAGER_KEY, LevelRoleService.DEFAULTS.get(LevelRoleService.MANAGER_KEY),
+            LevelRoleService.ADMIN_KEY, LevelRoleService.DEFAULTS.get(LevelRoleService.ADMIN_KEY),
+            LevelRoleService.SUPER_ADMIN_KEY, LevelRoleService.DEFAULTS.get(LevelRoleService.SUPER_ADMIN_KEY)
     );
 
     private final CompanySettingStore settings;
+    private final LevelRoleService levelRoles;
 
-    public SettingsController(CompanySettingStore settings) {
+    public SettingsController(CompanySettingStore settings, LevelRoleService levelRoles) {
         this.settings = settings;
+        this.levelRoles = levelRoles;
     }
 
     @GetMapping
@@ -54,6 +60,12 @@ public class SettingsController {
             if (!in.opt.sfa.tenant.master.clientmaster.service.ClientMasterService.FLOWS.contains(body.get(flowKey))) {
                 throw new IllegalStateException("Client approval must be one of " + in.opt.sfa.tenant.master.clientmaster.service.ClientMasterService.FLOWS);
             }
+        }
+        if (LevelRoleService.KEYS.stream().anyMatch(body::containsKey)) {
+            // the level ranges decide everyone's role: super admin only
+            in.opt.sfa.security.Authz.requireRole("SUPER_ADMIN");
+            levelRoles.validate(body);
+            LevelRoleService.KEYS.forEach(k -> { if (body.containsKey(k)) body.put(k, body.get(k).trim()); });
         }
         body.forEach(settings::put);
         return get();

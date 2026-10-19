@@ -88,7 +88,7 @@
             <div class="col-md-6"><label class="form-label">Employee ID</label>
               <input class="form-control" id="p_empId" readonly /></div>
             <div class="col-md-4"><label class="form-label">Designation</label>
-              <select class="form-select" id="p_designationOid"></select></div>
+              <select class="form-select" id="p_designationOid" disabled title="Set by your admin in the employee master"></select></div>
             <div class="col-md-4"><label class="form-label">State</label>
               <select class="form-select" id="p_stateOid"></select></div>
             <div class="col-md-4"><label class="form-label">District</label>
@@ -192,7 +192,7 @@
     ev.preventDefault();
     const v = id => { const x = document.getElementById(id).value; return x === '' ? null : x; };
     const body = {
-      name: v('p_name'), designationOid: v('p_designationOid'), stateOid: v('p_stateOid'),
+      name: v('p_name'), stateOid: v('p_stateOid'),
       districtOid: v('p_districtOid'), mobile: v('p_mobile'), email: v('p_email'), dob: v('p_dob')
     };
     try { await Api.post(API.profile.save, body); SFA.toast('Profile saved'); refreshChrome(); }

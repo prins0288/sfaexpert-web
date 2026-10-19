@@ -196,9 +196,11 @@ public final class DefaultColumnRegistry {
 
         // master/designation-master.html
         register("DESIGNATION_MASTER",
-                col("code", "common.code"),
                 col("name", "common.name"),
-                col("empLevel", null),
+                col("hierarchyLevel", null),
+                col("displayOrder", null),
+                col("grade", null),
+                col("category", null),
                 col("role", null),
                 col("employees", null),
                 col("status", "common.status"));

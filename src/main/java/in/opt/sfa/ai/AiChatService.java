@@ -136,7 +136,9 @@ public class AiChatService {
               - SELECT only. One statement. No INSERT/UPDATE/DELETE/DDL, no system schemas, no ';'.
               - Prefer aggregates; results are capped at %d rows.
               - Use ONLY the tables/columns in the schema below. Never invent names.
-              - Role is derived from emp_detail.emp_level: >=21 SUPER_ADMIN, 9-20 ADMIN, 5-8 MANAGER, 1-4 USER.
+              - An employee's designation is emp_detail.designation -> designation_master.id (name in designation_master.designation,
+                seniority in designation_master.hierarchy_level). Role comes from designation_master.designation_category:
+                'Super Admin' SUPER_ADMIN, 'Admin' ADMIN, 'Manager' MANAGER, 'Field' / 'Support' USER.
               - "Active" employees are emp_detail.status='Active'.
 
             CONFIDENTIALITY — the database structure is a trade secret, for your internal

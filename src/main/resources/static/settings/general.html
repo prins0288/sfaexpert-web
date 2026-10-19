@@ -88,7 +88,7 @@
         <div class="card-header"><i class="bi bi-patch-check"></i> Client approval</div>
         <div class="card-body">
           <p class="text-muted small mb-3">Who approves a new client in Client Master. "Manager" = the manager(s) above the client's employee
-            (emp level 5-8); "Admin" = emp level 9 and above. A manager's or admin's own new client skips the steps they cover. Admins only.</p>
+            (Manager role by hierarchy level); "Admin" = Admin role and above. A manager's or admin's own new client skips the steps they cover. Admins only.</p>
           <div class="form-check mb-1"><input class="form-check-input" type="radio" name="st_flow" id="st_flow_AUTO" value="AUTO">
             <label class="form-check-label" for="st_flow_AUTO"><b>Auto</b> — approved at once</label></div>
           <div class="form-check mb-1"><input class="form-check-input" type="radio" name="st_flow" id="st_flow_MANAGER" value="MANAGER">
@@ -98,6 +98,21 @@
           <div class="form-check mb-3"><input class="form-check-input" type="radio" name="st_flow" id="st_flow_MANAGER_ADMIN" value="MANAGER_ADMIN">
             <label class="form-check-label" for="st_flow_MANAGER_ADMIN"><b>Manager, then Admin</b> — manager approves first, an admin gives the final approval</label></div>
           <button class="btn btn-primary" onclick="stgSaveClientFlow()"><i class="bi bi-check-lg"></i> Save</button>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card">
+        <div class="card-header"><i class="bi bi-diagram-3"></i> Role by hierarchy level</div>
+        <div class="card-body">
+          <p class="text-muted small mb-3">An employee's role comes from the <b>hierarchy level</b> of their designation (Designation master).
+            Below the Manager level = User. Changes apply from each user's next login. Super admin only.</p>
+          <div class="row g-3 mb-3">
+            <div class="col-sm-4"><label class="form-label">Manager from level</label><input type="number" class="form-control" id="st_roleManager" min="1" max="9999" /></div>
+            <div class="col-sm-4"><label class="form-label">Admin from level</label><input type="number" class="form-control" id="st_roleAdmin" min="1" max="9999" /></div>
+            <div class="col-sm-4"><label class="form-label">Super Admin from level</label><input type="number" class="form-control" id="st_roleSuper" min="1" max="9999" /></div>
+          </div>
+          <button class="btn btn-primary" onclick="stgSaveRoleLevels()"><i class="bi bi-check-lg"></i> Save</button>
         </div>
       </div>
     </div>
@@ -123,6 +138,9 @@
       document.getElementById('st_contentProtection').checked = (s.contentProtection === 'Y');
       const fl = document.getElementById('st_flow_' + (s.clientApprovalFlow || 'MANAGER_ADMIN'));
       if (fl) fl.checked = true;
+      document.getElementById('st_roleManager').value = s.roleManagerFromLevel;
+      document.getElementById('st_roleAdmin').value = s.roleAdminFromLevel;
+      document.getElementById('st_roleSuper').value = s.roleSuperAdminFromLevel;
       updatePreview();
       document.getElementById('st_dateFormat').addEventListener('change', updatePreview);
     } catch (e) { SFA.toast(e.message, false); }
@@ -133,6 +151,15 @@
     if (!v) { SFA.toast('Choose an option', false); return; }
     try { await Api.post(API.settings.save, { clientApprovalFlow: v }); if (window.Settings && Settings.load) await Settings.load(true).catch(() => {}); SFA.toast('Client approval saved'); }
     catch (e) { SFA.toast(e.message, false); }
+  }
+
+  async function stgSaveRoleLevels() {
+    const v = id => document.getElementById(id).value.trim();
+    try {
+      await Api.post(API.settings.save, { roleManagerFromLevel: v('st_roleManager'), roleAdminFromLevel: v('st_roleAdmin'), roleSuperAdminFromLevel: v('st_roleSuper') });
+      if (window.Settings && Settings.load) await Settings.load(true).catch(() => {});
+      SFA.toast('Role levels saved — they apply from each user\'s next login');
+    } catch (e) { SFA.toast(e.message, false); }
   }
 
   function updatePreview() {

@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 
 /**
  * permission_assignment (TENANT db) — grants or denies one permission_code to
- * one target: a single emp_id, a whole designation, or a whole emp_level.
+ * one target: a single emp_id, a whole designation, or a whole hierarchy level.
  * No row for a given (target, permission_code) means "not configured" — the
  * resolver then falls back to allow-by-default (see PermissionService).
  */
@@ -30,7 +30,7 @@ public class PermissionAssignment {
     @Column(name = "target_type", nullable = false, length = 20)
     private PermissionTargetType targetType;
 
-    /** emp_id, designation_code, or emp_level (as a string), depending on targetType. */
+    /** emp_id, designation id, or hierarchy level (as a string), depending on targetType. */
     @Column(name = "target_value", nullable = false, length = 100)
     private String targetValue;
 

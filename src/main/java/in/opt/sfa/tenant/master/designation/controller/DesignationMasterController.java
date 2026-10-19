@@ -13,7 +13,7 @@ import java.util.Map;
 /** Designation master — Masters > Master Entry > Create Designation. Tenant-routed. */
 @RestController
 @RequestMapping("/api/master/designation-master")
-@Tag(name = "Designation Master", description = "Designations with their emp level (drives the employee's role)")
+@Tag(name = "Designation Master", description = "Designations: hierarchy level (drives the employee's role), display order, grade and category")
 public class DesignationMasterController {
 
     private final DesignationMasterService service;
@@ -28,16 +28,22 @@ public class DesignationMasterController {
         return service.list();
     }
 
-    @GetMapping("/{oid}")
+    @GetMapping("/options")
+    @Operation(summary = "Category choices and the company's role ranges (role by hierarchy level)")
+    public Map<String, Object> options() {
+        return service.options();
+    }
+
+    @GetMapping("/{id}")
     @Operation(summary = "Get one designation by id")
-    public DesignationMasterDto get(@PathVariable Long oid) {
-        return service.get(oid);
+    public DesignationMasterDto get(@PathVariable Integer id) {
+        return service.get(id);
     }
 
     @RequiresPermission("DESIGNATION_SAVE")
     @PostMapping
     @Operation(summary = "Create or update a designation",
-            description = "Send oid to update, omit it to create. Changing empLevel re-stamps every employee of the designation.")
+            description = "Send id to update, omit it to create. Designation and hierarchy level must be unique.")
     public DesignationMasterDto save(@RequestBody DesignationMasterDto form) {
         return service.save(form);
     }
@@ -50,9 +56,9 @@ public class DesignationMasterController {
     }
 
     @RequiresPermission("DESIGNATION_STATUS")
-    @PostMapping("/{oid}/status")
-    @Operation(summary = "Activate / deactivate a designation (status = true or false)")
-    public DesignationMasterDto status(@PathVariable Long oid, @RequestParam boolean status) {
-        return service.updateStatus(oid, status);
+    @PostMapping("/{id}/status")
+    @Operation(summary = "Activate / deactivate a designation (status = true or false); one still held by employees cannot be deactivated")
+    public DesignationMasterDto status(@PathVariable Integer id, @RequestParam boolean status) {
+        return service.updateStatus(id, status);
     }
 }

@@ -37,23 +37,22 @@ public class PermissionAdminService {
     }
 
     public record EmpOption(String empId, String empCode, String name) {}
-    public record DesignationOption(String code, String name, Integer empLevel) {}
+    /** code = designation_master.id (as text — what DESIGNATION rules store). */
+    public record DesignationOption(String code, String name, Integer hierarchyLevel, String category) {}
     /** Everything the admin screen can assign to — the same identity sources the JWT claims come from. */
-    public record Targets(List<EmpOption> employees, List<DesignationOption> designations, List<Integer> empLevels) {}
+    public record Targets(List<EmpOption> employees, List<DesignationOption> designations, List<Integer> hierarchyLevels) {}
 
-    // ---- assignable targets (emp_id / designation_code / emp_level) ---------
+    // ---- assignable targets (emp_id / designation id / hierarchy level) ------
 
     @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
     public Targets targets() {
         List<EmpDetail> emps = empDetails.findAllByOrderByEmpNameAsc().stream()
                 .filter(e -> e.isActive() && e.getEmpId() != null).toList();
-        List<DesignationOption> desigs = designations.findByStatusTrueOrderByDesignationNameAsc().stream()
-                .filter(d -> !Strings.isBlank(d.getDesignationCode()))
-                .map(d -> new DesignationOption(d.getDesignationCode(), d.getDesignationName(), d.getEmpLevel()))
+        List<DesignationOption> desigs = designations.findByActiveTrueOrderByDisplayOrderAscHierarchyLevelAsc().stream()
+                .map(d -> new DesignationOption(String.valueOf(d.getId()), d.getDesignation(), d.getHierarchyLevel(), d.getDesignationCategory()))
                 .toList();
         TreeSet<Integer> levels = new TreeSet<>();
-        emps.stream().map(EmpDetail::getEmpLevel).filter(Objects::nonNull).forEach(levels::add);
-        desigs.stream().map(DesignationOption::empLevel).filter(Objects::nonNull).forEach(levels::add);
+        desigs.stream().map(DesignationOption::hierarchyLevel).filter(Objects::nonNull).forEach(levels::add);
         return new Targets(
                 emps.stream().map(e -> new EmpOption(e.getEmpId(), e.getEmpCode(), e.getEmpName())).toList(),
                 desigs, List.copyOf(levels));

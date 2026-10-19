@@ -564,7 +564,7 @@
             <td>${a.requestType === 'DELETE' ? 'Delete' : 'Add'}</td><td>${esc(a.step)}</td>
             <td><span class="badge ${(ACTION[a.action] || [0, 'bg-secondary'])[1]}">${esc((ACTION[a.action] || [a.action])[0])}</span></td>
             <td>${esc(a.empName || a.empId)}${a.empCode ? ' <small class="text-muted">(' + esc(a.empCode) + ')</small>' : ''}</td>
-            <td>${esc(a.designationName)}</td><td>${a.empLevel != null ? esc(a.empLevel) + ' / ' : ''}${esc(a.role)}</td>
+            <td>${esc(a.designationName)}</td><td>${a.hierarchyLevel != null ? esc(a.hierarchyLevel) + ' / ' : ''}${esc(a.role)}</td>
             <td>${esc(a.statusAfter)}</td><td>${esc(a.remarks)}</td></tr>`).join('')}</tbody></table></div>`;
     } catch (e) { body.innerHTML = '<div class="text-danger">' + esc(e.message) + '</div>'; }
   }

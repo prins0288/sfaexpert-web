@@ -19,7 +19,7 @@ public class EmpDetailSaveRequest {
     private String salutation;
     private String empName;
     private Long divisionId;
-    private Long designationId;
+    private Integer designationId;
     private Long stateId;
     private Long hqId;
     private String managerId;

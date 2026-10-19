@@ -28,6 +28,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.security.SecureRandom;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -144,13 +145,13 @@ public class EmpDetailService {
         String companyCode = TenantContext.getCompanyCode();
         Map<String, AppUser> byEmp = credentials.listByCompanyCode(companyCode).stream()
                 .collect(Collectors.toMap(AppUser::getEmpId, Function.identity(), (a, b) -> a));
-        Map<Long, String> designationNames = designations.findAll().stream()
-                .collect(Collectors.toMap(Designation::getOid, Designation::getDesignationName, (a, b) -> a));
+        Map<Integer, Designation> designationById = designations.findAll().stream()
+                .collect(Collectors.toMap(Designation::getId, Function.identity(), (a, b) -> a));
         Map<Long, String> divisionNames = divisions.findAll().stream()
                 .collect(Collectors.toMap(Division::getOid, Division::getDivisionName, (a, b) -> a));
 
         return employees.findAllByOrderByEmpNameAsc().stream()
-                .map(e -> toRow(e, byEmp.get(e.getEmpId()), designationNames, divisionNames))
+                .map(e -> toRow(e, byEmp.get(e.getEmpId()), designationById, divisionNames))
                 .toList();
     }
 
@@ -160,7 +161,9 @@ public class EmpDetailService {
         String companyCode = TenantContext.getCompanyCode();
         AppUser u = credentials.listByCompanyCode(companyCode).stream()
                 .filter(a -> empId.equals(a.getEmpId())).findFirst().orElse(null);
-        return toRow(e, u, null, null);
+        Map<Integer, Designation> designation = new HashMap<>();
+        if (e.getDesignationId() != null) designations.findById(e.getDesignationId()).ifPresent(d -> designation.put(d.getId(), d));
+        return toRow(e, u, designation, null);
     }
 
     /**
@@ -205,9 +208,7 @@ public class EmpDetailService {
         if (req.getDesignationId() != null) {
             Designation d = designations.findById(req.getDesignationId())
                     .orElseThrow(() -> new IllegalStateException("Designation not found: " + req.getDesignationId()));
-            e.setDesignationId(d.getOid());
-            // emp_level drives the role in the JWT (RoleLevelMapper) — keep it in step with the designation
-            e.setEmpLevel(d.getEmpLevel() == null ? 1 : d.getEmpLevel());
+            e.setDesignationId(d.getId());   // level and role are read from the designation itself
         }
         if (req.getStateId() != null) e.setStateId(req.getStateId());
         if (req.getHqId() != null) e.setHqId(req.getHqId());
@@ -262,7 +263,7 @@ public class EmpDetailService {
      * The first 8 columns of the old template still work on their own.
      */
     static final List<String> BULK_COLUMNS = List.of(
-            "emp_code", "emp_name", "mobile", "division_code", "designation_code", "state_code", "hq_code",
+            "emp_code", "emp_name", "mobile", "division_code", "designation", "state_code", "hq_code",
             "manager_emp_code", "gender", "date_of_joining", "reporting_date", "official_email", "department",
             "office_staff", "confirmed", "confirmation_date", "username", "password",
             "dob", "father_name", "mother_name", "marital_status", "anniversary_date", "spouse_name",
@@ -323,8 +324,8 @@ public class EmpDetailService {
                 req.setMobile(r.get("mobile"));
                 if (r.get("division_code") != null) req.setDivisionId(divisions.findByDivisionCode(r.get("division_code"))
                         .orElseThrow(() -> new IllegalStateException("unknown division_code '" + r.get("division_code") + "'")).getOid());
-                if (r.get("designation_code") != null) req.setDesignationId(designations.findByDesignationCode(r.get("designation_code"))
-                        .orElseThrow(() -> new IllegalStateException("unknown designation_code '" + r.get("designation_code") + "'")).getOid());
+                if (r.get("designation") != null) req.setDesignationId(designations.findFirstByDesignationIgnoreCase(r.get("designation").trim())
+                        .orElseThrow(() -> new IllegalStateException("unknown designation '" + r.get("designation") + "'")).getId());
                 req.setStateId(stateId(r.get("state_code"), "state_code"));
                 if (r.get("hq_code") != null) req.setHqId(hqs.findByHqCode(r.get("hq_code"))
                         .orElseThrow(() -> new IllegalStateException("unknown hq_code '" + r.get("hq_code") + "'")).getOid());
@@ -591,7 +592,7 @@ public class EmpDetailService {
         return employees.findById(empId).orElseThrow(() -> new IllegalStateException("Employee not found: " + empId));
     }
 
-    private Map<String, Object> toRow(EmpDetail e, AppUser user, Map<Long, String> designationNames, Map<Long, String> divisionNames) {
+    private Map<String, Object> toRow(EmpDetail e, AppUser user, Map<Integer, Designation> designationById, Map<Long, String> divisionNames) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("empId", e.getEmpId());
         m.put("empCode", e.getEmpCode());
@@ -606,11 +607,12 @@ public class EmpDetailService {
         m.put("divisionId", e.getDivisionId());
         m.put("divisionName", divisionNames == null ? null : divisionNames.get(e.getDivisionId()));
         m.put("designationId", e.getDesignationId());
-        m.put("designationName", designationNames == null ? null : designationNames.get(e.getDesignationId()));
+        Designation d = designationById == null || e.getDesignationId() == null ? null : designationById.get(e.getDesignationId());
+        m.put("designationName", d == null ? null : d.getDesignation());
+        m.put("hierarchyLevel", d == null ? null : d.getHierarchyLevel());
         m.put("stateId", e.getStateId());
         m.put("hqId", e.getHqId());
         m.put("managerId", e.getManagerId());
-        m.put("empLevel", e.getEmpLevel());
         m.put("officeStaff", e.isOfficeStaff());
         m.put("confirmed", e.isConfirmed());
         m.put("confirmationDate", e.getConfirmationDate());
