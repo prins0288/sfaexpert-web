@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -28,6 +29,8 @@ public class SettingsController {
             "contentProtection", "N",
             in.opt.sfa.tenant.master.clientmaster.service.ClientMasterService.FLOW_KEY,
             in.opt.sfa.tenant.master.clientmaster.service.ClientMasterService.DEFAULT_FLOW,
+            in.opt.sfa.tenant.master.area.service.AreaService.APPROVAL.flowKey(),
+            in.opt.sfa.tenant.approval.ApprovalEngine.DEFAULT_FLOW,
             LevelRoleService.MANAGER_KEY, LevelRoleService.DEFAULTS.get(LevelRoleService.MANAGER_KEY),
             LevelRoleService.ADMIN_KEY, LevelRoleService.DEFAULTS.get(LevelRoleService.ADMIN_KEY),
             LevelRoleService.SUPER_ADMIN_KEY, LevelRoleService.DEFAULTS.get(LevelRoleService.SUPER_ADMIN_KEY)
@@ -53,12 +56,13 @@ public class SettingsController {
     @Operation(summary = "Upsert one or more settings; returns the full merged map")
     @Transactional(transactionManager = "commonTransactionManager")
     public Map<String, String> save(@RequestBody Map<String, String> body) {
-        String flowKey = in.opt.sfa.tenant.master.clientmaster.service.ClientMasterService.FLOW_KEY;
-        if (body.containsKey(flowKey)) {
-            // who approves clients is a company policy: admins only, and only a known flow
+        for (String flowKey : List.of(in.opt.sfa.tenant.master.clientmaster.service.ClientMasterService.FLOW_KEY,
+                                      in.opt.sfa.tenant.master.area.service.AreaService.APPROVAL.flowKey())) {
+            if (!body.containsKey(flowKey)) continue;
+            // who approves clients / areas is a company policy: admins only, and only a known flow
             in.opt.sfa.security.Authz.requireRole("ADMIN");
-            if (!in.opt.sfa.tenant.master.clientmaster.service.ClientMasterService.FLOWS.contains(body.get(flowKey))) {
-                throw new IllegalStateException("Client approval must be one of " + in.opt.sfa.tenant.master.clientmaster.service.ClientMasterService.FLOWS);
+            if (!in.opt.sfa.tenant.approval.ApprovalEngine.FLOWS.contains(body.get(flowKey))) {
+                throw new IllegalStateException("Approval flow must be one of " + in.opt.sfa.tenant.approval.ApprovalEngine.FLOWS);
             }
         }
         if (LevelRoleService.KEYS.stream().anyMatch(body::containsKey)) {

@@ -148,6 +148,11 @@
         saveMultiple: "/api/master/area/save-multiple",
         get: (oid) => `/api/master/area/${oid}`,
         status: (oid) => `/api/master/area/${oid}/status`,
+        options: "/api/master/area/options",                           // pick employee (admin) + flow
+        deleteRequest: (oid) => `/api/master/area/${oid}/delete-request`, // body { reason }
+        approve: (oid) => `/api/master/area/${oid}/approve`,              // the step it waits for
+        reject: (oid) => `/api/master/area/${oid}/reject`,                // body { reason }
+        approvals: (oid) => `/api/master/area/${oid}/approvals`,          // history
         template: "/api/master/area/template",
         upload: "/api/master/area/upload",
       },

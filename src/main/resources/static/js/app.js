@@ -1047,7 +1047,8 @@
                     var list = res[cfg.lookup] || [], id = saved && saved[cfg.id];
                     refill(kind, list, sel, id);
                     sel.dispatchEvent(new CustomEvent("sfa:quick-added", { bubbles: true, detail: { kind: kind, lookup: cfg.lookup, list: list, id: id } }));
-                    if (window.SFA) SFA.toast(cfg.title + " added");
+                    var waits = saved && /^PENDING/.test(saved.approvalStatus || "");
+                    if (window.SFA) SFA.toast(waits ? cfg.title + " added — waiting for approval (usable once approved)" : cfg.title + " added", waits ? "info" : true);
                     ov.remove();
                     sel.focus();
                 } catch (e) { err.textContent = e.message; }

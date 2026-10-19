@@ -32,9 +32,9 @@ public class RouteAreaMap {
     @Formula("(select r.route_code from route r where r.oid = route_oid)")
     private String routeCode;
 
-    @Formula("(select a.area_name from city_master a where a.oid = area_oid)")
+    @Formula("(select a.area_name from area_master a where a.oid = area_oid)")
     private String areaName;
 
-    @Formula("(select a.area_code from city_master a where a.oid = area_oid)")
+    @Formula("(select a.area_code from area_master a where a.oid = area_oid)")
     private String areaCode;
 }

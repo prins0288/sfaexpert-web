@@ -103,6 +103,24 @@
     </div>
     <div class="col-lg-6">
       <div class="card">
+        <div class="card-header"><i class="bi bi-geo-alt"></i> Area approval</div>
+        <div class="card-body">
+          <p class="text-muted small mb-3">Who approves a new area or an area delete request in Area Master — same rules as Client approval.
+            An admin's own area is approved directly. Admins only.</p>
+          <div class="form-check mb-1"><input class="form-check-input" type="radio" name="st_aflow" id="st_aflow_AUTO" value="AUTO">
+            <label class="form-check-label" for="st_aflow_AUTO"><b>Auto</b> — approved at once</label></div>
+          <div class="form-check mb-1"><input class="form-check-input" type="radio" name="st_aflow" id="st_aflow_MANAGER" value="MANAGER">
+            <label class="form-check-label" for="st_aflow_MANAGER"><b>Manager only</b> — the manager's approval is final</label></div>
+          <div class="form-check mb-1"><input class="form-check-input" type="radio" name="st_aflow" id="st_aflow_ADMIN" value="ADMIN">
+            <label class="form-check-label" for="st_aflow_ADMIN"><b>Admin only</b> — an admin approves</label></div>
+          <div class="form-check mb-3"><input class="form-check-input" type="radio" name="st_aflow" id="st_aflow_MANAGER_ADMIN" value="MANAGER_ADMIN">
+            <label class="form-check-label" for="st_aflow_MANAGER_ADMIN"><b>Manager, then Admin</b> — manager approves first, an admin gives the final approval</label></div>
+          <button class="btn btn-primary" onclick="stgSaveAreaFlow()"><i class="bi bi-check-lg"></i> Save</button>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card">
         <div class="card-header"><i class="bi bi-diagram-3"></i> Role by hierarchy level</div>
         <div class="card-body">
           <p class="text-muted small mb-3">An employee's role comes from the <b>hierarchy level</b> of their designation (Designation master).
@@ -138,6 +156,8 @@
       document.getElementById('st_contentProtection').checked = (s.contentProtection === 'Y');
       const fl = document.getElementById('st_flow_' + (s.clientApprovalFlow || 'MANAGER_ADMIN'));
       if (fl) fl.checked = true;
+      const af = document.getElementById('st_aflow_' + (s.areaApprovalFlow || 'MANAGER_ADMIN'));
+      if (af) af.checked = true;
       document.getElementById('st_roleManager').value = s.roleManagerFromLevel;
       document.getElementById('st_roleAdmin').value = s.roleAdminFromLevel;
       document.getElementById('st_roleSuper').value = s.roleSuperAdminFromLevel;
@@ -150,6 +170,13 @@
     const v = (document.querySelector('input[name="st_flow"]:checked') || {}).value;
     if (!v) { SFA.toast('Choose an option', false); return; }
     try { await Api.post(API.settings.save, { clientApprovalFlow: v }); if (window.Settings && Settings.load) await Settings.load(true).catch(() => {}); SFA.toast('Client approval saved'); }
+    catch (e) { SFA.toast(e.message, false); }
+  }
+
+  async function stgSaveAreaFlow() {
+    const v = (document.querySelector('input[name="st_aflow"]:checked') || {}).value;
+    if (!v) { SFA.toast('Choose an option', false); return; }
+    try { await Api.post(API.settings.save, { areaApprovalFlow: v }); if (window.Settings && Settings.load) await Settings.load(true).catch(() => {}); SFA.toast('Area approval saved'); }
     catch (e) { SFA.toast(e.message, false); }
   }
 

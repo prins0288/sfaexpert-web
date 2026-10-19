@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class AreaMapper {
 
+    /** Stored fields only — names, rights and routes are filled by AreaService. */
     public AreaDto toDto(Area e) {
         AreaDto d = new AreaDto();
         d.setOid(e.getOid());
@@ -15,28 +16,22 @@ public class AreaMapper {
         d.setCity(e.getCity());
         d.setStateOid(e.getStateOid());
         d.setHqOid(e.getHqOid());
+        d.setEmpId(e.getEmpId());
         d.setPincode(e.getPincode());
         d.setAreaType(e.getAreaType());
         d.setDistanceKm(e.getDistanceKm());
         d.setStatus(e.getStatus());
         d.setStateName(e.getStateName());
         d.setHqName(e.getHqName());
+        d.setEmpName(e.getEmpName());
         d.setRoutes(e.getRoutes());
+        d.setApprovalStatus(e.getApprovalStatus());
+        d.setManagerApprovedOn(e.getManagerApprovedOn());
+        d.setApprovedOn(e.getApprovedOn());
+        d.setRejectReason(e.getRejectReason());
+        d.setDeleteRequested(e.getDeleteRequested());
+        d.setDeleteStatus(e.getDeleteStatus());
+        d.setDeleteRequestReason(e.getDeleteRequestReason());
         return d;
-    }
-
-    public Area toEntity(AreaDto d) {
-        Area e = new Area();
-        e.setOid(d.getOid());
-        e.setAreaCode(d.getAreaCode());
-        e.setAreaName(d.getAreaName());
-        e.setCity(d.getCity());
-        e.setStateOid(d.getStateOid());
-        e.setHqOid(d.getHqOid());
-        e.setPincode(d.getPincode());
-        e.setAreaType(d.getAreaType());
-        e.setDistanceKm(d.getDistanceKm());
-        e.setStatus(d.getStatus());
-        return e;
     }
 }

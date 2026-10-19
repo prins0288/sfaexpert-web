@@ -34,7 +34,7 @@ public interface DcrRepository extends JpaRepository<Dcr, Long> {
             JOIN emp_detail e ON e.emp_id = d.emp_id
             JOIN client c ON c.oid = d.client_oid
             LEFT JOIN client_type ct ON ct.oid = c.client_type_oid
-            LEFT JOIN city_master ar ON ar.oid = c.area_oid
+            LEFT JOIN area_master ar ON ar.oid = c.area_oid
             LEFT JOIN route r ON r.oid = c.route_oid
             LEFT JOIN division_master dv ON dv.oid = r.division_oid
             LEFT JOIN state_master st ON st.oid = r.state_oid

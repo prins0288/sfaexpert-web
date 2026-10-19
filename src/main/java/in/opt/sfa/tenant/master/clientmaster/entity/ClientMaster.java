@@ -12,14 +12,14 @@ import java.time.LocalDateTime;
  * Client Master (TENANT db, client_master — 76_client_master.sql): one doctor /
  * chemist / stockist ... Masters are ids: client_type.oid, category_master.oid,
  * speciality_master.oid, degree_master.id, state_master.oid, district.oid,
- * city_master.oid (Area master); mapped_emp_code = emp_detail.emp_id.
+ * area_master.oid (Area master); mapped_emp_code = emp_detail.emp_id.
  * created_on / updated_on are filled by MySQL.
  */
 @Entity
 @Table(name = "client_master")
 @Getter
 @Setter
-public class ClientMaster {
+public class ClientMaster implements in.opt.sfa.tenant.approval.Approvable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -259,4 +259,23 @@ public class ClientMaster {
 
     @Column(name = "updated_on", insertable = false, updatable = false)
     private LocalDateTime updatedOn;
+
+    // ---- Approvable (ApprovalEngine) ----
+
+    @Override
+    public void finalApproval(String empId, LocalDateTime at) {
+        this.approvedByEmpCode = empId;
+        this.approvedOn = at;
+        this.approved = empId != null;
+    }
+
+    @Override
+    public void activeNow(boolean active) { this.active = active; }
+
+    @Override
+    public boolean isActiveNow() { return Boolean.TRUE.equals(active); }
+
+    /** Mapped employee, else its creator. */
+    @Override
+    public String approvalOwner() { return mappedEmpCode != null ? mappedEmpCode : createdBy; }
 }

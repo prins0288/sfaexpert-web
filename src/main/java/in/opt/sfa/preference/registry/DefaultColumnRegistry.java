@@ -63,12 +63,14 @@ public final class DefaultColumnRegistry {
         register("AREA_MASTER",
                 col("code", "common.code"),
                 col("name", "common.name"),
+                col("employee", null),
                 col("city", "common.city"),
                 col("state", "entity.state"),
                 col("hq", "entity.hq"),
                 col("pincode", "common.pincode"),
                 col("type", "common.type"),
                 col("routes", "entity.routes"),
+                col("approval", null),
                 col("status", "common.status"));
 
         // master/bank-master.html

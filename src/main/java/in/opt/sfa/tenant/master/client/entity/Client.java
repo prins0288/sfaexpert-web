@@ -66,7 +66,7 @@ public class Client {
     @Formula("(select t.singular_label from client_type t where t.oid = client_type_oid)")
     private String typeSingular;
 
-    @Formula("(select a.area_name from city_master a where a.oid = area_oid)")
+    @Formula("(select a.area_name from area_master a where a.oid = area_oid)")
     private String areaName;
 
     @Formula("(select r.route_name from route r where r.oid = route_oid)")
