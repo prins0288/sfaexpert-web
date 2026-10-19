@@ -24,6 +24,8 @@ public class DesignationMasterDto {
     // ---- read-only, filled by the server ----
     /** Role its hierarchy level gives (LevelRoleService): USER / MANAGER / ADMIN / SUPER_ADMIN. */
     private String role;
+    /** Admin / Super Admin designation: cannot be edited or deactivated from the panel. */
+    private Boolean locked;
     /** Employees currently holding this designation. */
     private Long employeeCount;
     private LocalDateTime createdAt;

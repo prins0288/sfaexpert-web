@@ -47,7 +47,8 @@
     </div>
     <div class="card-body">
       <p class="text-muted small mb-2" id="dsgNote">Each employee holds a designation; its <b>hierarchy level</b> (unique, higher = more senior) decides their role
-        by the ranges in Settings &gt; General &gt; Role by hierarchy level. Changes apply from the employee's next login.</p>
+        by the ranges in Settings &gt; General &gt; Role by hierarchy level. Changes apply from the employee's next login.
+        <i class="bi bi-lock-fill"></i> Admin / Super Admin designations are managed by the backend only — they cannot be added, edited or deactivated here.</p>
       <div class="table-responsive">
         <table id="dsgTable" data-screen-key="DESIGNATION_MASTER" class="table table-striped table-bordered nowrap" style="width:100%">
           <thead><tr>
@@ -172,11 +173,11 @@
         <td>${i + 1}</td><td>${esc(r.designation)}</td><td>${r.hierarchyLevel ?? ''}</td><td>${r.displayOrder ?? ''}</td>
         <td>${esc(r.grade)}</td><td>${esc(r.designationCategory)}</td><td>${roleBadge(r.role)}</td><td>${r.employeeCount ?? 0}</td>
         <td>${boolBadge(r.active)}</td>
-        <td class="no-export">
+        <td class="no-export">${r.locked ? '<span class="text-muted" title="Admin / Super Admin designation — managed by the backend only"><i class="bi bi-lock-fill"></i> Locked</span>' : `
           <button data-perm="DESIGNATION_SAVE" class="btn btn-sm btn-outline-primary" title="Edit" onclick="dsgEdit(${r.id})"><i class="bi bi-pencil"></i></button>
           ${r.active
             ? `<button data-perm="DESIGNATION_STATUS" class="btn btn-sm btn-outline-danger" title="Deactivate" onclick="dsgStatus(${r.id},false)"><i class="bi bi-slash-circle"></i></button>`
-            : `<button data-perm="DESIGNATION_STATUS" class="btn btn-sm btn-outline-success" title="Activate" onclick="dsgStatus(${r.id},true)"><i class="bi bi-check-circle"></i></button>`}
+            : `<button data-perm="DESIGNATION_STATUS" class="btn btn-sm btn-outline-success" title="Activate" onclick="dsgStatus(${r.id},true)"><i class="bi bi-check-circle"></i></button>`}`}
         </td>
       </tr>`).join('');
     DT = sfaDataTable('#dsgTable');
@@ -191,7 +192,9 @@
     el.className = 'badge ' + (ROLE_CLASS[role] || 'bg-secondary');
     const r = ROWS.find(x => String(x.id) === document.getElementById('d_id').value);
     const taken = lvl != null && ROWS.find(x => x.hierarchyLevel === lvl && String(x.id) !== document.getElementById('d_id').value);
-    document.getElementById('d_levelWarn').textContent = taken ? `Level ${lvl} is already used by ${taken.designation}.`
+    document.getElementById('d_levelWarn').textContent = (role === 'ADMIN' || role === 'SUPER_ADMIN')
+      ? `Level ${lvl} is in the Admin range — Admin / Super Admin designations are managed by the backend only. Use a level below ${OPT.adminFrom}.`
+      : taken ? `Level ${lvl} is already used by ${taken.designation}.`
       : (r && r.employeeCount && EDIT_LEVEL != null && lvl !== EDIT_LEVEL && roleFor(EDIT_LEVEL) !== role)
         ? `Saving changes the role of ${r.employeeCount} employee(s) with this designation to ${role} (from their next login).` : '';
   }

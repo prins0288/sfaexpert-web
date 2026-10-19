@@ -17,6 +17,11 @@ import java.util.*;
  * hierarchy_level (unique), and their role comes from that level by the
  * company's ranges (LevelRoleService) — so editing a designation's level changes
  * every holder's role from their next login.
+ *
+ * Admin and Super Admin designations (hierarchy level in the Admin range or
+ * above) are LOCKED on the panel: they cannot be added, edited or deactivated
+ * here, and no designation can be moved into that range — they are managed in
+ * the database only, so nobody can raise their own (or anyone's) role from the UI.
  */
 @Service
 public class DesignationMasterService {
@@ -53,8 +58,11 @@ public class DesignationMasterService {
     public DesignationMasterDto save(DesignationMasterDto form) {
         boolean isNew = form.getId() == null;
         Designation d = isNew ? new Designation() : find(form.getId());
+        int[] ranges = levelRoles.ranges();
+        if (!isNew) refuseLocked(d, ranges);
         Clean c = clean(form);
         validate(c, isNew ? null : d.getId());
+        refuseLockedLevel(c.level, ranges);
         if (!isNew && Boolean.FALSE.equals(form.getActive()) && employeeCount(d.getId()) > 0 && !Boolean.FALSE.equals(d.getActive())) {
             throw new IllegalStateException("Cannot deactivate " + d.getDesignation() + " — employees still hold it");
         }
@@ -73,6 +81,7 @@ public class DesignationMasterService {
         Set<String> seenNames = new HashSet<>();
         Set<Integer> seenLevels = new HashSet<>();
         int row = 0;
+        int[] ranges = levelRoles.ranges();
         for (DesignationMasterDto f : forms) {
             row++;
             Clean c = clean(f);
@@ -80,6 +89,7 @@ public class DesignationMasterService {
                 if (c.name != null && !seenNames.add(c.name.toLowerCase())) throw new IllegalStateException(c.name + " repeated in this list");
                 if (c.level != null && !seenLevels.add(c.level)) throw new IllegalStateException("hierarchy level " + c.level + " repeated in this list");
                 validate(c, null);
+                refuseLockedLevel(c.level, ranges);
             } catch (IllegalStateException e) {
                 skipped++;
                 errors.add("Row " + row + ": " + e.getMessage());
@@ -101,6 +111,7 @@ public class DesignationMasterService {
     @Transactional(transactionManager = "tenantTransactionManager")
     public DesignationMasterDto updateStatus(Integer id, boolean active) {
         Designation d = find(id);
+        refuseLocked(d, levelRoles.ranges());
         long holders = employeeCount(id);
         if (!active && holders > 0) {
             throw new IllegalStateException("Cannot deactivate " + d.getDesignation() + " — " + holders + " employee(s) still hold it");
@@ -122,6 +133,25 @@ public class DesignationMasterService {
     }
 
     // ---- helpers ------------------------------------------------------------
+
+    /** Admin / Super Admin level: managed in the database only. */
+    private static boolean locked(Integer level, int[] ranges) {
+        String role = LevelRoleService.roleFor(level, ranges);
+        return LevelRoleService.ADMIN.equals(role) || LevelRoleService.SUPER_ADMIN.equals(role);
+    }
+
+    private static void refuseLocked(Designation d, int[] ranges) {
+        if (locked(d.getHierarchyLevel(), ranges)) {
+            throw new IllegalStateException(d.getDesignation() + " is an Admin / Super Admin designation — it cannot be changed or deactivated from the panel");
+        }
+    }
+
+    private static void refuseLockedLevel(Integer level, int[] ranges) {
+        if (level != null && locked(level, ranges)) {
+            throw new IllegalStateException("Hierarchy level " + level + " is in the Admin range (" + ranges[1]
+                    + "+) — Admin / Super Admin designations are managed by the backend only. Use a level below " + ranges[1]);
+        }
+    }
 
     private record Clean(String name, Integer level, Integer order, String grade, String category, String rawCategory) { }
 
@@ -185,6 +215,7 @@ public class DesignationMasterService {
         dto.setDesignationCategory(d.getDesignationCategory());
         dto.setActive(d.getActive());
         dto.setRole(LevelRoleService.roleFor(d.getHierarchyLevel(), ranges));
+        dto.setLocked(locked(d.getHierarchyLevel(), ranges));
         dto.setEmployeeCount(employees);
         dto.setCreatedAt(d.getCreatedAt());
         return dto;
