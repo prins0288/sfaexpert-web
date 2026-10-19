@@ -134,6 +134,12 @@ public final class DefaultColumnRegistry {
                 col("created", "common.created"),
                 col("updated", "common.updated"));
 
+        // master/salutation-master.html
+        register("SALUTATION_MASTER",
+                col("salutation", null),
+                col("order", null),
+                col("status", "common.status"));
+
         // master/client-master.html (the old master/client.html keeps CLIENT_MASTER)
         register("CLIENT_MASTER_V2",
                 col("photo", null),

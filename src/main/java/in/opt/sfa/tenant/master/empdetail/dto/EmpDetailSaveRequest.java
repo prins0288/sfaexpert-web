@@ -15,6 +15,8 @@ public class EmpDetailSaveRequest {
     /** Blank/null => create a new employee (emp_id/emp_code auto-generated). */
     private String empId;
 
+    /** "Mr.", "Dr." ... from the Salutation master; "" clears it on update, null = unchanged. */
+    private String salutation;
     private String empName;
     private Long divisionId;
     private Long designationId;

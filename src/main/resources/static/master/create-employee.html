@@ -72,7 +72,9 @@
         <input type="hidden" id="e_empId" />
         <h6 class="text-muted">Essential details</h6>
         <div class="row g-3 mb-3">
-          <div class="col-md-6"><label class="form-label">Name <span class="required-star">*</span></label>
+          <div class="col-md-2"><label class="form-label">Salutation</label>
+            <select class="form-select" id="e_salutation" data-quick-add="salutation"></select></div>
+          <div class="col-md-4"><label class="form-label">Name <span class="required-star">*</span></label>
             <input class="form-control" id="e_empName" required maxlength="150" placeholder="Jane Doe" /></div>
           <div class="col-md-6"><label class="form-label">Mobile</label>
             <input class="form-control" id="e_mobile" inputmode="numeric" maxlength="10" pattern="[6-9][0-9]{9}"
@@ -327,9 +329,10 @@
     MODAL = new bootstrap.Modal('#empModal');
     try {
       [LK, OPTS] = await Promise.all([
-        Api.get(API.lookups, { query: { keys: 'divisions,designations,states,hqs,banks,degrees,documents' } }),
+        Api.get(API.lookups, { query: { keys: 'divisions,designations,states,hqs,banks,degrees,documents,salutations' } }),
         Api.get(API.master.createEmployee.profileOptions),
       ]);
+      SFA.fillSelect(document.getElementById('e_salutation'), LK.salutations);
       SFA.fillSelect(document.getElementById('e_divisionId'), LK.divisions);
       SFA.fillSelect(document.getElementById('e_designationId'), LK.designations);
       SFA.fillSelect(document.getElementById('e_stateId'), LK.states);
@@ -360,7 +363,7 @@
       <tr>
         <td>${i + 1}</td>
         <td class="no-export">${r.photoPath ? SFAFiles.thumb(r.photoPath, r.photoThumbnailPath, { name: r.empName }) : ''}</td>
-        <td>${SFA.esc(r.empCode)}</td><td>${SFA.esc(r.empName)}</td><td>${SFA.esc(r.mobile)}</td>
+        <td>${SFA.esc(r.empCode)}</td><td>${SFA.esc((r.salutation ? r.salutation + ' ' : '') + r.empName)}</td><td>${SFA.esc(r.mobile)}</td>
         <td>${SFA.esc(r.designationName)}</td><td>${SFA.esc(r.divisionName)}</td>
         <td>${SFA.esc(r.username)}</td><td>${SFA.statusBadge(r.active ? 'Y' : 'N')}</td>
         <td>${r.vacant ? '<span class="badge bg-warning text-dark">Vacant</span>' : '<span class="badge badge-active">Working</span>'}</td>
@@ -395,7 +398,7 @@
   }
 
   const TEXT_FIELDS = ['e_empId', 'e_empName', 'e_mobile', 'e_username', 'e_password', 'e_officialEmail', 'e_department'];
-  const SELECTS = ['e_divisionId', 'e_designationId', 'e_stateId', 'e_hqId', 'e_managerId', 'e_gender'];
+  const SELECTS = ['e_salutation', 'e_divisionId', 'e_designationId', 'e_stateId', 'e_hqId', 'e_managerId', 'e_gender'];
   const DATES = ['e_dateOfJoining', 'e_reportingDate', 'e_confirmationDate', 'e_resignationDate', 'e_lastWorkingDate'];
 
   function clearForm() {
@@ -437,6 +440,11 @@
     clearForm();
     fillManagerSelect(r.empId, r.managerId);
     document.getElementById('e_empId').value = r.empId;
+    const sal = document.getElementById('e_salutation');
+    if (r.salutation && ![...sal.options].some(o => o.value === r.salutation)) {
+      sal.insertAdjacentHTML('beforeend', `<option value="${SFA.esc(r.salutation)}">${SFA.esc(r.salutation)}</option>`);   // since deactivated
+    }
+    sal.value = r.salutation || '';
     document.getElementById('e_empName').value = r.empName || '';
     document.getElementById('e_mobile').value = r.mobile || '';
     document.getElementById('e_divisionId').value = r.divisionId || '';
@@ -562,7 +570,7 @@
     const v = id => { const x = document.getElementById(id).value; return x === '' ? null : x; };
     const t = id => document.getElementById(id).value.trim();   // '' clears an optional text field on edit
     const body = {
-      empId: v('e_empId'), empName: t('e_empName'), mobile: t('e_mobile'),
+      empId: v('e_empId'), salutation: t('e_salutation'), empName: t('e_empName'), mobile: t('e_mobile'),
       divisionId: v('e_divisionId'), designationId: v('e_designationId'),
       stateId: v('e_stateId'), hqId: v('e_hqId'),
       username: LOGIN_LOCKED ? null : username, password: LOGIN_LOCKED ? null : v('e_password'),

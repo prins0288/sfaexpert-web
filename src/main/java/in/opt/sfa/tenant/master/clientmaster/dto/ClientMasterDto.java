@@ -17,6 +17,8 @@ import java.time.LocalDateTime;
 public class ClientMasterDto {
     private Long id;
     private String clientCode;
+    /** "Dr.", "Mr." ... — the text from the Salutation master. */
+    private String salutation;
     private String clientName;
     private Long clientTypeId;
     private Long categoryId;

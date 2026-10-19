@@ -941,6 +941,8 @@
                            fields: [CODE("bankCode"), NAME("bankName")], extra: { isActive: true, displayOrder: 0 } },
             document:    { title: "Document type", perm: "DOCUMENT_SAVE", ep: function () { return API.master.documentMaster.save; }, lookup: "documents", id: "id",
                            fields: [CODE("documentCode"), NAME("documentName")], extra: { isActive: true, displayOrder: 0 } },
+            salutation:  { title: "Salutation", perm: "SALUTATION_SAVE", ep: function () { return API.master.salutation.save; }, lookup: "salutations", id: "salutation",
+                           fields: [{ k: "salutation", label: "Salutation (e.g. Dr., Er., Adv.)", req: true, max: 20, name: true }] },
             clientType:  { title: "Client type", perm: "CLIENT_TYPE_SAVE", ep: function () { return API.master.clientType.save; }, lookup: "clientTypes", id: "oid",
                            fields: [CODE("typeCode"), NAME("typeName", 80)], extra: { isActive: true },
                            prepare: function (b) { b.singularLabel = b.typeName; b.pluralLabel = b.typeName + "s"; } },

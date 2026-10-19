@@ -82,6 +82,10 @@ public class EmpDetail {
     @Column(name = "last_working_date")
     private LocalDate lastWorkingDate;
 
+    /** Text from salutation_master, e.g. "Mr." (the value itself, not an id). */
+    @Column(name = "salutation", length = 20)
+    private String salutation;
+
     @Column(name = "photo_path")
     private String photoPath;
 

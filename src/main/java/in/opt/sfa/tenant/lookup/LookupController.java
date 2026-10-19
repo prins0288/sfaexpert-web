@@ -18,6 +18,7 @@ import in.opt.sfa.tenant.master.bank.repository.BankMasterRepository;
 import in.opt.sfa.tenant.master.brand.repository.BrandMasterRepository;
 import in.opt.sfa.tenant.master.itemtype.repository.ItemTypeMasterRepository;
 import in.opt.sfa.tenant.master.document.repository.DocumentMasterRepository;
+import in.opt.sfa.tenant.master.salutation.repository.SalutationMasterRepository;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -67,6 +68,7 @@ public class LookupController {
     private final BrandMasterRepository brands;
     private final ItemTypeMasterRepository itemTypes;
     private final DocumentMasterRepository documents;
+    private final SalutationMasterRepository salutations;
 
     public LookupController(DivisionRepository divisions, ZoneRepository zones, StateRepository states,
                             HqRepository hqs, HqGroupMasterRepository hqGroups, DegreeMasterRepository degrees, SpecialityMasterRepository specialities,
@@ -75,7 +77,9 @@ public class LookupController {
                             DesignationRepository designations, DistrictRepository districts,
                             EmpDetailRepository employees, CountryRepository countries,
                             BankMasterRepository banks, BrandMasterRepository brands,
-                            ItemTypeMasterRepository itemTypes, DocumentMasterRepository documents) {
+                            ItemTypeMasterRepository itemTypes, DocumentMasterRepository documents,
+                            SalutationMasterRepository salutations) {
+        this.salutations = salutations;
         this.divisions = divisions;
         this.zones = zones;
         this.states = states;
@@ -141,6 +145,9 @@ public class LookupController {
                 .map(br -> new Item(br.getId(), br.getBrandName())).toList());
         if (want(want, "itemTypes")) res.put("itemTypes", itemTypes.findByIsActiveOrderByDisplayOrderAscItemTypeNameAsc(true).stream()
                 .map(t -> new Item(t.getId(), t.getItemTypeName())).toList());
+        // salutations are stored as their text, so the value IS the text
+        if (want(want, "salutations")) res.put("salutations", salutations.findByActiveTrueOrderByDisplayOrderAscSalutationAsc().stream()
+                .map(s -> new Item(s.getSalutation(), s.getSalutation())).toList());
         if (want(want, "documents")) res.put("documents", documents.findByIsActiveOrderByDisplayOrderAscDocumentNameAsc(true).stream()
                 .map(d -> new Item(d.getId(), d.getDocumentName())).toList());
         if (want(want, "countries")) res.put("countries", countries.findByStatusOrderByCountryNameAsc(Boolean.TRUE).stream()

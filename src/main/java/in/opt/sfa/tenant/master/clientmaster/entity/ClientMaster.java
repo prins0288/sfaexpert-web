@@ -28,6 +28,10 @@ public class ClientMaster {
     @Column(name = "client_code", length = 30, nullable = false)
     private String clientCode;
 
+    /** Text from salutation_master, e.g. "Dr." (the value itself, not an id). */
+    @Column(name = "salutation", length = 20)
+    private String salutation;
+
     @Column(name = "client_name", length = 150, nullable = false)
     private String clientName;
 

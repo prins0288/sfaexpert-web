@@ -46,6 +46,7 @@ public class EmpDetailService {
 
     private final EmpDetailRepository employees;
     private final AppUserAdminService credentials;
+    private final in.opt.sfa.tenant.master.salutation.service.SalutationMasterService salutations;
     private final CodeGeneratorService codeGenerator;
     private final DivisionRepository divisions;
     private final DesignationRepository designations;
@@ -67,7 +68,9 @@ public class EmpDetailService {
                             CodeGeneratorService codeGenerator, DivisionRepository divisions,
                             DesignationRepository designations, CompanySettingStore settings,
                             EmpProfileService profiles, StateRepository states, HqRepository hqs,
-                            BankMasterRepository banks, DegreeMasterRepository degrees) {
+                            BankMasterRepository banks, DegreeMasterRepository degrees,
+                            in.opt.sfa.tenant.master.salutation.service.SalutationMasterService salutations) {
+        this.salutations = salutations;
         this.employees = employees;
         this.credentials = credentials;
         this.codeGenerator = codeGenerator;
@@ -197,6 +200,7 @@ public class EmpDetailService {
         }
 
         if (!Strings.isBlank(req.getEmpName())) e.setEmpName(req.getEmpName().trim());
+        if (req.getSalutation() != null) e.setSalutation(salutations.normalise(req.getSalutation()));   // master's spelling; "" clears
         if (req.getDivisionId() != null) e.setDivisionId(req.getDivisionId());
         if (req.getDesignationId() != null) {
             Designation d = designations.findById(req.getDesignationId())
@@ -270,7 +274,7 @@ public class EmpDetailService {
             "nominee_type", "nominee_name", "nominee_relationship", "nominee_dob", "nominee_contact", "nominee_share_pct",
             "emergency_name", "emergency_relationship", "emergency_phone1", "emergency_phone2",
             "pan_no", "pf_no", "uan_no", "esi_no", "aadhaar_no", "mediclaim_policy_no",
-            "vacant");
+            "vacant", "salutation");
 
     public byte[] template() throws Exception {
         List<String> sample = List.of(
@@ -286,7 +290,7 @@ public class EmpDetailService {
                 "PF", "Ram Doe", "Father", "1965-01-01", "9876500000", "100",
                 "Ram Doe", "Father", "9876500000", "",
                 "ABCDE1234F", "", "", "", "234567890123", "",
-                "N");
+                "N", "Ms.");
         return ExcelUtil.template("Employees", BULK_COLUMNS, sample);
     }
 
@@ -333,6 +337,7 @@ public class EmpDetailService {
                 req.setDepartment(r.get("department"));
                 req.setOfficeStaff(r.bool("office_staff"));
                 req.setVacant(r.bool("vacant"));
+                req.setSalutation(r.get("salutation"));
                 req.setConfirmed(r.bool("confirmed"));
                 req.setConfirmationDate(r.date("confirmation_date"));
 
@@ -590,6 +595,7 @@ public class EmpDetailService {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("empId", e.getEmpId());
         m.put("empCode", e.getEmpCode());
+        m.put("salutation", e.getSalutation());
         m.put("empName", e.getEmpName());
         m.put("mobile", e.getMobile());
         m.put("officialEmail", e.getOfficialEmail());

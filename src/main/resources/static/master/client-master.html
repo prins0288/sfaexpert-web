@@ -79,8 +79,10 @@
         <div class="alert alert-warning py-2 small d-none" id="c_statusNote"></div>
         <h6 class="text-muted">Essential details</h6>
         <div class="row g-3 mb-3">
-          <div class="col-md-6"><label class="form-label">Name <span class="required-star">*</span></label>
-            <input class="form-control" id="c_clientName" data-f="clientName" maxlength="150" placeholder="Dr. Anil Sharma" />
+          <div class="col-md-2"><label class="form-label">Salutation</label>
+            <select class="form-select" id="c_salutation" data-f="salutation" data-quick-add="salutation"></select></div>
+          <div class="col-md-4"><label class="form-label">Name <span class="required-star">*</span></label>
+            <input class="form-control" id="c_clientName" data-f="clientName" maxlength="150" placeholder="Anil Sharma" />
             <div class="invalid-feedback">Enter the client name</div></div>
           <div class="col-md-3"><label class="form-label">Client type</label>
             <select class="form-select" id="c_clientTypeId" data-f="clientTypeId" data-t="num" data-quick-add="clientType" onchange="cmTypeChanged()"></select></div>
@@ -278,7 +280,8 @@
   async function loadOptions(keepValues) {
     OPT = await Api.get(EP.options);
     const keep = {};
-    ['clientTypeId', 'specialityId', 'categoryId', 'stateId', 'districtId', 'cityId', 'mappedEmpCode', 'degreeId'].forEach(f => keep[f] = document.getElementById('c_' + f).value);
+    ['salutation', 'clientTypeId', 'specialityId', 'categoryId', 'stateId', 'districtId', 'cityId', 'mappedEmpCode', 'degreeId'].forEach(f => keep[f] = document.getElementById('c_' + f).value);
+    document.getElementById('c_salutation').innerHTML = opts((OPT.salutations || []).map(v => ({ oid: v, label: v })));
     document.getElementById('c_clientTypeId').innerHTML = opts(OPT.clientTypes);
     document.getElementById('c_specialityId').innerHTML = opts(OPT.specialities);
     document.getElementById('c_categoryId').innerHTML = opts(OPT.categories);
@@ -348,7 +351,7 @@
       <tr>
         <td>${i + 1}</td>
         <td class="no-export">${r.photoPath ? SFAFiles.thumb(r.photoPath, r.photoThumbnailPath, { name: r.clientName }) : ''}</td>
-        <td>${esc(r.clientCode)}</td><td>${esc(r.clientName)}</td><td>${esc(r.clientTypeName)}</td><td>${esc(r.specialityName)}</td>
+        <td>${esc(r.clientCode)}</td><td>${esc((r.salutation ? r.salutation + ' ' : '') + r.clientName)}</td><td>${esc(r.clientTypeName)}</td><td>${esc(r.specialityName)}</td>
         <td>${esc(r.categoryName)}</td><td>${esc(r.mobileNumber1)}</td><td>${esc(r.mappedEmpName)}</td><td>${esc(r.stateName)}</td>
         <td>${esc(r.districtName)}</td><td>${esc(r.cityName)}</td><td>${esc(r.localityType)}</td><td>${esc(r.visitDays)}</td>
         <td>${r.prescriber ? 'Yes' : 'No'}</td>
@@ -383,7 +386,12 @@
       const v = r[el.dataset.f];
       if (el.dataset.t === 'bool') el.checked = !!v;
       else if (el.dataset.t === 'date') sfaSetDate(el.id, v || '');
-      else el.value = v == null ? (el.id === 'c_starRating' ? '0' : '') : v;
+      else {
+        if (el.tagName === 'SELECT' && v != null && v !== '' && ![...el.options].some(o => o.value === String(v))) {
+          el.insertAdjacentHTML('beforeend', `<option value="${esc(v)}">${esc(v)}</option>`);   // e.g. a salutation since deactivated
+        }
+        el.value = v == null ? (el.id === 'c_starRating' ? '0' : '') : v;
+      }
     });
     const days = (r.visitDays || '').split(',');
     document.querySelectorAll('#c_visitDays input').forEach(cb => cb.checked = days.includes(cb.value));
@@ -422,7 +430,7 @@
       const f = el.dataset.f, t = el.dataset.t;
       if (t === 'bool') { o[f] = el.checked; return; }
       const v = (el.value || '').trim();
-      o[f] = v === '' ? null : (t === 'num' ? Number(v) : t === 'int' ? parseInt(v, 10) : v);
+      o[f] = v === '' ? (f === 'salutation' ? '' : null) : (t === 'num' ? Number(v) : t === 'int' ? parseInt(v, 10) : v);
     });
     o.visitDays = [...document.querySelectorAll('#c_visitDays input:checked')].map(cb => cb.value).join(',') || null;
     const code = document.getElementById('c_clientCode').value.trim().toUpperCase();

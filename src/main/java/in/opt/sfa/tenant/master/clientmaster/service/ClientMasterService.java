@@ -103,6 +103,7 @@ public class ClientMasterService {
     private final FileUploadService uploads;
     private final EmpNameResolver employeeNames;
     private final in.opt.sfa.common.service.CompanySettingStore settings;
+    private final in.opt.sfa.tenant.master.salutation.service.SalutationMasterService salutations;
 
     public ClientMasterService(ClientMasterRepository clients, ClientMasterChildRepository children,
                                ClientTypeRepository clientTypes, CategoryMasterRepository categories,
@@ -110,8 +111,10 @@ public class ClientMasterService {
                                StateRepository states, DistrictRepository districts, AreaRepository areas,
                                EmpDetailRepository employees, PermissionService permissions,
                                FileUploadService uploads, EmpNameResolver employeeNames,
-                               in.opt.sfa.common.service.CompanySettingStore settings) {
+                               in.opt.sfa.common.service.CompanySettingStore settings,
+                               in.opt.sfa.tenant.master.salutation.service.SalutationMasterService salutations) {
         this.settings = settings;
+        this.salutations = salutations;
         this.clients = clients;
         this.children = children;
         this.clientTypes = clientTypes;
@@ -149,6 +152,7 @@ public class ClientMasterService {
     @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
     public Map<String, Object> options() {
         Map<String, Object> m = new LinkedHashMap<>();
+        m.put("salutations", salutations.activeValues());
         m.put("clientTypes", clientTypes.findByIsActiveOrderByTypeNameAsc(true).stream().map(t -> item(t.getOid(), t.getTypeName(), null)).toList());
         m.put("categories", categories.findByStatusOrderByCategoryNameAsc(true).stream().map(t -> item(t.getOid(), t.getCategoryName(), null)).toList());
         m.put("specialities", specialities.findByStatusOrderBySpecialityNameAsc(true).stream().map(t -> item(t.getOid(), t.getSpecialityName(), null)).toList());
@@ -318,13 +322,14 @@ public class ClientMasterService {
 
     // ---- bulk upload ---------------------------------------------------------------
 
-    public static final List<String> BULK_COLUMNS = List.of("client_code", "client_name", "client_type", "category", "sub_category", "speciality", "sub_speciality", "degree", "qualification", "designation", "is_prescriber", "experience_years", "mapped_emp_code", "state", "district", "city", "locality_type", "pin_code", "address", "landmark", "latitude", "longitude", "sitting_place", "property_name", "star_rating", "visit_frequency", "visit_days", "preferred_visit_time", "patients_per_day", "no_of_machines", "is_multi_location", "is_pool_client", "mapped_campaign_code", "mobile_number_1", "mobile_number_2", "email", "contact_person_1_name", "contact_person_1_mobile", "contact_person_2_name", "contact_person_2_mobile", "gender", "date_of_birth", "anniversary_date", "spouse_date_of_birth", "gst_number", "pan_number", "aadhaar_number", "drug_license_no", "medical_registration_no", "remarks", "extra_info_1", "extra_info_2", "extra_info_3", "is_active", "has_fund_support",
+    public static final List<String> BULK_COLUMNS = List.of("client_code", "salutation", "client_name", "client_type", "category", "sub_category", "speciality", "sub_speciality", "degree", "qualification", "designation", "is_prescriber", "experience_years", "mapped_emp_code", "state", "district", "city", "locality_type", "pin_code", "address", "landmark", "latitude", "longitude", "sitting_place", "property_name", "star_rating", "visit_frequency", "visit_days", "preferred_visit_time", "patients_per_day", "no_of_machines", "is_multi_location", "is_pool_client", "mapped_campaign_code", "mobile_number_1", "mobile_number_2", "email", "contact_person_1_name", "contact_person_1_mobile", "contact_person_2_name", "contact_person_2_mobile", "gender", "date_of_birth", "anniversary_date", "spouse_date_of_birth", "gst_number", "pan_number", "aadhaar_number", "drug_license_no", "medical_registration_no", "remarks", "extra_info_1", "extra_info_2", "extra_info_3", "is_active", "has_fund_support",
             "instagram_handle", "facebook_handle", "twitter_handle");
 
     public byte[] template() throws Exception {
         Map<String, String> sample = new LinkedHashMap<>();
         BULK_COLUMNS.forEach(k -> sample.put(k, ""));
-        sample.put("client_name", "Dr. Anil Sharma");
+        sample.put("salutation", "Dr.");
+        sample.put("client_name", "Anil Sharma");
         sample.put("client_type", "Doctor");
         sample.put("speciality", "");
         sample.put("is_prescriber", "Y");
@@ -343,6 +348,7 @@ public class ClientMasterService {
                 new ExcelUtil.SheetSpec("Help", List.of("Notes"), List.of(
                         List.of("One row per client. client_code blank = new client with a generated code (e.g. DR00001); an existing client_code updates that client (blank cell = keep the stored value)."),
                         List.of("client_type, category, speciality, degree, state, district, city: code or name from the masters (city = Area master)."),
+                        List.of("salutation: Dr. / Mr. / Mrs. ... as in the Salutation master (the name itself without it)."),
                         List.of("mapped_emp_code: employee code. Yes/No columns: Y or N. Dates: 2026-04-01 or 01-04-2026."),
                         List.of("locality_type: Urban / Semi-Urban / Rural. gender: Male / Female / Other. visit_days: MON,TUE,... (comma separated)."),
                         List.of("Mobile numbers: 10 digits starting 6-9. PAN: ABCDE1234F. GST: 15 characters. Aadhaar: 12 digits. PIN: 6 digits.")))));
@@ -374,6 +380,7 @@ public class ClientMasterService {
                     boolean isNew = c == null;
                     if (isNew) c = new ClientMaster();
                     ClientMasterDto f = new ClientMasterDto();
+                    f.setSalutation(x.get("salutation"));
                     f.setClientName(x.get("client_name"));
                     f.setClientTypeId(x.has("client_type") ? n.id(n.typeKeys, x.get("client_type"), "client_type") : null);
                     f.setCategoryId(x.has("category") ? n.id(n.categoryKeys, x.get("category"), "category") : null);
@@ -475,6 +482,8 @@ public class ClientMasterService {
             if (f.getClientName() == null) throw new IllegalStateException("Client name is required");
             if (f.getClientName().length() > 150) throw new IllegalStateException("Client name can be at most 150 characters");
         }
+        if (f.getSalutation() != null) f.setSalutation(salutations.normalise(f.getSalutation()));   // master's spelling
+        if (full || f.getSalutation() != null) e.setSalutation(f.getSalutation());
         exists(f.getClientTypeId(), n.types, "Client type");
         exists(f.getCategoryId(), n.categories, "Category");
         exists(f.getSpecialityId(), n.specialities, "Speciality");
@@ -834,6 +843,7 @@ public class ClientMasterService {
     private ClientMasterDto toDto(ClientMaster e, ClientMasterChild ch, Names n) {
         ClientMasterDto d = new ClientMasterDto();
         d.setId(e.getId());
+        d.setSalutation(e.getSalutation());
         d.setClientCode(e.getClientCode());
         d.setClientName(e.getClientName());
         d.setClientTypeId(e.getClientTypeId());

@@ -222,6 +222,11 @@
         get: (id) => `/api/master/brand-master/${id}`,
         status: (id) => `/api/master/brand-master/${id}/status`,
       },
+      salutation: {
+        list: "/api/master/salutation",
+        save: "/api/master/salutation",
+        status: (id) => `/api/master/salutation/${id}/status`,   // ?active=
+      },
       clientMaster: {
         list: "/api/master/client-master",
         save: "/api/master/client-master",
