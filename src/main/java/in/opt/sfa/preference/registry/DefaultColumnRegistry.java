@@ -200,7 +200,6 @@ public final class DefaultColumnRegistry {
                 col("hierarchyLevel", null),
                 col("displayOrder", null),
                 col("grade", null),
-                col("category", null),
                 col("role", null),
                 col("employees", null),
                 col("status", "common.status"));

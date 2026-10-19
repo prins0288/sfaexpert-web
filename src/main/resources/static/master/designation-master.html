@@ -53,7 +53,7 @@
         <table id="dsgTable" data-screen-key="DESIGNATION_MASTER" class="table table-striped table-bordered nowrap" style="width:100%">
           <thead><tr>
             <th>S.No</th><th data-field="name">Designation</th><th data-field="hierarchyLevel">Hierarchy Level</th><th data-field="displayOrder">Display Order</th>
-            <th data-field="grade">Grade</th><th data-field="category">Category</th><th data-field="role">Role</th><th data-field="employees">Employees</th>
+            <th data-field="grade">Grade</th><th data-field="role">Role</th><th data-field="employees">Employees</th>
             <th data-field="status">Status</th><th class="no-export">Actions</th>
           </tr></thead>
           <tbody></tbody>
@@ -150,7 +150,9 @@
   const roleFor = (lvl) => lvl == null || lvl === '' || isNaN(lvl) ? ''
     : (lvl >= OPT.superAdminFrom ? 'SUPER_ADMIN' : lvl >= OPT.adminFrom ? 'ADMIN' : lvl >= OPT.managerFrom ? 'MANAGER' : 'USER');
   const ROLE_CLASS = { SUPER_ADMIN: 'bg-danger', ADMIN: 'bg-primary', MANAGER: 'bg-info text-dark', USER: 'bg-secondary' };
-  const roleBadge = (role) => role ? `<span class="badge ${ROLE_CLASS[role] || 'bg-secondary'}">${esc(role)}</span>` : '';
+  // the Role column shows the designation's category (designation_category)
+  const CATEGORY_CLASS = { field: 'bg-secondary', manager: 'bg-info text-dark', admin: 'bg-primary', support: 'bg-warning text-dark' };
+  const categoryBadge = (c) => c ? `<span class="badge ${CATEGORY_CLASS[String(c).toLowerCase()] || 'bg-dark'}">${esc(c)}</span>` : '';
 
   window.pageInit = async function () {
     MODAL = new bootstrap.Modal('#dsgModal');
@@ -171,7 +173,7 @@
     document.querySelector('#dsgTable tbody').innerHTML = ROWS.map((r, i) => `
       <tr>
         <td>${i + 1}</td><td>${esc(r.designation)}</td><td>${r.hierarchyLevel ?? ''}</td><td>${r.displayOrder ?? ''}</td>
-        <td>${esc(r.grade)}</td><td>${esc(r.designationCategory)}</td><td>${roleBadge(r.role)}</td><td>${r.employeeCount ?? 0}</td>
+        <td>${esc(r.grade)}</td><td>${categoryBadge(r.designationCategory)}</td><td>${r.employeeCount ?? 0}</td>
         <td>${boolBadge(r.active)}</td>
         <td class="no-export">${r.locked ? '<span class="text-muted" title="Admin / Super Admin designation — managed by the backend only"><i class="bi bi-lock-fill"></i> Locked</span>' : `
           <button data-perm="DESIGNATION_SAVE" class="btn btn-sm btn-outline-primary" title="Edit" onclick="dsgEdit(${r.id})"><i class="bi bi-pencil"></i></button>
