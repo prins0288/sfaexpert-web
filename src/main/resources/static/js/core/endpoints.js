@@ -222,6 +222,20 @@
         get: (id) => `/api/master/brand-master/${id}`,
         status: (id) => `/api/master/brand-master/${id}/status`,
       },
+      clientMaster: {
+        list: "/api/master/client-master",
+        save: "/api/master/client-master",
+        options: "/api/master/client-master/options",
+        nextCode: "/api/master/client-master/next-code",            // ?clientTypeId=
+        get: (id) => `/api/master/client-master/${id}`,
+        status: (id) => `/api/master/client-master/${id}/status`,   // ?active=
+        approve: (id) => `/api/master/client-master/${id}/approve`, // ?approved=
+        deleteRequest: (id) => `/api/master/client-master/${id}/delete-request`,
+        deleteDecision: (id) => `/api/master/client-master/${id}/delete-decision`,  // ?accept=
+        photo: (id) => `/api/master/client-master/${id}/photo`,
+        template: "/api/master/client-master/template",
+        upload: "/api/master/client-master/upload",
+      },
       passwordReset: {
         list: "/api/master/password-reset",
         generate: "/api/master/password-reset/generate",

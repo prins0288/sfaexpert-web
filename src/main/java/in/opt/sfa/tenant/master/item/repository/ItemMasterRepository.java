@@ -13,9 +13,12 @@ public interface ItemMasterRepository extends JpaRepository<ItemMaster, Long> {
     Optional<ItemMaster> findByItemCode(String itemCode);
     List<ItemMaster> findByItemCodeIn(java.util.Collection<String> itemCodes);
 
-    /** Highest number after the prefix among codes like PD01, PD02 ... (null = none yet). */
+    /**
+     * Highest number after the prefix among codes like PD01, PD02 ... (null = none yet).
+     * A locking read, so it sees codes committed after this transaction started.
+     */
     @org.springframework.data.jpa.repository.Query(nativeQuery = true, value =
-            "SELECT MAX(CAST(SUBSTRING(item_code, :start) AS UNSIGNED)) FROM item_master WHERE item_code REGEXP :pattern")
+            "SELECT MAX(CAST(SUBSTRING(item_code, :start) AS UNSIGNED)) FROM item_master WHERE item_code REGEXP :pattern FOR UPDATE")
     Long maxCodeNumber(@org.springframework.data.repository.query.Param("start") int start,
                        @org.springframework.data.repository.query.Param("pattern") String pattern);
 

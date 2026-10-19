@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>/* reverse-proxy sub-path support: make relative css/js resolve under the deploy prefix (e.g. /sfaexpert), "" locally */
+  (function(){try{var p=location.pathname,m=p.match(/^(.*?)\/u\/\d+(\/|$)/),c=m?m[1]:p.replace(/\/[^\/]*$/,'');document.write('<base href="'+(c||'')+'/">');}catch(e){}})();</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StarSFA &middot; Client Master</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" rel="stylesheet" />
+  <link href="css/app.css" rel="stylesheet" />
+  <script>
+    (function () {
+      try {
+        var d = document.documentElement, s = localStorage;
+        var m = location.pathname.match(/\/u\/(\d+)(\/|$)/), q = '_u' + (m ? m[1] : '0');
+        d.setAttribute('data-theme', s.getItem('sfa_mode' + q) || 'light');
+        d.setAttribute('data-nav', s.getItem('sfa_nav' + q) || 'vertical');
+        d.setAttribute('data-density', s.getItem('sfa_density' + q) || 'comfortable');
+        var f = s.getItem('sfa_font' + q); if (f) d.style.setProperty('--sfa-font-scale', f);
+        var c = s.getItem('sfa_theme' + q);
+        if (c) { c = JSON.parse(c); var t = (c.resolved && c.resolved[c.mode]) || {};
+          for (var k in t) d.style.setProperty('--sfa-' + k, t[k]); }
+      } catch (e) {}
+    })();
+  </script>
+  <style>
+    #c_sections .accordion-button { padding: .6rem 1rem; font-weight: 500; }
+    #c_sections .accordion-button .badge { margin-left: .5rem; }
+    .c-days .form-check { margin-right: .6rem; }
+  </style>
+</head>
+<body>
+<div id="app" data-page="clientmaster" data-title="Client Master"></div>
+
+<template id="pageContent">
+  <div class="card">
+    <div class="card-header">
+      <i class="bi bi-hospital"></i> Clients
+      <div class="card-tools d-flex gap-2 align-items-center">
+        <select class="form-select form-select-sm" id="cmFilter" style="width:190px" data-no-search onchange="render()">
+          <option value="">All clients</option><option value="pending">Waiting for approval</option>
+          <option value="delete">Delete requested</option><option value="active">Active</option><option value="inactive">Inactive</option>
+        </select>
+        <button data-perm="CLIENT_MASTER_SAVE" class="btn btn-sm btn-primary" onclick="cmAdd()"><i class="bi bi-plus-lg"></i> Add Client</button>
+        <button data-perm="CLIENT_MASTER_UPLOAD" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#cmUploadModal"><i class="bi bi-upload"></i> Bulk Upload</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <p class="text-muted small">New clients wait for approval unless saved by an approver. A delete request only flags the client — an approver accepts it (client deactivated) or rejects it.
+        Use <b>Columns</b> / <b>Column Settings</b> to show district, locality, visit days and more.</p>
+      <div class="table-responsive">
+        <table id="cmTable" data-screen-key="CLIENT_MASTER_V2" class="table table-striped table-bordered nowrap" style="width:100%">
+          <thead><tr>
+            <th>S.No</th><th data-field="photo" class="no-export">Photo</th><th data-field="code">Code</th><th data-field="name">Name</th>
+            <th data-field="type">Type</th><th data-field="speciality">Speciality</th><th data-field="category">Category</th><th data-field="mobile">Mobile</th>
+            <th data-field="employee">Employee</th><th data-field="state">State</th><th data-field="district">District</th><th data-field="city">City / Area</th>
+            <th data-field="locality">Locality</th><th data-field="visitDays">Visit Days</th><th data-field="prescriber">Prescriber</th><th data-field="geo">Geo Tag</th>
+            <th data-field="approval">Approval</th><th data-field="status">Status</th><th data-field="created">Created</th><th data-field="updated">Updated</th>
+            <th class="no-export">Actions</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add / Edit -->
+  <div class="modal fade" id="cmModal" tabindex="-1" data-bs-backdrop="static"><div class="modal-dialog modal-xl modal-dialog-scrollable modal-fullscreen-lg-down">
+    <form class="modal-content" id="cmForm" onsubmit="cmSave(event)" novalidate>
+      <div class="modal-header sfa-modal"><h5 class="modal-title" id="cmModalTitle">Add Client</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <input type="hidden" id="c_id" />
+        <div class="alert alert-warning py-2 small d-none" id="c_statusNote"></div>
+        <h6 class="text-muted">Essential details</h6>
+        <div class="row g-3 mb-3">
+          <div class="col-md-6"><label class="form-label">Name <span class="required-star">*</span></label>
+            <input class="form-control" id="c_clientName" data-f="clientName" maxlength="150" placeholder="Dr. Anil Sharma" />
+            <div class="invalid-feedback">Enter the client name</div></div>
+          <div class="col-md-3"><label class="form-label">Client type</label>
+            <select class="form-select" id="c_clientTypeId" data-f="clientTypeId" data-t="num" data-quick-add="clientType" onchange="cmTypeChanged()"></select></div>
+          <div class="col-md-3"><label class="form-label">Client code</label>
+            <input class="form-control text-uppercase" id="c_clientCode" maxlength="30" placeholder="Auto" oninput="CODE_SUGGESTED = null" />
+            <div class="form-text" id="c_codeHelp">Made from the type (e.g. DO00001) — or type your own</div></div>
+          <div class="col-md-4"><label class="form-label">Speciality</label>
+            <select class="form-select" id="c_specialityId" data-f="specialityId" data-t="num" data-quick-add="speciality"></select></div>
+          <div class="col-md-4"><label class="form-label">Category</label>
+            <select class="form-select" id="c_categoryId" data-f="categoryId" data-t="num" data-quick-add="category"></select></div>
+          <div class="col-md-4"><label class="form-label">Mobile</label>
+            <input class="form-control" id="c_mobileNumber1" data-f="mobileNumber1" inputmode="numeric" maxlength="10" placeholder="9876543210" /></div>
+          <div class="col-md-4"><label class="form-label">State</label>
+            <select class="form-select" id="c_stateId" data-f="stateId" data-t="num" data-quick-add="state" onchange="cmStateChanged()"></select></div>
+          <div class="col-md-4"><label class="form-label">District</label>
+            <select class="form-select" id="c_districtId" data-f="districtId" data-t="num"></select></div>
+          <div class="col-md-4"><label class="form-label">City / Area</label>
+            <select class="form-select" id="c_cityId" data-f="cityId" data-t="num" data-quick-add="city" data-qa-state="c_stateId" onchange="cmCityChanged()"></select></div>
+          <div class="col-md-6"><label class="form-label">Mapped employee</label>
+            <select class="form-select" id="c_mappedEmpCode" data-f="mappedEmpCode"></select></div>
+          <div class="col-md-6"><label class="form-label">Photo</label><div id="c_photo"></div></div>
+        </div>
+
+        <h6 class="text-muted mt-2">More details <small>(optional — click a section to open it)</small></h6>
+        <div class="accordion" id="c_sections">
+          <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button"
+              data-bs-toggle="collapse" data-bs-target="#s_prof"><i class="bi bi-mortarboard me-2"></i> Professional
+              <span class="badge bg-success d-none" data-badge="prof"></span></button></h2>
+            <div id="s_prof" class="accordion-collapse collapse" data-sec="prof"><div class="accordion-body"><div class="row g-3">
+              <div class="col-md-4"><label class="form-label">Degree</label><select class="form-select" id="c_degreeId" data-f="degreeId" data-t="num" data-quick-add="degree"></select></div>
+              <div class="col-md-4"><label class="form-label">Qualification</label><input type="text" class="form-control" id="c_qualification" data-f="qualification" maxlength="150" placeholder="MBBS, MD (Medicine)"/></div>
+              <div class="col-md-4"><label class="form-label">Designation</label><input type="text" class="form-control" id="c_designation" data-f="designation" maxlength="100" placeholder="Consultant / HOD"/></div>
+              <div class="col-md-4"><label class="form-label">Sub category</label><input type="text" class="form-control" id="c_subCategory" data-f="subCategory" maxlength="100"/></div>
+              <div class="col-md-4"><label class="form-label">Sub speciality</label><input type="text" class="form-control" id="c_subSpeciality" data-f="subSpeciality" maxlength="100"/></div>
+              <div class="col-md-4"><label class="form-label">Experience</label><input type="text" class="form-control" id="c_experienceYears" data-f="experienceYears" maxlength="100" placeholder="15 years"/></div>
+              <div class="col-md-4 d-flex align-items-end"><div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" id="c_prescriber" data-f="prescriber" data-t="bool"><label class="form-check-label" for="c_prescriber">Prescriber</label></div></div>
+            </div></div></div></div>
+          <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button"
+              data-bs-toggle="collapse" data-bs-target="#s_loc"><i class="bi bi-geo-alt me-2"></i> Address &amp; location
+              <span class="badge bg-success d-none" data-badge="loc"></span></button></h2>
+            <div id="s_loc" class="accordion-collapse collapse" data-sec="loc"><div class="accordion-body"><div class="row g-3">
+              <div class="col-md-4"><label class="form-label">Locality</label><select class="form-select" id="c_localityType" data-f="localityType" data-no-search><option value="">--</option></select></div>
+              <div class="col-md-4"><label class="form-label">PIN code</label><input type="text" class="form-control" id="c_pinCode" data-f="pinCode" inputmode="numeric" maxlength="6" placeholder="800001"/></div>
+              <div class="col-md-4"><label class="form-label">Landmark</label><input type="text" class="form-control" id="c_landmark" data-f="landmark" maxlength="200"/></div>
+              <div class="col-12"><label class="form-label">Address</label><textarea class="form-control" rows="2" id="c_address" data-f="address" maxlength="500"></textarea></div>
+              <div class="col-md-3"><label class="form-label">Latitude</label><input type="number" class="form-control" id="c_latitude" data-f="latitude" data-t="dec" step="0.0000001" min="-90" max="90"/></div>
+              <div class="col-md-3"><label class="form-label">Longitude</label><input type="number" class="form-control" id="c_longitude" data-f="longitude" data-t="dec" step="0.0000001" min="-180" max="180"/></div>
+              <div class="col-md-2 d-flex align-items-end"><button type="button" class="btn btn-outline-secondary w-100" onclick="cmLocate()" title="Use this device's location"><i class="bi bi-geo-alt"></i> Locate</button></div>
+              <div class="col-md-4 d-flex align-items-end small text-muted" id="c_geoNote"></div>
+              <div class="col-md-4"><label class="form-label">Sitting place</label><input type="text" class="form-control" id="c_sittingPlace" data-f="sittingPlace" maxlength="100" list="c_placeList" placeholder="Clinic / Hospital"/></div>
+              <div class="col-md-4"><label class="form-label">Clinic / property name</label><input type="text" class="form-control" id="c_propertyName" data-f="propertyName" maxlength="150"/></div>
+              <div class="col-md-4"><label class="form-label">Star rating</label><select class="form-select" id="c_starRating" data-f="starRating" data-t="num" data-no-search>
+                <option value="0">Not rated</option><option value="1">★</option><option value="2">★★</option><option value="3">★★★</option><option value="4">★★★★</option><option value="5">★★★★★</option></select></div>
+            </div></div></div></div>
+          <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button"
+              data-bs-toggle="collapse" data-bs-target="#s_visit"><i class="bi bi-calendar-week me-2"></i> Visit plan
+              <span class="badge bg-success d-none" data-badge="visit"></span></button></h2>
+            <div id="s_visit" class="accordion-collapse collapse" data-sec="visit"><div class="accordion-body"><div class="row g-3">
+              <div class="col-md-4"><label class="form-label">Visit frequency</label><input type="text" class="form-control" id="c_visitFrequency" data-f="visitFrequency" maxlength="50" list="c_freqList" placeholder="Monthly"/></div>
+              <div class="col-md-4"><label class="form-label">Preferred visit time</label><input type="text" class="form-control" id="c_preferredVisitTime" data-f="preferredVisitTime" maxlength="100" placeholder="5 PM - 8 PM"/></div>
+              <div class="col-md-4"><label class="form-label">Campaign code</label><input type="text" class="form-control" id="c_mappedCampaignCode" data-f="mappedCampaignCode" maxlength="100"/></div>
+              <div class="col-12"><label class="form-label d-block">Visit days</label><div class="c-days d-flex flex-wrap" id="c_visitDays"></div></div>
+              <div class="col-md-3"><label class="form-label">Patients / day</label><input type="number" class="form-control" id="c_patientsPerDay" data-f="patientsPerDay" data-t="int" min="0" max="65535"/></div>
+              <div class="col-md-3"><label class="form-label">No. of machines</label><input type="number" class="form-control" id="c_noOfMachines" data-f="noOfMachines" data-t="int" min="0" max="65535"/></div>
+              <div class="col-md-3 d-flex align-items-end"><div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" id="c_multiLocation" data-f="multiLocation" data-t="bool"><label class="form-check-label" for="c_multiLocation">Multi location</label></div></div>
+              <div class="col-md-3 d-flex align-items-end"><div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" id="c_poolClient" data-f="poolClient" data-t="bool"><label class="form-check-label" for="c_poolClient">Pool client</label></div></div>
+            </div></div></div></div>
+          <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button"
+              data-bs-toggle="collapse" data-bs-target="#s_contact"><i class="bi bi-telephone me-2"></i> Contacts
+              <span class="badge bg-success d-none" data-badge="contact"></span></button></h2>
+            <div id="s_contact" class="accordion-collapse collapse" data-sec="contact"><div class="accordion-body"><div class="row g-3">
+              <div class="col-md-4"><label class="form-label">Mobile 2</label><input type="text" class="form-control" id="c_mobileNumber2" data-f="mobileNumber2" inputmode="numeric" maxlength="10"/></div>
+              <div class="col-md-8"><label class="form-label">Email</label><input type="email" class="form-control" id="c_email" data-f="email" maxlength="120" placeholder="dr.sharma@clinic.com"/></div>
+              <div class="col-md-4"><label class="form-label">Contact person 1</label><input type="text" class="form-control" id="c_contactPerson1Name" data-f="contactPerson1Name" maxlength="150"/></div>
+              <div class="col-md-4"><label class="form-label">Contact person 1 mobile</label><input type="text" class="form-control" id="c_contactPerson1Mobile" data-f="contactPerson1Mobile" inputmode="numeric" maxlength="10"/></div><div class="col-md-4"></div>
+              <div class="col-md-4"><label class="form-label">Contact person 2</label><input type="text" class="form-control" id="c_contactPerson2Name" data-f="contactPerson2Name" maxlength="150"/></div>
+              <div class="col-md-4"><label class="form-label">Contact person 2 mobile</label><input type="text" class="form-control" id="c_contactPerson2Mobile" data-f="contactPerson2Mobile" inputmode="numeric" maxlength="10"/></div>
+            </div></div></div></div>
+          <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button"
+              data-bs-toggle="collapse" data-bs-target="#s_personal"><i class="bi bi-person me-2"></i> Personal dates
+              <span class="badge bg-success d-none" data-badge="personal"></span></button></h2>
+            <div id="s_personal" class="accordion-collapse collapse" data-sec="personal"><div class="accordion-body"><div class="row g-3">
+              <div class="col-md-3"><label class="form-label">Gender</label><select class="form-select" id="c_gender" data-f="gender" data-no-search><option value="">--</option></select></div>
+              <div class="col-md-3"><label class="form-label">Date of birth</label><input class="form-control sfa-date" id="c_dateOfBirth" data-f="dateOfBirth" data-t="date" /></div>
+              <div class="col-md-3"><label class="form-label">Anniversary</label><input class="form-control sfa-date" id="c_anniversaryDate" data-f="anniversaryDate" data-t="date" /></div>
+              <div class="col-md-3"><label class="form-label">Spouse date of birth</label><input class="form-control sfa-date" id="c_spouseDateOfBirth" data-f="spouseDateOfBirth" data-t="date" /></div>
+            </div></div></div></div>
+          <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button"
+              data-bs-toggle="collapse" data-bs-target="#s_stat"><i class="bi bi-file-earmark-text me-2"></i> Statutory (GST / PAN / Aadhaar / Licence)
+              <span class="badge bg-success d-none" data-badge="stat"></span></button></h2>
+            <div id="s_stat" class="accordion-collapse collapse" data-sec="stat"><div class="accordion-body"><div class="row g-3">
+              <div class="col-md-4"><label class="form-label">GST number</label><input type="text" class="form-control text-uppercase" id="c_gstNumber" data-f="gstNumber" maxlength="15" placeholder="10ABCDE1234F1Z5"/></div>
+              <div class="col-md-4"><label class="form-label">PAN</label><input type="text" class="form-control text-uppercase" id="c_panNumber" data-f="panNumber" maxlength="10" placeholder="ABCDE1234F"/></div>
+              <div class="col-md-4"><label class="form-label">Aadhaar</label><input type="text" class="form-control" id="c_aadhaarNumber" data-f="aadhaarNumber" inputmode="numeric" maxlength="14" placeholder="12 digits"/></div>
+              <div class="col-md-4"><label class="form-label">Drug licence no.</label><input type="text" class="form-control" id="c_drugLicenseNo" data-f="drugLicenseNo" maxlength="80"/></div>
+              <div class="col-md-4"><label class="form-label">Medical registration no.</label><input type="text" class="form-control" id="c_medicalRegistrationNo" data-f="medicalRegistrationNo" maxlength="100"/></div>
+            </div></div></div></div>
+          <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button"
+              data-bs-toggle="collapse" data-bs-target="#s_social"><i class="bi bi-share me-2"></i> Social media
+              <span class="badge bg-success d-none" data-badge="social"></span></button></h2>
+            <div id="s_social" class="accordion-collapse collapse" data-sec="social"><div class="accordion-body"><div class="row g-3">
+              <div class="col-md-4"><label class="form-label">Instagram</label><input type="text" class="form-control" id="c_instagramHandle" data-f="instagramHandle" maxlength="150" placeholder="@drsharma"/></div>
+              <div class="col-md-4"><label class="form-label">Facebook</label><input type="text" class="form-control" id="c_facebookHandle" data-f="facebookHandle" maxlength="150"/></div>
+              <div class="col-md-4"><label class="form-label">Twitter / X</label><input type="text" class="form-control" id="c_twitterHandle" data-f="twitterHandle" maxlength="150"/></div>
+            </div></div></div></div>
+          <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button"
+              data-bs-toggle="collapse" data-bs-target="#s_other"><i class="bi bi-three-dots me-2"></i> Other
+              <span class="badge bg-success d-none" data-badge="other"></span></button></h2>
+            <div id="s_other" class="accordion-collapse collapse" data-sec="other"><div class="accordion-body"><div class="row g-3">
+              <div class="col-12"><label class="form-label">Remarks</label><textarea class="form-control" rows="2" id="c_remarks" data-f="remarks" maxlength="5000"></textarea></div>
+              <div class="col-md-4"><label class="form-label">Extra info 1</label><input type="text" class="form-control" id="c_extraInfo1" data-f="extraInfo1" maxlength="255"/></div>
+              <div class="col-md-4"><label class="form-label">Extra info 2</label><input type="text" class="form-control" id="c_extraInfo2" data-f="extraInfo2" maxlength="255"/></div>
+              <div class="col-md-4"><label class="form-label">Extra info 3</label><input type="text" class="form-control" id="c_extraInfo3" data-f="extraInfo3" maxlength="255"/></div>
+              <div class="col-md-4 d-flex align-items-end"><div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" id="c_fundSupport" data-f="fundSupport" data-t="bool"><label class="form-check-label" for="c_fundSupport">Fund support</label></div></div>
+            </div></div></div></div>
+        </div>
+        <datalist id="c_freqList"></datalist>
+        <datalist id="c_placeList"><option>Clinic</option><option>Hospital</option><option>Nursing Home</option><option>Pharmacy</option><option>Diagnostic Centre</option></datalist>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="c_saveBtn">Save</button></div>
+    </form>
+  </div></div>
+
+  <!-- Bulk upload -->
+  <div class="modal fade" id="cmUploadModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
+    <form class="modal-content" onsubmit="cmUpload(event)">
+      <div class="modal-header sfa-modal"><h5 class="modal-title">Bulk Upload &middot; Clients</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <ul class="text-muted small ps-3">
+          <li><code>client_code</code> blank = new client, code made from the type; an existing <code>client_code</code> updates that client (blank cell = keep the stored value).</li>
+          <li>Masters (<code>client_type</code>, <code>category</code>, <code>speciality</code>, <code>degree</code>, <code>state</code>, <code>district</code>, <code>city</code>) by code or name; <code>mapped_emp_code</code> = employee code.</li>
+          <li>Y / N columns, dates 2026-04-01 or 01-04-2026, <code>visit_days</code> like MON,THU. The Help sheet lists all formats.</li>
+        </ul>
+        <button type="button" class="btn btn-sm btn-outline-secondary mb-3" onclick="Api.download(EP.template,'client_master_template.xlsx').catch(e => SFA.toast(e.message, false))">
+          <i class="bi bi-download"></i> Download template</button>
+        <input type="file" class="form-control" id="cmFile" accept=".xlsx,.xls" required />
+        <div id="cmUploadResult" class="mt-3"></div>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-accent" id="cmUploadBtn">Upload</button></div>
+    </form>
+  </div></div>
+</template>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.colVis.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="js/core/session.js"></script>
+<script src="js/core/endpoints.js"></script>
+<script src="js/core/http.js"></script>
+<script src="js/core/theme.js"></script>
+<script src="js/core/settings.js"></script>
+<script src="js/core/i18n.js"></script>
+<script src="js/app.js"></script>
+<script src="js/core/uikit.js"></script>
+<script src="js/shell.js"></script>
+<script>
+  let DT = null, MODAL = null, OPT = null, ROWS = [], PHOTO = null, CODE_SUGGESTED = null, codeReq = 0;
+  const EP = API.master.clientMaster;
+  const esc = (v) => SFA.esc(v == null ? '' : v);
+  const auditCell = (by, at) => (by ? `<div>${esc(by)}</div><small class="text-muted">${esc(at || '')}</small>` : '');
+  const opts = (items, ph) => '<option value="">' + (ph || '--') + '</option>' + (items || []).map(i => `<option value="${esc(i.oid)}">${esc(i.label)}</option>`).join('');
+
+  window.pageInit = async function () {
+    MODAL = new bootstrap.Modal('#cmModal');
+    PHOTO = SFAFiles.picker(document.getElementById('c_photo'), { maxMb: 5 });
+    const form = document.getElementById('cmForm');
+    form.addEventListener('input', cmBadges);
+    form.addEventListener('change', cmBadges);
+    form.addEventListener('sfa:quick-added', () => loadOptions(true));   // new master row: refresh the filtered lists
+    document.getElementById('cmUploadModal').addEventListener('show.bs.modal', () => document.getElementById('cmUploadResult').innerHTML = '');
+    try {
+      await loadOptions(false);
+      SFAQuickAdd.decorate(form);
+      await reload();
+    } catch (e) { SFA.toast(e.message, false); }
+  };
+
+  async function loadOptions(keepValues) {
+    OPT = await Api.get(EP.options);
+    const keep = {};
+    ['clientTypeId', 'specialityId', 'categoryId', 'stateId', 'districtId', 'cityId', 'mappedEmpCode', 'degreeId'].forEach(f => keep[f] = document.getElementById('c_' + f).value);
+    document.getElementById('c_clientTypeId').innerHTML = opts(OPT.clientTypes);
+    document.getElementById('c_specialityId').innerHTML = opts(OPT.specialities);
+    document.getElementById('c_categoryId').innerHTML = opts(OPT.categories);
+    document.getElementById('c_degreeId').innerHTML = opts(OPT.degrees);
+    document.getElementById('c_stateId').innerHTML = opts(OPT.states);
+    document.getElementById('c_mappedEmpCode').innerHTML = opts(OPT.employees);
+    if (!keepValues) {
+      document.getElementById('c_localityType').innerHTML = '<option value="">--</option>' + OPT.localityTypes.map(v => `<option>${esc(v)}</option>`).join('');
+      document.getElementById('c_gender').innerHTML = '<option value="">--</option>' + OPT.genders.map(v => `<option>${esc(v)}</option>`).join('');
+      document.getElementById('c_freqList').innerHTML = OPT.frequencies.map(v => `<option>${esc(v)}</option>`).join('');
+      document.getElementById('c_visitDays').innerHTML = OPT.visitDays.map(d => `<div class="form-check form-check-inline">
+        <input class="form-check-input" type="checkbox" value="${d}" id="vd_${d}"><label class="form-check-label" for="vd_${d}">${d.charAt(0) + d.slice(1).toLowerCase()}</label></div>`).join('');
+    }
+    if (keepValues) Object.entries(keep).forEach(([f, v]) => document.getElementById('c_' + f).value = v);
+    cmStateChanged(keepValues ? keep : null);
+  }
+
+  // district and city lists follow the chosen state
+  function cmStateChanged(keep) {
+    const st = document.getElementById('c_stateId').value;
+    const inState = list => (list || []).filter(i => !st || i.stateId == null || String(i.stateId) === st);
+    const d = document.getElementById('c_districtId'), c = document.getElementById('c_cityId');
+    const dv = keep ? keep.districtId : d.value, cv = keep ? keep.cityId : c.value;
+    d.innerHTML = opts(inState(OPT.districts));
+    c.innerHTML = opts(inState(OPT.cities));
+    d.value = [...d.options].some(o => o.value === dv) ? dv : '';
+    c.value = [...c.options].some(o => o.value === cv) ? cv : '';
+  }
+  function cmCityChanged() {
+    const id = document.getElementById('c_cityId').value, city = (OPT.cities || []).find(x => String(x.oid) === id);
+    const pin = document.getElementById('c_pinCode');
+    if (city && city.pincode && !pin.value) pin.value = city.pincode;   // PIN from the Area master when empty
+  }
+  async function cmTypeChanged() {
+    if (document.getElementById('c_id').value) return;                // edit: the code stays
+    const code = document.getElementById('c_clientCode');
+    if (code.value.trim() && CODE_SUGGESTED === null) return;           // keep a typed code
+    const mine = ++codeReq;
+    try {
+      const res = await Api.get(EP.nextCode, { query: { clientTypeId: document.getElementById('c_clientTypeId').value || '' }, noLoader: true });
+      if (mine !== codeReq || (code.value.trim() && CODE_SUGGESTED === null)) return;
+      code.value = res.clientCode; CODE_SUGGESTED = res.clientCode;
+    } catch (e) { /* preview only */ }
+  }
+
+  async function reload() {
+    ROWS = await Api.get(EP.list);
+    render();
+  }
+  function approvalBadge(r) {
+    if (r.deleteRequested) return `<span class="badge bg-danger" title="${esc(r.deleteRequestReason)}">Delete requested</span>`;
+    return r.approved ? `<span class="badge badge-active" title="${esc(r.approvedByName || '')} ${esc(r.approvedOn || '')}">Approved</span>`
+                      : '<span class="badge bg-warning text-dark">Pending</span>';
+  }
+  function render() {
+    const f = document.getElementById('cmFilter').value;
+    const rows = ROWS.filter(r => !f || (f === 'pending' && !r.approved && r.active) || (f === 'delete' && r.deleteRequested)
+      || (f === 'active' && r.active) || (f === 'inactive' && !r.active));
+    const canApprove = OPT && OPT.canApprove;
+    if (DT) { DT.destroy(); }
+    document.querySelector('#cmTable tbody').innerHTML = rows.map((r, i) => `
+      <tr>
+        <td>${i + 1}</td>
+        <td class="no-export">${r.photoPath ? SFAFiles.thumb(r.photoPath, r.photoThumbnailPath, { name: r.clientName }) : ''}</td>
+        <td>${esc(r.clientCode)}</td><td>${esc(r.clientName)}</td><td>${esc(r.clientTypeName)}</td><td>${esc(r.specialityName)}</td>
+        <td>${esc(r.categoryName)}</td><td>${esc(r.mobileNumber1)}</td><td>${esc(r.mappedEmpName)}</td><td>${esc(r.stateName)}</td>
+        <td>${esc(r.districtName)}</td><td>${esc(r.cityName)}</td><td>${esc(r.localityType)}</td><td>${esc(r.visitDays)}</td>
+        <td>${r.prescriber ? 'Yes' : 'No'}</td>
+        <td>${r.hasGeoTag ? '<i class="bi bi-geo-alt-fill text-success" title="' + esc(r.latitude + ', ' + r.longitude) + '"></i> Yes' : 'No'}</td>
+        <td>${approvalBadge(r)}</td><td>${SFA.statusBadge(r.active ? 'Y' : 'N')}</td>
+        <td>${auditCell(r.createdByName, r.createdOn)}</td><td>${auditCell(r.updatedByName, r.updatedOn)}</td>
+        <td class="no-export">
+          <button data-perm="CLIENT_MASTER_SAVE" class="btn btn-sm btn-outline-primary" title="Edit" onclick="cmEdit(${r.id})"><i class="bi bi-pencil"></i></button>
+          ${canApprove && r.active && !r.approved ? `<button class="btn btn-sm btn-outline-success" title="Approve" onclick="cmApprove(${r.id},true)"><i class="bi bi-patch-check"></i></button>` : ''}
+          ${canApprove && r.deleteRequested ? `<button class="btn btn-sm btn-danger" title="Accept delete (deactivate)" onclick="cmDecide(${r.id},true)"><i class="bi bi-trash"></i></button>
+            <button class="btn btn-sm btn-outline-secondary" title="Reject delete request" onclick="cmDecide(${r.id},false)"><i class="bi bi-x-circle"></i></button>` : ''}
+          ${r.active && !r.deleteRequested ? `<button data-perm="CLIENT_MASTER_SAVE" class="btn btn-sm btn-outline-warning" title="Request delete" onclick="cmRequestDelete(${r.id})"><i class="bi bi-flag"></i></button>` : ''}
+          ${r.active
+            ? `<button data-perm="CLIENT_MASTER_STATUS" class="btn btn-sm btn-outline-danger" title="Deactivate" onclick="cmStatus(${r.id},false)"><i class="bi bi-slash-circle"></i></button>`
+            : `<button data-perm="CLIENT_MASTER_STATUS" class="btn btn-sm btn-outline-success" title="Activate" onclick="cmStatus(${r.id},true)"><i class="bi bi-check-circle"></i></button>`}
+        </td>
+      </tr>`).join('');
+    DT = sfaDataTable('#cmTable');
+  }
+
+  // ---- form: every field carries data-f = its DTO name (data-t: num / int / dec / bool / date)
+  const FIELDS = () => [...document.querySelectorAll('#cmForm [data-f]')];
+  function fillForm(r) {
+    r = r || {};
+    document.getElementById('c_id').value = r.id || '';
+    document.getElementById('c_clientCode').value = r.clientCode || '';
+    CODE_SUGGESTED = null;
+    document.getElementById('c_stateId').value = r.stateId || '';
+    cmStateChanged();
+    FIELDS().forEach(el => {
+      const v = r[el.dataset.f];
+      if (el.dataset.t === 'bool') el.checked = !!v;
+      else if (el.dataset.t === 'date') sfaSetDate(el.id, v || '');
+      else el.value = v == null ? (el.id === 'c_starRating' ? '0' : '') : v;
+    });
+    const days = (r.visitDays || '').split(',');
+    document.querySelectorAll('#c_visitDays input').forEach(cb => cb.checked = days.includes(cb.value));
+    PHOTO.set(r.photoPath ? { path: r.photoPath, thumbPath: r.photoThumbnailPath, name: r.clientName } : null);
+    const note = document.getElementById('c_statusNote');
+    note.classList.toggle('d-none', !r.id || (r.approved && !r.deleteRequested));
+    note.textContent = r.deleteRequested ? 'Delete requested: ' + (r.deleteRequestReason || '') : (r.id && !r.approved ? 'This client is waiting for approval.' : '');
+    document.getElementById('c_codeHelp').textContent = r.id ? 'You can change the code (must stay unique)' : 'Made from the type (e.g. DO00001) — or type your own';
+    document.querySelectorAll('#cmForm .is-invalid').forEach(el => el.classList.remove('is-invalid'));
+    document.querySelectorAll('#c_sections .accordion-collapse.show').forEach(el => bootstrap.Collapse.getOrCreateInstance(el, { toggle: false }).hide());
+    cmGeoNote();
+    cmBadges();
+  }
+  function cmAdd() {
+    fillForm(null);
+    document.getElementById('cmModalTitle').textContent = 'Add Client';
+    MODAL.show();
+    cmTypeChanged();
+  }
+  async function cmEdit(id) {
+    try {
+      const r = await Api.get(EP.get(id));
+      fillForm(r);
+      document.getElementById('cmModalTitle').textContent = 'Edit Client · ' + r.clientCode;
+      MODAL.show();
+    } catch (e) { SFA.toast(e.message, false); }
+  }
+  function collect() {
+    const o = { id: document.getElementById('c_id').value || null };
+    FIELDS().forEach(el => {
+      const f = el.dataset.f, t = el.dataset.t;
+      if (t === 'bool') { o[f] = el.checked; return; }
+      const v = (el.value || '').trim();
+      o[f] = v === '' ? null : (t === 'num' ? Number(v) : t === 'int' ? parseInt(v, 10) : v);
+    });
+    o.visitDays = [...document.querySelectorAll('#c_visitDays input:checked')].map(cb => cb.value).join(',') || null;
+    const code = document.getElementById('c_clientCode').value.trim().toUpperCase();
+    // the suggested code is only a preview: the server gives the next free one on save
+    o.clientCode = !o.id && CODE_SUGGESTED !== null && code === CODE_SUGGESTED ? null : (code || null);
+    return o;
+  }
+  function cmBadges() {
+    document.querySelectorAll('#c_sections [data-sec]').forEach(sec => {
+      const n = [...sec.querySelectorAll('input, select, textarea')].filter(el =>
+        el.type === 'checkbox' ? el.checked : (el.value && el.value.trim() !== '' && !(el.id === 'c_starRating' && el.value === '0'))).length;
+      const b = document.querySelector(`[data-badge="${sec.dataset.sec}"]`);
+      b.textContent = n ? n + ' filled' : ''; b.classList.toggle('d-none', !n);
+    });
+  }
+  // open the section holding the field the server complained about
+  function openSectionFor(msg) {
+    const m = (msg || '').toLowerCase(), map = [
+      [/degree|qualification|designation|sub category|sub speciality|experience/, 's_prof'],
+      [/latitude|longitude|pin|address|landmark|locality|sitting|property|star/, 's_loc'],
+      [/visit|patients|machines|campaign/, 's_visit'],
+      [/mobile 2|contact person|email/, 's_contact'],
+      [/birth|anniversary|gender/, 's_personal'],
+      [/gst|pan|aadhaar|licen|registration/, 's_stat'],
+      [/instagram|facebook|twitter/, 's_social'],
+      [/remarks|extra info/, 's_other']];
+    const hit = map.find(([re]) => re.test(m));
+    if (hit) bootstrap.Collapse.getOrCreateInstance(document.getElementById(hit[1]), { toggle: false }).show();
+  }
+  function cmGeoNote() {
+    const la = document.getElementById('c_latitude').value, lo = document.getElementById('c_longitude').value;
+    document.getElementById('c_geoNote').innerHTML = la && lo
+      ? `<a href="https://www.google.com/maps?q=${encodeURIComponent(la + ',' + lo)}" target="_blank" rel="noopener"><i class="bi bi-map"></i> Open in map</a>` : '';
+  }
+  function cmLocate() {
+    if (!navigator.geolocation) { SFA.toast('This browser cannot give the location', false); return; }
+    navigator.geolocation.getCurrentPosition(p => {
+      document.getElementById('c_latitude').value = p.coords.latitude.toFixed(7);
+      document.getElementById('c_longitude').value = p.coords.longitude.toFixed(7);
+      cmGeoNote(); cmBadges();
+    }, e => SFA.toast('Location not available: ' + e.message, false), { enableHighAccuracy: true, timeout: 10000 });
+  }
+
+  async function cmSave(ev) {
+    ev.preventDefault();
+    const o = collect();
+    document.querySelectorAll('#cmForm .is-invalid').forEach(el => el.classList.remove('is-invalid'));
+    if (!o.clientName) { const n = document.getElementById('c_clientName'); n.classList.add('is-invalid'); n.focus(); SFA.toast('Enter the client name', false); return; }
+    if ((o.latitude == null) !== (o.longitude == null)) { openSectionFor('latitude'); SFA.toast('Give both latitude and longitude (or neither)', false); return; }
+    const btn = document.getElementById('c_saveBtn');
+    btn.disabled = true;
+    try {
+      const saved = await Api.post(EP.save, o);
+      let photoErr = null;
+      try {
+        if (PHOTO.file()) { const fd = new FormData(); fd.append('file', PHOTO.file()); await Api.post(EP.photo(saved.id), fd); }
+        else if (PHOTO.removed()) await Api.del(EP.photo(saved.id));
+      } catch (e) { photoErr = e.message; }
+      MODAL.hide(); await reload();
+      SFA.toast('Client ' + saved.clientCode + (o.id ? ' updated' : ' created') + (saved.approved ? '' : ' — waiting for approval'), saved.approved ? true : 'warning');
+      if (photoErr) SFA.toast('Photo: ' + photoErr, false, 6000);
+    } catch (e) { openSectionFor(e.message); SFA.toast(e.message, false); }
+    finally { btn.disabled = false; }
+  }
+
+  async function act(fn, ok) {
+    try { await fn(); await reload(); if (ok) SFA.toast(ok); } catch (e) { SFA.toast(e.message, false); }
+  }
+  function cmStatus(id, active) {
+    if (!confirm(active ? 'Activate this client?' : 'Deactivate this client?')) return;
+    act(() => Api.post(EP.status(id), null, { query: { active } }), active ? 'Client activated' : 'Client deactivated');
+  }
+  function cmApprove(id, approved) { act(() => Api.post(EP.approve(id), null, { query: { approved } }), 'Client approved'); }
+  function cmRequestDelete(id) {
+    const reason = prompt('Why should this client be deleted? (an approver will decide)');
+    if (reason === null) return;
+    if (!reason.trim()) { SFA.toast('Please give the reason', false); return; }
+    act(() => Api.post(EP.deleteRequest(id), { reason: reason.trim() }), 'Delete request sent for approval');
+  }
+  function cmDecide(id, accept) {
+    if (!confirm(accept ? 'Accept the delete request? The client will be deactivated.' : 'Reject the delete request? The client stays active.')) return;
+    act(() => Api.post(EP.deleteDecision(id), null, { query: { accept } }), accept ? 'Client deactivated' : 'Delete request rejected');
+  }
+
+  async function cmUpload(ev) {
+    ev.preventDefault();
+    const f = document.getElementById('cmFile').files[0];
+    if (!f) { SFA.toast('Choose a file', false); return; }
+    const fd = new FormData(); fd.append('file', f);
+    const out = document.getElementById('cmUploadResult'), btn = document.getElementById('cmUploadBtn');
+    out.innerHTML = ''; btn.disabled = true;
+    try {
+      const res = await Api.post(EP.upload, fd);
+      document.getElementById('cmFile').value = '';
+      await reload();
+      const list = (t, a, cls) => a.length ? `<div class="small ${cls} mb-2"><b>${t}</b><ul class="mb-0 ps-3">${a.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : '';
+      out.innerHTML = `<div class="alert ${res.skipped ? 'alert-warning' : 'alert-success'} py-2 small mb-2"><b>${res.created}</b> created, <b>${res.updated}</b> updated, <b>${res.skipped}</b> skipped</div>
+        ${list('New client codes', res.generatedCodes || [], '')}${list('Skipped rows', res.errors || [], 'text-danger')}`;
+    } catch (e) { SFA.toast(e.message, false); }
+    finally { btn.disabled = false; }
+  }
+  document.addEventListener('input', e => { if (e.target && (e.target.id === 'c_latitude' || e.target.id === 'c_longitude')) cmGeoNote(); });
+</script>
+</body>
+</html>

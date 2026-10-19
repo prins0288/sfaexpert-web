@@ -52,10 +52,10 @@ public class EmpDocument {
     @Column(name = "mime_type", length = 100)
     private String mimeType;
 
-    @Column(name = "file_size_bytes")
+    @Column(name = "file_size_bytes", columnDefinition = "int unsigned")
     private Long fileSizeBytes;
 
-    @Column(length = 64)
+    @Column(columnDefinition = "char(64)")
     private String sha256;
 
     @Column(name = "is_active", nullable = false)

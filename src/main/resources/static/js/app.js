@@ -940,7 +940,17 @@
             bank:        { title: "Bank", perm: "BANK_SAVE", ep: function () { return API.master.bankMaster.save; }, lookup: "banks", id: "id",
                            fields: [CODE("bankCode"), NAME("bankName")], extra: { isActive: true, displayOrder: 0 } },
             document:    { title: "Document type", perm: "DOCUMENT_SAVE", ep: function () { return API.master.documentMaster.save; }, lookup: "documents", id: "id",
-                           fields: [CODE("documentCode"), NAME("documentName")], extra: { isActive: true, displayOrder: 0 } }
+                           fields: [CODE("documentCode"), NAME("documentName")], extra: { isActive: true, displayOrder: 0 } },
+            clientType:  { title: "Client type", perm: "CLIENT_TYPE_SAVE", ep: function () { return API.master.clientType.save; }, lookup: "clientTypes", id: "oid",
+                           fields: [CODE("typeCode"), NAME("typeName", 80)], extra: { isActive: true },
+                           prepare: function (b) { b.singularLabel = b.typeName; b.pluralLabel = b.typeName + "s"; } },
+            category:    { title: "Category", perm: "CATEGORY_SAVE", ep: function () { return API.master.categoryMaster.save; }, lookup: "categories", id: "oid",
+                           fields: [CODE("categoryCode"), NAME("categoryName")], extra: { status: true } },
+            speciality:  { title: "Speciality", perm: "SPECIALITY_SAVE", ep: function () { return API.master.specialityMaster.save; }, lookup: "specialities", id: "oid",
+                           fields: [CODE("specialityCode"), NAME("specialityName")], extra: { status: true } },
+            city:        { title: "City / Area", perm: "AREA_SAVE", ep: function () { return API.master.area.save; }, lookup: "areas", id: "oid",
+                           fields: [CODE("areaCode"), NAME("areaName"), { k: "city", label: "City", max: 120 },
+                                    { k: "stateOid", label: "State", type: "select", lookup: "states" }], extra: { status: "Y" } }
         };
         var esc = function (v) { return window.SFA ? SFA.esc(v == null ? "" : v) : String(v == null ? "" : v); };
         var allowed = function (cfg) { return !window.SFA || !SFA.can || SFA.can(cfg.perm); };
@@ -1008,6 +1018,9 @@
             var codeTouched = false;
             if (codeIn) codeIn.addEventListener("input", function () { codeTouched = true; });
             if (nameIn && codeIn) nameIn.addEventListener("input", function () { if (!codeTouched) codeIn.value = codeFrom(nameIn.value); });
+            // e.g. data-qa-state="c_stateId": the new City / HQ starts in the state chosen on the form
+            var stateSrc = sel.getAttribute("data-qa-state"), stateIn = form.querySelector('[data-qa="stateOid"]');
+            if (stateSrc && stateIn && document.getElementById(stateSrc)) stateIn.value = document.getElementById(stateSrc).value;
             (nameIn || form.querySelector("[data-qa]")).focus();
             var close = function () { ov.remove(); sel.focus(); };
             ov.querySelectorAll("[data-qa-close]").forEach(function (b) { b.addEventListener("click", close); });
@@ -1023,6 +1036,7 @@
                     if (f.req && !v) { err.textContent = f.label + " is required"; el.focus(); return; }
                     body[f.k] = v === "" ? null : (f.type === "number" || f.type === "select" ? Number(v) : v);
                 }
+                if (cfg.prepare) cfg.prepare(body);
                 var btn = form.querySelector('[type="submit"]');
                 btn.disabled = true;
                 try {

@@ -134,6 +134,28 @@ public final class DefaultColumnRegistry {
                 col("created", "common.created"),
                 col("updated", "common.updated"));
 
+        // master/client-master.html (the old master/client.html keeps CLIENT_MASTER)
+        register("CLIENT_MASTER_V2",
+                col("photo", null),
+                col("code", "common.code"),
+                col("name", "common.name"),
+                col("type", null),
+                col("speciality", null),
+                hidden("category", null),
+                col("mobile", "common.mobile"),
+                col("employee", "entity.employee"),
+                col("state", null),
+                hidden("district", null),
+                col("city", null),
+                hidden("locality", null),
+                hidden("visitDays", null),
+                hidden("prescriber", null),
+                hidden("geo", null),
+                col("approval", null),
+                col("status", "common.status"),
+                hidden("created", "common.created"),
+                hidden("updated", "common.updated"));
+
         // master/password-reset.html
         register("PASSWORD_RESET",
                 col("empCode", null),

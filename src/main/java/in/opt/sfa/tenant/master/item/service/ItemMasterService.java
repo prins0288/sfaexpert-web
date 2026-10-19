@@ -136,7 +136,8 @@ public class ItemMasterService {
     }
 
     /** The code the next new item of this type will get (preview for the form; taken for real on save). */
-    @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
+    // not readOnly: the code query is a locking read (FOR UPDATE)
+    @Transactional(transactionManager = "tenantTransactionManager")
     public String nextCode(Long itemTypeId) {
         ItemTypeMaster t = types.findById(itemTypeId).orElseThrow(() -> new IllegalStateException("Unknown item type: " + itemTypeId));
         return formatCode(codePrefix(t));
