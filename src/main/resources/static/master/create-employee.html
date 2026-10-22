@@ -158,6 +158,27 @@
             <input class="form-control sfa-date" id="e_lastWorkingDate" /></div>
         </div>
 
+        <div class="d-none" id="e_promoWrap">
+          <h6 class="text-muted mt-4">Promotion / Transfer <small>applied directly — no approval</small></h6>
+          <div class="alert alert-info py-2 small d-none" id="e_promoHint"></div>
+          <div class="row g-3">
+            <div class="col-md-4"><label class="form-label">Change reason</label>
+              <select class="form-select" id="e_changeReason" data-no-search>
+                <option value="">Auto (based on what changed)</option>
+                <option value="PROMOTION">Promotion</option>
+                <option value="DEMOTION">Demotion</option>
+                <option value="TRANSFER">Transfer</option>
+                <option value="MANAGER_CHANGE">Manager change</option>
+                <option value="CORRECTION">Correction</option>
+              </select></div>
+            <div class="col-md-4"><label class="form-label">Effective date</label>
+              <input class="form-control sfa-date" id="e_effectiveDate" />
+              <div class="form-text">Blank = today</div></div>
+            <div class="col-md-4"><label class="form-label">Remarks</label>
+              <input class="form-control" id="e_changeRemarks" maxlength="255" placeholder="e.g. promoted after Q2 review" /></div>
+          </div>
+        </div>
+
         <h6 class="text-muted mt-4">Full profile <small>(optional — click a section to open it)</small></h6>
         <div class="accordion" id="e_profile">
 
@@ -301,6 +322,15 @@
         <button type="submit" class="btn btn-accent">Upload</button></div>
     </form>
   </div></div>
+
+  <!-- Promotion / transfer history -->
+  <div class="modal fade" id="empHistModal" tabindex="-1"><div class="modal-dialog modal-xl modal-dialog-scrollable modal-fullscreen-lg-down">
+    <div class="modal-content">
+      <div class="modal-header sfa-modal"><h5 class="modal-title" id="empHistTitle">Promotion / transfer history</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body" id="empHistBody"></div>
+    </div>
+  </div></div>
 </template>
 
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
@@ -323,7 +353,7 @@
 <script src="js/core/uikit.js"></script>
 <script src="js/shell.js"></script>
 <script>
-  let DT = null, MODAL = null, LK = null, EMP = [], PHOTO = null, LOGIN_LOCKED = false, DOCS_EXISTING = [], DOCS_REMOVED = new Set(), OPTS = { relationships: [], nomineeTypes: [], bloodGroups: [] };
+  let DT = null, MODAL = null, LK = null, EMP = [], PHOTO = null, LOGIN_LOCKED = false, DOCS_EXISTING = [], DOCS_REMOVED = new Set(), OPTS = { relationships: [], nomineeTypes: [], bloodGroups: [] }, EDIT_ORIG = null;
 
   window.pageInit = async function () {
     MODAL = new bootstrap.Modal('#empModal');
@@ -344,6 +374,7 @@
         (OPTS.bloodGroups || []).map(b => `<option value="${SFA.esc(b)}">${SFA.esc(b)}</option>`).join('');
       PHOTO = SFAFiles.picker(document.getElementById('e_photo'), { maxMb: 5 });
       SFAQuickAdd.decorate(document.getElementById('empModal'));
+      ['e_managerId', 'e_divisionId', 'e_hqId', 'e_stateId'].forEach(id => document.getElementById(id).addEventListener('change', empPromoHint));
       // a master row added with "+": keep the page's own lists in step
       document.getElementById('empModal').addEventListener('sfa:quick-added', ev => {
         LK[ev.detail.lookup] = ev.detail.list;
@@ -372,6 +403,7 @@
         <td>${r.profileComplete ? '<span class="badge badge-active">Complete</span>' : '<span class="badge badge-inactive">Partial</span>'}</td>
         <td class="no-export">
           <button data-perm="EMP_DETAIL_SAVE" class="btn btn-sm btn-outline-primary" onclick="empEdit('${SFA.esc(r.empId)}')"><i class="bi bi-pencil"></i></button>
+          <button class="btn btn-sm btn-outline-info" title="Promotion / transfer history" onclick="empHistory('${SFA.esc(r.empId)}','${SFA.esc(r.empName)}')"><i class="bi bi-clock-history"></i></button>
           ${r.active
             ? `<button data-perm="EMP_DETAIL_STATUS" class="btn btn-sm btn-outline-danger" onclick="empStatus('${SFA.esc(r.empId)}',false)"><i class="bi bi-slash-circle"></i></button>`
             : `<button data-perm="EMP_DETAIL_STATUS" class="btn btn-sm btn-outline-success" onclick="empStatus('${SFA.esc(r.empId)}',true)"><i class="bi bi-check-circle"></i></button>`}
@@ -397,9 +429,9 @@
     sel.value = current;
   }
 
-  const TEXT_FIELDS = ['e_empId', 'e_empName', 'e_mobile', 'e_username', 'e_password', 'e_officialEmail', 'e_department'];
-  const SELECTS = ['e_salutation', 'e_divisionId', 'e_designationId', 'e_stateId', 'e_hqId', 'e_managerId', 'e_gender'];
-  const DATES = ['e_dateOfJoining', 'e_reportingDate', 'e_confirmationDate', 'e_resignationDate', 'e_lastWorkingDate'];
+  const TEXT_FIELDS = ['e_empId', 'e_empName', 'e_mobile', 'e_username', 'e_password', 'e_officialEmail', 'e_department', 'e_changeRemarks'];
+  const SELECTS = ['e_salutation', 'e_divisionId', 'e_designationId', 'e_stateId', 'e_hqId', 'e_managerId', 'e_gender', 'e_changeReason'];
+  const DATES = ['e_dateOfJoining', 'e_reportingDate', 'e_confirmationDate', 'e_resignationDate', 'e_lastWorkingDate', 'e_effectiveDate'];
 
   function clearForm() {
     TEXT_FIELDS.forEach(id => document.getElementById(id).value = '');
@@ -415,6 +447,9 @@
     empConfirmedChanged();
     designationLevelHint();
     pClear();
+    EDIT_ORIG = null;
+    document.getElementById('e_promoWrap').classList.add('d-none');
+    document.getElementById('e_promoHint').classList.add('d-none');
   }
 
   async function empAdd() {
@@ -472,6 +507,9 @@
     document.querySelectorAll('.e-exit').forEach(el => el.style.display = '');
     empConfirmedChanged();
     designationLevelHint();
+    EDIT_ORIG = r;
+    document.getElementById('e_promoWrap').classList.remove('d-none');
+    empPromoHint();
     document.getElementById('empModalTitle').textContent = 'Edit Employee';
     MODAL.show();
     if (r.username && !LOGIN_LOCKED) empUsernameChanged(true);
@@ -487,7 +525,31 @@
     const id = document.getElementById('e_designationId').value;
     const d = id && (LK.designations || []).find(x => String(x.oid) === String(id));
     document.getElementById('e_levelHint').textContent = d && d.hierarchyLevel != null ? '(level ' + d.hierarchyLevel + ')' : '';
+    empPromoHint();
   }
+
+  // Client-side preview only — the server decides the real reason (designations.findById etc).
+  function empPromoHint() {
+    const hint = document.getElementById('e_promoHint');
+    if (!EDIT_ORIG) { hint.classList.add('d-none'); return; }
+    const r = EDIT_ORIG;
+    const designationId = v2('e_designationId'), managerId = v2('e_managerId'), divisionId = v2('e_divisionId'), hqId = v2('e_hqId'), stateId = v2('e_stateId');
+    const changed = [];
+    if (String(designationId || '') !== String(r.designationId || '')) {
+      const oldD = (LK.designations || []).find(x => String(x.oid) === String(r.designationId));
+      const newD = (LK.designations || []).find(x => String(x.oid) === String(designationId));
+      const oldLvl = oldD && oldD.hierarchyLevel, newLvl = newD && newD.hierarchyLevel;
+      const kind = (oldLvl != null && newLvl != null) ? (newLvl > oldLvl ? 'Promotion' : newLvl < oldLvl ? 'Demotion' : 'Transfer') : 'Designation change';
+      changed.push(kind + ': ' + (oldD ? oldD.label : '-') + ' → ' + (newD ? newD.label : '-'));
+    }
+    if (String(managerId || '') !== String(r.managerId || '')) changed.push('Manager change: ' + managerName(r.managerId) + ' → ' + (managerId ? managerName(managerId) : '-'));
+    if (String(divisionId || '') !== String(r.divisionId || '') || String(hqId || '') !== String(r.hqId || '') || String(stateId || '') !== String(r.stateId || '')) changed.push('Transfer (division / HQ / state)');
+    if (changed.length) {
+      hint.textContent = changed.join(' · ') + ' — will be recorded in the promotion / transfer history.';
+      hint.classList.remove('d-none');
+    } else hint.classList.add('d-none');
+  }
+  function v2(id) { const x = document.getElementById(id).value; return x === '' ? null : x; }
 
   function empConfirmedChanged() {
     const on = document.getElementById('e_confirmed').checked;
@@ -578,6 +640,7 @@
       gender: document.getElementById('e_gender').value, managerId: document.getElementById('e_managerId').value,
       officialEmail: t('e_officialEmail'), department: t('e_department'),
       dateOfJoining: t('e_dateOfJoining'), reportingDate: t('e_reportingDate'),
+      changeReason: v('e_changeReason'), effectiveDate: t('e_effectiveDate'), changeRemarks: t('e_changeRemarks'),
       officeStaff: document.getElementById('e_officeStaff').checked,
       confirmed: document.getElementById('e_confirmed').checked,
       confirmationDate: t('e_confirmationDate'),
@@ -865,6 +928,26 @@
     if (!confirm(active ? 'Activate this employee?' : 'Deactivate this employee (and their login)?')) return;
     try { await Api.post(API.master.createEmployee.status(empId), null, { query: { active } }); await reload(); }
     catch (e) { SFA.toast(e.message, false); }
+  }
+
+  const REASON_BADGE = { JOINING: 'bg-secondary', PROMOTION: 'bg-success', DEMOTION: 'bg-danger', TRANSFER: 'bg-info text-dark', MANAGER_CHANGE: 'bg-primary', CORRECTION: 'bg-warning text-dark' };
+  async function empHistory(empId, empName) {
+    document.getElementById('empHistTitle').textContent = 'Promotion / transfer history · ' + (empName || empId);
+    const body = document.getElementById('empHistBody');
+    body.innerHTML = '<div class="text-muted">Loading…</div>';
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('empHistModal')).show();
+    try {
+      const list = await Api.get(API.master.createEmployee.history(empId));
+      body.innerHTML = !list.length ? '<div class="text-muted">No history yet — save a change to designation, manager, division, HQ or state to start one.</div>' : `
+        <div class="table-responsive"><table class="table table-sm table-bordered align-middle mb-0">
+          <thead><tr><th>From</th><th>To</th><th>Reason</th><th>Designation</th><th>Level</th><th>Manager</th><th>Division</th><th>State</th><th>HQ</th><th>By</th><th>Remarks</th></tr></thead>
+          <tbody>${list.map(h => `<tr>
+            <td class="text-nowrap">${SFA.esc(h.effectiveFrom)}</td><td class="text-nowrap">${SFA.esc(h.effectiveTo || 'Current')}</td>
+            <td><span class="badge ${REASON_BADGE[h.changeReason] || 'bg-secondary'}">${SFA.esc(h.changeReason || '')}</span></td>
+            <td>${SFA.esc(h.designationName)}</td><td>${h.hierarchyLevel != null ? SFA.esc(h.hierarchyLevel) : ''}</td>
+            <td>${SFA.esc(h.managerName || h.managerId || '')}</td><td>${SFA.esc(h.divisionName)}</td><td>${SFA.esc(h.stateName)}</td><td>${SFA.esc(h.hqName)}</td>
+            <td>${SFA.esc(h.createdByName || h.createdBy || '')}</td><td>${SFA.esc(h.remarks)}</td></tr>`).join('')}</tbody></table></div>`;
+    } catch (e) { body.innerHTML = '<div class="text-danger">' + SFA.esc(e.message) + '</div>'; }
   }
 
   async function empUpload(ev) {

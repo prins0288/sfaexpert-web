@@ -70,6 +70,12 @@ public class EmpDetailController {
         return service.get(empId);
     }
 
+    /** Promotion / transfer timeline: every designation / manager / division / HQ / state change, oldest first. */
+    @GetMapping("/{empId}/history")
+    public List<Map<String, Object>> history(@PathVariable String empId) {
+        return service.assignmentHistory(empId);
+    }
+
     @RequiresPermission("EMP_DETAIL_SAVE")
     @PostMapping
     public Map<String, Object> save(@RequestBody EmpDetailSaveRequest form) {

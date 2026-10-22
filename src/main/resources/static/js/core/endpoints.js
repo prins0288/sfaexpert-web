@@ -210,6 +210,7 @@
         usernameAvailable: "/api/master/create-employee/username-available", // GET ?username=&empId=
         profileOptions: "/api/master/create-employee/profile-options",       // GET relationships, blood groups, …
         profile: (empId) => `/api/master/create-employee/${encodeURIComponent(empId)}/profile`,   // GET full profile
+        history: (empId) => `/api/master/create-employee/${encodeURIComponent(empId)}/history`,     // GET promotion / transfer timeline
       },
       categoryMaster: {
         base: "/api/master/category-master",

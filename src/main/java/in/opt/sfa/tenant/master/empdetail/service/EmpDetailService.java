@@ -14,7 +14,9 @@ import in.opt.sfa.tenant.master.division.entity.Division;
 import in.opt.sfa.tenant.master.division.repository.DivisionRepository;
 import in.opt.sfa.tenant.master.empdetail.dto.EmpDetailSaveRequest;
 import in.opt.sfa.tenant.master.empdetail.dto.EmpProfileDto;
+import in.opt.sfa.tenant.master.empdetail.entity.EmpAssignmentHistory;
 import in.opt.sfa.tenant.master.empdetail.entity.EmpDetail;
+import in.opt.sfa.tenant.master.empdetail.repository.EmpAssignmentHistoryRepository;
 import in.opt.sfa.tenant.master.empdetail.repository.EmpDetailRepository;
 import in.opt.sfa.tenant.repository.DesignationRepository;
 import in.opt.sfa.tenant.master.state.repository.StateRepository;
@@ -46,6 +48,7 @@ import java.util.stream.Collectors;
 public class EmpDetailService {
 
     private final EmpDetailRepository employees;
+    private final EmpAssignmentHistoryRepository history;
     private final AppUserAdminService credentials;
     private final in.opt.sfa.tenant.master.salutation.service.SalutationMasterService salutations;
     private final CodeGeneratorService codeGenerator;
@@ -65,7 +68,8 @@ public class EmpDetailService {
     private static final Pattern MOBILE = Pattern.compile("^[6-9][0-9]{9}$");
     private static final Pattern EMAIL = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
 
-    public EmpDetailService(EmpDetailRepository employees, AppUserAdminService credentials,
+    public EmpDetailService(EmpDetailRepository employees, EmpAssignmentHistoryRepository history,
+                            AppUserAdminService credentials,
                             CodeGeneratorService codeGenerator, DivisionRepository divisions,
                             DesignationRepository designations, CompanySettingStore settings,
                             EmpProfileService profiles, StateRepository states, HqRepository hqs,
@@ -73,6 +77,7 @@ public class EmpDetailService {
                             in.opt.sfa.tenant.master.salutation.service.SalutationMasterService salutations) {
         this.salutations = salutations;
         this.employees = employees;
+        this.history = history;
         this.credentials = credentials;
         this.codeGenerator = codeGenerator;
         this.divisions = divisions;
@@ -177,6 +182,10 @@ public class EmpDetailService {
         Authz.requireRole("ADMIN", "MANAGER");
         boolean isNew = Strings.isBlank(req.getEmpId());
         EmpDetail e = isNew ? new EmpDetail() : find(req.getEmpId());
+        // snapshot before any field is touched, to detect a promotion / transfer / manager change
+        Long oldDivisionId = e.getDivisionId(), oldStateId = e.getStateId(), oldHqId = e.getHqId();
+        Integer oldDesignationId = e.getDesignationId();
+        String oldManagerId = e.getManagerId();
 
         if (isNew) {
             if (Strings.isBlank(req.getEmpName())) throw new IllegalStateException("Employee name is required");
@@ -233,6 +242,7 @@ public class EmpDetailService {
         e.setUpdatedBy(currentEmpId());
         // flush now: the profile rows below are plain JDBC inserts with an FK to emp_detail
         employees.saveAndFlush(e);
+        recordAssignmentHistory(e, isNew, oldDivisionId, oldStateId, oldHqId, oldDesignationId, oldManagerId, req);
         profiles.save(e.getEmpId(), req.getProfile());
 
         // Keep the COMMON-db login (user_login_master) in sync — blank username/password
@@ -629,6 +639,103 @@ public class EmpDetailService {
         m.put("createdAt", e.getCreatedAt());
         m.put("updatedAt", e.getUpdatedAt());
         return m;
+    }
+
+    // ---- promotion / transfer history (emp_assignment_history) --------------
+
+    /** Every PROMOTION/TRANSFER/MANAGER_CHANGE/etc. of this employee, oldest first (with names resolved). */
+    @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
+    public List<Map<String, Object>> assignmentHistory(String empId) {
+        find(empId);
+        Map<Long, String> divisionNames = divisions.findAll().stream()
+                .collect(Collectors.toMap(Division::getOid, Division::getDivisionName, (a, b) -> a));
+        Map<Long, String> stateNames = states.findAll().stream()
+                .collect(Collectors.toMap(s -> s.getOid(), s -> s.getStateName(), (a, b) -> a));
+        Map<Long, String> hqNames = hqs.findAll().stream()
+                .collect(Collectors.toMap(h -> h.getOid(), h -> h.getHqName(), (a, b) -> a));
+        Map<Integer, Designation> designationById = designations.findAll().stream()
+                .collect(Collectors.toMap(Designation::getId, Function.identity(), (a, b) -> a));
+        Map<String, String> empNames = employees.findAll().stream()
+                .collect(Collectors.toMap(EmpDetail::getEmpId, EmpDetail::getEmpName, (a, b) -> a));
+        return history.findByEmpIdOrderByEffectiveFromAscIdAsc(empId).stream().map(h -> {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", h.getId());
+            m.put("effectiveFrom", h.getEffectiveFrom());
+            m.put("effectiveTo", h.getEffectiveTo());
+            m.put("changeReason", h.getChangeReason());
+            m.put("remarks", h.getRemarks());
+            m.put("divisionName", divisionNames.get(h.getDivisionId()));
+            m.put("stateName", stateNames.get(h.getStateId()));
+            m.put("hqName", hqNames.get(h.getHqId()));
+            Designation d = h.getDesignationId() == null ? null : designationById.get(h.getDesignationId());
+            m.put("designationName", d == null ? null : d.getDesignation());
+            m.put("hierarchyLevel", d == null ? null : d.getHierarchyLevel());
+            m.put("managerId", h.getManagerId());
+            m.put("managerName", h.getManagerId() == null ? null : empNames.get(h.getManagerId()));
+            m.put("createdBy", h.getCreatedBy());
+            m.put("createdByName", empNames.get(h.getCreatedBy()));
+            m.put("createdAt", h.getCreatedAt());
+            return m;
+        }).toList();
+    }
+
+    /**
+     * If designation / manager / division / HQ / state actually changed, close the
+     * previous open row (effective_to) and write a new one from the chosen (or
+     * today's) effective date — applied directly, no approval. A brand-new
+     * employee gets an initial JOINING row.
+     */
+    private void recordAssignmentHistory(EmpDetail e, boolean isNew, Long oldDivisionId, Long oldStateId, Long oldHqId,
+                                         Integer oldDesignationId, String oldManagerId, EmpDetailSaveRequest req) {
+        LocalDate effectiveFrom = parseDate(req.getEffectiveDate());
+        if (effectiveFrom == null) effectiveFrom = isNew && e.getDateOfJoining() != null ? e.getDateOfJoining() : LocalDate.now();
+
+        String reason;
+        if (isNew) {
+            reason = "JOINING";
+        } else {
+            boolean designationChanged = !java.util.Objects.equals(oldDesignationId, e.getDesignationId());
+            boolean managerChanged = !java.util.Objects.equals(oldManagerId, e.getManagerId());
+            boolean divisionChanged = !java.util.Objects.equals(oldDivisionId, e.getDivisionId());
+            boolean hqChanged = !java.util.Objects.equals(oldHqId, e.getHqId());
+            boolean stateChanged = !java.util.Objects.equals(oldStateId, e.getStateId());
+            if (!designationChanged && !managerChanged && !divisionChanged && !hqChanged && !stateChanged) {
+                return;   // nothing that belongs in the history changed
+            }
+            if (!Strings.isBlank(req.getChangeReason())) {
+                reason = req.getChangeReason().trim().toUpperCase();
+            } else if (designationChanged) {
+                Integer oldLevel = oldDesignationId == null ? null : designations.findById(oldDesignationId).map(Designation::getHierarchyLevel).orElse(null);
+                Integer newLevel = e.getDesignationId() == null ? null : designations.findById(e.getDesignationId()).map(Designation::getHierarchyLevel).orElse(null);
+                reason = (oldLevel != null && newLevel != null)
+                        ? (newLevel > oldLevel ? "PROMOTION" : newLevel < oldLevel ? "DEMOTION" : "TRANSFER")
+                        : "TRANSFER";
+            } else if (managerChanged) {
+                reason = "MANAGER_CHANGE";
+            } else {
+                reason = "TRANSFER";
+            }
+
+            final LocalDate closeBefore = effectiveFrom;
+            history.findFirstByEmpIdAndEffectiveToIsNullOrderByEffectiveFromDescIdDesc(e.getEmpId()).ifPresent(open -> {
+                LocalDate closeOn = closeBefore.isAfter(open.getEffectiveFrom()) ? closeBefore.minusDays(1) : open.getEffectiveFrom();
+                open.setEffectiveTo(closeOn);
+                history.save(open);
+            });
+        }
+
+        EmpAssignmentHistory h = new EmpAssignmentHistory();
+        h.setEmpId(e.getEmpId());
+        h.setDivisionId(e.getDivisionId());
+        h.setStateId(e.getStateId());
+        h.setHqId(e.getHqId());
+        h.setDesignationId(e.getDesignationId());
+        h.setManagerId(e.getManagerId());
+        h.setEffectiveFrom(effectiveFrom);
+        h.setChangeReason(reason);
+        h.setRemarks(Strings.isBlank(req.getChangeRemarks()) ? null : req.getChangeRemarks().trim());
+        h.setCreatedBy(currentEmpId());
+        history.save(h);
     }
 
     private static LocalDate parseDate(String s) {

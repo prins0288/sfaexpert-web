@@ -47,4 +47,14 @@ public class EmpDetailSaveRequest {
 
     /** Optional profile sections (address, bank, nominee, …); null = leave them as they are. */
     private EmpProfileDto profile;
+
+    // ---- promotion / transfer (emp_assignment_history) ----
+    /** When designation/manager/division/HQ/state change and a reason is not given, it is auto-detected
+     *  (PROMOTION / DEMOTION / MANAGER_CHANGE / TRANSFER). To record a change that keeps the same
+     *  designation (e.g. a correction), set this explicitly, e.g. "CORRECTION". */
+    private String changeReason;
+    /** The change takes effect from this date (ISO yyyy-MM-dd); blank/null = today. Applied directly — no approval. */
+    private String effectiveDate;
+    /** Optional free-text note stored with the history row (e.g. "promoted after Q2 review"). */
+    private String changeRemarks;
 }
