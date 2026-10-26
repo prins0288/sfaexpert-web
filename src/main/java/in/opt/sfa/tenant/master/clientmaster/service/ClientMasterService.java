@@ -184,9 +184,11 @@ public class ClientMasterService {
             i.put("pincode", a.getPincode());
             return i;
         }).toList());
+        Set<String> adminIds = scope.adminLevelIds();
         // clients are added only for yourself — admin may pick any employee
         m.put("employees", employees.findByActiveTrueOrderByEmpNameAsc().stream()
                 .filter(e -> TeamScope.isAdmin() || e.getEmpId().equals(TeamScope.me()))
+                .filter(e -> !adminIds.contains(e.getEmpId()))   // admin-level users never appear in a dropdown
                 .map(e -> item(e.getEmpId(), e.getEmpName() + " (" + e.getEmpCode() + ")", e.getStateId())).toList());
         m.put("pickEmployee", TeamScope.isAdmin());
         m.put("localityTypes", LOCALITY_TYPES);

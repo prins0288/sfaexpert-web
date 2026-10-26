@@ -27,9 +27,12 @@ public class PermissionAdminService {
     private final PermissionAssignmentRepository assignments;
     private final EmpDetailRepository empDetails;
     private final DesignationRepository designations;
+    private final in.opt.sfa.tenant.team.TeamScope teamScope;
 
     public PermissionAdminService(PermissionDefinitionRepository definitions, PermissionAssignmentRepository assignments,
-                                  EmpDetailRepository empDetails, DesignationRepository designations) {
+                                  EmpDetailRepository empDetails, DesignationRepository designations,
+                                  in.opt.sfa.tenant.team.TeamScope teamScope) {
+        this.teamScope = teamScope;
         this.definitions = definitions;
         this.assignments = assignments;
         this.empDetails = empDetails;
@@ -46,8 +49,9 @@ public class PermissionAdminService {
 
     @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
     public Targets targets() {
+        java.util.Set<String> adminIds = teamScope.adminLevelIds();   // admin-level users never appear in a dropdown
         List<EmpDetail> emps = empDetails.findAllByOrderByEmpNameAsc().stream()
-                .filter(e -> e.isActive() && e.getEmpId() != null).toList();
+                .filter(e -> e.isActive() && e.getEmpId() != null && !adminIds.contains(e.getEmpId())).toList();
         List<DesignationOption> desigs = designations.findByActiveTrueOrderByDisplayOrderAscHierarchyLevelAsc().stream()
                 .map(d -> new DesignationOption(String.valueOf(d.getId()), d.getDesignation(), d.getHierarchyLevel(), d.getDesignationCategory()))
                 .toList();

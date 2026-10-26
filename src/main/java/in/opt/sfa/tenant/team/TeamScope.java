@@ -1,9 +1,11 @@
 package in.opt.sfa.tenant.team;
 
+import in.opt.sfa.common.service.LevelRoleService;
 import in.opt.sfa.exception.ForbiddenException;
 import in.opt.sfa.security.UserContext;
 import in.opt.sfa.tenant.master.empdetail.entity.EmpDetail;
 import in.opt.sfa.tenant.master.empdetail.repository.EmpDetailRepository;
+import in.opt.sfa.tenant.repository.DesignationRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -30,9 +32,30 @@ public class TeamScope {
     public enum Scope { SELF_ONLY, TEAM, TEAM_SELF, ALL }
 
     private final EmpDetailRepository employees;
+    private final DesignationRepository designations;
+    private final LevelRoleService levelRoles;
 
-    public TeamScope(EmpDetailRepository employees) {
+    public TeamScope(EmpDetailRepository employees, DesignationRepository designations, LevelRoleService levelRoles) {
         this.employees = employees;
+        this.designations = designations;
+        this.levelRoles = levelRoles;
+    }
+
+    /**
+     * Employees whose designation is Admin / Super Admin level. They never appear in an employee dropdown
+     * (mapped employee, manager, team, permission targets …) — use this to leave them out.
+     */
+    public Set<String> adminLevelIds() {
+        int[] ranges = levelRoles.ranges();
+        Map<Integer, Integer> level = new HashMap<>();
+        designations.findAll().forEach(d -> level.put(d.getId(), d.getHierarchyLevel()));
+        Set<String> out = new HashSet<>();
+        employees.findAll().forEach(e -> {
+            Integer l = e.getDesignationId() == null ? null : level.get(e.getDesignationId());
+            String role = LevelRoleService.roleFor(l, ranges);
+            if (LevelRoleService.ADMIN.equals(role) || LevelRoleService.SUPER_ADMIN.equals(role)) out.add(e.getEmpId());
+        });
+        return out;
     }
 
     public static String me() {

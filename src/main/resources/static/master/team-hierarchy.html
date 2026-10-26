@@ -168,7 +168,7 @@
     sel.innerHTML = '<option value="">--</option>' + rows.map(r => `<option value="${esc(r.empId)}">${esc(label(r))}</option>`).join('');
     if (keep) sel.value = keep;
   }
-  const managers = () => sorted(ROWS.filter(r => r.active));
+  const managers = () => sorted(ROWS.filter(r => r.active && !r.adminLevel));   // admin-level users never appear in a dropdown
   function open(mode, title, empId, mgrId) {
     MODE = mode;
     document.getElementById('thTitle').textContent = title;
@@ -176,7 +176,7 @@
     document.getElementById('th_remarks').value = '';
     sfaSetDate('th_date', '');
     const emp = document.getElementById('th_emp'), mgr = document.getElementById('th_mgr');
-    const canPick = (r) => r.canEdit && r.active;
+    const canPick = (r) => r.canEdit && r.active && !r.adminLevel;
     // an employee can't go under himself or under one of his own juniors
     fill(emp, sorted(ROWS.filter(r => canPick(r) && (mode !== 'add' || !r.managerId))), empId);
     document.getElementById('th_empWrap').style.display = mode === 'add' ? '' : 'none';

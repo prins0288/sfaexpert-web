@@ -61,6 +61,7 @@ public class LookupController {
     private final RouteRepository routes;
     private final AreaRepository areas;
     private final DesignationRepository designations;
+    private final in.opt.sfa.tenant.team.TeamScope teamScope;
     private final DistrictRepository districts;
     private final EmpDetailRepository employees;
     private final CountryRepository countries;
@@ -70,7 +71,7 @@ public class LookupController {
     private final DocumentMasterRepository documents;
     private final SalutationMasterRepository salutations;
 
-    public LookupController(DivisionRepository divisions, ZoneRepository zones, StateRepository states,
+    public LookupController(in.opt.sfa.tenant.team.TeamScope teamScope, DivisionRepository divisions, ZoneRepository zones, StateRepository states,
                             HqRepository hqs, HqGroupMasterRepository hqGroups, DegreeMasterRepository degrees, SpecialityMasterRepository specialities,
                             CategoryMasterRepository categories, ClientTypeRepository clientTypes,
                             RouteRepository routes, AreaRepository areas,
@@ -91,6 +92,7 @@ public class LookupController {
         this.clientTypes = clientTypes;
         this.routes = routes;
         this.areas = areas;
+        this.teamScope = teamScope;
         this.designations = designations;
         this.districts = districts;
         this.employees = employees;
@@ -111,6 +113,7 @@ public class LookupController {
                 : Arrays.stream(keys.split(",")).map(String::trim).filter(s -> !s.isEmpty()).collect(Collectors.toSet());
 
         Map<String, Object> res = new LinkedHashMap<>();
+        Set<String> adminIds = want(want, "employees") ? teamScope.adminLevelIds() : Set.of();
         if (want(want, "divisions")) res.put("divisions", divisions.findByStatusOrderByDivisionNameAsc("Y").stream()
                 .map(d -> new Item(d.getOid(), d.getDivisionName())).toList());
         if (want(want, "zones")) res.put("zones", zones.findByStatusOrderByZoneNameAsc("Y").stream()
@@ -138,6 +141,7 @@ public class LookupController {
         if (want(want, "districts")) res.put("districts", districts.findByStatusOrderByDistrictNameAsc("Y").stream()
                 .map(d -> new Item(d.getOid(), d.getDistrictName())).toList());
         if (want(want, "employees")) res.put("employees", employees.findByActiveTrueOrderByEmpNameAsc().stream()
+                .filter(e -> !adminIds.contains(e.getEmpId()))   // admin-level users never appear in a dropdown
                 .map(e -> new Item(e.getEmpId(), e.getEmpName())).toList());
         if (want(want, "banks")) res.put("banks", banks.findByIsActiveOrderByDisplayOrderAscBankNameAsc(true).stream()
                 .map(bk -> new Item(bk.getId(), bk.getBankName())).toList());

@@ -59,6 +59,7 @@ public class TeamHierarchyService {
         Set<String> visible = scope.ids(TeamScope.Scope.TEAM_SELF);
         boolean canManage = TeamScope.isAdmin() || TeamScope.isManager();
         Set<String> seniors = new HashSet<>(scope.seniors(me.empId));
+        Set<String> adminIds = scope.adminLevelIds();
         for (EmpDetail e : all) {
             if (visible != null && !visible.contains(e.getEmpId())) {
                 boolean pickUp = canManage && e.getManagerId() == null;   // unassigned: a manager may pick him up
@@ -78,6 +79,7 @@ public class TeamHierarchyService {
             m.put("canEdit", canTouch(me, e, myLevel));
             m.put("isMe", e.getEmpId().equals(me.empId));
             m.put("canManage", canManage);
+            m.put("adminLevel", adminIds.contains(e.getEmpId()));
             rows.add(m);
         }
         return rows;

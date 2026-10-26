@@ -31,6 +31,7 @@ import java.security.SecureRandom;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.Set;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -158,9 +159,11 @@ public class EmpDetailService {
         Map<Long, String> divisionNames = divisions.findAll().stream()
                 .collect(Collectors.toMap(Division::getOid, Division::getDivisionName, (a, b) -> a));
 
+        Set<String> adminIds = scope.adminLevelIds();
         // user: himself only; manager: himself + his team; admin: everyone (TeamScope)
         return scope.filter(in.opt.sfa.tenant.team.TeamScope.Scope.TEAM_SELF, employees.findAllByOrderByEmpNameAsc(), EmpDetail::getEmpId).stream()
-                .map(e -> toRow(e, byEmp.get(e.getEmpId()), designationById, divisionNames))
+                .map(e -> { Map<String, Object> m = toRow(e, byEmp.get(e.getEmpId()), designationById, divisionNames);
+                            m.put("adminLevel", adminIds.contains(e.getEmpId())); return m; })
                 .toList();
     }
 

@@ -97,7 +97,9 @@ public class AreaService {
         m.put("pickEmployee", me.isAdmin());
         m.put("me", me.empId);
         m.put("meName", me.name(me.empId));
+        Set<String> adminIds = scope.adminLevelIds();   // admin-level users never appear in a dropdown
         m.put("employees", !me.isAdmin() ? List.of() : employees.findByActiveTrueOrderByEmpNameAsc().stream()
+                .filter(e -> !adminIds.contains(e.getEmpId()))
                 .map(e -> Map.of("oid", e.getEmpId(), "label", e.getEmpName() + (e.getEmpCode() == null ? "" : " (" + e.getEmpCode() + ")")))
                 .toList());
         m.put("approvalFlow", approval.flow(APPROVAL));

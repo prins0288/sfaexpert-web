@@ -424,7 +424,7 @@
     const sel = document.getElementById('e_managerId');
     const current = sel.value;
     sel.innerHTML = '<option value="">--</option>' +
-      EMP.filter(r => r.empId !== excludeEmpId && (r.active || r.empId === keepEmpId))
+      EMP.filter(r => r.empId !== excludeEmpId && (r.active || r.empId === keepEmpId) && (!r.adminLevel || r.empId === keepEmpId))   // admin-level users are never offered as manager
          .map(r => `<option value="${SFA.esc(r.empId)}">${SFA.esc(r.empName)} (${SFA.esc(r.empCode)})</option>`).join('');
     sel.value = current;
   }
