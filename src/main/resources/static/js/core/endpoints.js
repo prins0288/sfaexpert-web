@@ -249,6 +249,10 @@
         template: "/api/master/client-master/template",
         upload: "/api/master/client-master/upload",
       },
+      teamHierarchy: {
+        list: "/api/master/team-hierarchy",
+        setManager: (empId) => `/api/master/team-hierarchy/${encodeURIComponent(empId)}/manager`,   // POST { managerId, effectiveDate?, remarks? }
+      },
       passwordReset: {
         list: "/api/master/password-reset",
         generate: "/api/master/password-reset/generate",

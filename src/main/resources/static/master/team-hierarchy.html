@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>/* reverse-proxy sub-path support: make relative css/js resolve under the deploy prefix (e.g. /sfaexpert), "" locally */
+  (function(){try{var p=location.pathname,m=p.match(/^(.*?)\/u\/\d+(\/|$)/),c=m?m[1]:p.replace(/\/[^\/]*$/,'');document.write('<base href="'+(c||'')+'/">');}catch(e){}})();</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StarSFA &middot; Team Hierarchy</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css" rel="stylesheet" />
+  <link href="css/app.css" rel="stylesheet" />
+  <script>
+    /* Apply the saved theme (mode / layout / density / colours) BEFORE first
+       paint so there is no flash. theme.js re-applies from the server after. */
+    (function () {
+      try {
+        var d = document.documentElement, s = localStorage;
+        // theme is PER TENANT and several tenants can be signed in at once
+        // (/u/0, /u/1...), so these caches are scoped to the account slot —
+        // a shared key would paint the last-customised tenant's colours here.
+        var m = location.pathname.match(/\/u\/(\d+)(\/|$)/), q = '_u' + (m ? m[1] : '0');
+        d.setAttribute('data-theme', s.getItem('sfa_mode' + q) || 'light');
+        d.setAttribute('data-nav', s.getItem('sfa_nav' + q) || 'vertical');
+        d.setAttribute('data-density', s.getItem('sfa_density' + q) || 'comfortable');
+        var f = s.getItem('sfa_font' + q); if (f) d.style.setProperty('--sfa-font-scale', f);
+        var c = s.getItem('sfa_theme' + q);
+        if (c) { c = JSON.parse(c); var t = (c.resolved && c.resolved[c.mode]) || {};
+          for (var k in t) d.style.setProperty('--sfa-' + k, t[k]); }
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+<div id="app" data-page="teamhierarchy" data-title="Team Hierarchy"></div>
+
+<template id="pageContent">
+  <div class="card">
+    <div class="card-header"><i class="bi bi-diagram-3"></i> Team Hierarchy
+      <div class="card-tools d-flex gap-2 align-items-center">
+        <input class="form-control form-control-sm" id="th_search" style="width:200px" placeholder="Find employee…" oninput="thRender()" />
+        <button class="btn btn-sm btn-outline-secondary" onclick="thExpand(true)"><i class="bi bi-arrows-expand"></i> Expand</button>
+        <button class="btn btn-sm btn-outline-secondary" onclick="thExpand(false)"><i class="bi bi-arrows-collapse"></i> Collapse</button>
+        <button data-perm="TEAM_HIERARCHY_SAVE" class="btn btn-sm btn-primary" onclick="thAdd(null)"><i class="bi bi-person-plus"></i> Add member</button>
+      </div></div>
+    <div class="card-body">
+      <p class="text-muted small">Each person reports to one manager. <b>Add</b> puts someone under a manager, <b>Move</b> changes the manager, <b>Remove</b> takes them out of the team.
+        Applied directly and written to the employee's promotion / transfer history. Admin handles everyone; a manager only his own team.
+        A manager must be senior (higher hierarchy level) and a chain can never loop.</p>
+      <div id="th_tree" class="th-tree"></div>
+      <div id="th_loose" class="mt-4"></div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="thModal" tabindex="-1"><div class="modal-dialog modal-fullscreen-sm-down">
+    <form class="modal-content" onsubmit="thSave(event)">
+      <div class="modal-header sfa-modal"><h5 class="modal-title" id="thTitle">Add member</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body"><div class="row g-3">
+        <div class="col-12" id="th_empWrap"><label class="form-label">Employee</label><select class="form-select" id="th_emp"></select></div>
+        <div class="col-12" id="th_mgrWrap"><label class="form-label">Reports to (manager)</label><select class="form-select" id="th_mgr"></select></div>
+        <div class="col-md-6"><label class="form-label">Effective date</label><input class="form-control sfa-date" id="th_date" /><div class="form-text">Blank = today</div></div>
+        <div class="col-md-6"><label class="form-label">Remarks</label><input class="form-control" id="th_remarks" maxlength="255" /></div>
+        <div class="col-12 small text-danger" id="th_err"></div>
+      </div></div>
+      <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="th_save">Save</button></div>
+    </form>
+  </div></div>
+</template>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.colVis.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="js/core/session.js"></script>
+<script src="js/core/endpoints.js"></script>
+<script src="js/core/http.js"></script>
+<script src="js/core/theme.js"></script>
+<script src="js/core/settings.js"></script>
+<script src="js/core/i18n.js"></script>
+<script src="js/app.js"></script>
+<script src="js/core/uikit.js"></script>
+<script src="js/shell.js"></script>
+<style>
+  .th-tree ul { list-style: none; margin: 0; padding-left: 1.4rem; border-left: 1px dashed var(--bs-border-color, #ccc); }
+  .th-tree > ul { border-left: 0; padding-left: 0; }
+  .th-node { display: flex; align-items: center; gap: .5rem; padding: .3rem .4rem; border-radius: .4rem; }
+  .th-node:hover { background: rgba(0,0,0,.04); }
+  .th-node .th-name { font-weight: 500; }
+  .th-toggle { width: 1.2rem; cursor: pointer; color: #888; }
+  .th-actions { margin-left: auto; white-space: nowrap; }
+  .th-me { background: rgba(13,110,253,.08); }
+</style>
+<script>
+  let ROWS = [], BY = {}, KIDS = {}, OPEN = new Set(), MODAL = null, MODE = 'add';
+  const EP = API.master.teamHierarchy;
+  const esc = (v) => SFA.esc(v == null ? '' : v);
+
+  window.pageInit = async function () {
+    MODAL = new bootstrap.Modal('#thModal');
+    try { await reload(true); } catch (e) { SFA.toast(e.message, false); }
+  };
+
+  async function reload(first) {
+    ROWS = await Api.get(EP.list);
+    BY = {}; KIDS = {};
+    ROWS.forEach(r => { BY[r.empId] = r; });
+    ROWS.forEach(r => { const k = r.managerId && BY[r.managerId] ? r.managerId : ''; (KIDS[k] = KIDS[k] || []).push(r); });
+    if (first) ROWS.filter(r => !r.managerId).forEach(r => OPEN.add(r.empId));
+    thRender();
+  }
+
+  const lvl = (r) => r.hierarchyLevel == null ? -1 : r.hierarchyLevel;
+  const sorted = (list) => (list || []).slice().sort((a, b) => lvl(b) - lvl(a) || a.empName.localeCompare(b.empName));
+
+  function thRender() {
+    const q = document.getElementById('th_search').value.trim().toLowerCase();
+    const hit = (r) => !q || (r.empName + ' ' + (r.empCode || '') + ' ' + (r.designation || '')).toLowerCase().includes(q);
+    // with a search: show matches plus everyone above them
+    const show = new Set();
+    if (q) ROWS.filter(hit).forEach(r => { let c = r, n = 0; while (c && n++ < 50) { show.add(c.empId); c = BY[c.managerId]; } });
+    const node = (r) => {
+      const kids = sorted(KIDS[r.empId]);
+      const open = q ? true : OPEN.has(r.empId);
+      const can = r.canEdit;
+      return `<li>
+        <div class="th-node ${r.isMe ? 'th-me' : ''}">
+          <span class="th-toggle" onclick="thToggle('${esc(r.empId)}')">${kids.length ? `<i class="bi bi-chevron-${open ? 'down' : 'right'}"></i>` : ''}</span>
+          <i class="bi bi-person-circle text-secondary"></i>
+          <span class="th-name">${esc(r.empName)}</span>
+          <small class="text-muted">${esc(r.empCode)}</small>
+          ${r.designation ? `<span class="badge bg-light text-dark border">${esc(r.designation)}${r.hierarchyLevel != null ? ' · ' + r.hierarchyLevel : ''}</span>` : '<span class="badge bg-warning text-dark">No designation</span>'}
+          ${r.active ? '' : '<span class="badge bg-secondary">Inactive</span>'}${r.vacant ? ' <span class="badge bg-secondary">Vacant</span>' : ''}
+          ${kids.length ? `<small class="text-muted">${kids.length} direct</small>` : ''}
+          <span class="th-actions">
+            ${r.active ? `<button data-perm="TEAM_HIERARCHY_SAVE" class="btn btn-sm btn-outline-success" title="Add a member under ${esc(r.empName)}" onclick="thAdd('${esc(r.empId)}')"><i class="bi bi-person-plus"></i></button>` : ''}
+            ${can && r.managerId ? `<button data-perm="TEAM_HIERARCHY_SAVE" class="btn btn-sm btn-outline-primary" title="Move to another manager" onclick="thMove('${esc(r.empId)}')"><i class="bi bi-arrow-left-right"></i></button>
+              <button data-perm="TEAM_HIERARCHY_SAVE" class="btn btn-sm btn-outline-danger" title="Remove from the team" onclick="thRemove('${esc(r.empId)}')"><i class="bi bi-person-dash"></i></button>` : ''}
+          </span>
+        </div>
+        ${kids.length && open ? `<ul>${kids.filter(k => !q || show.has(k.empId)).map(node).join('')}</ul>` : ''}
+      </li>`;
+    };
+    const roots = sorted(KIDS['']).filter(r => r.directReports > 0 || true);
+    const withTeam = roots.filter(r => (KIDS[r.empId] || []).length > 0 && (!q || show.has(r.empId)));
+    const loose = roots.filter(r => !(KIDS[r.empId] || []).length && (!q || show.has(r.empId)));
+    document.getElementById('th_tree').innerHTML = withTeam.length ? `<ul>${withTeam.map(node).join('')}</ul>` : '<div class="text-muted">No teams yet.</div>';
+    document.getElementById('th_loose').innerHTML = loose.length ? `<h6 class="text-muted">Not in any team <small>(no manager, no juniors)</small></h6>
+      <ul class="list-unstyled th-tree-loose">${loose.map(r => `<li class="th-node ${r.isMe ? 'th-me' : ''}"><i class="bi bi-person text-secondary"></i>
+        <span class="th-name">${esc(r.empName)}</span> <small class="text-muted">${esc(r.empCode)}</small>
+        ${r.designation ? `<span class="badge bg-light text-dark border">${esc(r.designation)}${r.hierarchyLevel != null ? ' · ' + r.hierarchyLevel : ''}</span>` : ''}
+        ${r.canEdit && r.active ? `<span class="th-actions"><button data-perm="TEAM_HIERARCHY_SAVE" class="btn btn-sm btn-outline-success" onclick="thAssign('${esc(r.empId)}')"><i class="bi bi-person-plus"></i> Put in a team</button></span>` : ''}</li>`).join('')}</ul>` : '';
+  }
+  function thToggle(id) { OPEN.has(id) ? OPEN.delete(id) : OPEN.add(id); thRender(); }
+  function thExpand(on) { OPEN = on ? new Set(ROWS.filter(r => (KIDS[r.empId] || []).length).map(r => r.empId)) : new Set(); thRender(); }
+
+  // ---- add / move / remove ----
+  const label = (r) => r.empName + ' (' + (r.empCode || r.empId) + ')' + (r.designation ? ' \u00b7 ' + r.designation : '');
+  function fill(sel, rows, keep) {
+    sel.innerHTML = '<option value="">--</option>' + rows.map(r => `<option value="${esc(r.empId)}">${esc(label(r))}</option>`).join('');
+    if (keep) sel.value = keep;
+  }
+  const managers = () => sorted(ROWS.filter(r => r.active));
+  function open(mode, title, empId, mgrId) {
+    MODE = mode;
+    document.getElementById('thTitle').textContent = title;
+    document.getElementById('th_err').textContent = '';
+    document.getElementById('th_remarks').value = '';
+    sfaSetDate('th_date', '');
+    const emp = document.getElementById('th_emp'), mgr = document.getElementById('th_mgr');
+    const canPick = (r) => r.canEdit && r.active;
+    // an employee can't go under himself or under one of his own juniors
+    fill(emp, sorted(ROWS.filter(r => canPick(r) && (mode !== 'add' || !r.managerId))), empId);
+    document.getElementById('th_empWrap').style.display = mode === 'add' ? '' : 'none';
+    fill(mgr, managers(), mgrId);
+    MODAL.show();
+  }
+  function thAdd(managerId) { open('add', managerId ? 'Add a member under ' + BY[managerId].empName : 'Add member to a team', null, managerId); }
+  function thAssign(empId) { open('add', 'Put ' + BY[empId].empName + ' in a team', empId, null); }
+  function thMove(empId) { open('move', 'Move ' + BY[empId].empName + ' to another manager', empId, BY[empId].managerId); document.getElementById('th_emp').value = empId; }
+  async function thRemove(empId) {
+    const r = BY[empId];
+    if (!confirm('Remove ' + r.empName + ' from ' + (BY[r.managerId] ? BY[r.managerId].empName + '\'s' : 'the') + ' team? They will have no manager. Their own juniors stay under them.')) return;
+    try { await Api.post(EP.setManager(empId), { managerId: '' }); await reload(); SFA.toast(r.empName + ' removed from the team'); }
+    catch (e) { SFA.toast(e.message, false); }
+  }
+  async function thSave(ev) {
+    ev.preventDefault();
+    const empId = MODE === 'move' ? document.getElementById('th_emp').value : document.getElementById('th_emp').value;
+    const managerId = document.getElementById('th_mgr').value;
+    const err = document.getElementById('th_err');
+    if (!empId) { err.textContent = 'Choose the employee'; return; }
+    if (!managerId) { err.textContent = 'Choose the manager (to take someone out of a team use Remove)'; return; }
+    if (empId === managerId) { err.textContent = 'An employee cannot be their own manager'; return; }
+    const btn = document.getElementById('th_save'); btn.disabled = true;
+    try {
+      await Api.post(EP.setManager(empId), { managerId, effectiveDate: document.getElementById('th_date').value.trim() || null, remarks: document.getElementById('th_remarks').value.trim() || null });
+      MODAL.hide(); OPEN.add(managerId); await reload();
+      SFA.toast(BY[empId].empName + ' now reports to ' + BY[managerId].empName);
+    } catch (e) { err.textContent = e.message; }
+    finally { btn.disabled = false; }
+  }
+</script>
+</body>
+</html>

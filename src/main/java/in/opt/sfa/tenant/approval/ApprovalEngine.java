@@ -84,6 +84,17 @@ public class ApprovalEngine {
                 emps, desig, levelRoles.ranges());
     }
 
+    /** The signed-in user for reach checks only (own / team / all) — no approval permissions needed. */
+    public Actor reach() {
+        UserContext.CurrentUser u = UserContext.get();
+        String role = u == null ? null : u.role();
+        Map<String, EmpDetail> emps = new HashMap<>();
+        employees.findAll().forEach(e -> emps.put(e.getEmpId(), e));
+        Map<Integer, Designation> desig = new HashMap<>();
+        designations.findAll().forEach(d -> desig.put(d.getId(), d));
+        return new Actor(u == null ? null : u.empId(), role, rank(role), true, true, emps, desig, levelRoles.ranges());
+    }
+
     // ---- state -------------------------------------------------------------------
 
     public static String status(Approvable a, String req) {

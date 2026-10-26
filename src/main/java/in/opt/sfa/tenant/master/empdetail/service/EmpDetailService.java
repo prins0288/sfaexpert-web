@@ -591,6 +591,15 @@ public class EmpDetailService {
         if (self != null && self.equals(req.getManagerId())) {
             throw new IllegalStateException("An employee cannot be their own manager");
         }
+        if (self != null && !Strings.isBlank(req.getManagerId())) {
+            // a manager chain must never loop: the new manager cannot be one of this employee's own juniors
+            java.util.Set<String> seen = new java.util.HashSet<>();
+            String up = req.getManagerId();
+            while (up != null && seen.add(up)) {
+                if (up.equals(self)) throw new IllegalStateException("Manager chain would loop — that person already reports to this employee");
+                up = employees.findById(up).map(EmpDetail::getManagerId).orElse(null);
+            }
+        }
         LocalDate doj = parseDate(req.getDateOfJoining()) != null ? parseDate(req.getDateOfJoining()) : e.getDateOfJoining();
         LocalDate lwd = parseDate(req.getLastWorkingDate());
         if (doj != null && lwd != null && lwd.isBefore(doj)) {
