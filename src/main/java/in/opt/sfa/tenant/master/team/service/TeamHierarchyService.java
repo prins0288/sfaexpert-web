@@ -45,7 +45,7 @@ public class TeamHierarchyService {
     /** Every employee with manager, designation, level, team size and whether the user may change him. */
     @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
     public List<Map<String, Object>> list() {
-        Authz.requireRole("ADMIN", "MANAGER");
+        // everyone may open the page: a user sees himself and his own seniors (read-only), a manager his team, admin all
         ApprovalEngine.Actor me = approval.reach();
         Map<Integer, Designation> desig = new HashMap<>();
         designations.findAll().forEach(d -> desig.put(d.getId(), d));
@@ -57,8 +57,13 @@ public class TeamHierarchyService {
         List<Map<String, Object>> rows = new ArrayList<>();
         // manager: himself + his team + people with no manager yet (to pick them up); admin: everyone
         Set<String> visible = scope.ids(TeamScope.Scope.TEAM_SELF);
+        boolean canManage = TeamScope.isAdmin() || TeamScope.isManager();
+        Set<String> seniors = new HashSet<>(scope.seniors(me.empId));
         for (EmpDetail e : all) {
-            if (visible != null && !visible.contains(e.getEmpId()) && e.getManagerId() != null) continue;
+            if (visible != null && !visible.contains(e.getEmpId())) {
+                boolean pickUp = canManage && e.getManagerId() == null;   // unassigned: a manager may pick him up
+                if (!pickUp && !seniors.contains(e.getEmpId())) continue;   // own seniors stay visible (read-only)
+            }
             Designation d = e.getDesignationId() == null ? null : desig.get(e.getDesignationId());
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("empId", e.getEmpId());
@@ -72,6 +77,7 @@ public class TeamHierarchyService {
             m.put("directReports", direct.getOrDefault(e.getEmpId(), 0));
             m.put("canEdit", canTouch(me, e, myLevel));
             m.put("isMe", e.getEmpId().equals(me.empId));
+            m.put("canManage", canManage);
             rows.add(m);
         }
         return rows;

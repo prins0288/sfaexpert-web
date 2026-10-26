@@ -43,7 +43,7 @@
         <input class="form-control form-control-sm" id="th_search" style="width:200px" placeholder="Find employee…" oninput="thRender()" />
         <button class="btn btn-sm btn-outline-secondary" onclick="thExpand(true)"><i class="bi bi-arrows-expand"></i> Expand</button>
         <button class="btn btn-sm btn-outline-secondary" onclick="thExpand(false)"><i class="bi bi-arrows-collapse"></i> Collapse</button>
-        <button data-perm="TEAM_HIERARCHY_SAVE" class="btn btn-sm btn-primary" onclick="thAdd(null)"><i class="bi bi-person-plus"></i> Add member</button>
+        <button id="th_addBtn" data-perm="TEAM_HIERARCHY_SAVE" class="btn btn-sm btn-primary" onclick="thAdd(null)"><i class="bi bi-person-plus"></i> Add member</button>
       </div></div>
     <div class="card-body">
       <p class="text-muted small">Each person reports to one manager. <b>Add</b> puts someone under a manager, <b>Move</b> changes the manager, <b>Remove</b> takes them out of the team.
@@ -110,6 +110,7 @@
 
   async function reload(first) {
     ROWS = await Api.get(EP.list);
+    document.getElementById('th_addBtn').classList.toggle('d-none', !(ROWS[0] && ROWS[0].canManage));
     BY = {}; KIDS = {};
     ROWS.forEach(r => { BY[r.empId] = r; });
     ROWS.forEach(r => { const k = r.managerId && BY[r.managerId] ? r.managerId : ''; (KIDS[k] = KIDS[k] || []).push(r); });
@@ -140,7 +141,7 @@
           ${r.active ? '' : '<span class="badge bg-secondary">Inactive</span>'}${r.vacant ? ' <span class="badge bg-secondary">Vacant</span>' : ''}
           ${kids.length ? `<small class="text-muted">${kids.length} direct</small>` : ''}
           <span class="th-actions">
-            ${r.active ? `<button data-perm="TEAM_HIERARCHY_SAVE" class="btn btn-sm btn-outline-success" title="Add a member under ${esc(r.empName)}" onclick="thAdd('${esc(r.empId)}')"><i class="bi bi-person-plus"></i></button>` : ''}
+            ${r.active && r.canManage ? `<button data-perm="TEAM_HIERARCHY_SAVE" class="btn btn-sm btn-outline-success" title="Add a member under ${esc(r.empName)}" onclick="thAdd('${esc(r.empId)}')"><i class="bi bi-person-plus"></i></button>` : ''}
             ${can && r.managerId ? `<button data-perm="TEAM_HIERARCHY_SAVE" class="btn btn-sm btn-outline-primary" title="Move to another manager" onclick="thMove('${esc(r.empId)}')"><i class="bi bi-arrow-left-right"></i></button>
               <button data-perm="TEAM_HIERARCHY_SAVE" class="btn btn-sm btn-outline-danger" title="Remove from the team" onclick="thRemove('${esc(r.empId)}')"><i class="bi bi-person-dash"></i></button>` : ''}
           </span>
