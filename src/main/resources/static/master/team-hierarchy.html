@@ -178,7 +178,7 @@
     const emp = document.getElementById('th_emp'), mgr = document.getElementById('th_mgr');
     const canPick = (r) => r.canEdit && r.active && !r.adminLevel;
     // an employee can't go under himself or under one of his own juniors
-    fill(emp, sorted(ROWS.filter(r => canPick(r) && (mode !== 'add' || !r.managerId))), empId);
+    fill(emp, sorted(ROWS.filter(canPick)), empId);   // everyone (senior or junior) except admin-level users
     document.getElementById('th_empWrap').style.display = mode === 'add' ? '' : 'none';
     fill(mgr, managers(), mgrId);
     MODAL.show();
