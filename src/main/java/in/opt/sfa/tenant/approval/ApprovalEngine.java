@@ -268,13 +268,18 @@ public class ApprovalEngine {
         if (PENDING_ADMIN.equals(st)) return me.rank >= ADMIN_RANK ? null : "Waiting for an admin's final approval";
         // PENDING_MANAGER
         if (me.rank == MANAGER_RANK) {
-            return owner == null || me.team.contains(owner) ? null : "Only the manager of " + me.name(owner) + " can approve this " + kind;
+            // the manager step belongs to the owner's IMMEDIATE manager (emp_detail.manager_id); only if he is
+            // inactive / vacant / the requester himself does the next manager up the chain take it
+            if (owner == null) return null;
+            String who = me.stepManager(owner, requester(a, req));
+            return me.empId != null && me.empId.equals(who) ? null
+                    : "Only " + (who == null ? "the manager" : me.name(who)) + ", the immediate manager of " + me.name(owner) + ", can approve this " + kind;
         }
         if (me.rank >= ADMIN_RANK) {
             // Manager -> Admin: the manager step is the manager's; an admin takes it only when nobody of
             // manager level (other than the requester) is above the employee. Other flows: an admin may stand in.
             if (!"MANAGER_ADMIN".equals(flow(cfg))) return null;
-            return owner == null || !me.hasManagerAbove(owner, requester(a, req)) ? null
+            return owner == null || me.stepManager(owner, requester(a, req)) == null ? null
                     : "Waiting for the manager's approval first (then the admin gives the final approval)";
         }
         return "Only a manager or an admin can approve";
@@ -334,6 +339,22 @@ public class ApprovalEngine {
             if (ownerEmpId == null || empId == null) return false;
             if (ownerEmpId.equals(empId)) return true;
             return rank == MANAGER_RANK && team.contains(ownerEmpId);
+        }
+
+        /**
+         * Who handles the manager step for {of}'s row: his immediate manager, or — if that one is inactive,
+         * vacant or the requester — the next one up the chain. null = nobody (an admin takes it).
+         */
+        String stepManager(String of, String requester) {
+            Set<String> seen = new HashSet<>();
+            EmpDetail e = emps.get(of);
+            while (e != null && e.getManagerId() != null && seen.add(e.getEmpId())) {
+                EmpDetail m = emps.get(e.getManagerId());
+                if (m == null) return null;
+                if (m.isActive() && !m.isVacant() && !m.getEmpId().equals(requester)) return m.getEmpId();
+                e = m;
+            }
+            return null;
         }
 
         /** Is anyone with a Manager role, other than `except`, above this employee in the reporting chain? */

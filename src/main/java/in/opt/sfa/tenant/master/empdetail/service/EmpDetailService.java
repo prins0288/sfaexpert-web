@@ -49,6 +49,7 @@ public class EmpDetailService {
 
     private final EmpDetailRepository employees;
     private final EmpAssignmentHistoryRepository history;
+    private final in.opt.sfa.tenant.team.TeamScope scope;
     private final AppUserAdminService credentials;
     private final in.opt.sfa.tenant.master.salutation.service.SalutationMasterService salutations;
     private final CodeGeneratorService codeGenerator;
@@ -69,6 +70,7 @@ public class EmpDetailService {
     private static final Pattern EMAIL = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
 
     public EmpDetailService(EmpDetailRepository employees, EmpAssignmentHistoryRepository history,
+                            in.opt.sfa.tenant.team.TeamScope scope,
                             AppUserAdminService credentials,
                             CodeGeneratorService codeGenerator, DivisionRepository divisions,
                             DesignationRepository designations, CompanySettingStore settings,
@@ -78,6 +80,7 @@ public class EmpDetailService {
         this.salutations = salutations;
         this.employees = employees;
         this.history = history;
+        this.scope = scope;
         this.credentials = credentials;
         this.codeGenerator = codeGenerator;
         this.divisions = divisions;
@@ -155,13 +158,19 @@ public class EmpDetailService {
         Map<Long, String> divisionNames = divisions.findAll().stream()
                 .collect(Collectors.toMap(Division::getOid, Division::getDivisionName, (a, b) -> a));
 
-        return employees.findAllByOrderByEmpNameAsc().stream()
+        // user: himself only; manager: himself + his team; admin: everyone (TeamScope)
+        return scope.filter(in.opt.sfa.tenant.team.TeamScope.Scope.TEAM_SELF, employees.findAllByOrderByEmpNameAsc(), EmpDetail::getEmpId).stream()
                 .map(e -> toRow(e, byEmp.get(e.getEmpId()), designationById, divisionNames))
                 .toList();
     }
 
     @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
     public Map<String, Object> get(String empId) {
+        scope.require(in.opt.sfa.tenant.team.TeamScope.Scope.TEAM_SELF, empId, "This employee is not in your team");
+        return row(empId);
+    }
+
+    private Map<String, Object> row(String empId) {
         EmpDetail e = find(empId);
         String companyCode = TenantContext.getCompanyCode();
         AppUser u = credentials.listByCompanyCode(companyCode).stream()
@@ -179,8 +188,14 @@ public class EmpDetailService {
      */
     @Transactional(transactionManager = "tenantTransactionManager")
     public Map<String, Object> save(EmpDetailSaveRequest req) {
+        return save(req, false);
+    }
+
+    /** trusted = the caller (Team Hierarchy) already checked that the user may change this employee. */
+    public Map<String, Object> save(EmpDetailSaveRequest req, boolean trusted) {
         Authz.requireRole("ADMIN", "MANAGER");
         boolean isNew = Strings.isBlank(req.getEmpId());
+        if (!isNew && !trusted) scope.require(in.opt.sfa.tenant.team.TeamScope.Scope.TEAM_SELF, req.getEmpId(), "This employee is not in your team");
         EmpDetail e = isNew ? new EmpDetail() : find(req.getEmpId());
         // snapshot before any field is touched, to detect a promotion / transfer / manager change
         Long oldDivisionId = e.getDivisionId(), oldStateId = e.getStateId(), oldHqId = e.getHqId();
@@ -250,7 +265,7 @@ public class EmpDetailService {
         credentials.upsert(TenantContext.getCompanyCode(), e.getEmpId(),
                 Strings.isBlank(req.getUsername()) ? null : req.getUsername().trim(), req.getPassword(), e.isActive());
 
-        return get(e.getEmpId());
+        return row(e.getEmpId());
     }
 
     @Transactional(transactionManager = "tenantTransactionManager")
@@ -656,6 +671,7 @@ public class EmpDetailService {
     @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
     public List<Map<String, Object>> assignmentHistory(String empId) {
         find(empId);
+        scope.require(in.opt.sfa.tenant.team.TeamScope.Scope.TEAM_SELF, empId, "This employee is not in your team");
         Map<Long, String> divisionNames = divisions.findAll().stream()
                 .collect(Collectors.toMap(Division::getOid, Division::getDivisionName, (a, b) -> a));
         Map<Long, String> stateNames = states.findAll().stream()

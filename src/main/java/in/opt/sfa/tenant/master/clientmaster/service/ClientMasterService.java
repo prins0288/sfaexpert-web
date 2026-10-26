@@ -1,6 +1,7 @@
 package in.opt.sfa.tenant.master.clientmaster.service;
 
 import in.opt.sfa.tenant.approval.ApprovalEngine;
+import in.opt.sfa.tenant.team.TeamScope;
 
 import in.opt.sfa.common.util.ExcelUtil;
 import in.opt.sfa.common.util.Strings;
@@ -115,6 +116,7 @@ public class ClientMasterService {
     private final in.opt.sfa.tenant.master.salutation.service.SalutationMasterService salutations;
     private final in.opt.sfa.tenant.master.clientmaster.repository.ClientMasterApprovalRepository approvals;
     private final ApprovalEngine approval;
+    private final TeamScope scope;
 
     public ClientMasterService(ClientMasterRepository clients, ClientMasterChildRepository children,
                                ClientTypeRepository clientTypes, CategoryMasterRepository categories,
@@ -125,8 +127,9 @@ public class ClientMasterService {
                                in.opt.sfa.common.service.CompanySettingStore settings,
                                in.opt.sfa.tenant.master.salutation.service.SalutationMasterService salutations,
                                in.opt.sfa.tenant.master.clientmaster.repository.ClientMasterApprovalRepository approvals,
-                               ApprovalEngine approval) {
+                               ApprovalEngine approval, TeamScope scope) {
         this.approval = approval;
+        this.scope = scope;
         this.approvals = approvals;
         this.settings = settings;
         this.salutations = salutations;
@@ -153,7 +156,9 @@ public class ClientMasterService {
         ApprovalEngine.Actor me = approval.actor(APPROVAL);
         Map<Long, ClientMasterChild> social = children.findAll().stream()
                 .collect(Collectors.toMap(ClientMasterChild::getClientId, Function.identity(), (a, b) -> a));
-        return clients.findAllByOrderByClientNameAsc().stream().map(c -> rights(toDto(c, social.get(c.getId()), n), c, me)).toList();
+        // user: only his own clients; manager: his + his team's; admin: all (TeamScope)
+        return scope.filter(TeamScope.Scope.TEAM_SELF, clients.findAllByOrderByClientNameAsc(), ClientMaster::approvalOwner).stream()
+                .map(c -> rights(toDto(c, social.get(c.getId()), n), c, me)).toList();
     }
 
     @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
@@ -179,8 +184,11 @@ public class ClientMasterService {
             i.put("pincode", a.getPincode());
             return i;
         }).toList());
+        // clients are added only for yourself — admin may pick any employee
         m.put("employees", employees.findByActiveTrueOrderByEmpNameAsc().stream()
+                .filter(e -> TeamScope.isAdmin() || e.getEmpId().equals(TeamScope.me()))
                 .map(e -> item(e.getEmpId(), e.getEmpName() + " (" + e.getEmpCode() + ")", e.getStateId())).toList());
+        m.put("pickEmployee", TeamScope.isAdmin());
         m.put("localityTypes", LOCALITY_TYPES);
         m.put("genders", GENDERS);
         m.put("visitDays", VISIT_DAYS);
@@ -211,6 +219,7 @@ public class ClientMasterService {
         boolean isNew = form.getId() == null;
         ClientMaster c = isNew ? new ClientMaster() : find(form.getId());
         Names n = names();
+        ownOnly(form, c, isNew);
         apply(c, form, n, true);
         if (isNew && Strings.isBlank(form.getClientCode())) {
             c.setClientCode(formatCode(prefix(c.getClientTypeId() == null ? null : n.types.get(c.getClientTypeId()))));
@@ -371,6 +380,7 @@ public class ClientMasterService {
                     ClientMaster c = code == null ? null : clients.findByClientCode(code).orElse(null);
                     boolean isNew = c == null;
                     if (isNew) c = new ClientMaster();
+                    else scope.require(TeamScope.Scope.TEAM_SELF, c.approvalOwner(), "client " + code + " is not yours");
                     ClientMasterDto f = new ClientMasterDto();
                     f.setSalutation(x.get("salutation"));
                     f.setClientName(x.get("client_name"));
@@ -429,6 +439,7 @@ public class ClientMasterService {
                     f.setInstagramHandle(x.get("instagram_handle"));
                     f.setFacebookHandle(x.get("facebook_handle"));
                     f.setTwitterHandle(x.get("twitter_handle"));
+                    ownOnly(f, c, isNew);
                     apply(c, f, n, isNew);   // update: blank cell keeps the stored value
                     List<ApprovalEngine.LogRow> rowLog = List.of();
                     Boolean active = x.yesNo("is_active");
@@ -831,8 +842,31 @@ public class ClientMasterService {
         return d;
     }
 
+    /**
+     * Clients are added only for yourself (admin: for anyone). A new client of a non-admin always belongs to him;
+     * an existing one keeps its employee — a manager edits a team member's client but cannot hand it to someone else.
+     */
+    private void ownOnly(ClientMasterDto f, ClientMaster existing, boolean isNew) {
+        if (TeamScope.isAdmin()) return;
+        String me = TeamScope.me();
+        if (isNew) {
+            if (f.getMappedEmpCode() != null && !f.getMappedEmpCode().equals(me)) {
+                throw new IllegalStateException("You can add a client only for yourself, not for " + f.getMappedEmpCode());
+            }
+            f.setMappedEmpCode(me);
+        } else {
+            if (f.getMappedEmpCode() != null && !f.getMappedEmpCode().equals(existing.getMappedEmpCode())) {
+                throw new IllegalStateException("Only an admin can change whose client this is");
+            }
+            f.setMappedEmpCode(existing.getMappedEmpCode());
+        }
+    }
+
+    /** The client, if it is within the user's reach (own / team / all by role) — else it does not exist for him. */
     private ClientMaster find(Long id) {
-        return clients.findById(id).orElseThrow(() -> new IllegalStateException("Client not found: " + id));
+        ClientMaster c = clients.findById(id).orElseThrow(() -> new IllegalStateException("Client not found: " + id));
+        scope.require(TeamScope.Scope.TEAM_SELF, c.approvalOwner(), "This client is not yours");
+        return c;
     }
 
     private Names names() {

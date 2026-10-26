@@ -425,8 +425,19 @@
     cmGeoNote();
     cmBadges();
   }
+  // clients are added only for yourself (admin may pick anyone); a manager editing a team client keeps its employee
+  function ownerLock(r) {
+    const sel = document.getElementById('c_mappedEmpCode');
+    sel.disabled = !OPT.pickEmployee;
+    if (OPT.pickEmployee) return;
+    if (r && r.mappedEmpCode && ![...sel.options].some(o => o.value === r.mappedEmpCode)) {
+      sel.insertAdjacentHTML('beforeend', `<option value="${esc(r.mappedEmpCode)}">${esc(r.mappedEmpName || r.mappedEmpCode)}</option>`);
+    }
+    sel.value = r ? (r.mappedEmpCode || '') : ((OPT.employees[0] || {}).oid || '');
+  }
   function cmAdd() {
     fillForm(null);
+    ownerLock(null);
     document.getElementById('cmModalTitle').textContent = 'Add Client';
     MODAL.show();
     cmTypeChanged();
@@ -435,6 +446,7 @@
     try {
       const r = await Api.get(EP.get(id));
       fillForm(r);
+      ownerLock(r);
       document.getElementById('cmModalTitle').textContent = 'Edit Client · ' + r.clientCode;
       MODAL.show();
     } catch (e) { SFA.toast(e.message, false); }

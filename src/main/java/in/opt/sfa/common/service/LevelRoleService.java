@@ -30,7 +30,7 @@ public class LevelRoleService {
     public static final List<String> KEYS = List.of(MANAGER_KEY, ADMIN_KEY, SUPER_ADMIN_KEY);
 
     /** Used until the company saves its own ranges. */
-    public static final Map<String, String> DEFAULTS = Map.of(MANAGER_KEY, "15", ADMIN_KEY, "50", SUPER_ADMIN_KEY, "90");
+    public static final Map<String, String> DEFAULTS = Map.of(MANAGER_KEY, "15", ADMIN_KEY, "70", SUPER_ADMIN_KEY, "100");
 
     private final CompanySettingStore settings;
 

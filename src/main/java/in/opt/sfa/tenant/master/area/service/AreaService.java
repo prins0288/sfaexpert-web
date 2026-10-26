@@ -6,6 +6,7 @@ import in.opt.sfa.common.util.Strings;
 import in.opt.sfa.exception.ForbiddenException;
 import in.opt.sfa.security.UserContext;
 import in.opt.sfa.tenant.approval.ApprovalEngine;
+import in.opt.sfa.tenant.team.TeamScope;
 import in.opt.sfa.tenant.master.area.dto.AreaDto;
 import in.opt.sfa.tenant.master.area.entity.Area;
 import in.opt.sfa.tenant.master.area.entity.AreaMasterApproval;
@@ -50,10 +51,12 @@ public class AreaService {
     private final ApprovalEngine approval;
     private final AreaMasterApprovalRepository history;
     private final EmpDetailRepository employees;
+    private final TeamScope scope;
 
     public AreaService(AreaRepository areas, RouteAreaMapRepository maps, HqRepository hqs, StateRepository states,
                        AreaMapper mapper, ApprovalEngine approval, AreaMasterApprovalRepository history,
-                       EmpDetailRepository employees) {
+                       EmpDetailRepository employees, TeamScope scope) {
+        this.scope = scope;
         this.areas = areas;
         this.maps = maps;
         this.hqs = hqs;
@@ -73,8 +76,7 @@ public class AreaService {
         Map<Long, String> routes = new HashMap<>();
         maps.findAll().stream().filter(m -> "Y".equals(m.getStatus()))
                 .forEach(m -> routes.merge(m.getAreaOid(), m.getRouteName(), (x, y) -> x + ", " + y));
-        return areas.findAllByOrderByOidAsc().stream()
-                .filter(a -> me.reaches(a.getEmpId()))
+        return scope.filter(TeamScope.Scope.TEAM_SELF, areas.findAllByOrderByOidAsc(), Area::getEmpId).stream()
                 .map(a -> { a.setRoutes(routes.get(a.getOid())); return toDto(a, me); })
                 .toList();
     }
@@ -230,7 +232,7 @@ public class AreaService {
                 Area a = Strings.isBlank(code) ? null : areas.findByAreaCode(code.trim()).orElse(null);
                 boolean isNew = a == null;
                 if (isNew) a = new Area();
-                else if (!me.reaches(a.getEmpId())) throw new IllegalStateException("area " + code.trim() + " is not yours");
+                else if (!scope.allows(TeamScope.Scope.TEAM_SELF, a.getEmpId())) throw new IllegalStateException("area " + code.trim() + " is not yours");
                 String empId = null;
                 if (!Strings.isBlank(row.get("emp_code"))) {
                     String ec = row.get("emp_code").trim();
@@ -331,7 +333,7 @@ public class AreaService {
     /** The area, if the user may see it (admin all, manager self + team, user own). */
     private Area reachable(Long oid, ApprovalEngine.Actor me) {
         Area a = areas.findById(oid).orElseThrow(() -> new IllegalStateException("Area not found: " + oid));
-        if (!me.reaches(a.getEmpId())) throw new ForbiddenException("This area is not yours");
+        scope.require(TeamScope.Scope.TEAM_SELF, a.getEmpId(), "This area is not yours");
         return a;
     }
 

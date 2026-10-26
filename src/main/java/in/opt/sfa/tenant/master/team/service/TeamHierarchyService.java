@@ -10,6 +10,7 @@ import in.opt.sfa.tenant.master.empdetail.entity.EmpDetail;
 import in.opt.sfa.tenant.master.empdetail.repository.EmpDetailRepository;
 import in.opt.sfa.tenant.master.empdetail.service.EmpDetailService;
 import in.opt.sfa.tenant.repository.DesignationRepository;
+import in.opt.sfa.tenant.team.TeamScope;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,9 +31,11 @@ public class TeamHierarchyService {
     private final DesignationRepository designations;
     private final ApprovalEngine approval;
     private final EmpDetailService employeeService;
+    private final TeamScope scope;
 
     public TeamHierarchyService(EmpDetailRepository employees, DesignationRepository designations,
-                                ApprovalEngine approval, EmpDetailService employeeService) {
+                                ApprovalEngine approval, EmpDetailService employeeService, TeamScope scope) {
+        this.scope = scope;
         this.employees = employees;
         this.designations = designations;
         this.approval = approval;
@@ -52,7 +55,10 @@ public class TeamHierarchyService {
         Map<String, Integer> direct = new HashMap<>();
         all.forEach(e -> { if (e.getManagerId() != null) direct.merge(e.getManagerId(), 1, Integer::sum); });
         List<Map<String, Object>> rows = new ArrayList<>();
+        // manager: himself + his team + people with no manager yet (to pick them up); admin: everyone
+        Set<String> visible = scope.ids(TeamScope.Scope.TEAM_SELF);
         for (EmpDetail e : all) {
+            if (visible != null && !visible.contains(e.getEmpId()) && e.getManagerId() != null) continue;
             Designation d = e.getDesignationId() == null ? null : desig.get(e.getDesignationId());
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("empId", e.getEmpId());
@@ -98,7 +104,7 @@ public class TeamHierarchyService {
         req.setChangeReason("MANAGER_CHANGE");
         req.setEffectiveDate(effectiveDate);
         req.setChangeRemarks(Strings.isBlank(remarks) ? (newManager == null ? "Removed from team" : null) : remarks);
-        return employeeService.save(req);
+        return employeeService.save(req, true);
     }
 
     /** Admin: anyone. Manager: his own team's members, or someone who has no manager yet. User: nobody. */
