@@ -274,7 +274,7 @@ public class TourPlanService {
             }
             Set<String> allowedWith = new HashSet<>();
             dcr.jointCandidates(me).forEach(j -> allowedWith.add((String) j.get("id")));
-            for (String w : withIds) if (!allowedWith.contains(w)) throw new IllegalStateException("You cannot plan to work with " + w);
+            for (String w : withIds) if (!allowedWith.contains(w)) throw new IllegalStateException("You cannot plan to work with " + empLabel(w));
         }
         long tm = ensureParent(me, year, month);
         Map<String, Object> before = me.equals(actor) ? null : daySnapshot(tm, date);
@@ -543,5 +543,10 @@ public class TourPlanService {
         TourPlanRow row = toRow(r.get(0));
         if (!row.getEmpId().equals(me())) scope.require(TeamScope.Scope.TEAM_SELF, row.getEmpId(), "This employee is not in your team");
         return row;
+    }
+
+    /** "Name (code)" of an employee for a message - never the internal employee id. */
+    private String empLabel(String empId) {
+        return jdbc.queryForList("SELECT CONCAT(emp_name, ' (', emp_code, ')') AS n FROM emp_detail WHERE emp_id = ?", empId).stream().findFirst().map(r -> String.valueOf(r.get("n"))).orElse("this employee");
     }
 }

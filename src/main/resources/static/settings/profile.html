@@ -85,7 +85,7 @@
           <form onsubmit="saveProfile(event)"><div class="row g-3">
             <div class="col-md-6"><label class="form-label">Full name <span class="required-star">*</span></label>
               <input class="form-control" id="p_name" required /></div>
-            <div class="col-md-6"><label class="form-label">Employee ID</label>
+            <div class="col-md-6"><label class="form-label">Employee code</label>
               <input class="form-control" id="p_empId" readonly /></div>
             <div class="col-md-4"><label class="form-label">Designation</label>
               <select class="form-select" id="p_designationOid" disabled title="Set by your admin in the employee master"></select></div>
@@ -148,7 +148,7 @@
     document.getElementById('photoRole').textContent = me.role || '';
     document.getElementById('p_username').textContent = '@' + (me.username || '');
     document.getElementById('p_name').value = me.name || '';
-    document.getElementById('p_empId').value = me.empId || '';
+    document.getElementById('p_empId').value = me.empCode || '';
     document.getElementById('p_designationOid').value = me.designationOid || '';
     document.getElementById('p_stateOid').value = me.stateOid || '';
     document.getElementById('p_districtOid').value = me.districtOid || '';

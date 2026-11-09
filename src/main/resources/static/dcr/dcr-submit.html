@@ -471,7 +471,7 @@
   // a call still open goes straight to its check-out screen; a finished one opens its full details
   function callOpen(k, i) { const c = (k === 'v' ? ST.visits : ST.unlisted)[i]; (isOpen(c) && ST.canEdit) ? editCall(k, i) : callDetail(k, i); }
   function callDetail(k, i) {
-    const c = (k === 'v' ? ST.visits : ST.unlisted)[i], f = callInfo(k, c), nm = (list, id) => ((list || []).find(x => String(x.id) === String(id)) || {}).name || id;
+    const c = (k === 'v' ? ST.visits : ST.unlisted)[i], f = callInfo(k, c), nm = (list, id) => ((list || []).find(x => String(x.id) === String(id)) || {}).name || '';
     const card = (title, icon, body) => `<div class="card-lite"><div class="fw-bold mb-1"><i class="bi bi-${icon} text-primary"></i> ${title}</div>${body}</div>`;
     const kv = (l, v) => v ? `<div class="d-flex justify-content-between py-1 border-bottom"><span class="text-muted">${l}</span><b class="text-end ms-3">${esc(v)}</b></div>` : '';
     const byPanel = (panel, fld) => (c.items || []).filter(x => panelOfRow(x) === panel && Number(x[fld] || 0) > 0);
@@ -480,7 +480,7 @@
       + (k === 'u' ? kv('Qualification', c.qualification) + kv('Contact person', c.contactPerson) + kv('Address', c.address) : ''));
     h += card('Visit', 'geo-alt', kv('Visit type', c.visitType) + kv('Checked in', c.inTime) + kv('Checked out', c.outTime) + (c.refused ? kv('Result', 'Refused to meet') : '') + (c.checkinLat ? kv('Location', 'saved') : ''));
     h += card('Joint Work', 'people', (c.jointWith || []).length ? c.jointWith.map(id => { const j = OPT.joint.find(x => x.id === id);
-      return `<div class="py-1 border-bottom"><b>${esc(j ? j.empName : id)}</b> <small class="text-muted">${j ? '(' + esc(j.empCode) + ') · ' + esc(j.designation || '') : ''}</small></div>`; }).join('') : '<span class="text-muted">Self work</span>');
+      return `<div class="py-1 border-bottom"><b>${esc(j ? j.empName : '')}</b> <small class="text-muted">${j ? '(' + esc(j.empCode) + ') · ' + esc(j.designation || '') : ''}</small></div>`; }).join('') : '<span class="text-muted">Self work</span>');
     const det = (c.items || []).filter(x => x.detailed);
     if (det.length) h += card('Item Detailed List', 'journal-check', list(det, x => `<div class="py-1 border-bottom">${esc(x.itemName || nm(OPT.items, x.itemId))}</div>`));
     const smp = byPanel('SAMPLE', 'qty'); if (smp.length) h += card('Sample', 'capsule', list(smp, x => kv(x.itemName || nm(OPT.items, x.itemId), 'x ' + x.qty)));
@@ -987,7 +987,7 @@
       sheetOpen(d.empName + ' · ' + Settings.formatDate(d.dcrDate), detailHtml(d), delBtn + foot);
     } catch (e) { SFA.toast(e.message, false); }
   }
-  const jname = (id) => { const j = OPT.joint.find(x => x.id === id); return j ? j.name : id; };
+  const jname = (id) => { const j = OPT.joint.find(x => x.id === id); return j ? j.name : ''; };
   function detailHtml(d) {
     const call = (c, u) => `<div class="card-lite"><b>${esc(c.clientName)}</b> <small class="text-muted">${esc(u ? (c.mobile || 'Unlisted') : (c.clientCode || ''))}</small>
       <div class="small text-muted">${esc([c.inTime && c.outTime ? c.inTime + '–' + c.outTime : c.inTime, c.visitType, c.activityType].filter(Boolean).join(' · '))}</div>

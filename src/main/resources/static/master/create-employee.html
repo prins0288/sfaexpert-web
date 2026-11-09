@@ -415,7 +415,7 @@
 
   function managerName(empId) {
     const m = empId && EMP.find(x => x.empId === empId);
-    return m ? m.empName : (empId || '');
+    return m ? m.empName : '';
   }
 
   // Active employees, minus the one being edited; keepEmpId (their current

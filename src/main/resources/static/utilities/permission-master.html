@@ -131,7 +131,7 @@
     const sel = document.getElementById('pm_value');
     let opts = [];
     if (type === 'EMP_ID') {
-      opts = TARGETS.employees.map(e => [e.empId, `${e.name} (${e.empCode || e.empId})`]);
+      opts = TARGETS.employees.map(e => [e.empId, `${e.name} (${e.empCode || ''})`]);
     } else if (type === 'DESIGNATION') {
       opts = TARGETS.designations.map(d => [d.code, `${d.name}${d.hierarchyLevel != null ? ' · level ' + d.hierarchyLevel : ''}`]);
     } else {

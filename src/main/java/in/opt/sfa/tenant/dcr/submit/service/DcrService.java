@@ -520,7 +520,7 @@ public class DcrService {
         Set<String> wanted = new LinkedHashSet<>(f.getJointWith());
         f.getVisits().forEach(v -> wanted.addAll(v.getJointWith()));
         f.getUnlisted().forEach(u -> wanted.addAll(u.getJointWith()));
-        for (String w : wanted) if (!allowedJoint.contains(w)) throw new IllegalStateException("You cannot record joint working with " + w);
+        for (String w : wanted) if (!allowedJoint.contains(w)) throw new IllegalStateException("You cannot record joint working with " + empLabel(w));
         Map<String, String> rl = rules.of(me);
         int maxUnlisted = DcrRuleService.integer(rl, "UNLISTED_CLIENT_MAXIMUM_VALIDATION", 0);
         if (maxUnlisted > 0 && f.getUnlisted().size() > maxUnlisted) throw new IllegalStateException("You can add at most " + maxUnlisted + " unlisted check-ins in a day");
@@ -959,5 +959,10 @@ public class DcrService {
     private static Timestamp dateTime(String s, String what) {
         if (Strings.isBlank(s)) return null;
         try { return Timestamp.valueOf(LocalDateTime.parse(s.trim().replace(' ', 'T'))); } catch (Exception e) { throw new IllegalStateException(what + " is not valid (yyyy-MM-ddTHH:mm)"); }
+    }
+
+    /** "Name (code)" of an employee for a message - never the internal employee id. */
+    private String empLabel(String empId) {
+        return jdbc.queryForList("SELECT CONCAT(emp_name, ' (', emp_code, ')') AS n FROM emp_detail WHERE emp_id = ?", empId).stream().findFirst().map(r -> String.valueOf(r.get("n"))).orElse("this employee");
     }
 }
