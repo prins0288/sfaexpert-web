@@ -73,6 +73,13 @@
   .dcr-kind i { font-size: 1.7rem; color: var(--bs-primary); }
   .dcr-kind:active { background: var(--bs-tertiary-bg); }
   .dcr-kind small { font-weight: 400; color: var(--bs-secondary-color); }
+  .dcr-rows { border: 1px solid var(--bs-border-color); border-radius: 1rem; overflow: hidden; }
+  .dcr-row { width: 100%; display: flex; align-items: center; gap: .8rem; background: var(--bs-body-bg); border: 0; border-bottom: 1px solid var(--bs-border-color); padding: .85rem 1rem; }
+  .dcr-row:last-child { border-bottom: 0; } .dcr-row > i:first-child { font-size: 1.3rem; color: var(--bs-primary); }
+  .dcr-step { display: flex; align-items: center; gap: .6rem; } .dcr-step b { min-width: 1.6rem; text-align: center; }
+  .dcr-step button { width: 2.1rem; height: 2.1rem; border-radius: 50%; border: 1px solid var(--bs-border-color); background: var(--bs-body-bg); font-size: 1.2rem; line-height: 1; }
+  .dcr-step button:active { background: var(--bs-tertiary-bg); }
+  .dcr-panel-done { position: sticky; bottom: 0; padding: .75rem 0 .25rem; background: var(--bs-body-bg); margin-top: .5rem; }
   .dcr-add { width: 100%; border: 2px dashed var(--bs-border-color); background: transparent; border-radius: 1rem; padding: .85rem; font-weight: 600; color: var(--bs-primary); }
   .dcr-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: flex; gap: .6rem; align-items: center; padding: .65rem 1rem calc(.65rem + env(safe-area-inset-bottom)); background: var(--bs-body-bg); border-top: 1px solid var(--bs-border-color); box-shadow: 0 -4px 14px rgba(0,0,0,.08); }
   .dcr-bar .btn { border-radius: 999px; padding: .55rem 1.1rem; font-weight: 600; }
@@ -475,6 +482,7 @@
     document.getElementById('sheetTitle').textContent = title;
     document.getElementById('sheetBody').innerHTML = body;
     document.getElementById('sheetFoot').innerHTML = foot || '';
+    document.getElementById('sheetFoot').classList.remove('d-none');
     SHEET_ON_CLOSE = onClose || null;
     SHEET.show();
   }
@@ -497,9 +505,10 @@
   }
   function callFoot() {
     const o = EDIT.o, ro = !ST.canEdit;
+    document.getElementById('sheetFoot').classList.toggle('d-none', !!EDIT.panel);
     document.getElementById('sheetFoot').innerHTML = ro ? '<button class="btn btn-light" onclick="sheetClose()">Close</button>'
       : !o.inTime ? '<button class="btn btn-light" onclick="sheetX()">Cancel</button><button class="btn btn-success" onclick="doCheckIn()"><i class="bi bi-geo-alt"></i> Check in</button>'
-      : !o.outTime && !o.refused ? '<button class="btn btn-outline-danger" style="flex:0 0 auto" onclick="callDelete()" title="Delete this check-in"><i class="bi bi-trash"></i></button><button class="btn btn-outline-primary" onclick="callSave()"><i class="bi bi-save"></i> Save</button><button class="btn btn-success" onclick="doCheckOut()"><i class="bi bi-box-arrow-right"></i> Check out</button>'
+      : !o.outTime && !o.refused ? '<button class="btn btn-outline-danger" style="flex:0 0 auto" onclick="callDelete()" title="Delete this check-in"><i class="bi bi-trash"></i></button><button class="btn btn-outline-primary" onclick="callSave()"><i class="bi bi-save"></i> Save</button><button class="btn btn-success" onclick="confirmCheckOut()"><i class="bi bi-box-arrow-right"></i> Submit Details</button>'
       : '<button class="btn btn-outline-danger" style="flex:0 0 auto" onclick="callDelete()" title="Delete this check-in"><i class="bi bi-trash"></i></button><button class="btn btn-primary" onclick="callSave()"><i class="bi bi-check2"></i> Done</button>';
   }
   const tabOf = (code) => OPT.tabs.find(t => t.code === code) || { subForms: [] };
@@ -518,47 +527,93 @@
         ${field('Contact person', `<input class="form-control" value="${esc(o.contactPerson)}" oninput="${o_('contactPerson')}=this.value" />`, 'col-6')}
         ${field('Area', `<select class="form-select" data-no-search onchange="${o_('areaId')}=this.value">${opts(OPT.areas, o.areaId, 'Select area')}</select>`)}
         ${field('Address', `<textarea class="form-control" rows="2" oninput="${o_('address')}=this.value">${esc(o.address)}</textarea>`)}</div>`;
+    }
+    if (!u) h = clientHead(o) + h;
+    if (!o.inTime) {
+      h += `<div class="alert alert-info mt-3 mb-0 py-2 small"><i class="bi bi-info-circle"></i> ${u ? 'Fill the client details, then tap <b>Check in</b>.' : 'Tap <b>Check in</b> when you reach the client.'} The time is captured and saved in your draft.</div>`;
+    } else if (EDIT.panel) {
+      h = panelHtml(o, EDIT.panel);   // one detail panel at a time, like the phone app
     } else {
-      h += `<div class="small text-muted mb-2">${esc([o.clientCode, o.clientTypeName].filter(Boolean).join(' · '))}</div>`;
+      h += `<div class="alert ${o.outTime || o.refused ? 'alert-secondary' : 'alert-success'} mb-3 py-2"><i class="bi bi-geo-alt-fill"></i> Checked in at <b>${esc(o.inTime)}</b>${o.checkinLat ? ' · location saved' : ''}${o.outTime ? ` · Checked out at <b>${esc(o.outTime)}</b>` : o.refused ? '' : ' — tap <b>Submit Details</b> when you leave'}</div>`;
+      h += `<div class="dcr-sec mt-0">Visit type</div><div class="dcr-chips">` + (OPT.visitTypes.length ? OPT.visitTypes : ['CALL']).map(v => `<button type="button" class="dcr-chip ${o.visitType === v ? 'on' : ''}" onclick="EDIT.o.visitType='${esc(v)}';renderCall()">${esc(v)}</button>`).join('') + '</div>';
+      h += `<div class="form-check form-switch my-3"><input class="form-check-input" type="checkbox" id="refSw" ${o.refused ? 'checked' : ''} onchange="${o_('refused')}=this.checked"><label class="form-check-label" for="refSw">Client refused to meet</label></div>`;
+      h += '<div class="dcr-sec">Activity details</div><div class="dcr-rows">' + detailRows(o, subs) + '</div>';
     }
-    h += `<div class="dcr-sec">Visit</div><div class="row g-2">
-        ${field('Visit type', `<select class="form-select" data-no-search onchange="${o_('visitType')}=this.value">${opts(OPT.visitTypes.length ? OPT.visitTypes : ['CALL'], o.visitType, '')}</select>`, 'col-6')}
-        ${field('Activity', `<select class="form-select" data-no-search onchange="${o_('activityType')}=this.value">${opts(OPT.activityTypes, o.activityType)}</select>`, 'col-6')}
-        ${u ? '' : field('Area', `<select class="form-select" data-no-search onchange="${o_('areaId')}=this.value">${opts(OPT.areas, o.areaId)}</select>`)}</div>`;
-    h += o.inTime ? `<div class="alert ${o.outTime || o.refused ? 'alert-secondary' : 'alert-success'} mt-3 mb-0 py-2"><i class="bi bi-geo-alt-fill"></i> Checked in at <b>${esc(o.inTime)}</b>${o.checkinLat ? ' · location saved' : ''}${o.outTime ? ` · Checked out at <b>${esc(o.outTime)}</b>` : o.refused ? '' : ' — tap <b>Check out</b> when you leave'}</div>`
-      : `<div class="alert alert-info mt-3 mb-0 py-2 small"><i class="bi bi-info-circle"></i> ${u ? 'Fill the client details, then tap <b>Check in</b>.' : 'Tap <b>Check in</b> when you reach the client.'} It is saved in your draft and the time is captured.</div>`;
-    h += `<div class="form-check form-switch my-3"><input class="form-check-input" type="checkbox" id="refSw" ${o.refused ? 'checked' : ''} onchange="${o_('refused')}=this.checked"><label class="form-check-label" for="refSw">Client refused to meet</label></div>`;
-    if (subs.includes('ITEMS')) {
-      h += `<div class="dcr-sec">Items — sample / gift / input / POB</div>` + (o.items.map((it, i) => itemRow(it, i)).join('') || '<div class="small text-muted mb-2">No items added</div>')
-        + `<button class="btn btn-outline-primary btn-sm rounded-pill" onclick="addItem()"><i class="bi bi-plus"></i> Add item</button>
-          <div class="row g-2 mt-2">${field('POB value (₹) — used when no POB items', `<input class="form-control" type="number" inputmode="decimal" value="${esc(o.pobValue)}" oninput="${o_('pobValue')}=this.value" />`)}</div>`;
-    } else {
-      h += `<div class="row g-2 mt-1">${field('POB value (₹)', `<input class="form-control" type="number" inputmode="decimal" value="${esc(o.pobValue)}" oninput="${o_('pobValue')}=this.value" />`)}</div>`;
-    }
-    if (subs.includes('LEAFLETS')) {
-      const leafItems = OPT.items;
-      h += `<div class="dcr-sec">Leaflets</div>` + (o.leaflets.map((l, i) => `<div class="dcr-item"><div class="row g-2 align-items-end">
-        ${field('Leaflet', `<select class="form-select" data-no-search onchange="EDIT.o.leaflets[${i}].itemId=this.value">${opts(leafItems, l.itemId, 'Select')}</select>`, 'col-8')}
-        ${field('Qty', `<input class="form-control" type="number" inputmode="numeric" value="${esc(l.qty)}" oninput="EDIT.o.leaflets[${i}].qty=this.value" />`, 'col-3')}
-        <div class="col-1 text-end"><button class="btn btn-sm text-danger" onclick="EDIT.o.leaflets.splice(${i},1);renderCall()"><i class="bi bi-x-lg"></i></button></div></div></div>`).join(''))
-        + `<button class="btn btn-outline-primary btn-sm rounded-pill" onclick="EDIT.o.leaflets.push({itemId:'',qty:1,value:0});renderCall()"><i class="bi bi-plus"></i> Add leaflet</button>`;
-    }
-    if (subs.includes('TREATMENT') && OPT.treatments.length) {
-      h += `<div class="dcr-sec">Treatment</div><div class="dcr-chips">` + OPT.treatments.map(t => `<button type="button" class="dcr-chip ${o.treatments.includes(t.id) ? 'on' : ''}" onclick="toggleIn(EDIT.o.treatments,${t.id});renderCall()">${esc(t.name)}</button>`).join('') + '</div>';
-    }
-    if (OPT.tabs.some(t => t.form === 'JOINT') && OPT.joint.length) {
-      h += `<div class="dcr-sec">Worked with</div><div class="dcr-chips">` + OPT.joint.map(j => `<button type="button" class="dcr-chip ${o.jointWith.includes(j.id) ? 'on' : ''}" onclick="toggleIn(EDIT.o.jointWith,'${esc(j.id)}');renderCall()">${esc(j.name)}</button>`).join('') + '</div>';
-    }
-    h += `<div class="dcr-sec">Remarks & next visit</div><div class="row g-2">
-      ${field('Remarks', `<textarea class="form-control" rows="2" oninput="${o_('remarks')}=this.value">${esc(o.remarks)}</textarea>`)}
-      ${field('Next visit', `<input class="form-control" type="date" value="${esc(o.nextVisit)}" oninput="${o_('nextVisit')}=this.value" />`, 'col-6')}
-      ${field('Priority', `<select class="form-select" data-no-search onchange="${o_('nextVisitPriority')}=this.value">${opts(['LOW', 'MEDIUM', 'HIGH'], o.nextVisitPriority)}</select>`, 'col-6')}
-      ${field('Next visit remarks', `<input class="form-control" value="${esc(o.nextVisitRemarks)}" oninput="${o_('nextVisitRemarks')}=this.value" />`)}</div>
-      <div class="dcr-sec">Signature (optional)</div>${o.signaturePath ? `<div class="mb-2">${SFAFiles.thumb(o.signaturePath, null, { name: 'signature' })}</div>` : ''}
-      <input class="form-control" type="file" accept="image/*" onchange="callUpload(this,'signaturePath')" />`;
     const sb = document.getElementById('sheetBody'), top = sb.scrollTop;
     sb.innerHTML = h; sb.scrollTop = top;
     if (window.SFAFiles && SFAFiles.hydrate) SFAFiles.hydrate(sb);
+  }
+  // ---- phone-app style check-out screen: one list row per detail, each opens its own panel with a Done button
+  function clientHead(o) {
+    return `<div class="card-lite dcr-visit mb-2" style="cursor:default"><div class="ava">${esc(initials(o.clientName || '?'))}</div><div class="meta"><b>${esc(o.clientName || 'New client')}</b>
+      <small class="text-muted">${esc([o.clientCode, o.clientTypeName, (OPT.areas.find(a => String(a.id) === String(o.areaId)) || {}).name].filter(Boolean).join(' · '))}</small></div>
+      ${o.inTime ? `<span class="badge bg-success">In ${esc(o.inTime)}</span>` : ''}</div>`;
+  }
+  const typeOf = (...codes) => OPT.items.filter(i => codes.includes(i.type));
+  const rowOf = (id) => EDIT.o.items.find(i => String(i.itemId) === String(id));
+  const cnt = (f, ...codes) => EDIT.o.items.filter(i => codes.includes(i.itemType) && Number(i[f] || 0) > 0).length;
+  function detailRows(o, subs) {
+    const row = (key, icon, title, summary) => `<button type="button" class="dcr-row" onclick="openPanel('${key}')"><i class="bi bi-${icon}"></i><span class="flex-fill text-start"><b>${title}</b>${summary ? `<small class="d-block text-muted">${esc(summary)}</small>` : ''}</span><i class="bi bi-chevron-right text-muted"></i></button>`;
+    let h = '';
+    if (OPT.tabs.some(t => t.form === 'JOINT') && OPT.joint.length) h += row('joint', 'people', 'Joint Work', o.jointWith.length ? o.jointWith.map(jname).join(', ') : 'Self work');
+    if (subs.includes('ITEMS')) {
+      const det = o.items.filter(i => i.detailed).length, smp = cnt('qty', 'SAMPLE'), inp = cnt('qty', 'GIFT', 'INPUT'), pob = o.items.filter(i => Number(i.pobQty) > 0).length;
+      h += row('detail', 'journal-check', 'Item Detailed List', det ? det + ' detailed' : '');
+      h += row('sample', 'capsule', 'Sample', smp ? smp + ' item' + (smp > 1 ? 's' : '') : '');
+      h += row('input', 'gift', 'Input', inp ? inp + ' item' + (inp > 1 ? 's' : '') : '');
+      h += row('pob', 'cart-check', 'POB / Order', pob ? pob + ' item' + (pob > 1 ? 's' : '') + ' · ₹' + money(callPob(o)) : '');
+    } else h += row('pobv', 'cart-check', 'POB value', o.pobValue ? '₹' + money(o.pobValue) : '');
+    if (subs.includes('LEAFLETS')) h += row('leaflets', 'file-earmark-text', 'Leaflets', o.leaflets.length ? o.leaflets.length + ' added' : '');
+    if (subs.includes('TREATMENT') && OPT.treatments.length) h += row('treat', 'heart-pulse', 'Treatment', o.treatments.length ? o.treatments.length + ' selected' : '');
+    h += row('image', 'camera', 'Capture Image', o.signaturePath ? 'Image added' : '');
+    h += row('remarks', 'chat-left-text', 'Activity / Remarks', [o.activityType, o.remarks].filter(Boolean).join(' · '));
+    return h;
+  }
+  function openPanel(k) { EDIT.panel = k; renderCall(); callFoot(); document.getElementById('sheetBody').scrollTop = 0; }
+  function closePanel() { EDIT.o.items = EDIT.o.items.filter(i => Number(i.qty) > 0 || Number(i.pobQty) > 0 || i.detailed); EDIT.panel = null; renderCall(); callFoot(); }
+  const stepper = (id, f, v) => `<div class="dcr-step"><button type="button" onclick="stp(${id},'${f}',-1)">−</button><b>${v}</b><button type="button" onclick="stp(${id},'${f}',1)">+</button></div>`;
+  function stp(id, f, d) {
+    let r = rowOf(id);
+    if (!r) { const it = OPT.items.find(x => String(x.id) === String(id)); r = { itemId: it.id, itemType: it.type, itemName: it.name, qty: 0, pobQty: 0, rate: it.rate, detailed: false, remarks: '' }; EDIT.o.items.push(r); }
+    r[f] = Math.max(0, (Number(r[f]) || 0) + d); renderCall();
+  }
+  function togDet(id) {
+    let r = rowOf(id);
+    if (!r) { const it = OPT.items.find(x => String(x.id) === String(id)); r = { itemId: it.id, itemType: it.type, itemName: it.name, qty: 0, pobQty: 0, rate: it.rate, detailed: false, remarks: '' }; EDIT.o.items.push(r); }
+    r.detailed = !r.detailed; renderCall();
+  }
+  function panelShell(title, count, body) {
+    return `<div class="d-flex align-items-center mb-2"><button class="btn btn-link px-0" onclick="closePanel()"><i class="bi bi-chevron-left"></i> Back</button><div class="fw-bold ms-2 flex-fill text-center me-4">${title}</div></div>${body}
+      <div class="dcr-panel-done"><button class="dcr-start-btn w-100" onclick="closePanel()">Done${count != null ? ' (' + count + ')' : ''}</button></div>`;
+  }
+  function itemList(list, f, noStep) {
+    return `<input class="form-control mb-2" placeholder="Search…" oninput="const q=this.value.toLowerCase();document.querySelectorAll('.dcr-it').forEach(e=>e.style.display=e.dataset.n.includes(q)?'':'none')" />` +
+      (list.map(i => { const r = rowOf(i.id);
+        return `<div class="dcr-it d-flex align-items-center gap-2 py-2 border-bottom" data-n="${esc(i.name.toLowerCase())}"><div class="flex-fill"><b>${esc(i.name)}</b><small class="d-block text-muted">${esc(i.type)}${f === 'pobQty' && i.rate ? ' · ₹' + money(i.rate) : ''}</small></div>
+          ${noStep ? `<div class="form-check form-switch m-0"><input class="form-check-input" type="checkbox" ${r && r.detailed ? 'checked' : ''} onchange="togDet(${i.id})"></div>` : stepper(i.id, f, r ? (Number(r[f]) || 0) : 0)}</div>`; }).join('') || '<div class="dcr-empty">No items</div>');
+  }
+  function panelHtml(o, k) {
+    const o_ = (x) => `EDIT.o.${x}`;
+    if (k === 'joint') return panelShell('Joint Work', o.jointWith.length, `<button class="btn ${o.jointWith.length ? 'btn-outline-primary' : 'btn-primary'} w-100 mb-3" onclick="EDIT.o.jointWith=[];renderCall()">Click For Self Work</button>
+      <div class="dcr-chips">${OPT.joint.map(j => `<button type="button" class="dcr-chip ${o.jointWith.includes(j.id) ? 'on' : ''}" onclick="toggleIn(EDIT.o.jointWith,'${esc(j.id)}');renderCall()">${esc(j.name)}</button>`).join('')}</div>`);
+    if (k === 'detail') return panelShell('Item Detailed List', o.items.filter(i => i.detailed).length, itemList(typeOf('PRODUCT'), 'detailed', true));
+    if (k === 'sample') return panelShell('Sample', cnt('qty', 'SAMPLE'), itemList(typeOf('SAMPLE'), 'qty'));
+    if (k === 'input') return panelShell('Input', cnt('qty', 'GIFT', 'INPUT'), itemList(typeOf('GIFT', 'INPUT'), 'qty'));
+    if (k === 'pob') return panelShell('POB / Order', o.items.filter(i => Number(i.pobQty) > 0).length, itemList(typeOf('PRODUCT'), 'pobQty') + `<div class="d-flex justify-content-between pt-3"><span class="text-muted">POB total</span><b>₹${money(callPob(o))}</b></div>`);
+    if (k === 'pobv') return panelShell('POB value', null, field('POB value (₹)', `<input class="form-control" type="number" inputmode="decimal" value="${esc(o.pobValue)}" oninput="${o_('pobValue')}=this.value" />`));
+    if (k === 'leaflets') return panelShell('Leaflets', o.leaflets.length, (o.leaflets.map((l, i) => `<div class="dcr-item"><div class="row g-2 align-items-end">
+        ${field('Leaflet', `<select class="form-select" data-no-search onchange="EDIT.o.leaflets[${i}].itemId=this.value">${opts(OPT.items, l.itemId, 'Select')}</select>`, 'col-8')}
+        ${field('Qty', `<input class="form-control" type="number" inputmode="numeric" value="${esc(l.qty)}" oninput="EDIT.o.leaflets[${i}].qty=this.value" />`, 'col-3')}
+        <div class="col-1 text-end"><button class="btn btn-sm text-danger" onclick="EDIT.o.leaflets.splice(${i},1);renderCall()"><i class="bi bi-x-lg"></i></button></div></div></div>`).join(''))
+        + `<button class="btn btn-outline-primary btn-sm rounded-pill" onclick="EDIT.o.leaflets.push({itemId:'',qty:1,value:0});renderCall()"><i class="bi bi-plus"></i> Add leaflet</button>`);
+    if (k === 'treat') return panelShell('Treatment', o.treatments.length, `<div class="dcr-chips">` + OPT.treatments.map(t => `<button type="button" class="dcr-chip ${o.treatments.includes(t.id) ? 'on' : ''}" onclick="toggleIn(EDIT.o.treatments,${t.id});renderCall()">${esc(t.name)}</button>`).join('') + '</div>');
+    if (k === 'image') return panelShell('Capture Image', o.signaturePath ? 1 : 0, `${o.signaturePath ? `<div class="mb-2">${SFAFiles.thumb(o.signaturePath, null, { name: 'image' })}</div>` : ''}
+      <input class="form-control" type="file" accept="image/*" capture="environment" onchange="callUpload(this,'signaturePath')" />`);
+    return panelShell('Activity / Remarks', null, `<div class="dcr-chips mb-3">${OPT.activityTypes.map(a => `<button type="button" class="dcr-chip ${o.activityType === a ? 'on' : ''}" onclick="EDIT.o.activityType=EDIT.o.activityType==='${esc(a)}'?'':'${esc(a)}';renderCall()">${esc(a)}</button>`).join('')}</div>
+      <div class="row g-2">${field('Remarks', `<textarea class="form-control" rows="3" oninput="${o_('remarks')}=this.value">${esc(o.remarks)}</textarea>`)}
+      ${field('Next visit', `<input class="form-control" type="date" value="${esc(o.nextVisit)}" oninput="${o_('nextVisit')}=this.value" />`, 'col-6')}
+      ${field('Priority', `<select class="form-select" data-no-search onchange="${o_('nextVisitPriority')}=this.value">${opts(['LOW', 'MEDIUM', 'HIGH'], o.nextVisitPriority)}</select>`, 'col-6')}
+      ${field('Next visit remarks', `<input class="form-control" value="${esc(o.nextVisitRemarks)}" oninput="${o_('nextVisitRemarks')}=this.value" />`)}</div>`);
   }
   function itemRow(it, i) {
     return `<div class="dcr-item"><div class="row g-2 align-items-end">
@@ -600,6 +655,11 @@
     const g = await getPos();
     o.inTime = nowHm(); o.checkinAt = nowDt(); if (g) { o.checkinLat = g.lat; o.checkinLng = g.lng; }
     if (await persistCall(true)) SFA.toast('Checked in at ' + o.inTime + ' — saved in your draft', true);
+  }
+  function confirmCheckOut() {
+    if (!confirm('Submit details and check out of ' + (EDIT.o.clientName || 'this client') + '?')) return;
+    EDIT.o.items = EDIT.o.items.filter(i => Number(i.qty) > 0 || Number(i.pobQty) > 0 || i.detailed);
+    doCheckOut();
   }
   async function doCheckOut() {
     EDIT.o.outTime = nowHm();
