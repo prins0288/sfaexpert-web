@@ -1,4 +1,4 @@
--- 96: menus Tour Plan and Tour Plan Approval (next to the DCR). Idempotent. (Holiday Master menu is in 95.)
+-- 96: menus Tour Plan, Tour Plan Approval and DCR Approval (next to the DCR). Idempotent. (Holiday Master menu is in 95.)
 
 USE acme_db;
 -- parent: next to the DCR; else the Sales menu; else Reports; else the first top-level menu
@@ -17,6 +17,12 @@ FROM (SELECT emp_id FROM company_menu_self WHERE id = @tp_parent LIMIT 1) p CROS
 WHERE @tp_parent IS NOT NULL AND NOT EXISTS (SELECT 1 FROM company_menu_self WHERE page = 'tourplanapproval');
 -- make sure an earlier row is visible / active
 UPDATE company_menu_self SET is_visible = 1, is_active = 1 WHERE page IN ('tourplan', 'tourplanapproval', 'holidaymaster');
+-- DCR Approval: the DCR page opened on "Waiting for my approval"
+SET @ap_parent := COALESCE((SELECT parent_id FROM company_menu_self WHERE page = 'dcrsubmit' LIMIT 1), (SELECT parent_id FROM company_menu_self WHERE page = 'tourplan' LIMIT 1));
+INSERT INTO company_menu_self (id, parent_id, emp_id, menu_type, label, title, icon, page, href, target, sort_order, is_visible, is_active)
+SELECT nx.next_id, @ap_parent, p.emp_id, 'WEB', 'DCR Approval', 'Approve / reject submitted DCRs', 'patch-check', 'dcrapproval', 'dcr/dcr-submit.html?view=approval', '_SELF', 8, 1, 1
+FROM (SELECT emp_id FROM company_menu_self WHERE id = @ap_parent LIMIT 1) p CROSS JOIN (SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM company_menu_self) nx
+WHERE @ap_parent IS NOT NULL AND NOT EXISTS (SELECT 1 FROM company_menu_self WHERE page = 'dcrapproval');
 SELECT DATABASE() AS db, (SELECT COUNT(*) FROM company_menu_self WHERE page = 'tourplan') AS tour_plan, (SELECT COUNT(*) FROM company_menu_self WHERE page = 'tourplanapproval') AS tp_approval, (SELECT COUNT(*) FROM company_menu_self WHERE page = 'holidaymaster') AS holiday_master;
 
 USE globex_db;
@@ -36,6 +42,12 @@ FROM (SELECT emp_id FROM company_menu_self WHERE id = @tp_parent LIMIT 1) p CROS
 WHERE @tp_parent IS NOT NULL AND NOT EXISTS (SELECT 1 FROM company_menu_self WHERE page = 'tourplanapproval');
 -- make sure an earlier row is visible / active
 UPDATE company_menu_self SET is_visible = 1, is_active = 1 WHERE page IN ('tourplan', 'tourplanapproval', 'holidaymaster');
+-- DCR Approval: the DCR page opened on "Waiting for my approval"
+SET @ap_parent := COALESCE((SELECT parent_id FROM company_menu_self WHERE page = 'dcrsubmit' LIMIT 1), (SELECT parent_id FROM company_menu_self WHERE page = 'tourplan' LIMIT 1));
+INSERT INTO company_menu_self (id, parent_id, emp_id, menu_type, label, title, icon, page, href, target, sort_order, is_visible, is_active)
+SELECT nx.next_id, @ap_parent, p.emp_id, 'WEB', 'DCR Approval', 'Approve / reject submitted DCRs', 'patch-check', 'dcrapproval', 'dcr/dcr-submit.html?view=approval', '_SELF', 8, 1, 1
+FROM (SELECT emp_id FROM company_menu_self WHERE id = @ap_parent LIMIT 1) p CROSS JOIN (SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM company_menu_self) nx
+WHERE @ap_parent IS NOT NULL AND NOT EXISTS (SELECT 1 FROM company_menu_self WHERE page = 'dcrapproval');
 SELECT DATABASE() AS db, (SELECT COUNT(*) FROM company_menu_self WHERE page = 'tourplan') AS tour_plan, (SELECT COUNT(*) FROM company_menu_self WHERE page = 'tourplanapproval') AS tp_approval, (SELECT COUNT(*) FROM company_menu_self WHERE page = 'holidaymaster') AS holiday_master;
 
 USE initech_db;
@@ -55,6 +67,12 @@ FROM (SELECT emp_id FROM company_menu_self WHERE id = @tp_parent LIMIT 1) p CROS
 WHERE @tp_parent IS NOT NULL AND NOT EXISTS (SELECT 1 FROM company_menu_self WHERE page = 'tourplanapproval');
 -- make sure an earlier row is visible / active
 UPDATE company_menu_self SET is_visible = 1, is_active = 1 WHERE page IN ('tourplan', 'tourplanapproval', 'holidaymaster');
+-- DCR Approval: the DCR page opened on "Waiting for my approval"
+SET @ap_parent := COALESCE((SELECT parent_id FROM company_menu_self WHERE page = 'dcrsubmit' LIMIT 1), (SELECT parent_id FROM company_menu_self WHERE page = 'tourplan' LIMIT 1));
+INSERT INTO company_menu_self (id, parent_id, emp_id, menu_type, label, title, icon, page, href, target, sort_order, is_visible, is_active)
+SELECT nx.next_id, @ap_parent, p.emp_id, 'WEB', 'DCR Approval', 'Approve / reject submitted DCRs', 'patch-check', 'dcrapproval', 'dcr/dcr-submit.html?view=approval', '_SELF', 8, 1, 1
+FROM (SELECT emp_id FROM company_menu_self WHERE id = @ap_parent LIMIT 1) p CROSS JOIN (SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM company_menu_self) nx
+WHERE @ap_parent IS NOT NULL AND NOT EXISTS (SELECT 1 FROM company_menu_self WHERE page = 'dcrapproval');
 SELECT DATABASE() AS db, (SELECT COUNT(*) FROM company_menu_self WHERE page = 'tourplan') AS tour_plan, (SELECT COUNT(*) FROM company_menu_self WHERE page = 'tourplanapproval') AS tp_approval, (SELECT COUNT(*) FROM company_menu_self WHERE page = 'holidaymaster') AS holiday_master;
 
 USE sfa_demo;
@@ -74,4 +92,10 @@ FROM (SELECT emp_id FROM company_menu_self WHERE id = @tp_parent LIMIT 1) p CROS
 WHERE @tp_parent IS NOT NULL AND NOT EXISTS (SELECT 1 FROM company_menu_self WHERE page = 'tourplanapproval');
 -- make sure an earlier row is visible / active
 UPDATE company_menu_self SET is_visible = 1, is_active = 1 WHERE page IN ('tourplan', 'tourplanapproval', 'holidaymaster');
+-- DCR Approval: the DCR page opened on "Waiting for my approval"
+SET @ap_parent := COALESCE((SELECT parent_id FROM company_menu_self WHERE page = 'dcrsubmit' LIMIT 1), (SELECT parent_id FROM company_menu_self WHERE page = 'tourplan' LIMIT 1));
+INSERT INTO company_menu_self (id, parent_id, emp_id, menu_type, label, title, icon, page, href, target, sort_order, is_visible, is_active)
+SELECT nx.next_id, @ap_parent, p.emp_id, 'WEB', 'DCR Approval', 'Approve / reject submitted DCRs', 'patch-check', 'dcrapproval', 'dcr/dcr-submit.html?view=approval', '_SELF', 8, 1, 1
+FROM (SELECT emp_id FROM company_menu_self WHERE id = @ap_parent LIMIT 1) p CROSS JOIN (SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM company_menu_self) nx
+WHERE @ap_parent IS NOT NULL AND NOT EXISTS (SELECT 1 FROM company_menu_self WHERE page = 'dcrapproval');
 SELECT DATABASE() AS db, (SELECT COUNT(*) FROM company_menu_self WHERE page = 'tourplan') AS tour_plan, (SELECT COUNT(*) FROM company_menu_self WHERE page = 'tourplanapproval') AS tp_approval, (SELECT COUNT(*) FROM company_menu_self WHERE page = 'holidaymaster') AS holiday_master;

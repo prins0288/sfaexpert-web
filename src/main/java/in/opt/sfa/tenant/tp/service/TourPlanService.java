@@ -52,19 +52,34 @@ public class TourPlanService {
     // options
     // =========================================================================================
 
-    /** Everything the planner needs: day types, my areas (with area type), my clients per kind, seniors / juniors. */
+    /**
+     * The employee whose plan is being changed: myself, or - for a manager / admin whose approval the submitted plan is waiting for -
+     * the plan's owner (he may correct any date while approving).
+     */
+    private String owner(Object empParam, int year, int month) {
+        String me = me(), emp = empParam == null || String.valueOf(empParam).isBlank() ? me : String.valueOf(empParam).trim();
+        if (emp.equals(me)) return me;
+        Map<String, Object> p = parentRow(emp, year, month);
+        if (p == null || !approval.canApprove(toRow(p), APPROVAL, approval.actor(APPROVAL))) throw new ForbiddenException("You can change another employee's plan only while it waits for your approval");
+        return emp;
+    }
+
+    /** Everything the planner needs: day types, areas (with area type), clients per kind, seniors / juniors - of me, or of the plan's owner for an approver. */
     @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
-    public Map<String, Object> options() {
+    public Map<String, Object> options(String empParam) {
         String me = me();
+        int y = LocalDate.now().getYear(), mo = LocalDate.now().getMonthValue();
+        String emp = Strings.isBlank(empParam) || empParam.trim().equals(me) ? me : empParam.trim();
+        if (!emp.equals(me)) scope.require(TeamScope.Scope.TEAM_SELF, emp, "This employee is not in your team");
         Map<String, Object> o = dcr.options();
         Map<String, Object> m = new LinkedHashMap<>();
-        m.put("me", me);
-        m.put("workTypes", o.get("workTypes"));
-        m.put("areas", o.get("areas"));
-        m.put("clients", o.get("clients"));
+        m.put("me", emp);
+        m.put("workTypes", emp.equals(me) ? o.get("workTypes") : worktypes.dayTypes(emp));
+        m.put("areas", emp.equals(me) ? o.get("areas") : dcr.areasFor(emp));
+        m.put("clients", emp.equals(me) ? o.get("clients") : dcr.myClients(emp));
         m.put("clientTypes", o.get("clientTypes"));
-        m.put("tabs", o.get("tabs"));
-        m.put("joint", o.get("joint"));
+        m.put("tabs", emp.equals(me) ? o.get("tabs") : worktypes.tabsFor(emp));
+        m.put("joint", emp.equals(me) ? o.get("joint") : dcr.jointCandidates(emp));
         m.put("approvalFlow", approval.flow(APPROVAL));
         return m;
     }
@@ -198,12 +213,12 @@ public class TourPlanService {
     @Transactional(transactionManager = "tenantTransactionManager")
     @SuppressWarnings("unchecked")
     public Map<String, Object> saveDay(Map<String, Object> f) {
-        String me = me();
         LocalDate date;
         try { date = LocalDate.parse(String.valueOf(f.get("date"))); } catch (Exception e) { throw new IllegalStateException("Choose the date"); }
         int year = date.getYear(), month = date.getMonthValue();
         if (!plannable(date)) throw new IllegalStateException("A past date cannot be planned");
-        editableParent(me, year, month);
+        String me = owner(f.get("empId"), year, month), actor = me();   // me = whose plan; actor = who is changing it
+        if (me.equals(actor)) editableParent(me, year, month);
         String wt = f.get("worktypeCode") == null ? "" : String.valueOf(f.get("worktypeCode")).toUpperCase();
         if (!worktypes.isDayType(me, wt)) throw new IllegalStateException("Choose the work type");
         boolean field = worktypes.isFieldWork(me, wt);
@@ -250,20 +265,31 @@ public class TourPlanService {
         for (Long a : areaIds) jdbc.update("INSERT INTO tour_emp_area (tour_main, tour_date, area_id) VALUES (?,?,?)", tm, date, a);
         for (Map<String, Object> c : clientRows) jdbc.update("INSERT INTO tour_emp_clients (tour_main, tour_date, area_id, client_id) VALUES (?,?,?,?)", tm, date, c.get("areaId"), c.get("clientId"));
         for (String w : withIds) jdbc.update("INSERT INTO tour_emp_visit_with (tour_main, tour_date, visit_with_id) VALUES (?,?,?)", tm, date, w);
-        jdbc.update("UPDATE tour_emp_parent SET updated_by = ? WHERE tour_main = ?", me, tm);
+        jdbc.update("UPDATE tour_emp_parent SET updated_by = ? WHERE tour_main = ?", actor, tm);
+        if (!me.equals(actor)) editLog(tm, "Changed " + date + " (work type " + wt + ")");
         return Map.of("tourMain", tm, "date", date.toString());
     }
 
     /** Take a day out of the plan. */
     @Transactional(transactionManager = "tenantTransactionManager")
-    public void clearDay(LocalDate date) {
-        String me = me();
+    public void clearDay(LocalDate date, String empParam) {
         if (!plannable(date)) throw new IllegalStateException("A past date cannot be changed");
-        Map<String, Object> p = editableParent(me, date.getYear(), date.getMonthValue());
+        String me = owner(empParam, date.getYear(), date.getMonthValue()), actor = me();
+        Map<String, Object> p = me.equals(actor) ? editableParent(me, date.getYear(), date.getMonthValue()) : parentRow(me, date.getYear(), date.getMonthValue());
         if (p == null) return;
         long tm = ((Number) p.get("tour_main")).longValue();
         jdbc.update("DELETE FROM tour_child WHERE tour_main = ? AND tour_date = ?", tm, date);
         for (String t : List.of("tour_emp_area", "tour_emp_clients", "tour_emp_visit_with")) jdbc.update("DELETE FROM " + t + " WHERE tour_main = ? AND tour_date = ?", tm, date);
+        if (!me.equals(actor)) editLog(tm, "Removed " + date + " from the plan");
+    }
+
+    /** An approver's correction of a submitted plan goes into its approval trail. */
+    private void editLog(long tm, String remarks) {
+        String actor = me();
+        Map<String, Object> e = jdbc.queryForList("SELECT e.emp_name AS name, d.designation FROM emp_detail e LEFT JOIN designation_master d ON d.id = e.designation WHERE e.emp_id = ?", actor).stream().findFirst().orElse(Map.of());
+        String status = (String) jdbc.queryForList("SELECT approval_status FROM tour_emp_parent WHERE tour_main = ?", tm).get(0).get("approval_status");
+        jdbc.update("INSERT INTO tour_emp_approval_log (tour_main, step, action, status_after, remarks, by_emp_id, by_name, by_designation) VALUES (?,?,?,?,?,?,?,?)",
+                tm, "EDIT", "EDITED", status, remarks, actor, e.get("name"), e.get("designation"));
     }
 
     @Transactional(transactionManager = "tenantTransactionManager")

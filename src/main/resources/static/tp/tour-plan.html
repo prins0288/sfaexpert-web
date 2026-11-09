@@ -117,12 +117,12 @@
   const ST_NAME = { DRAFT: ['Draft', ''], PENDING_MANAGER: ['Waiting for manager', 'wait'], PENDING_ADMIN: ['Waiting for admin', 'wait'], APPROVED: ['Approved', 'ok'], REJECTED: ['Rejected', 'bad'] };
   const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  let OPT = null, PLAN = null, Y = new Date().getFullYear(), M = new Date().getMonth() + 1, VIEW = null, TAB = 'my', SHEET = null, DAY = null;
+  let OPT = null, OPT_OWN = null, PLAN = null, Y = new Date().getFullYear(), M = new Date().getMonth() + 1, VIEW = null, TAB = 'my', SHEET = null, DAY = null;
 
   window.pageInit = async function () {
     SHEET = new bootstrap.Offcanvas('#tpSheet');
     document.getElementById('tpDow').innerHTML = DOW.map(d => `<div class="tp-dow">${d}</div>`).join('');
-    try { OPT = await Api.get(EP.options); await tpLoad(); teamPending(); if (/[?&]tab=team/.test(location.search)) tpTab('team'); } catch (e) { SFA.toast(e.message, false); }
+    try { OPT = OPT_OWN = await Api.get(EP.options); await tpLoad(); teamPending(); if (/[?&]tab=team/.test(location.search)) tpTab('team'); } catch (e) { SFA.toast(e.message, false); }
   };
   const isField = (code) => !!((OPT.workTypes.find(w => w.code === code) || {}).fieldWork);
   const wtName = (code) => ((OPT.workTypes.find(w => w.code === code) || {}).name) || code;
@@ -139,6 +139,8 @@
   }
   async function tpLoad() {
     PLAN = await Api.get(EP.plan, { query: { year: Y, month: M, empId: VIEW } });
+    // a manager / admin whose approval the plan waits for may correct its days: plan with the OWNER's areas, clients, seniors / juniors
+    OPT = VIEW && PLAN.canApprove ? await Api.get(EP.options, { query: { empId: VIEW } }) : OPT_OWN;
     render();
   }
 
@@ -149,6 +151,7 @@
     document.getElementById('tpStatus').innerHTML = `<span class="ap-badge ${st[1]}">${st[0]}</span>`;
     const ban = [];
     if (!PLAN.mine) ban.push(`<div class="ap-card d-flex align-items-center gap-2"><i class="bi bi-person-lines-fill text-primary fs-4"></i><div class="flex-fill"><b>${esc(PLAN.empName)}</b><small class="d-block text-muted">Viewing this plan</small></div><button class="ap-btn light sm" onclick="tpBack()">Back</button></div>`);
+    if (PLAN.canApprove) ban.push('<div class="alert alert-info py-2 small"><i class="bi bi-pencil-square"></i> You can correct any upcoming date of this plan before you approve it - tap the date. Your changes are noted in the approval trail.</div>');
     if (PLAN.status === 'REJECTED' && PLAN.rejectReason) ban.push(`<div class="alert alert-danger py-2 small"><i class="bi bi-x-circle"></i> Rejected: ${esc(PLAN.rejectReason)} - correct the plan and submit again.</div>`);
     document.getElementById('tpBanner').innerHTML = ban.join('');
     document.getElementById('pMy').classList.toggle('d-none', TAB !== 'my' && !VIEW);
@@ -160,8 +163,8 @@
     calendar();
     const trail = PLAN.approval || [];
     document.getElementById('tpTrailCard').classList.toggle('d-none', !trail.length);
-    document.getElementById('tpTrail').innerHTML = trail.map(t => `<div class="ap-row" style="cursor:default"><i class="bi bi-${t.action === 'REJECTED' ? 'x-circle text-danger' : t.action === 'APPROVED' ? 'check-circle text-success' : 'send text-primary'} fs-5"></i>
-      <div class="grow"><b>${esc(({ REQUESTED: 'Submitted', APPROVED: 'Approved', REJECTED: 'Rejected' })[t.action] || t.action)}</b> <small class="d-inline text-muted">${esc(t.step === 'MANAGER' ? 'manager step' : t.step === 'FINAL' ? 'final' : '')}</small>
+    document.getElementById('tpTrail').innerHTML = trail.map(t => `<div class="ap-row" style="cursor:default"><i class="bi bi-${t.action === 'REJECTED' ? 'x-circle text-danger' : t.action === 'APPROVED' ? 'check-circle text-success' : t.action === 'EDITED' ? 'pencil-square text-warning' : 'send text-primary'} fs-5"></i>
+      <div class="grow"><b>${esc(({ REQUESTED: 'Submitted', APPROVED: 'Approved', REJECTED: 'Rejected', EDITED: 'Edited' })[t.action] || t.action)}</b> <small class="d-inline text-muted">${esc(t.step === 'MANAGER' ? 'manager step' : t.step === 'FINAL' ? 'final' : '')}</small>
         <small>${esc(t.byName || '')}${t.byDesignation ? ' · ' + esc(t.byDesignation) : ''} · ${esc(String(t.at).replace('T', ' ').slice(0, 16))}${t.remarks ? ' · ' + esc(t.remarks) : ''}</small></div></div>`).join('');
   }
 
@@ -204,7 +207,7 @@
   // ---------------- one day ----------------
   function dayOpen(ds) {
     const p = (PLAN.days || []).find(d => d.date === ds), hol = (PLAN.holidays || {})[ds] || [];
-    const editable = PLAN.canEdit && ds >= todayStr();
+    const editable = (PLAN.canEdit || PLAN.canApprove) && ds >= todayStr();
     DAY = { date: ds, worktypeCode: p ? p.worktypeCode : '', areaIds: new Set(p ? p.areas.map(a => String(a.id)) : []),
       clients: new Map(p ? p.clients.map(c => [String(c.id), String(c.areaId)]) : []), visitWith: new Set(p ? p.visitWith.map(w => w.id) : []),
       stayAreaId: p && p.stayAreaId ? String(p.stayAreaId) : '', remark: p ? (p.remark || '') : '', existing: !!p, hol };
@@ -299,14 +302,14 @@
   function dayWith(id, on) { on ? DAY.visitWith.add(id) : DAY.visitWith.delete(id); }
   async function daySave() {
     try {
-      await Api.post(EP.day, { date: DAY.date, worktypeCode: DAY.worktypeCode, areaIds: [...DAY.areaIds].map(Number), clients: [...DAY.clients].map(([c, a]) => ({ clientId: Number(c), areaId: Number(a) })),
+      await Api.post(EP.day, { empId: VIEW, date: DAY.date, worktypeCode: DAY.worktypeCode, areaIds: [...DAY.areaIds].map(Number), clients: [...DAY.clients].map(([c, a]) => ({ clientId: Number(c), areaId: Number(a) })),
         visitWith: [...DAY.visitWith], stayAreaId: DAY.stayAreaId ? Number(DAY.stayAreaId) : null, remark: DAY.remark });
       SHEET.hide(); await tpLoad(); SFA.toast('Day saved', true);
     } catch (e) { SFA.toast(e.message, false); }
   }
   async function dayClear() {
     if (!confirm('Take ' + DAY.date + ' out of the plan?')) return;
-    try { await Api.del(EP.day + '?date=' + DAY.date); SHEET.hide(); await tpLoad(); SFA.toast('Day removed'); } catch (e) { SFA.toast(e.message, false); }
+    try { await Api.del(EP.day + '?date=' + DAY.date + (VIEW ? '&empId=' + encodeURIComponent(VIEW) : '')); SHEET.hide(); await tpLoad(); SFA.toast('Day removed'); } catch (e) { SFA.toast(e.message, false); }
   }
   async function tpGoalSave() { try { await Api.post(EP.goal, { year: Y, month: M, goal: document.getElementById('tpGoal').value }); SFA.toast('Goal saved'); } catch (e) { SFA.toast(e.message, false); } }
 

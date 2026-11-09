@@ -263,6 +263,7 @@
       d.max = todayStr(); d.value = todayStr();
       await loadDay();
       pendingBadge();
+      if (/[?&]view=approval/.test(location.search)) { document.getElementById('hStatus').value = 'mine'; dcrView('list'); }   // menu "DCR Approval": the DCRs waiting for me
     } catch (e) { SFA.toast(e.message, false); }
   };
 

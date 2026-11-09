@@ -78,13 +78,7 @@ public class DcrService {
         m.put("backDays", backDays());
         m.put("tabs", worktypes.tabsFor(me));
         m.put("clients", myClients(me));
-        List<Map<String, Object>> areas = jdbc.queryForList("""
-                SELECT oid AS id, area_name AS name, area_type AS areaType FROM area_master
-                WHERE status = 'Y' AND approval_status = 'APPROVED' AND emp_id = ? ORDER BY area_name""", me);
-        if (areas.isEmpty()) {   // nobody's own areas yet: fall back to every approved area
-            areas = jdbc.queryForList("SELECT oid AS id, area_name AS name, area_type AS areaType FROM area_master WHERE status = 'Y' AND approval_status = 'APPROVED' ORDER BY area_name");
-        }
-        m.put("areas", areas);
+        m.put("areas", areasFor(me));
         String itemSql = """
                 SELECT i.id, i.item_code AS code, i.item_name AS name, t.item_type_code AS type, %s AS panel,
                        COALESCE((SELECT r.pts FROM item_rate r WHERE r.item_id = i.id AND r.status = 1
@@ -136,6 +130,17 @@ public class DcrService {
         out.put("planned", plan != null);
         if (plan != null) out.putAll(plan);
         return out;
+    }
+
+    /** The approved areas of an employee (his own; when he has none yet, every approved area). */
+    public List<Map<String, Object>> areasFor(String empId) {
+        List<Map<String, Object>> areas = jdbc.queryForList("""
+                SELECT oid AS id, area_name AS name, area_type AS areaType FROM area_master
+                WHERE status = 'Y' AND approval_status = 'APPROVED' AND emp_id = ? ORDER BY area_name""", empId);
+        if (areas.isEmpty()) {
+            areas = jdbc.queryForList("SELECT oid AS id, area_name AS name, area_type AS areaType FROM area_master WHERE status = 'Y' AND approval_status = 'APPROVED' ORDER BY area_name");
+        }
+        return areas;
     }
 
     /** My approved, active clients with their type / tab, category, speciality, area and visit history. */

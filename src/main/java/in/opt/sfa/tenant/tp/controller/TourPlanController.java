@@ -23,7 +23,8 @@ public class TourPlanController {
     }
 
     @GetMapping("/options")
-    public Map<String, Object> options() { return service.options(); }
+    @Operation(summary = "Planner options of me, or of the plan's owner (empId) for a manager / admin")
+    public Map<String, Object> options(@RequestParam(required = false) String empId) { return service.options(empId); }
 
     @GetMapping("/plan")
     @Operation(summary = "A month's plan with days, holidays and the approval trail (own, or a team member's with empId)")
@@ -39,7 +40,7 @@ public class TourPlanController {
 
     @RequiresPermission("TP_SAVE")
     @DeleteMapping("/day")
-    public void clearDay(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) { service.clearDay(date); }
+    public void clearDay(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date, @RequestParam(required = false) String empId) { service.clearDay(date, empId); }
 
     @RequiresPermission("TP_SAVE")
     @PostMapping("/goal")
