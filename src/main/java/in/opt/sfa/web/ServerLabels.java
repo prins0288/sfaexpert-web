@@ -12,7 +12,7 @@ import java.sql.SQLTransientConnectionException;
 @Component
 public class ServerLabels {
 
-    public static final String MESSAGE = "We're having trouble connecting right now. Please try again in a few minutes.";
+    public static final String MESSAGE = "The service is temporarily unavailable. Please try again in a few minutes. If the problem continues, please contact your system administrator or software provider.";
 
     /** The user-facing message when {@code e} means "a database is down", else null. */
     public String messageFor(Throwable e) {
