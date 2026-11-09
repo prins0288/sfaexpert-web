@@ -77,6 +77,35 @@
   .dcr-pick .row-i:active { background: var(--bs-tertiary-bg); }
   .dcr-empty { text-align: center; color: var(--bs-secondary-color); padding: 1.5rem .5rem; }
   .dcr-readonly input, .dcr-readonly select, .dcr-readonly textarea, .dcr-readonly .dcr-add { pointer-events: none; opacity: .7; }
+  /* ===== Desktop / web look (>=992px): wide page, underline tabs, side-panel editor, inline action bar.
+         Below this width everything above stays the phone-app look. ===== */
+  @media (min-width: 992px) {
+    .dcr-app { max-width: 1120px; padding-bottom: 1.5rem; }
+    .card-lite { border-radius: .5rem; box-shadow: none; padding: 1rem 1.25rem; }
+    .dcr-title { font-size: 1.4rem; font-weight: 700; }
+    .dcr-top { align-items: center; padding-bottom: .75rem; border-bottom: 1px solid var(--bs-border-color); }
+    .dcr-start-btn { border-radius: .4rem; padding: .5rem 1.1rem; box-shadow: none; }
+    .dcr-histlink { padding-top: 0; }
+    .dcr-seg { display: inline-flex; border-radius: .5rem; }
+    .dcr-seg button { border-radius: .4rem; padding: .4rem 1.1rem; }
+    .dcr-date { border-radius: .4rem; max-width: 12rem; }
+    .dcr-tabs { gap: 0; border-bottom: 1px solid var(--bs-border-color); padding: 0; position: static; margin-bottom: 1rem; }
+    .dcr-tabs button { border: 0; border-bottom: 3px solid transparent; border-radius: 0; background: transparent; padding: .65rem 1.1rem; }
+    .dcr-tabs button.active { background: transparent; color: var(--bs-primary); border-bottom-color: var(--bs-primary); }
+    .dcr-tabs button.active .n { background: var(--bs-primary-bg-subtle); }
+    .dcr-pane .form-control, .dcr-pane .form-select, .dcr-sheet .form-control, .dcr-sheet .form-select { border-radius: .4rem; min-height: 2.4rem; }
+    .dcr-chip { border-radius: .4rem; }
+    .dcr-add { border-radius: .5rem; width: auto; padding: .5rem 1.25rem; }
+    .dcr-visit { padding: .1rem 0; }
+    .dcr-visit:hover { background: var(--bs-tertiary-bg); }
+    #dcrBar { position: sticky; bottom: 0; left: auto; right: auto; border: 1px solid var(--bs-border-color); border-radius: .5rem; box-shadow: 0 -2px 10px rgba(0,0,0,.06); margin-top: 1rem; }
+    #dcrBar .btn { border-radius: .4rem; }
+    /* editor opens as a right-hand side panel instead of a phone bottom sheet */
+    .dcr-sheet.offcanvas-bottom { top: 0; bottom: 0; left: auto; right: 0; width: 560px; max-width: 100%; height: 100vh !important; max-height: none; border-radius: 0; border-top: 0; transform: translateX(100%); }
+    .dcr-sheet.offcanvas-bottom.showing, .dcr-sheet.offcanvas-bottom.show:not(.hiding) { transform: none; }
+    .dcr-sheet-foot .btn { border-radius: .4rem; flex: 0 1 auto; min-width: 8rem; }
+    .dcr-sheet-foot { justify-content: flex-end; }
+  }
   @media (max-width: 575px) { .dcr-date { max-width: 9rem; } }
 </style>
 </head>
