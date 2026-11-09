@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>/* reverse-proxy sub-path support: make relative css/js resolve under the deploy prefix (e.g. /sfaexpert), "" locally */
+  (function(){try{var p=location.pathname,m=p.match(/^(.*?)\/u\/\d+(\/|$)/),c=m?m[1]:p.replace(/\/[^\/]*$/,'');document.write('<base href="'+(c||'')+'/">');}catch(e){}})();</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StarSFA &middot; Holiday Master</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css" rel="stylesheet" />
+  <link href="css/app.css" rel="stylesheet" />
+  <link href="css/app-ui.css" rel="stylesheet" />
+  <script>
+    /* Apply the saved theme (mode / layout / density / colours) BEFORE first
+       paint so there is no flash. theme.js re-applies from the server after. */
+    (function () {
+      try {
+        var d = document.documentElement, s = localStorage;
+        // theme is PER TENANT and several tenants can be signed in at once
+        // (/u/0, /u/1...), so these caches are scoped to the account slot —
+        // a shared key would paint the last-customised tenant's colours here.
+        var m = location.pathname.match(/\/u\/(\d+)(\/|$)/), q = '_u' + (m ? m[1] : '0');
+        d.setAttribute('data-theme', s.getItem('sfa_mode' + q) || 'light');
+        d.setAttribute('data-nav', s.getItem('sfa_nav' + q) || 'vertical');
+        d.setAttribute('data-density', s.getItem('sfa_density' + q) || 'comfortable');
+        var f = s.getItem('sfa_font' + q); if (f) d.style.setProperty('--sfa-font-scale', f);
+        var c = s.getItem('sfa_theme' + q);
+        if (c) { c = JSON.parse(c); var t = (c.resolved && c.resolved[c.mode]) || {};
+          for (var k in t) d.style.setProperty('--sfa-' + k, t[k]); }
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+<div id="app" data-page="holidaymaster" data-title="Holiday Master"></div>
+<template id="pageContent">
+<div class="ap-app">
+  <div class="ap-top"><div><h1 class="ap-title">Holiday Master</h1><div class="text-muted small">Holidays by state, HQ or employee · weekly off</div></div>
+    <button class="ap-btn go" onclick="hAdd()"><i class="bi bi-plus-circle"></i> Add holiday</button></div>
+  <div class="ap-seg" id="hSeg">
+    <button class="active" data-t="hol" onclick="hTab('hol')"><i class="bi bi-calendar-event"></i> Holidays</button>
+    <button data-t="rep" onclick="hTab('rep')"><i class="bi bi-diagram-3"></i> Assignment report</button>
+    <button data-t="off" onclick="hTab('off')"><i class="bi bi-calendar2-x"></i> Weekly off</button>
+  </div>
+
+  <div id="pHol">
+    <div class="ap-card d-flex gap-2 align-items-center flex-wrap">
+      <select class="form-select" id="hYear" style="max-width:9rem" onchange="hLoad()"></select>
+      <label class="d-flex align-items-center gap-2 ms-auto"><input type="checkbox" class="form-check-input" id="hAll" onchange="hSelAll(this.checked)"> Select all</label>
+    </div>
+    <div class="ap-card" id="hList"></div>
+  </div>
+
+  <div id="pRep" class="d-none">
+    <div class="ap-card"><div class="row g-2">
+      <div class="col-6 col-md-3"><label class="form-label small mb-0">From</label><input type="date" class="form-control" id="rFrom" onchange="rLoad()"></div>
+      <div class="col-6 col-md-3"><label class="form-label small mb-0">To</label><input type="date" class="form-control" id="rTo" onchange="rLoad()"></div>
+      <div class="col-6 col-md-3"><label class="form-label small mb-0">Assigned to</label>
+        <select class="form-select" id="rType" onchange="rTypeChanged()"><option value="">All</option><option value="STATE">State</option><option value="HQ">HQ</option><option value="EMP">Employee</option></select></div>
+      <div class="col-6 col-md-3"><label class="form-label small mb-0">Which</label><select class="form-select" id="rTarget" onchange="rLoad()" disabled><option value="">All</option></select></div>
+    </div></div>
+    <div class="ap-card"><div class="d-flex align-items-center gap-2 mb-1"><b id="rCount"></b>
+      <label class="d-flex align-items-center gap-2 ms-auto"><input type="checkbox" class="form-check-input" id="rAll" onchange="rSelAll(this.checked)"> Select all</label></div>
+      <div id="rList"></div></div>
+  </div>
+
+  <div id="pOff" class="d-none"><div class="ap-card">
+    <div class="ap-sec mt-0">Weekly off days of the company</div>
+    <p class="text-muted small">These days show as "Weekly off" on every tour plan calendar. Leave all unselected if the company has no weekly off - then only the holidays below are shown.</p>
+    <div class="ap-chips mb-3" id="offChips"></div>
+    <button class="ap-btn" onclick="offSave()"><i class="bi bi-check2"></i> Save</button></div></div>
+
+  <div class="ap-bar" id="hBar"><div class="info" id="hBarInfo"></div>
+    <button class="ap-btn light" id="hBarAssign" onclick="hBulkAssign()"><i class="bi bi-diagram-3"></i> Assign</button>
+    <button class="ap-btn danger" id="hBarDel" onclick="hBarDelete()"><i class="bi bi-trash"></i> Delete</button></div>
+
+  <div class="offcanvas offcanvas-bottom ap-sheet" tabindex="-1" id="hSheet" data-bs-backdrop="true">
+    <div class="offcanvas-header"><h5 class="offcanvas-title" id="hSheetTitle"></h5><button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button></div>
+    <div class="offcanvas-body" id="hSheetBody"></div>
+    <div class="ap-sheet-foot" id="hSheetFoot"></div>
+  </div>
+</div>
+</template>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.colVis.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="js/core/session.js"></script>
+<script src="js/core/endpoints.js"></script>
+<script src="js/core/http.js"></script>
+<script src="js/core/theme.js"></script>
+<script src="js/core/settings.js"></script>
+<script src="js/core/i18n.js"></script>
+<script src="js/app.js"></script>
+<script src="js/core/uikit.js"></script>
+<script src="js/shell.js"></script>
+<script>
+  const EP = API.master.holiday;
+  const esc = (v) => SFA.esc(v == null ? '' : v);
+  const DAYS = [['MON', 'Monday'], ['TUE', 'Tuesday'], ['WED', 'Wednesday'], ['THU', 'Thursday'], ['FRI', 'Friday'], ['SAT', 'Saturday'], ['SUN', 'Sunday']];
+  const TNAME = { STATE: 'State', HQ: 'HQ', EMP: 'Employee', ALL: 'Everyone' };
+  let CFG = null, HOL = [], SEL = new Set(), REP = [], RSEL = new Set(), SHEET = null, TAB = 'hol', OFF = new Set(), FORM = null;
+  const fmt = (d) => d ? new Date(String(d).slice(0, 10) + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }) : '';
+
+  window.pageInit = async function () {
+    SHEET = new bootstrap.Offcanvas('#hSheet');
+    try {
+      CFG = await Api.get(EP.config);
+      OFF = new Set(CFG.weeklyOff || []);
+      const y = new Date().getFullYear(), sel = document.getElementById('hYear');
+      sel.innerHTML = '<option value="">All years</option>' + [y - 1, y, y + 1, y + 2].map(v => `<option value="${v}" ${v === y ? 'selected' : ''}>${v}</option>`).join('');
+      document.getElementById('rFrom').value = y + '-01-01'; document.getElementById('rTo').value = y + '-12-31';
+      offRender(); await hLoad();
+    } catch (e) { SFA.toast(e.message, false); }
+  };
+  function hTab(t) {
+    TAB = t;
+    document.querySelectorAll('#hSeg button').forEach(b => b.classList.toggle('active', b.dataset.t === t));
+    ['hol', 'rep', 'off'].forEach(k => document.getElementById({ hol: 'pHol', rep: 'pRep', off: 'pOff' }[k]).classList.toggle('d-none', k !== t));
+    if (t === 'rep') rLoad(); barUpdate();
+  }
+  function barUpdate() {
+    const bar = document.getElementById('hBar'), n = TAB === 'hol' ? SEL.size : TAB === 'rep' ? RSEL.size : 0;
+    bar.classList.toggle('show', n > 0);
+    document.getElementById('hBarInfo').textContent = n + ' selected';
+    document.getElementById('hBarAssign').style.display = TAB === 'hol' ? '' : 'none';
+  }
+
+  // ---------------- holidays ----------------
+  async function hLoad() {
+    HOL = await Api.get(EP.list, { query: { year: document.getElementById('hYear').value } });
+    SEL = new Set([...SEL].filter(id => HOL.some(h => h.id === id)));
+    hRender();
+  }
+  function hRender() {
+    document.getElementById('hList').innerHTML = HOL.map(h => `<div class="ap-row" onclick="hEdit(${h.id})">
+      <input type="checkbox" class="form-check-input" ${SEL.has(h.id) ? 'checked' : ''} onclick="event.stopPropagation()" onchange="hSelOne(${h.id}, this.checked)">
+      <div class="grow"><b>${esc(h.name)}</b> ${h.active ? '' : '<span class="ap-badge bad">Off</span>'}<small>${esc(fmt(h.date))}${h.remarks ? ' · ' + esc(h.remarks) : ''}</small></div>
+      <span class="ap-badge ${h.assigned ? 'wait' : 'ok'}">${h.assigned ? h.assigned + ' assigned' : 'Everyone'}</span><i class="bi bi-chevron-right text-muted"></i></div>`).join('')
+      || '<div class="ap-empty"><i class="bi bi-calendar-event fs-1"></i><div>No holiday yet</div></div>';
+    document.getElementById('hAll').checked = HOL.length > 0 && SEL.size === HOL.length;
+    barUpdate();
+  }
+  function hSelOne(id, on) { on ? SEL.add(id) : SEL.delete(id); document.getElementById('hAll').checked = SEL.size === HOL.length; barUpdate(); }
+  function hSelAll(on) { SEL = on ? new Set(HOL.map(h => h.id)) : new Set(); hRender(); }
+  async function hBarDelete() {
+    if (TAB === 'rep') return rDelete();
+    if (!confirm('Delete ' + SEL.size + ' holiday(s) with their assignments?')) return;
+    try { await Api.post(EP.remove, { ids: [...SEL] }); SEL = new Set(); await hLoad(); SFA.toast('Deleted'); } catch (e) { SFA.toast(e.message, false); }
+  }
+
+  // ---------- target pickers (state / HQ / employee) ----------
+  const PK = {};
+  function pickerHtml(key, title, items, chosen) {
+    PK[key] = { items, chosen: new Set(chosen.map(String)) };
+    return `<div class="ap-sec">${title} <span class="text-muted fw-normal" id="pc_${key}"></span></div>
+      <input class="form-control mb-2" placeholder="Search ${title.toLowerCase()}…" oninput="pickRender('${key}', this.value)">
+      <div class="ap-pick" id="pk_${key}"></div>`;
+  }
+  function pickRender(key, q) {
+    const p = PK[key], t = (q || '').toLowerCase();
+    const rows = p.items.filter(i => !t || i.name.toLowerCase().includes(t)).slice(0, 300);
+    document.getElementById('pk_' + key).innerHTML = rows.map(i => `<label class="ap-row"><input type="checkbox" class="form-check-input" ${p.chosen.has(String(i.id)) ? 'checked' : ''} onchange="pickToggle('${key}','${esc(i.id)}',this.checked)"><div class="grow">${esc(i.name)}</div></label>`).join('') || '<div class="ap-empty">None found</div>';
+    document.getElementById('pc_' + key).textContent = p.chosen.size ? '(' + p.chosen.size + ' selected)' : '';
+  }
+  function pickToggle(key, id, on) { const p = PK[key]; on ? p.chosen.add(String(id)) : p.chosen.delete(String(id)); document.getElementById('pc_' + key).textContent = p.chosen.size ? '(' + p.chosen.size + ' selected)' : ''; }
+  const targetsHtml = (st, hq, em) => pickerHtml('states', 'States', CFG.states, st) + pickerHtml('hqs', 'HQs', CFG.hqs, hq) + pickerHtml('emps', 'Employees', CFG.employees, em);
+  const targetsInit = () => ['states', 'hqs', 'emps'].forEach(k => pickRender(k, ''));
+  const targetsVal = () => ({ states: [...PK.states.chosen], hqs: [...PK.hqs.chosen], employees: [...PK.emps.chosen] });
+
+  function sheet(title, body, foot) { document.getElementById('hSheetTitle').textContent = title; document.getElementById('hSheetBody').innerHTML = body; document.getElementById('hSheetFoot').innerHTML = foot; SHEET.show(); }
+
+  async function hAdd() { FORM = { id: null, date: '', name: '', remarks: '', active: true }; hForm([], [], []); }
+  async function hEdit(id) {
+    const h = HOL.find(x => x.id === id); FORM = Object.assign({}, h, { date: String(h.date).slice(0, 10) });
+    let st = [], hq = [], em = [];
+    try { (await Api.get(EP.assignments, { query: { from: FORM.date, to: FORM.date } })).filter(r => r.holidayId === id).forEach(r => { if (r.targetType === 'STATE') st.push(r.targetValue); else if (r.targetType === 'HQ') hq.push(r.targetValue); else if (r.targetType === 'EMP') em.push(r.targetValue); }); } catch (e) { SFA.toast(e.message, false); }
+    hForm(st, hq, em);
+  }
+  function hForm(st, hq, em) {
+    sheet(FORM.id ? 'Edit holiday' : 'Add holiday', `<div class="row g-3">
+      <div class="col-6"><label class="form-label">Date *</label><input type="date" class="form-control" id="f_date" value="${esc(FORM.date)}"></div>
+      <div class="col-6"><label class="form-label">Holiday name *</label><input class="form-control" id="f_name" maxlength="100" placeholder="Diwali" value="${esc(FORM.name)}"></div>
+      <div class="col-12"><label class="form-label">Remarks (shown on the calendar)</label><input class="form-control" id="f_rem" maxlength="250" value="${esc(FORM.remarks)}"></div>
+      <div class="col-12"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="f_on" ${FORM.active ? 'checked' : ''}><label class="form-check-label" for="f_on">Holiday is in force</label></div></div></div>
+      <div class="alert alert-info py-2 small mt-3 mb-0"><i class="bi bi-info-circle"></i> Pick states, HQs or employees this holiday is for. Leave all empty = <b>everyone</b>.</div>`
+      + targetsHtml(st, hq, em), '<button class="ap-btn light" data-bs-dismiss="offcanvas">Cancel</button><button class="ap-btn go" onclick="hSave()"><i class="bi bi-check2"></i> Save</button>');
+    targetsInit();
+  }
+  async function hSave() {
+    const v = id => document.getElementById(id).value.trim();
+    try {
+      await Api.post(EP.list, { id: FORM.id, date: v('f_date'), name: v('f_name'), remarks: v('f_rem'), active: document.getElementById('f_on').checked, assign: targetsVal() });
+      SHEET.hide(); await hLoad(); SFA.toast('Saved');
+    } catch (e) { SFA.toast(e.message, false); }
+  }
+  function hBulkAssign() {
+    sheet('Assign ' + SEL.size + ' holiday(s)', `<div class="alert alert-info py-2 small mb-0"><i class="bi bi-info-circle"></i> The chosen states / HQs / employees are <b>added</b> to the selected holidays. Existing assignments stay.</div>` + targetsHtml([], [], []),
+      '<button class="ap-btn light" data-bs-dismiss="offcanvas">Cancel</button><button class="ap-btn go" onclick="hDoAssign()"><i class="bi bi-check2"></i> Assign</button>');
+    targetsInit();
+  }
+  async function hDoAssign() {
+    const t = targetsVal();
+    if (!t.states.length && !t.hqs.length && !t.employees.length) { SFA.toast('Choose at least one state, HQ or employee', false); return; }
+    try { const r = await Api.post(EP.assign, Object.assign({ holidayIds: [...SEL] }, t)); SHEET.hide(); SEL = new Set(); await hLoad(); SFA.toast('Assigned (' + r.added + ' new)'); } catch (e) { SFA.toast(e.message, false); }
+  }
+
+  // ---------------- assignment report ----------------
+  function rTypeChanged() {
+    const t = document.getElementById('rType').value, el = document.getElementById('rTarget');
+    const list = t === 'STATE' ? CFG.states : t === 'HQ' ? CFG.hqs : t === 'EMP' ? CFG.employees : [];
+    el.disabled = !list.length; el.innerHTML = '<option value="">All</option>' + list.map(i => `<option value="${esc(i.id)}">${esc(i.name)}</option>`).join('');
+    rLoad();
+  }
+  async function rLoad() {
+    const v = id => document.getElementById(id).value;
+    REP = await Api.get(EP.assignments, { query: { from: v('rFrom'), to: v('rTo'), type: v('rType'), target: v('rTarget') } });
+    RSEL = new Set([...RSEL].filter(id => REP.some(r => r.assignmentId === id))); rRender();
+  }
+  function rRender() {
+    const real = REP.filter(r => r.assignmentId);
+    document.getElementById('rCount').textContent = REP.length + ' row' + (REP.length === 1 ? '' : 's');
+    document.getElementById('rList').innerHTML = REP.map(r => `<div class="ap-row" ${r.assignmentId ? `onclick="rToggle(${r.assignmentId})"` : ''}>
+      ${r.assignmentId ? `<input type="checkbox" class="form-check-input" ${RSEL.has(r.assignmentId) ? 'checked' : ''} onclick="event.stopPropagation()" onchange="rToggle(${r.assignmentId}, this.checked)">` : '<span style="width:1.1rem"></span>'}
+      <div class="grow"><b>${esc(r.name)}</b><small>${esc(fmt(r.date))}${r.remarks ? ' · ' + esc(r.remarks) : ''}</small></div>
+      <div class="text-end"><span class="ap-badge ${r.targetType === 'ALL' ? 'ok' : 'wait'}">${TNAME[r.targetType] || r.targetType}</span><small>${esc(r.targetName || '')}</small></div></div>`).join('')
+      || '<div class="ap-empty"><i class="bi bi-diagram-3 fs-1"></i><div>Nothing found</div></div>';
+    document.getElementById('rAll').checked = real.length > 0 && RSEL.size === real.length;
+    barUpdate();
+  }
+  function rToggle(id, on) { if (on === undefined) on = !RSEL.has(id); on ? RSEL.add(id) : RSEL.delete(id); rRender(); }
+  function rSelAll(on) { RSEL = on ? new Set(REP.filter(r => r.assignmentId).map(r => r.assignmentId)) : new Set(); rRender(); }
+  async function rDelete() {
+    if (!confirm('Remove ' + RSEL.size + ' assignment(s)? A holiday left with none becomes a holiday for everyone.')) return;
+    try {
+      const r = await Api.post(EP.deleteAssignments, { ids: [...RSEL] }); RSEL = new Set(); await rLoad(); await hLoad();
+      SFA.toast('Removed ' + r.removed + (r.holidaysForEveryone ? ' · ' + r.holidaysForEveryone + ' holiday(s) are now for everyone' : ''));
+    } catch (e) { SFA.toast(e.message, false); }
+  }
+
+  // ---------------- weekly off ----------------
+  function offRender() {
+    document.getElementById('offChips').innerHTML = DAYS.map(([c, n]) => `<button type="button" class="ap-chip ${OFF.has(c) ? 'on' : ''}" onclick="offToggle('${c}')">${n}</button>`).join('');
+  }
+  function offToggle(c) { OFF.has(c) ? OFF.delete(c) : OFF.add(c); offRender(); }
+  async function offSave() { try { await Api.post(EP.weeklyOff, { days: [...OFF] }); SFA.toast('Weekly off saved'); } catch (e) { SFA.toast(e.message, false); } }
+</script>
+</body>
+</html>

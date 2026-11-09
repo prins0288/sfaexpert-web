@@ -250,6 +250,25 @@
         template: "/api/master/client-master/template",
         upload: "/api/master/client-master/upload",
       },
+      tourPlan: {
+        options: "/api/tp/options",                                    // day types, my areas, clients per kind, seniors / juniors
+        plan: "/api/tp/plan",                                          // ?year=&month=&empId=  a month's plan with days, holidays, approval trail
+        list: "/api/tp/list",                                          // ?year=&month=  submitted plans of the team / everyone
+        day: "/api/tp/day",                                            // POST plan a day / DELETE ?date= clear it
+        goal: "/api/tp/goal",                                          // POST {year, month, goal}
+        submit: "/api/tp/submit",                                      // POST {year, month}
+        approve: (id) => `/api/tp/${id}/approve`,
+        reject: (id) => `/api/tp/${id}/reject`,                        // body { reason }
+      },
+      holiday: {
+        config: "/api/holiday/config",                                 // weekly off + states / HQs / employees
+        list: "/api/holiday",                                          // ?year=  GET / POST (save)
+        assign: "/api/holiday/assign",                                 // POST {holidayIds, states, hqs, employees}
+        assignments: "/api/holiday/assignments",                       // GET report ?from&to&type&target
+        deleteAssignments: "/api/holiday/assignments/delete",          // POST {ids}
+        remove: "/api/holiday/delete",                                 // POST {ids}
+        weeklyOff: "/api/holiday/weekly-off",                          // POST {days}
+      },
       dcrSubmit: {
         options: "/api/dcr/options",                                  // my tabs, clients, areas, items, expense types …
         list: "/api/dcr",                                             // ?from=&to=&empId= (own / team / all)

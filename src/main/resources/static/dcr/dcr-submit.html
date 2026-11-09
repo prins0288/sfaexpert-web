@@ -672,8 +672,8 @@
     h += row('remarks', 'chat-left-text', 'Activity / Remarks', [o.activityType, o.remarks].filter(Boolean).join(' · '));
     return h;
   }
-  function openPanel(k) { EDIT.panel = k; renderCall(); callFoot(); document.getElementById('sheetBody').scrollTop = 0; }
-  function closePanel() { EDIT.o.items = EDIT.o.items.filter(i => Number(i.qty) > 0 || Number(i.pobQty) > 0 || i.detailed); EDIT.panel = null; renderCall(); callFoot(); }
+  function openPanel(k) { const sb = document.getElementById('sheetBody'); EDIT.mainScroll = sb.scrollTop; EDIT.panel = k; renderCall(); callFoot(); sb.scrollTop = 0; }   // the list's scroll position is remembered
+  function closePanel() { EDIT.o.items = EDIT.o.items.filter(i => Number(i.qty) > 0 || Number(i.pobQty) > 0 || i.detailed); EDIT.panel = null; renderCall(); callFoot(); document.getElementById('sheetBody').scrollTop = EDIT.mainScroll || 0; }   // back to where the user was scrolled
   const stepper = (id, f, v) => `<div class="dcr-step"><button type="button" onclick="stp(${id},'${f}',-1)">−</button><b>${v}</b><button type="button" onclick="stp(${id},'${f}',1)">+</button></div>`;
   function stp(id, f, d) {
     let r = rowOf(id);
@@ -725,7 +725,7 @@
     if (k === 'treat') return panelShell('Treatment', o.treatments.length, `<div class="dcr-chips">` + OPT.treatments.map(t => `<button type="button" class="dcr-chip ${o.treatments.includes(t.id) ? 'on' : ''}" onclick="toggleIn(EDIT.o.treatments,${t.id});renderCall()">${esc(t.name)}</button>`).join('') + '</div>');
     if (k === 'image') return panelShell('Capture Image', o.signaturePath ? 1 : 0, `${o.signaturePath ? `<div class="mb-2">${SFAFiles.thumb(o.signaturePath, null, { name: 'image' })}</div>` : ''}
       <input class="form-control" type="file" accept="image/*" capture="environment" onchange="callUpload(this,'signaturePath')" />`);
-    return panelShell('Activity / Remarks', null, `<div class="dcr-chips mb-3">${OPT.activityTypes.map(a => `<button type="button" class="dcr-chip ${o.activityType === a ? 'on' : ''}" onclick="EDIT.o.activityType=EDIT.o.activityType==='${esc(a)}'?'':'${esc(a)}';renderCall()">${esc(a)}</button>`).join('')}</div>
+    return panelShell('Activity / Remarks', null, `<div class="dcr-chips dcr-chips-scroll mb-3">${OPT.activityTypes.map(a => `<button type="button" class="dcr-chip ${o.activityType === a ? 'on' : ''}" onclick="EDIT.o.activityType=EDIT.o.activityType==='${esc(a)}'?'':'${esc(a)}';renderCall()">${esc(a)}</button>`).join('')}</div>
       <div class="row g-2">${field('Remarks', `<textarea class="form-control" rows="3" oninput="${o_('remarks')}=this.value">${esc(o.remarks)}</textarea>`)}
       ${field('Next visit', `<input class="form-control" type="date" value="${esc(o.nextVisit)}" oninput="${o_('nextVisit')}=this.value" />`, 'col-6')}
       ${field('Priority', `<select class="form-select" data-no-search onchange="${o_('nextVisitPriority')}=this.value">${opts(OPT.priorities, o.nextVisitPriority)}</select>`, 'col-6')}
