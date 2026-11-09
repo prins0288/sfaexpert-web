@@ -3,6 +3,7 @@ package in.opt.sfa.web;
 import in.opt.sfa.common.response.ResponseFormat;
 import in.opt.sfa.exception.BadCredentialsException;
 import in.opt.sfa.exception.ForbiddenException;
+import in.opt.sfa.exception.ServerUnavailableException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,6 +33,19 @@ public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+    private final ServerLabels serverLabels;
+
+    public GlobalExceptionHandler(ServerLabels serverLabels) {
+        this.serverLabels = serverLabels;
+    }
+
+    /** 503 — a database server is down: "Server N is not responding" (never the JPA / SQL error). */
+    @ExceptionHandler(ServerUnavailableException.class)
+    public ResponseEntity<ResponseFormat<Object>> handleServerDown(ServerUnavailableException e, HttpServletRequest req) {
+        log.error("Server unavailable at {}: {}", req.getRequestURI(), e.getCause() == null ? e.getMessage() : e.getCause().toString());
+        return ResponseFormat.error(HttpStatus.SERVICE_UNAVAILABLE, e.getMessage());
+    }
+
     /** 401 — bad username/password or invalid/expired token. */
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ResponseFormat<Object>> handleBadCredentials(BadCredentialsException e) {
@@ -59,6 +73,8 @@ public class GlobalExceptionHandler {
     /** 400 — business/validation state problems raised by services. */
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<ResponseFormat<Object>> handleIllegalState(IllegalStateException e) {
+        String down = serverLabels.messageFor(e);
+        if (down != null) return ResponseFormat.error(HttpStatus.SERVICE_UNAVAILABLE, down);
         return ResponseFormat.error(HttpStatus.BAD_REQUEST, msg(e));
     }
 
@@ -76,6 +92,11 @@ public class GlobalExceptionHandler {
     /** 500 — any DB/JPA failure. The real SQL is logged, not returned. */
     @ExceptionHandler(DataAccessException.class)
     public ResponseEntity<ResponseFormat<Object>> handleDataAccess(DataAccessException e, HttpServletRequest req) {
+        String down = serverLabels.messageFor(e);
+        if (down != null) {
+            log.error("Database unreachable at {}: {}", req.getRequestURI(), e.getMessage());
+            return ResponseFormat.error(HttpStatus.SERVICE_UNAVAILABLE, down);
+        }
         log.error("Data access error at {}", req.getRequestURI(), e);
         return ResponseFormat.error(HttpStatus.INTERNAL_SERVER_ERROR, "A database error occurred");
     }
@@ -83,6 +104,11 @@ public class GlobalExceptionHandler {
     /** 500 — catch-all so nothing escapes un-enveloped. */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ResponseFormat<Object>> handleAll(Exception e, HttpServletRequest req) {
+        String down = serverLabels.messageFor(e);
+        if (down != null) {
+            log.error("Database unreachable at {}: {}", req.getRequestURI(), e.getMessage());
+            return ResponseFormat.error(HttpStatus.SERVICE_UNAVAILABLE, down);
+        }
         log.error("Unhandled error at {}", req.getRequestURI(), e);
         return ResponseFormat.error(HttpStatus.INTERNAL_SERVER_ERROR, msg(e));
     }
