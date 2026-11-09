@@ -57,6 +57,12 @@ public class DcrService {
         String me = me();
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("me", me);
+        Map<String, Object> who = jdbc.queryForList("""
+                SELECT e.emp_name AS name, d.designation AS designation, h.hq_name AS hq FROM emp_detail e
+                LEFT JOIN designation_master d ON d.id = e.designation LEFT JOIN hq_master h ON h.oid = e.hq_id WHERE e.emp_id = ?""", me).stream().findFirst().orElse(Map.of());
+        m.put("meName", who.get("name"));
+        m.put("meDesignation", who.get("designation"));
+        m.put("meHq", who.get("hq"));
         m.put("workTypes", WORK_TYPES);
         m.put("backDays", backDays());
         m.put("tabs", worktypes.tabsFor(me));

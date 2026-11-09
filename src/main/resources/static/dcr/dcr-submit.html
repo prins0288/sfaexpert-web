@@ -35,6 +35,11 @@
 <style>
   .dcr-app { max-width: 760px; margin: 0 auto; padding-bottom: 5.5rem; }
   .card-lite { background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: 1rem; padding: .85rem 1rem; margin-bottom: .75rem; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+  .dcr-top { display: flex; justify-content: space-between; align-items: flex-start; gap: .75rem; margin-bottom: .85rem; }
+  .dcr-title { font-size: 1.7rem; font-weight: 800; line-height: 1.1; }
+  .dcr-histlink { font-weight: 700; color: var(--bs-primary); text-decoration: none; white-space: nowrap; padding-top: .35rem; }
+  .dcr-start-btn { background: #d9441a; border: 0; color: #fff; border-radius: 999px; padding: .75rem 1.25rem; font-weight: 700; white-space: nowrap; box-shadow: 0 4px 12px rgba(217,68,26,.35); }
+  .dcr-start-btn:active { transform: scale(.97); }
   .dcr-seg { display: flex; background: var(--bs-tertiary-bg); border-radius: 999px; padding: .25rem; margin-bottom: .75rem; }
   .dcr-seg button { flex: 1; border: 0; background: transparent; padding: .5rem; border-radius: 999px; font-weight: 600; color: var(--bs-secondary-color); display: flex; align-items: center; justify-content: center; gap: .4rem; }
   .dcr-seg button.active { background: var(--bs-body-bg); color: var(--bs-primary); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
@@ -80,10 +85,10 @@
 <template id="pageContent">
 <div class="dcr-app">
 
-  <!-- top: my DCR / history -->
-  <div class="dcr-seg" id="dcrSeg">
-    <button class="active" data-v="form" onclick="dcrView('form')"><i class="bi bi-pencil-square"></i> <span>My DCR</span></button>
-    <button data-v="list" onclick="dcrView('list')"><i class="bi bi-clock-history"></i> <span>History</span><span class="dcr-badge d-none" id="dcrPendingBadge"></span></button>
+  <!-- header like the phone app: title + who, DCR History link -->
+  <div class="dcr-top">
+    <div><div class="dcr-title" id="dcrTitle">DCR</div><div class="text-muted small" id="dcrWho"></div></div>
+    <a href="javascript:void(0)" class="dcr-histlink" id="dcrHistLink" onclick="dcrView(VIEW === 'form' ? 'list' : 'form')"><i class="bi bi-clock-history"></i> <span id="dcrHistTxt">DCR History</span><span class="dcr-badge d-none" id="dcrPendingBadge"></span></a>
   </div>
 
   <!-- ================= FORM ================= -->
@@ -116,9 +121,6 @@
     </div>
     <div id="hRows" class="mt-2"></div>
   </div>
-
-  <!-- bottom bar before the day is started -->
-  <div class="dcr-bar d-none" id="dcrStartBar"><button class="btn btn-primary w-100" onclick="dcrStart()"><i class="bi bi-play-circle"></i> Start Day</button></div>
 
   <!-- bottom action bar (form only) -->
   <div class="dcr-bar" id="dcrBar">
@@ -177,6 +179,7 @@
     SHEET = new bootstrap.Offcanvas('#dcrSheet');
     try {
       OPT = await Api.get(EP.options);
+      document.getElementById('dcrWho').textContent = [OPT.meName, OPT.meDesignation, OPT.meHq].filter(Boolean).join(' · ');
       const d = document.getElementById('dcrDate');
       d.max = todayStr(); d.value = todayStr();
       await loadDay();
@@ -209,11 +212,11 @@
   }
   function dcrView(v) {
     VIEW = v;
-    document.querySelectorAll('#dcrSeg button').forEach(b => b.classList.toggle('active', b.dataset.v === v));
+    document.getElementById('dcrHistTxt').textContent = v === 'form' ? 'DCR History' : 'My DCR';
+    document.getElementById('dcrTitle').textContent = v === 'form' ? 'DCR' : 'DCR History';
     document.getElementById('dcrForm').classList.toggle('d-none', v !== 'form');
     document.getElementById('dcrList').classList.toggle('d-none', v !== 'list');
     document.getElementById('dcrBar').classList.toggle('d-none', v !== 'form' || !started());
-    document.getElementById('dcrStartBar').classList.toggle('d-none', v !== 'form' || started());
     if (v === 'list') dcrLoadList();
   }
 
@@ -246,7 +249,6 @@
     pane.classList.toggle('dcr-readonly', !ST.canEdit);
     document.getElementById('dcrTabs').classList.toggle('d-none', !started());
     document.getElementById('dcrBar').classList.toggle('d-none', VIEW !== 'form' || !started());
-    document.getElementById('dcrStartBar').classList.toggle('d-none', VIEW !== 'form' || started() || ST.dcrDate == null);
     summary();
   }
   function dcrTab(code) { CUR = code; render(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
@@ -269,16 +271,11 @@
     const working = ST.workType === 'WORKING', today = ST.dcrDate === todayStr();
     const wt = OPT.workTypes.map(w => `<button class="dcr-chip ${ST.workType === w ? 'on' : ''}" onclick="setWork('${w}')">${w.charAt(0) + w.slice(1).toLowerCase()}</button>`).join('');
     if (!started()) {
-      return `<div class="card-lite text-center"><i class="bi bi-sunrise fs-1 text-primary"></i><div class="fw-bold fs-5">Start your day</div>
-          <div class="small text-muted">Your time in is captured when you start. Client check-in, expense and the other tabs open after this.</div></div>
-        <div class="card-lite"><div class="dcr-sec mt-0">Day type</div><div class="dcr-chips">${wt}</div></div>
-        <div class="card-lite"><div class="row g-3">
-          ${working ? field('Starting from (area)', `<select class="form-select" data-no-search onchange="ST.startAreaId=this.value">${opts(OPT.areas, ST.startAreaId, 'Select area')}</select>`) : ''}
-          ${working ? field('Travel mode', `<select class="form-select" data-no-search onchange="ST.travelMode=this.value">${opts(OPT.travelModes, ST.travelMode, 'Select')}</select>`, 'col-6') + field('Meter start (km)', inp('meterStart', 'number', 'inputmode="decimal" step="0.1"'), 'col-6') : ''}
-          ${today ? '' : field('Time in (earlier day)', inp('timeIn', 'time'), 'col-6')}
-          ${field('Remarks', `<textarea class="form-control" rows="2" oninput="ST.remarks=this.value">${esc(ST.remarks)}</textarea>`)}
-        </div></div>
-        `;
+      const when = today ? 'Today: ' : 'Date: ', dt = new Date(ST.dcrDate + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
+      return `<div class="card-lite d-flex align-items-center gap-3"><div class="flex-fill"><div class="fs-5 fw-bold">Day not started</div>
+          <div class="text-muted">${when}${esc(dt)}</div><div class="text-muted">Start your day first.</div></div>
+          <button class="dcr-start-btn" onclick="startSheet()"><i class="bi bi-play-circle"></i> Start Day</button></div>
+        <div class="small text-muted text-center mt-3">Client check-in, expense and the other tabs open once your day is started.</div>`;
     }
     return `<div class="card-lite"><div class="d-flex justify-content-between text-center">
         <div class="flex-fill"><small class="text-muted d-block">Time in</small><b class="fs-5">${esc(ST.timeIn || '--:--')}</b></div>
@@ -291,10 +288,21 @@
         ${field('Remarks', `<textarea class="form-control" rows="2" oninput="ST.remarks=this.value">${esc(ST.remarks)}</textarea>`)}</div></div>`
         : `<div class="card-lite">${field('Remarks', `<textarea class="form-control" rows="2" oninput="ST.remarks=this.value">${esc(ST.remarks)}</textarea>`)}</div>`}`;
   }
+  function startSheet() {
+    const working = ST.workType === 'WORKING', today = ST.dcrDate === todayStr();
+    const wt = OPT.workTypes.map(w => `<button class="dcr-chip ${ST.workType === w ? 'on' : ''}" onclick="ST.workType='${w}';startSheet()">${w.charAt(0) + w.slice(1).toLowerCase()}</button>`).join('');
+    sheetOpen('Start your day', `<div class="dcr-sec mt-0">Day type</div><div class="dcr-chips mb-3">${wt}</div><div class="row g-3">
+      ${working ? field('Starting from (area)', `<select class="form-select" data-no-search onchange="ST.startAreaId=this.value">${opts(OPT.areas, ST.startAreaId, 'Select area')}</select>`) : ''}
+      ${working ? field('Travel mode', `<select class="form-select" data-no-search onchange="ST.travelMode=this.value">${opts(OPT.travelModes, ST.travelMode, 'Select')}</select>`, 'col-6') + field('Meter start (km)', inp('meterStart', 'number', 'inputmode="decimal" step="0.1"'), 'col-6') : ''}
+      ${today ? '' : field('Time in (earlier day)', inp('timeIn', 'time'), 'col-6')}
+      ${field('Remarks', `<textarea class="form-control" rows="2" oninput="ST.remarks=this.value">${esc(ST.remarks)}</textarea>`)}</div>
+      <div class="small text-muted mt-3"><i class="bi bi-clock"></i> ${today ? 'Your time in is captured when you tap Start Day.' : 'Enter the time your day started.'}</div>`,
+      '<button class="btn btn-light" onclick="sheetClose()">Cancel</button><button class="dcr-start-btn flex-fill" onclick="dcrStart()"><i class="bi bi-play-circle"></i> Start Day</button>');
+  }
   async function dcrStart() {
     try {
       const d = await Api.post(EP.start, { dcrDate: ST.dcrDate, workType: ST.workType, startAreaId: n(ST.startAreaId), travelMode: s(ST.travelMode), meterStart: n(ST.meterStart), remarks: s(ST.remarks), timeIn: s(ST.timeIn) });
-      ST = fromDto(d); CUR = (tabList()[1] || {}).code || 'day'; render();
+      ST = fromDto(d); CUR = (tabList()[1] || {}).code || 'day'; sheetClose(); render();
       SFA.toast('Day started at ' + ST.timeIn, true);
     } catch (e) { SFA.toast(e.message, false); }
   }
