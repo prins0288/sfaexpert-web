@@ -304,8 +304,9 @@
     const pane = document.getElementById('dcrPane');
     pane.innerHTML = tab.form === 'DAY' ? paneDay() : tab.form === 'CHECKIN' ? paneCalls(tab, 'v') : tab.form === 'UNLISTED' ? paneCalls(tab, 'u')
       : tab.form === 'JOINT' ? paneJoint() : tab.form === 'EXPENSE' ? paneExpense() : tab.form === 'DAYEND' ? paneDayEnd() : paneReview();
+    if (started() && tab.form !== 'DAY') pane.insertAdjacentHTML('afterbegin', `<button class="btn btn-link px-0 mb-2" onclick="dcrTab('day')"><i class="bi bi-chevron-left"></i> Back</button><div class="fs-5 fw-bold mb-2">${esc(tab.name)}</div>`);
     pane.classList.toggle('dcr-readonly', !ST.canEdit);
-    document.getElementById('dcrTabs').classList.toggle('d-none', !started());
+    document.getElementById('dcrTabs').classList.add('d-none');   // the home page + Add visit replace the tab strip
     document.getElementById('dcrBar').classList.toggle('d-none', VIEW !== 'form' || !started());
     summary();
   }
@@ -344,7 +345,7 @@
         <div class="flex-fill"><small class="text-muted d-block">Time out</small><b class="fs-5">${esc(ST.timeOut || '--:--')}</b><small class="text-muted d-block">${ST.timeOut ? '' : 'set when you submit'}</small></div>
         <div class="flex-fill"><small class="text-muted d-block">Day</small><b class="fs-6">${esc(wtName(ST.workType))}</b></div></div></div>
       ${working && ST.canEdit ? '<button class="dcr-addvisit" onclick="addVisitSheet()"><i class="bi bi-plus-circle"></i> Add visit</button>' : ''}
-      ${working ? visitSummary() : ''}
+      ${working ? visitSummary() + expenseSummary() + jointSummary() : ''}
       ${working ? `<div class="card-lite"><div class="row g-3">
         ${field('Started from', `<select class="form-select" data-no-search onchange="ST.startAreaId=this.value">${opts(OPT.areas, ST.startAreaId, 'Select area')}</select>`)}
         ${tmField(`<select class="form-select" data-no-search onchange="ST.travelMode=this.value">${opts(OPT.travelModes, ST.travelMode, 'Select')}</select>`)}
@@ -395,6 +396,16 @@
     if (t.form === 'UNLISTED') return newUnlisted(code);
     if (t.form === 'EXPENSE') return editExpense(-1);
     CUR = code; sheetClose(); render();   // joint working / day end are plain tabs
+  }
+  function expenseSummary() {
+    if (!ST.expenses.length) return '';
+    return '<div class="dcr-sec mt-0">Expenses</div>' + ST.expenses.map((e, i) => { const t = OPT.expenseTypes.find(x => x.id === e.expenseId);
+      return `<div class="card-lite dcr-visit" onclick="editExpense(${i})"><div class="ava"><i class="bi bi-receipt"></i></div>
+        <div class="meta"><b>${esc(t ? t.name : 'Expense')}</b><small class="text-muted">${esc(e.description || ' ')}</small></div><b>₹${money(e.amount)}</b></div>`; }).join('');
+  }
+  function jointSummary() {
+    if (!ST.jointWith.length) return '';
+    return `<div class="dcr-sec mt-0">Joint working</div><div class="card-lite">${ST.jointWith.map(id => esc(jname(id))).join(', ')}</div>`;
   }
   function visitSummary() {
     const rows = ST.visits.map((c, i) => ['v', i, c]).concat(ST.unlisted.map((c, i) => ['u', i, c])).filter(x => x[2].inTime);
