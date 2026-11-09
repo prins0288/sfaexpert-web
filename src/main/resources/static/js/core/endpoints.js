@@ -254,6 +254,7 @@
         list: "/api/dcr",                                             // ?from=&to=&empId= (own / team / all)
         get: (id) => `/api/dcr/${id}`,
         mine: "/api/dcr/mine",                                        // ?date=
+        start: "/api/dcr/start",                                      // POST: start my day (time in = now)
         save: "/api/dcr",                                             // POST: create / replace my DCR (submit true|false)
         approve: (id) => `/api/dcr/${id}/approve`,                    // body { remarks }
         reject: (id) => `/api/dcr/${id}/reject`,                      // body { reason }

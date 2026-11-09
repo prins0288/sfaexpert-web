@@ -60,6 +60,13 @@ public class DcrController {
     }
 
     @RequiresPermission("DCR_SAVE")
+    @PostMapping("/start")
+    @Operation(summary = "Start MY day: creates the DCR draft with time in = now. Nothing else can be filled before this")
+    public DcrDto start(@RequestBody DcrDto form) {
+        return service.start(form);
+    }
+
+    @RequiresPermission("DCR_SAVE")
     @PostMapping
     @Operation(summary = "Create / replace MY DCR of dcrDate; submit=true sends it for approval, false keeps a draft")
     public DcrDto save(@RequestBody DcrDto form) {

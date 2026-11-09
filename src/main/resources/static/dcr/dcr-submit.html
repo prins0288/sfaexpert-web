@@ -117,6 +117,9 @@
     <div id="hRows" class="mt-2"></div>
   </div>
 
+  <!-- bottom bar before the day is started -->
+  <div class="dcr-bar d-none" id="dcrStartBar"><button class="btn btn-primary w-100" onclick="dcrStart()"><i class="bi bi-play-circle"></i> Start Day</button></div>
+
   <!-- bottom action bar (form only) -->
   <div class="dcr-bar" id="dcrBar">
     <div class="dcr-bar-sum" id="dcrSum"></div>
@@ -129,7 +132,7 @@
 <div class="offcanvas offcanvas-bottom dcr-sheet" tabindex="-1" id="dcrSheet" data-bs-backdrop="static">
   <div class="offcanvas-header">
     <h5 class="offcanvas-title" id="sheetTitle"></h5>
-    <button type="button" class="btn-close" onclick="sheetClose()"></button>
+    <button type="button" class="btn-close" onclick="sheetX()"></button>
   </div>
   <div class="offcanvas-body" id="sheetBody"></div>
   <div class="dcr-sheet-foot" id="sheetFoot"></div>
@@ -209,17 +212,21 @@
     document.querySelectorAll('#dcrSeg button').forEach(b => b.classList.toggle('active', b.dataset.v === v));
     document.getElementById('dcrForm').classList.toggle('d-none', v !== 'form');
     document.getElementById('dcrList').classList.toggle('d-none', v !== 'list');
-    document.getElementById('dcrBar').classList.toggle('d-none', v !== 'form');
+    document.getElementById('dcrBar').classList.toggle('d-none', v !== 'form' || !started());
+    document.getElementById('dcrStartBar').classList.toggle('d-none', v !== 'form' || started());
     if (v === 'list') dcrLoadList();
   }
 
   // ============================================================== tabs / panes
   function tabList() {
     const t = [{ code: 'day', name: 'Day', form: 'DAY' }];
+    if (!started()) return t;   // nothing else until the day is started
     if (ST && ST.workType === 'WORKING') OPT.tabs.forEach(x => t.push({ code: x.code, name: x.name, form: x.form, clientTypeId: x.clientTypeId, subForms: x.subForms }));
     t.push({ code: 'review', name: 'Review', form: 'REVIEW' });
     return t;
   }
+  const started = () => !!(ST && ST.dcrId);
+  const isOpen = (c) => !!c.inTime && !c.outTime && !c.refused;
   const tabCount = (t) => t.form === 'CHECKIN' ? ST.visits.filter(v => v.worktypeCode === t.code).length : t.form === 'UNLISTED' ? ST.unlisted.length
     : t.form === 'EXPENSE' ? ST.expenses.length : t.form === 'JOINT' ? ST.jointWith.length : 0;
 
@@ -237,6 +244,9 @@
     pane.innerHTML = tab.form === 'DAY' ? paneDay() : tab.form === 'CHECKIN' ? paneCalls(tab, 'v') : tab.form === 'UNLISTED' ? paneCalls(tab, 'u')
       : tab.form === 'JOINT' ? paneJoint() : tab.form === 'EXPENSE' ? paneExpense() : tab.form === 'DAYEND' ? paneDayEnd() : paneReview();
     pane.classList.toggle('dcr-readonly', !ST.canEdit);
+    document.getElementById('dcrTabs').classList.toggle('d-none', !started());
+    document.getElementById('dcrBar').classList.toggle('d-none', VIEW !== 'form' || !started());
+    document.getElementById('dcrStartBar').classList.toggle('d-none', VIEW !== 'form' || started() || ST.dcrDate == null);
     summary();
   }
   function dcrTab(code) { CUR = code; render(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
@@ -256,17 +266,39 @@
   const inp = (key, type, extra) => `<input class="form-control" type="${type || 'text'}" value="${esc(ST[key])}" oninput="ST.${key}=this.value" ${extra || ''} />`;
 
   function paneDay() {
+    const working = ST.workType === 'WORKING', today = ST.dcrDate === todayStr();
     const wt = OPT.workTypes.map(w => `<button class="dcr-chip ${ST.workType === w ? 'on' : ''}" onclick="setWork('${w}')">${w.charAt(0) + w.slice(1).toLowerCase()}</button>`).join('');
-    const working = ST.workType === 'WORKING';
-    return `<div class="card-lite"><div class="dcr-sec mt-0">Day type</div><div class="dcr-chips">${wt}</div></div>
-      <div class="card-lite"><div class="row g-3">
-        ${working ? field('Day started from (area)', `<select class="form-select" data-no-search onchange="ST.startAreaId=this.value">${opts(OPT.areas, ST.startAreaId, 'Select area')}</select>`) : ''}
-        ${field('Time in', inp('timeIn', 'time'), 'col-6')}${field('Time out', inp('timeOut', 'time'), 'col-6')}
-        ${working ? field('Travel mode', `<select class="form-select" data-no-search onchange="ST.travelMode=this.value">${opts(OPT.travelModes, ST.travelMode, 'Select')}</select>`, 'col-6') + field('Meter start (km)', inp('meterStart', 'number', 'inputmode="decimal" step="0.1"'), 'col-6') : ''}
-        ${field('Remarks', `<textarea class="form-control" rows="2" oninput="ST.remarks=this.value">${esc(ST.remarks)}</textarea>`)}
-      </div></div>`;
+    if (!started()) {
+      return `<div class="card-lite text-center"><i class="bi bi-sunrise fs-1 text-primary"></i><div class="fw-bold fs-5">Start your day</div>
+          <div class="small text-muted">Your time in is captured when you start. Client check-in, expense and the other tabs open after this.</div></div>
+        <div class="card-lite"><div class="dcr-sec mt-0">Day type</div><div class="dcr-chips">${wt}</div></div>
+        <div class="card-lite"><div class="row g-3">
+          ${working ? field('Starting from (area)', `<select class="form-select" data-no-search onchange="ST.startAreaId=this.value">${opts(OPT.areas, ST.startAreaId, 'Select area')}</select>`) : ''}
+          ${working ? field('Travel mode', `<select class="form-select" data-no-search onchange="ST.travelMode=this.value">${opts(OPT.travelModes, ST.travelMode, 'Select')}</select>`, 'col-6') + field('Meter start (km)', inp('meterStart', 'number', 'inputmode="decimal" step="0.1"'), 'col-6') : ''}
+          ${today ? '' : field('Time in (earlier day)', inp('timeIn', 'time'), 'col-6')}
+          ${field('Remarks', `<textarea class="form-control" rows="2" oninput="ST.remarks=this.value">${esc(ST.remarks)}</textarea>`)}
+        </div></div>
+        `;
+    }
+    return `<div class="card-lite"><div class="d-flex justify-content-between text-center">
+        <div class="flex-fill"><small class="text-muted d-block">Time in</small><b class="fs-5">${esc(ST.timeIn || '--:--')}</b></div>
+        <div class="flex-fill"><small class="text-muted d-block">Time out</small><b class="fs-5">${esc(ST.timeOut || '--:--')}</b><small class="text-muted d-block">${ST.timeOut ? '' : 'set when you submit'}</small></div>
+        <div class="flex-fill"><small class="text-muted d-block">Day</small><b class="fs-6">${esc(ST.workType.charAt(0) + ST.workType.slice(1).toLowerCase())}</b></div></div></div>
+      ${working ? `<div class="card-lite"><div class="row g-3">
+        ${field('Started from', `<select class="form-select" data-no-search onchange="ST.startAreaId=this.value">${opts(OPT.areas, ST.startAreaId, 'Select area')}</select>`)}
+        ${field('Travel mode', `<select class="form-select" data-no-search onchange="ST.travelMode=this.value">${opts(OPT.travelModes, ST.travelMode, 'Select')}</select>`, 'col-6')}
+        ${field('Meter start (km)', inp('meterStart', 'number', 'inputmode="decimal" step="0.1"'), 'col-6')}
+        ${field('Remarks', `<textarea class="form-control" rows="2" oninput="ST.remarks=this.value">${esc(ST.remarks)}</textarea>`)}</div></div>`
+        : `<div class="card-lite">${field('Remarks', `<textarea class="form-control" rows="2" oninput="ST.remarks=this.value">${esc(ST.remarks)}</textarea>`)}</div>`}`;
   }
-  function setWork(w) { if (!ST.canEdit) return; ST.workType = w; render(); }
+  async function dcrStart() {
+    try {
+      const d = await Api.post(EP.start, { dcrDate: ST.dcrDate, workType: ST.workType, startAreaId: n(ST.startAreaId), travelMode: s(ST.travelMode), meterStart: n(ST.meterStart), remarks: s(ST.remarks), timeIn: s(ST.timeIn) });
+      ST = fromDto(d); CUR = (tabList()[1] || {}).code || 'day'; render();
+      SFA.toast('Day started at ' + ST.timeIn, true);
+    } catch (e) { SFA.toast(e.message, false); }
+  }
+  function setWork(w) { if (!ST.canEdit || started()) return; ST.workType = w; render(); }
 
   // ---- check-in / unlisted card lists
   function paneCalls(tab, kind) {
@@ -276,7 +308,7 @@
       const pob = callPob(c), nItems = (c.items || []).length;
       return `<div class="card-lite dcr-visit" onclick="editCall('${kind}',${i})"><div class="ava">${esc(initials(name))}</div>
         <div class="meta"><b>${esc(name)}</b><small class="text-muted">${esc(sub)}${c.inTime ? ' · ' + esc(c.inTime) + (c.outTime ? '–' + esc(c.outTime) : '') : ''}</small>
-        <small>${c.refused ? '<span class="badge bg-warning text-dark">Refused</span> ' : ''}${pob ? `<span class="badge bg-success">POB ₹${money(pob)}</span> ` : ''}${nItems ? `<span class="badge bg-light text-dark border">${nItems} item${nItems > 1 ? 's' : ''}</span>` : ''}</small></div>
+        <small>${isOpen(c) ? '<span class="badge bg-success">Checked in — tap to check out</span> ' : ''}${c.refused ? '<span class="badge bg-warning text-dark">Refused</span> ' : ''}${pob ? `<span class="badge bg-success">POB ₹${money(pob)}</span> ` : ''}${nItems ? `<span class="badge bg-light text-dark border">${nItems} item${nItems > 1 ? 's' : ''}</span>` : ''}</small></div>
         <i class="bi bi-chevron-right text-muted"></i></div>`; }).join('');
     return (cards || `<div class="dcr-empty"><i class="bi bi-person-plus fs-1"></i><div>No ${kind === 'v' ? 'client' : 'unlisted'} calls yet</div></div>`) +
       (ST.canEdit ? `<button class="dcr-add" onclick="${kind === 'v' ? `pickClient('${esc(tab.code)}')` : `newUnlisted('${esc(tab.code)}')`}"><i class="bi bi-plus-circle"></i> Add ${kind === 'v' ? 'client' : 'unlisted client'}</button>` : '');
@@ -287,6 +319,7 @@
     return OPT.clients.filter(c => tab.clientTypeId != null ? c.clientTypeId === tab.clientTypeId : !claimed.has(c.clientTypeId));
   }
   function pickClient(code) {
+    EDIT = null;
     const tab = OPT.tabs.find(t => t.code === code), used = new Set(ST.visits.filter(v => v.worktypeCode === code).map(v => v.clientId));
     const list = clientsFor(tab).filter(c => !used.has(c.id));
     sheetOpen('Add ' + tab.name.replace(/ Check-in$/, ''), `<input class="form-control mb-2" id="pickQ" placeholder="Search name, code, area…" oninput="pickFilter()" />
@@ -323,17 +356,28 @@
     SHEET.show();
   }
   function sheetClose() { SHEET.hide(); }
+  // X on a call that was never checked in: drop it again (nothing was saved)
+  function sheetX() { dropUnsaved(); sheetClose(); }
+  function dropUnsaved() {
+    if (!EDIT || (EDIT.kind !== 'v' && EDIT.kind !== 'u')) return;
+    const list = EDIT.kind === 'v' ? ST.visits : ST.unlisted;
+    if (list[EDIT.idx] && !list[EDIT.idx].inTime) { list.splice(EDIT.idx, 1); render(); }
+  }
 
   // ============================================================== call editor
   function editCall(kind, idx, isNew) {
     const src = kind === 'v' ? ST.visits[idx] : ST.unlisted[idx];
     EDIT = { kind, idx, isNew: !!isNew, o: JSON.parse(JSON.stringify(src)) };
-    renderCall();
-    const ro = !ST.canEdit;
     sheetOpen(kind === 'v' ? EDIT.o.clientName : (EDIT.o.clientName || 'New unlisted client'), '', '', null);
     renderCall();
+    callFoot();
+  }
+  function callFoot() {
+    const o = EDIT.o, ro = !ST.canEdit;
     document.getElementById('sheetFoot').innerHTML = ro ? '<button class="btn btn-light" onclick="sheetClose()">Close</button>'
-      : `<button class="btn btn-outline-danger" style="flex:0 0 auto" onclick="callDelete()"><i class="bi bi-trash"></i></button><button class="btn btn-primary" onclick="callDone()"><i class="bi bi-check2"></i> Done</button>`;
+      : !o.inTime ? '<button class="btn btn-light" onclick="sheetX()">Cancel</button><button class="btn btn-success" onclick="doCheckIn()"><i class="bi bi-geo-alt"></i> Check in</button>'
+      : !o.outTime && !o.refused ? '<button class="btn btn-outline-danger" style="flex:0 0 auto" onclick="callDelete()" title="Delete this check-in"><i class="bi bi-trash"></i></button><button class="btn btn-outline-primary" onclick="callSave()"><i class="bi bi-save"></i> Save</button><button class="btn btn-success" onclick="doCheckOut()"><i class="bi bi-box-arrow-right"></i> Check out</button>'
+      : '<button class="btn btn-outline-danger" style="flex:0 0 auto" onclick="callDelete()" title="Delete this check-in"><i class="bi bi-trash"></i></button><button class="btn btn-primary" onclick="callSave()"><i class="bi bi-check2"></i> Done</button>';
   }
   const tabOf = (code) => OPT.tabs.find(t => t.code === code) || { subForms: [] };
   function renderCall() {
@@ -354,15 +398,12 @@
     } else {
       h += `<div class="small text-muted mb-2">${esc([o.clientCode, o.clientTypeName].filter(Boolean).join(' · '))}</div>`;
     }
-    h += `<div class="dcr-sec">Check-in</div>
-      <div class="d-flex gap-2 mb-2"><button class="btn btn-success flex-fill" onclick="checkIn()"><i class="bi bi-geo-alt"></i> Check in now</button>
-        <button class="btn btn-outline-secondary flex-fill" onclick="checkOut()"><i class="bi bi-box-arrow-right"></i> Check out</button></div>
-      <div class="row g-2">${field('In time', `<input class="form-control" type="time" value="${esc(o.inTime)}" oninput="${o_('inTime')}=this.value" />`, 'col-6')}
-        ${field('Out time', `<input class="form-control" type="time" value="${esc(o.outTime)}" oninput="${o_('outTime')}=this.value" />`, 'col-6')}
+    h += `<div class="dcr-sec">Visit</div><div class="row g-2">
         ${field('Visit type', `<select class="form-select" data-no-search onchange="${o_('visitType')}=this.value">${opts(OPT.visitTypes.length ? OPT.visitTypes : ['CALL'], o.visitType, '')}</select>`, 'col-6')}
         ${field('Activity', `<select class="form-select" data-no-search onchange="${o_('activityType')}=this.value">${opts(OPT.activityTypes, o.activityType)}</select>`, 'col-6')}
-        ${u ? '' : field('Area', `<select class="form-select" data-no-search onchange="${o_('areaId')}=this.value">${opts(OPT.areas, o.areaId)}</select>`)}</div>
-      <div id="geoNote" class="small text-muted mt-1">${o.checkinLat ? `<i class="bi bi-geo-alt-fill text-success"></i> Location saved` : ''}</div>`;
+        ${u ? '' : field('Area', `<select class="form-select" data-no-search onchange="${o_('areaId')}=this.value">${opts(OPT.areas, o.areaId)}</select>`)}</div>`;
+    h += o.inTime ? `<div class="alert ${o.outTime || o.refused ? 'alert-secondary' : 'alert-success'} mt-3 mb-0 py-2"><i class="bi bi-geo-alt-fill"></i> Checked in at <b>${esc(o.inTime)}</b>${o.checkinLat ? ' · location saved' : ''}${o.outTime ? ` · Checked out at <b>${esc(o.outTime)}</b>` : o.refused ? '' : ' — tap <b>Check out</b> when you leave'}</div>`
+      : `<div class="alert alert-info mt-3 mb-0 py-2 small"><i class="bi bi-info-circle"></i> ${u ? 'Fill the client details, then tap <b>Check in</b>.' : 'Tap <b>Check in</b> when you reach the client.'} It is saved in your draft and the time is captured.</div>`;
     h += `<div class="form-check form-switch my-3"><input class="form-check-input" type="checkbox" id="refSw" ${o.refused ? 'checked' : ''} onchange="${o_('refused')}=this.checked"><label class="form-check-label" for="refSw">Client refused to meet</label></div>`;
     if (subs.includes('ITEMS')) {
       h += `<div class="dcr-sec">Items — sample / gift / input / POB</div>` + (o.items.map((it, i) => itemRow(it, i)).join('') || '<div class="small text-muted mb-2">No items added</div>')
@@ -418,13 +459,34 @@
   }
   function addItem() { EDIT.o.items.push({ itemId: '', itemType: '', qty: 0, pobQty: 0, rate: '', detailed: false, remarks: '' }); renderCall(); }
   function toggleIn(arr, v) { const k = arr.indexOf(v); k < 0 ? arr.push(v) : arr.splice(k, 1); }
-  function checkIn() {
-    EDIT.o.inTime = EDIT.o.inTime || nowHm(); EDIT.o.checkinAt = nowDt();
-    const note = () => renderCall();
-    if (navigator.geolocation) navigator.geolocation.getCurrentPosition(p => { EDIT.o.checkinLat = +p.coords.latitude.toFixed(7); EDIT.o.checkinLng = +p.coords.longitude.toFixed(7); note(); }, note, { timeout: 6000, maximumAge: 60000 });
-    else note();
+  const getPos = () => new Promise(res => { if (!navigator.geolocation) return res(null);
+    navigator.geolocation.getCurrentPosition(p => res({ lat: +p.coords.latitude.toFixed(7), lng: +p.coords.longitude.toFixed(7) }), () => res(null), { timeout: 6000, maximumAge: 60000 }); });
+  /** Commit the sheet's call into the DCR and save the draft, then re-open the call from what the server stored. */
+  async function persistCall(reopen) {
+    const kind = EDIT.kind, idx = EDIT.idx;
+    (kind === 'v' ? ST.visits : ST.unlisted)[idx] = EDIT.o;
+    if (!(await dcrSave(false, true))) return false;
+    if (reopen) { editCall(kind, idx); }
+    return true;
   }
-  function checkOut() { EDIT.o.outTime = nowHm(); renderCall(); }
+  async function doCheckIn() {
+    const o = EDIT.o;
+    if (EDIT.kind === 'u' && !(o.clientName || '').trim()) { SFA.toast('Enter the name of the unlisted client first', false); return; }
+    if (o.items.some(i => !i.itemId) || o.leaflets.some(l => !l.itemId)) { SFA.toast('Choose the item in every item / leaflet row (or remove the row)', false); return; }
+    if (ST.visits.concat(ST.unlisted).some(c => c !== o && isOpen(c))) { SFA.toast('Check out of the open client first', false); return; }
+    const g = await getPos();
+    o.inTime = nowHm(); o.checkinAt = nowDt(); if (g) { o.checkinLat = g.lat; o.checkinLng = g.lng; }
+    if (await persistCall(true)) SFA.toast('Checked in at ' + o.inTime + ' — saved in your draft', true);
+  }
+  async function doCheckOut() {
+    EDIT.o.outTime = nowHm();
+    const nm = EDIT.o.clientName;
+    if (await persistCall(false)) { sheetClose(); SFA.toast('Checked out of ' + nm + ' at ' + EDIT.o.outTime, true); }
+  }
+  async function callSave() {
+    if (EDIT.o.items.some(i => !i.itemId) || EDIT.o.leaflets.some(l => !l.itemId)) { SFA.toast('Choose the item in every item / leaflet row (or remove the row)', false); return; }
+    if (await persistCall(false)) { sheetClose(); SFA.toast('Saved', true); }
+  }
   async function callUpload(inputEl, key) {
     const f = inputEl.files[0]; if (!f) return;
     try { EDIT.o[key] = (await dcrUpload(f, 'image')).path; renderCall(); } catch (e) { SFA.toast(e.message, false); }
@@ -433,20 +495,12 @@
     const fd = new FormData(); fd.append('file', file); fd.append('kind', kind);
     return Api.post(EP.upload, fd);
   }
-  function callDone() {
-    const o = EDIT.o;
-    if (EDIT.kind === 'u' && !(o.clientName || '').trim()) { SFA.toast('Enter the name of the unlisted client', false); return; }
-    if (o.inTime && o.outTime && o.outTime < o.inTime) { SFA.toast('Out time cannot be before in time', false); return; }
-    if (o.items.some(i => !i.itemId)) { SFA.toast('Choose the item in every item row (or remove the row)', false); return; }
-    if (o.leaflets.some(l => !l.itemId)) { SFA.toast('Choose the leaflet in every leaflet row (or remove it)', false); return; }
-    (EDIT.kind === 'v' ? ST.visits : ST.unlisted)[EDIT.idx] = o;
-    sheetClose(); render();
-  }
-  function callDelete() {
-    if (!confirm('Remove this call from the DCR?')) return;
+  async function callDelete() {
+    if (!confirm(EDIT.o.inTime ? 'Delete this check-in? The visit is removed from your DCR.' : 'Remove this client?')) return;
     if (EDIT.kind === 'v') ST.visits.splice(EDIT.idx, 1);
     else { const k = ST.unlisted[EDIT.idx].key; ST.unlisted.splice(EDIT.idx, 1); ST.expenses.forEach(e => { if (e.unlistedKey === k) { e.clientKind = 0; e.unlistedKey = null; } }); }
-    sheetClose(); render();
+    sheetClose();
+    if (await dcrSave(false, true)) SFA.toast('Check-in deleted', true); else render();
   }
 
   // ============================================================== joint / expense / day end
@@ -532,12 +586,13 @@
     const warn = [];
     if (ST.workType === 'WORKING' && !calls) warn.push('No client call added yet');
     if (ST.workType === 'WORKING' && !ST.startAreaId) warn.push('Day start area not selected');
-    if (!ST.timeIn) warn.push('Time in is empty');
+    const open = ST.visits.concat(ST.unlisted).filter(isOpen);
+    if (open.length) warn.push('Check out of ' + open[0].clientName + ' before submitting');
     return `<div class="card-lite"><div class="row text-center g-2">
         <div class="col-4"><div class="fs-3 fw-bold">${calls}</div><small class="text-muted">Calls</small></div>
         <div class="col-4"><div class="fs-3 fw-bold">₹${money(pob)}</div><small class="text-muted">POB</small></div>
         <div class="col-4"><div class="fs-3 fw-bold">₹${money(exp)}</div><small class="text-muted">Expense</small></div></div></div>
-      ${warn.length ? `<div class="alert alert-warning small">${warn.map(w => '<div><i class="bi bi-exclamation-triangle"></i> ' + esc(w) + '</div>').join('')}</div>` : '<div class="alert alert-success small"><i class="bi bi-check-circle"></i> Looks good — tap Submit to send it for approval.</div>'}
+      ${warn.length ? `<div class="alert alert-warning small">${warn.map(w => '<div><i class="bi bi-exclamation-triangle"></i> ' + esc(w) + '</div>').join('')}</div>` : '<div class="alert alert-success small"><i class="bi bi-check-circle"></i> Looks good — tap Submit to send it for approval (your time out is captured then).</div>'}
       <div class="small text-muted">Draft keeps it with you to finish later. Submit sends it to your manager; once approved it cannot be changed.</div>`;
   }
 
@@ -552,23 +607,24 @@
       leaflets: (c.leaflets || []).map(l => ({ itemId: Number(l.itemId), qty: n(l.qty) || 0, value: n(l.value) || 0 })) };
   }
   function payload(submit) {
-    return { dcrDate: ST.dcrDate, workType: ST.workType, startAreaId: n(ST.startAreaId), workingAreaId: n(ST.workingAreaId), timeIn: s(ST.timeIn), timeOut: s(ST.timeOut), travelMode: s(ST.travelMode),
+    return { dcrDate: ST.dcrDate, workType: ST.workType, startAreaId: n(ST.startAreaId), workingAreaId: n(ST.workingAreaId), travelMode: s(ST.travelMode),
       meterStart: n(ST.meterStart), meterEnd: n(ST.meterEnd), remarks: s(ST.remarks), dayEndAreaId: n(ST.dayEndAreaId), dayEndAt: s(ST.dayEndAt), dayEndRemarks: s(ST.dayEndRemarks),
       stayAreaId: n(ST.stayAreaId), stayHotel: s(ST.stayHotel), jointWith: ST.jointWith, submit,
-      visits: ST.visits.map(v => Object.assign({ clientId: v.clientId }, callPayload(v))),
-      unlisted: ST.unlisted.map(u => Object.assign({ key: u.key, clientName: u.clientName, clientTypeId: n(u.clientTypeId), specialityId: n(u.specialityId), categoryId: n(u.categoryId),
+      visits: ST.visits.filter(v => v.inTime).map(v => Object.assign({ clientId: v.clientId }, callPayload(v))),   // only checked-in calls are saved
+      unlisted: ST.unlisted.filter(u => u.inTime).map(u => Object.assign({ key: u.key, clientName: u.clientName, clientTypeId: n(u.clientTypeId), specialityId: n(u.specialityId), categoryId: n(u.categoryId),
         qualification: s(u.qualification), mobile: s(u.mobile), contactPerson: s(u.contactPerson), address: s(u.address) }, callPayload(u))),
       expenses: ST.expenses.map(e => ({ expenseId: Number(e.expenseId), amount: Number(e.amount), description: s(e.description), clientKind: e.clientKind || 0, clientId: e.clientId, unlistedKey: e.unlistedKey,
         fromAreaId: n(e.fromAreaId), toAreaId: n(e.toAreaId), startKm: n(e.startKm), endKm: n(e.endKm), startImagePath: s(e.startImagePath), endImagePath: s(e.endImagePath),
         fileName: s(e.fileName), fileType: s(e.fileType), filePath: s(e.filePath) })) };
   }
-  async function dcrSave(submit) {
-    if (submit && !confirm('Submit this DCR for approval?')) return;
+  async function dcrSave(submit, silent) {
+    if (submit && !confirm('Submit this DCR for approval? Your time out is captured now.')) return false;
     try {
       const saved = await Api.post(EP.save, payload(submit));
       ST = fromDto(saved); render();
-      SFA.toast(submit ? 'DCR submitted' : 'Draft saved', true);
-    } catch (e) { SFA.toast(e.message, false); }
+      if (!silent) SFA.toast(submit ? 'DCR submitted' : 'Draft saved', true);
+      return true;
+    } catch (e) { SFA.toast(e.message, false); return false; }
   }
 
   // ============================================================== history / approval

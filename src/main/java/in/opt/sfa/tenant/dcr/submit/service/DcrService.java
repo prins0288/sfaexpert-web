@@ -285,6 +285,52 @@ public class DcrService {
     }
 
     // =========================================================================================
+    // start the day
+    // =========================================================================================
+
+    /**
+     * Start MY day: creates the DCR (a draft) with time in = now (server time). Until the day is started
+     * there is nothing else to fill. Today only — a missed earlier day (within the back-days limit) is
+     * started with the time in typed (timeIn).
+     */
+    @Transactional(transactionManager = "tenantTransactionManager")
+    public DcrDto start(DcrDto f) {
+        String me = me();
+        LocalDate date = date(f.getDcrDate(), "DCR date");
+        LocalDate today = LocalDate.now();
+        if (date == null) date = today;
+        if (date.isAfter(today)) throw new IllegalStateException("A day cannot be started in the future");
+        if (date.isBefore(today.minusDays(backDays()))) throw new IllegalStateException("A DCR can be filled only up to " + backDays() + " days back");
+        String workType = f.getWorkType() == null ? "WORKING" : f.getWorkType().toUpperCase();
+        if (!WORK_TYPES.contains(workType)) throw new IllegalStateException("Work type must be one of " + WORK_TYPES);
+        if (jdbc.queryForObject("SELECT COUNT(*) FROM dcr_parent_summary WHERE emp_id = ? AND dcr_date = ?", Integer.class, me, date) > 0) {
+            throw new IllegalStateException("Your day is already started");
+        }
+        LocalTime timeIn = date.equals(today) ? LocalTime.now().withSecond(0).withNano(0) : time(f.getTimeIn(), "Time in");
+        if (timeIn == null) throw new IllegalStateException("Enter the time your day started");
+        boolean working = "WORKING".equals(workType);
+        if (working && f.getStartAreaId() == null) throw new IllegalStateException("Choose the area you start the day from");
+        if (f.getStartAreaId() != null) checkAreaIds(List.of(f.getStartAreaId()));
+        if (f.getMeterStart() != null && f.getMeterStart().signum() < 0) throw new IllegalStateException("Meter start cannot be negative");
+        Map<String, Object> emp = jdbc.queryForList("SELECT designation, manager_id FROM emp_detail WHERE emp_id = ?", me).get(0);
+        KeyHolder kh = new GeneratedKeyHolder();
+        final LocalDate d = date; final LocalTime ti = timeIn;
+        jdbc.update(con -> {
+            PreparedStatement ps = con.prepareStatement("""
+                    INSERT INTO dcr_parent_summary (emp_id, dcr_date, work_type, designation_id, manager_id, start_area_id, time_in, travel_mode, meter_start, remarks, status, submitted_through)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,0,2)""", Statement.RETURN_GENERATED_KEYS);
+            ps.setString(1, me); ps.setObject(2, d); ps.setString(3, workType); ps.setObject(4, emp.get("designation")); ps.setObject(5, emp.get("manager_id"));
+            ps.setObject(6, working ? f.getStartAreaId() : null); ps.setObject(7, ti); ps.setObject(8, blank(f.getTravelMode())); ps.setObject(9, f.getMeterStart()); ps.setObject(10, blank(f.getRemarks()));
+            return ps;
+        }, kh);
+        long id = kh.getKey().longValue();
+        if (working && f.getStartAreaId() != null) {
+            jdbc.update("INSERT INTO dcr_area_summary (dcr_id, emp_id, dcr_date, area_id, area_role) VALUES (?,?,?,?, 'START')", id, me, date, f.getStartAreaId());
+        }
+        return load(parent(id));
+    }
+
+    // =========================================================================================
     // save / submit
     // =========================================================================================
 
@@ -300,8 +346,9 @@ public class DcrService {
         String workType = f.getWorkType() == null ? "WORKING" : f.getWorkType().toUpperCase();
         if (!WORK_TYPES.contains(workType)) throw new IllegalStateException("Work type must be one of " + WORK_TYPES);
 
-        List<Map<String, Object>> existing = jdbc.queryForList("SELECT dcr_id, status FROM dcr_parent_summary WHERE emp_id = ? AND dcr_date = ?", me, date);
-        if (!existing.isEmpty() && ((Number) existing.get(0).get("status")).intValue() == APPROVED) {
+        List<Map<String, Object>> existing = jdbc.queryForList("SELECT dcr_id, status, time_in, time_out FROM dcr_parent_summary WHERE emp_id = ? AND dcr_date = ?", me, date);
+        if (existing.isEmpty()) throw new IllegalStateException("Start your day first");
+        if (((Number) existing.get(0).get("status")).intValue() == APPROVED) {
             throw new IllegalStateException("This DCR is already approved and cannot be changed");
         }
         boolean working = "WORKING".equals(workType);
@@ -355,8 +402,20 @@ public class DcrService {
         if (f.isSubmit() && working && f.getVisits().isEmpty() && f.getUnlisted().isEmpty()) {
             throw new IllegalStateException("Add at least one client call before submitting (or save it as a draft)");
         }
-        LocalTime tin = time(f.getTimeIn(), "Time in"), tout = time(f.getTimeOut(), "Time out");
-        if (tin != null && tout != null && tout.isBefore(tin)) throw new IllegalStateException("Time out cannot be before time in");
+        // every call is a check-in; one open at a time; all checked out before the day is submitted
+        List<String> open = new ArrayList<>();
+        for (DcrDto.Call c : concat(f.getVisits(), f.getUnlisted())) {
+            if (Strings.isBlank(c.getInTime())) throw new IllegalStateException("A call is not checked in — check in the client first");
+            if (Strings.isBlank(c.getOutTime()) && !c.isRefused()) open.add(callName(c));
+            checkNotFuture(date, c);
+        }
+        if (open.size() > 1) throw new IllegalStateException("Check out of " + open.get(0) + " before checking in another client");
+        if (f.isSubmit() && !open.isEmpty()) throw new IllegalStateException("Check out of " + open.get(0) + " before submitting the day");
+        // time in is fixed when the day starts; time out is stamped on submit (a past day: as typed)
+        LocalTime tin = existing.get(0).get("time_in") == null ? null : LocalTime.parse(existing.get(0).get("time_in").toString());
+        LocalTime tout = existing.get(0).get("time_out") == null ? null : LocalTime.parse(existing.get(0).get("time_out").toString());
+        if (f.isSubmit() && tout == null) tout = date.equals(today) ? LocalTime.now().withSecond(0).withNano(0) : time(f.getTimeOut(), "Time out");
+        if (tin != null && tout != null && tout.isBefore(tin) && date.equals(today)) tout = tin;
         if (f.getMeterStart() != null && f.getMeterEnd() != null && f.getMeterEnd().compareTo(f.getMeterStart()) < 0) throw new IllegalStateException("Meter end cannot be less than meter start");
 
         // ---- the parent row (snapshot of designation / immediate manager that day) ----
@@ -530,11 +589,38 @@ public class DcrService {
         f.getVisits().forEach(v -> { if (v.getAreaId() != null) ids.add(v.getAreaId()); });
         f.getUnlisted().forEach(u -> { if (u.getAreaId() != null) ids.add(u.getAreaId()); });
         f.getExpenses().forEach(x -> { if (x.getFromAreaId() != null) ids.add(x.getFromAreaId()); if (x.getToAreaId() != null) ids.add(x.getToAreaId()); });
+        checkAreaIds(ids);
+    }
+
+    private void checkAreaIds(List<Long> ids) {
         for (Long a : new HashSet<>(ids)) {
             if (jdbc.queryForObject("SELECT COUNT(*) FROM area_master WHERE oid = ? AND status = 'Y' AND approval_status = 'APPROVED'", Integer.class, a) == 0) {
                 throw new IllegalStateException("Area " + a + " is not an active, approved area");
             }
         }
+    }
+
+    private static List<DcrDto.Call> concat(List<DcrDto.Visit> v, List<DcrDto.Unlisted> u) {
+        List<DcrDto.Call> all = new ArrayList<>(v);
+        all.addAll(u);
+        return all;
+    }
+
+    private String callName(DcrDto.Call c) {
+        if (c instanceof DcrDto.Unlisted u) return u.getClientName();
+        Long id = ((DcrDto.Visit) c).getClientId();
+        return jdbc.queryForList("SELECT client_name FROM client_master WHERE id = ?", id).stream().findFirst().map(r -> (String) r.get("client_name")).orElse("the client");
+    }
+
+    /** Check-in / check-out times come from the phone's clock: never in the future (5 min grace) and never on another day. */
+    private static void checkNotFuture(LocalDate date, DcrDto.Call c) {
+        LocalDateTime now = LocalDateTime.now().plusMinutes(5);
+        for (String t : new String[]{c.getInTime(), c.getOutTime()}) {
+            LocalTime lt = time(t, "Call time");
+            if (lt != null && date.equals(LocalDate.now()) && date.atTime(lt).isAfter(now)) throw new IllegalStateException("A call time is in the future — check your phone's clock");
+        }
+        LocalTime in = time(c.getInTime(), "In time"), out = time(c.getOutTime(), "Out time");
+        if (in != null && out != null && out.isBefore(in)) throw new IllegalStateException("Check-out time cannot be before check-in time");
     }
 
     private static boolean hasDayEnd(DcrDto f) {
