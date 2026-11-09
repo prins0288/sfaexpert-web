@@ -29,7 +29,6 @@ import java.util.*;
 @Service
 public class DcrService {
 
-    public static final List<String> WORK_TYPES = List.of("WORKING", "LEAVE", "HOLIDAY", "MEETING", "TRAINING");
     public static final int DRAFT = 0, SUBMITTED = 1, APPROVED = 2, REJECTED = 3;
     private static final String[] STATUS_NAMES = {"Draft", "Submitted", "Approved", "Rejected"};
     /** Company setting: how many days back a DCR may still be filled (default 7). */
@@ -63,7 +62,7 @@ public class DcrService {
         m.put("meName", who.get("name"));
         m.put("meDesignation", who.get("designation"));
         m.put("meHq", who.get("hq"));
-        m.put("workTypes", WORK_TYPES);
+        m.put("workTypes", worktypes.dayTypes(me));
         m.put("backDays", backDays());
         m.put("tabs", worktypes.tabsFor(me));
         m.put("clients", jdbc.queryForList("""
@@ -308,7 +307,7 @@ public class DcrService {
         if (date.isAfter(today)) throw new IllegalStateException("A day cannot be started in the future");
         if (date.isBefore(today.minusDays(backDays()))) throw new IllegalStateException("A DCR can be filled only up to " + backDays() + " days back");
         String workType = f.getWorkType() == null ? "WORKING" : f.getWorkType().toUpperCase();
-        if (!WORK_TYPES.contains(workType)) throw new IllegalStateException("Work type must be one of " + WORK_TYPES);
+        if (!worktypes.isDayType(me, workType)) throw new IllegalStateException("Please choose a valid work type");
         if (jdbc.queryForObject("SELECT COUNT(*) FROM dcr_parent_summary WHERE emp_id = ? AND dcr_date = ?", Integer.class, me, date) > 0) {
             throw new IllegalStateException("Your day is already started");
         }
@@ -350,7 +349,7 @@ public class DcrService {
         if (date.isAfter(today)) throw new IllegalStateException("A DCR cannot be filled for a future date");
         if (date.isBefore(today.minusDays(backDays()))) throw new IllegalStateException("A DCR can be filled only up to " + backDays() + " days back");
         String workType = f.getWorkType() == null ? "WORKING" : f.getWorkType().toUpperCase();
-        if (!WORK_TYPES.contains(workType)) throw new IllegalStateException("Work type must be one of " + WORK_TYPES);
+        if (!worktypes.isDayType(me, workType)) throw new IllegalStateException("Please choose a valid work type");
 
         List<Map<String, Object>> existing = jdbc.queryForList("SELECT dcr_id, status, time_in, time_out FROM dcr_parent_summary WHERE emp_id = ? AND dcr_date = ?", me, date);
         if (existing.isEmpty()) throw new IllegalStateException("Start your day first");

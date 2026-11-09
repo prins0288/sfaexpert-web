@@ -49,6 +49,7 @@ import java.util.stream.Collectors;
 public class EmpDetailService {
 
     private final EmpDetailRepository employees;
+    private final in.opt.sfa.tenant.dcr.submit.service.DcrWorktypeService dcrWorktypes;
     private final EmpAssignmentHistoryRepository history;
     private final in.opt.sfa.tenant.team.TeamScope scope;
     private final AppUserAdminService credentials;
@@ -77,7 +78,9 @@ public class EmpDetailService {
                             DesignationRepository designations, CompanySettingStore settings,
                             EmpProfileService profiles, StateRepository states, HqRepository hqs,
                             BankMasterRepository banks, DegreeMasterRepository degrees,
-                            in.opt.sfa.tenant.master.salutation.service.SalutationMasterService salutations) {
+                            in.opt.sfa.tenant.master.salutation.service.SalutationMasterService salutations,
+                            in.opt.sfa.tenant.dcr.submit.service.DcrWorktypeService dcrWorktypes) {
+        this.dcrWorktypes = dcrWorktypes;
         this.salutations = salutations;
         this.employees = employees;
         this.history = history;
@@ -262,6 +265,7 @@ public class EmpDetailService {
         employees.saveAndFlush(e);
         recordAssignmentHistory(e, isNew, oldDivisionId, oldStateId, oldHqId, oldDesignationId, oldManagerId, req);
         profiles.save(e.getEmpId(), req.getProfile());
+        if (isNew) dcrWorktypes.copyMasterTo(e.getEmpId());   // own copy of the DCR day types / tabs
 
         // Keep the COMMON-db login (user_login_master) in sync — blank username/password
         // on an update keeps the existing ones (see AppUserAdminService.upsert).

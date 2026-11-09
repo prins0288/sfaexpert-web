@@ -104,8 +104,8 @@ public class DcrController {
 
     @GetMapping("/worktypes")
     @Operation(summary = "Every DCR-tab row (who gets which tab) — admin")
-    public List<Map<String, Object>> worktypes() {
-        return worktypes.list();
+    public Map<String, Object> worktypes(@RequestParam(required = false) String empId) {
+        return worktypes.list(empId);
     }
 
     @PostMapping("/worktypes")

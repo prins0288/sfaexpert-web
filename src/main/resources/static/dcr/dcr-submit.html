@@ -117,6 +117,7 @@
   <!-- header like the phone app: title + who, DCR History link -->
   <div class="dcr-top">
     <div><div class="dcr-title" id="dcrTitle">DCR</div><div class="text-muted small" id="dcrWho"></div></div>
+    <button class="dcr-start-btn d-none" id="dcrFinalBtn" onclick="dcrSave(true)" title="Ends your day - the day-end time is captured automatically"><i class="bi bi-check2-circle"></i> Final Submit</button>
     <a href="javascript:void(0)" class="dcr-histlink" id="dcrHistLink" onclick="dcrView(VIEW === 'form' ? 'list' : 'form')"><i class="bi bi-clock-history"></i> <span id="dcrHistTxt">DCR History</span><span class="dcr-badge d-none" id="dcrPendingBadge"></span></a>
   </div>
 
@@ -246,6 +247,7 @@
     document.getElementById('dcrForm').classList.toggle('d-none', v !== 'form');
     document.getElementById('dcrList').classList.toggle('d-none', v !== 'list');
     document.getElementById('dcrBar').classList.toggle('d-none', v !== 'form' || !started());
+    document.getElementById('dcrFinalBtn').classList.toggle('d-none', v !== 'form' || !started() || !(ST && ST.canEdit));
     if (v === 'list') dcrLoadList();
   }
 
@@ -286,6 +288,7 @@
     const pob = ST.visits.concat(ST.unlisted).reduce((s, c) => s + callPob(c), 0), exp = ST.expenses.reduce((s, e) => s + Number(e.amount || 0), 0);
     document.getElementById('dcrSum').innerHTML = `<b>${ST.visits.length + ST.unlisted.length}</b> calls · POB <b>₹${money(pob)}</b><br>Expense <b>₹${money(exp)}</b>`;
     const ro = !ST.canEdit;
+    document.getElementById('dcrFinalBtn').classList.toggle('d-none', ro || !started() || VIEW !== 'form');
     document.getElementById('dcrDraftBtn').disabled = ro; document.getElementById('dcrSubmitBtn').disabled = ro;
     document.getElementById('dcrSubmitBtn').innerHTML = ST.status === 3 ? '<i class="bi bi-send-check"></i> <span class="t">Resubmit</span>' : '<i class="bi bi-send-check"></i> <span class="t">Submit</span>';
   }
@@ -296,9 +299,9 @@
   const field = (label, html, cls) => `<div class="${cls || 'col-12'}"><label class="form-label">${label}</label>${html}</div>`;
   const inp = (key, type, extra) => `<input class="form-control" type="${type || 'text'}" value="${esc(ST[key])}" oninput="ST.${key}=this.value" ${extra || ''} />`;
 
+  const wtName = (c) => { const w = (OPT.workTypes || []).find(x => x.code === c); return w ? w.name : c; };
   function paneDay() {
     const working = ST.workType === 'WORKING', today = ST.dcrDate === todayStr();
-    const wt = OPT.workTypes.map(w => `<button class="dcr-chip ${ST.workType === w ? 'on' : ''}" onclick="setWork('${w}')">${w.charAt(0) + w.slice(1).toLowerCase()}</button>`).join('');
     if (!started()) {
       const when = today ? 'Today: ' : 'Date: ', dt = new Date(ST.dcrDate + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
       return `<div class="card-lite d-flex align-items-center gap-3"><div class="flex-fill"><div class="fs-5 fw-bold">Day not started</div>
@@ -309,7 +312,7 @@
     return `<div class="card-lite"><div class="d-flex justify-content-between text-center">
         <div class="flex-fill"><small class="text-muted d-block">Time in</small><b class="fs-5">${esc(ST.timeIn || '--:--')}</b></div>
         <div class="flex-fill"><small class="text-muted d-block">Time out</small><b class="fs-5">${esc(ST.timeOut || '--:--')}</b><small class="text-muted d-block">${ST.timeOut ? '' : 'set when you submit'}</small></div>
-        <div class="flex-fill"><small class="text-muted d-block">Day</small><b class="fs-6">${esc(ST.workType.charAt(0) + ST.workType.slice(1).toLowerCase())}</b></div></div></div>
+        <div class="flex-fill"><small class="text-muted d-block">Day</small><b class="fs-6">${esc(wtName(ST.workType))}</b></div></div></div>
       ${working ? `<div class="card-lite"><div class="row g-3">
         ${field('Started from', `<select class="form-select" data-no-search onchange="ST.startAreaId=this.value">${opts(OPT.areas, ST.startAreaId, 'Select area')}</select>`)}
         ${field('Travel mode', `<select class="form-select" data-no-search onchange="ST.travelMode=this.value">${opts(OPT.travelModes, ST.travelMode, 'Select')}</select>`, 'col-6')}
@@ -319,8 +322,8 @@
   }
   function startSheet() {
     const working = ST.workType === 'WORKING', today = ST.dcrDate === todayStr();
-    const wt = OPT.workTypes.map(w => `<button class="dcr-chip ${ST.workType === w ? 'on' : ''}" onclick="ST.workType='${w}';startSheet()">${w.charAt(0) + w.slice(1).toLowerCase()}</button>`).join('');
-    sheetOpen('Start your day', `<div class="dcr-sec mt-0">Day type</div><div class="dcr-chips mb-3">${wt}</div><div class="row g-3">
+    const wt = `<select class="form-select" data-no-search onchange="ST.workType=this.value;startSheet()">${opts(OPT.workTypes.map(w => ({ id: w.code, name: w.name })), ST.workType)}</select>`;
+    sheetOpen('Start your day', `<div class="row g-3">${field('Work type', wt)}
       ${working ? field('Starting from (area)', `<select class="form-select" data-no-search onchange="ST.startAreaId=this.value">${opts(OPT.areas, ST.startAreaId, 'Select area')}</select>`) : ''}
       ${working ? field('Travel mode', `<select class="form-select" data-no-search onchange="ST.travelMode=this.value">${opts(OPT.travelModes, ST.travelMode, 'Select')}</select>`, 'col-6') + field('Meter start (km)', inp('meterStart', 'number', 'inputmode="decimal" step="0.1"'), 'col-6') : ''}
       ${today ? '' : field('Time in (earlier day)', inp('timeIn', 'time'), 'col-6')}
