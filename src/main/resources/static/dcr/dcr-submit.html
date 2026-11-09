@@ -87,6 +87,13 @@
   .cl-card.visited { background: var(--bs-tertiary-bg); opacity: .62; cursor: default; }
   .cl-card.visited .cl-badge { background: var(--bs-secondary-bg); color: var(--bs-secondary-color); }
   .cl-card .cl-ico { font-size: 1.5rem; color: var(--bs-secondary-color); }
+  .pca-btn { width: 100%; border: 0; border-radius: .9rem; background: #ece9fb; color: #5b3fd0; font-weight: 700; padding: .55rem; margin-top: .55rem; }
+  .pca-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+  .pca-grid > div { background: var(--bs-tertiary-bg); border-radius: .8rem; padding: .55rem .75rem; }
+  .pca-grid small { display: block; color: var(--bs-secondary-color); font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; }
+  .pca-grid b { word-break: break-word; }
+  .pca-month { border: 1px solid var(--bs-border-color); border-radius: 1rem; padding: .7rem .9rem; margin-bottom: .6rem; }
+  .pca-month .vd { color: var(--bs-danger); font-weight: 600; } .pca-month .by { color: var(--bs-success); }
   .dcr-add { width: 100%; border: 2px dashed var(--bs-border-color); background: transparent; border-radius: 1rem; padding: .85rem; font-weight: 600; color: var(--bs-primary); }
   .dcr-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: flex; gap: .6rem; align-items: center; padding: .65rem 1rem calc(.65rem + env(safe-area-inset-bottom)); background: var(--bs-body-bg); border-top: 1px solid var(--bs-border-color); box-shadow: 0 -4px 14px rgba(0,0,0,.08); }
   .dcr-bar .btn { border-radius: 999px; padding: .55rem 1.1rem; font-weight: 600; }
@@ -513,8 +520,25 @@
         <div><span class="cl-name">${esc(c.name)}</span>${c.category ? ` <span class="text-muted">- [${esc(c.category)}]</span>` : ''}${vis ? `<span class="cl-badge">${today ? 'VISITED TODAY' : 'VISITED'}</span>` : ''}</div>
         <div class="cl-sub">${esc([c.speciality, c.areaName].filter(Boolean).join(' · ') || c.clientTypeName || '')}</div>
         <div class="small text-muted">Code ${esc(c.code)}${c.category ? ' · Cat ' + esc(c.category) : ''} · Visits ${Number(c.visits || 0)}</div>
-        <div class="small cl-sub"><i class="bi bi-clock-history"></i> Last visit: ${esc(fmtDay(c.lastVisit))}</div></div><i class="bi bi-person cl-ico"></i></div>`; }).join('')
+        <div class="small cl-sub"><i class="bi bi-clock-history"></i> Last visit: ${esc(fmtDay(c.lastVisit))}</div>
+        <button type="button" class="pca-btn" onclick="event.stopPropagation();preCall(${c.id})"><i class="bi bi-graph-up-arrow"></i> Pre-Call Analysis</button></div><i class="bi bi-person cl-ico"></i></div>`; }).join('')
       || '<div class="dcr-empty">No client found</div>';
+  }
+  // Pre-Call Analysis (phone-app style): client facts, month-wise visits with samples / inputs
+  async function preCall(id) {
+    try {
+      const a = await Api.get(EP.analysis(id)), tab = window.__pickTab;
+      const cell = (l, v) => `<div><small>${l}</small><b>${esc(v == null || v === '' ? '-' : v)}</b></div>`;
+      const stars = a.starRating ? '<span class="text-warning">' + '★'.repeat(a.starRating) + '</span><span class="text-muted">' + '★'.repeat(Math.max(0, 5 - a.starRating)) + '</span>' : '-';
+      let h = `<div class="dcr-sec mt-0">Pre Call Analysis</div><div class="pca-grid">
+        ${cell('Client name', a.name)}${cell('Mobile no', a.mobile)}${cell('Category', a.category)}${cell('Speciality', a.speciality)}${cell('Degree', a.degree)}${cell('Frequency of visit', a.frequency)}
+        ${cell('Days since last visit', a.daysSinceLastVisit == null ? 'NA' : a.daysSinceLastVisit + ' (Day)')}<div><small>Star rating</small><b>${stars}</b></div></div>
+        <div class="dcr-sec">Visit details</div>`;
+      h += a.months.map(m => `<div class="pca-month"><div class="d-flex justify-content-between"><b>${esc(m.month)}</b><span class="badge bg-secondary-subtle text-secondary-emphasis">${m.totalVisits} visit${m.totalVisits === 1 ? '' : 's'}</span></div>
+        ${m.visits.map(v => `<div class="small mt-1"><span class="vd">${esc(fmtDay(v.date))}</span> ${v.visitType ? '(' + esc(v.visitType) + ')' : ''}${v.refused ? ' <span class="text-warning">refused</span>' : ''} <span class="by">- ${esc(v.by)}</span></div>`).join('')}
+        ${m.totalSample || m.totalInput ? `<div class="small text-muted mt-1">Sample: <b>${m.totalSample}</b> · Input: <b>${m.totalInput}</b></div>` : ''}</div>`).join('');
+      sheetOpen('Pre-Call Analysis', h, `<button class="btn btn-light" onclick="pickClient('${esc(tab)}')"><i class="bi bi-chevron-left"></i> Back</button><button class="btn btn-light" onclick="sheetClose()">Close</button>`);
+    } catch (e) { SFA.toast(e.message, false); }
   }
   function visitedNote() { SFA.toast('Already visited - delete that check-in to visit again', 'info'); }
   function addClient(id) {

@@ -781,6 +781,70 @@ public class DcrService {
         jdbc.update("DELETE FROM dcr_parent_summary WHERE dcr_id = ?", dcrId);
     }
 
+    /**
+     * Pre-Call Analysis of one of MY clients: client facts, how often / when I visited (month by month, last 6 months)
+     * and the samples / inputs given. Only my own visits are listed.
+     */
+    @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
+    public Map<String, Object> clientAnalysis(Long clientId) {
+        String me = me();
+        List<Map<String, Object>> rows = jdbc.queryForList("""
+                SELECT c.id, c.client_code AS code, CONCAT(COALESCE(CONCAT(c.salutation, ' '), ''), c.client_name) AS name, c.mobile_number_1 AS mobile,
+                       cat.category_name AS category, sp.speciality_name AS speciality, dg.degree_name AS degree, c.visit_frequency AS frequency, c.star_rating AS starRating,
+                       ar.area_name AS areaName, ct.type_name AS clientType
+                FROM client_master c
+                LEFT JOIN category_master cat ON cat.oid = c.category_id
+                LEFT JOIN speciality_master sp ON sp.oid = c.speciality_id
+                LEFT JOIN degree_master dg ON dg.id = c.degree_id
+                LEFT JOIN area_master ar ON ar.oid = c.city_id
+                LEFT JOIN client_type ct ON ct.oid = c.client_type_id
+                WHERE c.id = ? AND c.is_active = 1 AND c.approval_status = 'APPROVED'
+                  AND (c.mapped_emp_code = ? OR (c.mapped_emp_code IS NULL AND c.created_by COLLATE utf8mb4_0900_ai_ci = ?))""", clientId, me, me);
+        if (rows.isEmpty()) throw new IllegalStateException("Client not found among your clients");
+        Map<String, Object> out = new LinkedHashMap<>(rows.get(0));
+        LocalDate from = LocalDate.now().withDayOfMonth(1).minusMonths(5);
+        List<Map<String, Object>> visits = jdbc.queryForList("""
+                SELECT p.dcr_date AS d, s.visit_type AS visitType, s.in_time AS inTime, s.is_refused AS refused, p.dcr_id AS dcrId
+                FROM dcr_client_summary s JOIN dcr_parent_summary p ON p.dcr_id = s.dcr_id
+                WHERE s.emp_id = ? AND s.client_id = ? AND p.dcr_date >= ? ORDER BY p.dcr_date DESC, s.in_time DESC""", me, clientId, from);
+        List<Map<String, Object>> given = jdbc.queryForList("""
+                SELECT p.dcr_date AS d, t.dcr_panel AS panel, SUM(x.qty) AS qty
+                FROM dcr_client_sample x JOIN dcr_parent_summary p ON p.dcr_id = x.dcr_id
+                JOIN item_master i ON i.id = x.item_id JOIN item_type_master t ON t.id = i.item_type_id
+                WHERE p.emp_id = ? AND x.client_kind = 1 AND x.client_ref_id = ? AND p.dcr_date >= ? AND t.dcr_panel IN ('SAMPLE', 'INPUT')
+                GROUP BY p.dcr_date, t.dcr_panel""", me, clientId, from);
+        String who = String.valueOf(jdbc.queryForList("SELECT emp_name FROM emp_detail WHERE emp_id = ?", me).stream().findFirst().map(r -> r.get("emp_name")).orElse(""));
+        List<Map<String, Object>> months = new ArrayList<>();
+        for (int i = 0; i <= 5; i++) {
+            LocalDate m0 = LocalDate.now().withDayOfMonth(1).minusMonths(i);
+            Map<String, Object> mo = new LinkedHashMap<>();
+            mo.put("month", m0.getMonth().getDisplayName(java.time.format.TextStyle.FULL, Locale.ENGLISH) + "-" + m0.getYear());
+            List<Map<String, Object>> vs = new ArrayList<>();
+            for (Map<String, Object> v : visits) {
+                LocalDate d = LocalDate.parse(v.get("d").toString().substring(0, 10));
+                if (d.getYear() == m0.getYear() && d.getMonth() == m0.getMonth()) {
+                    Map<String, Object> e = new LinkedHashMap<>(); e.put("date", d.toString()); e.put("visitType", v.get("visitType")); e.put("by", who); e.put("refused", flag(v.get("refused")) == 1);
+                    vs.add(e);
+                }
+            }
+            long sample = 0, input = 0;
+            for (Map<String, Object> g : given) {
+                LocalDate d = LocalDate.parse(g.get("d").toString().substring(0, 10));
+                if (d.getYear() == m0.getYear() && d.getMonth() == m0.getMonth()) {
+                    long q = g.get("qty") == null ? 0 : ((Number) g.get("qty")).longValue();
+                    if ("SAMPLE".equals(g.get("panel"))) sample += q; else input += q;
+                }
+            }
+            mo.put("visits", vs); mo.put("totalVisits", vs.size()); mo.put("totalSample", sample); mo.put("totalInput", input);
+            months.add(mo);
+        }
+        out.put("months", months);
+        Object last = jdbc.queryForList("SELECT MAX(p.dcr_date) AS d FROM dcr_client_summary s JOIN dcr_parent_summary p ON p.dcr_id = s.dcr_id WHERE s.emp_id = ? AND s.client_id = ?", me, clientId).get(0).get("d");
+        out.put("lastVisit", last == null ? null : last.toString().substring(0, 10));
+        out.put("daysSinceLastVisit", last == null ? null : java.time.temporal.ChronoUnit.DAYS.between(LocalDate.parse(last.toString().substring(0, 10)), LocalDate.now()));
+        return out;
+    }
+
     private boolean canApprove(String owner) {
         String me = me();
         if (owner.equals(me)) return false;

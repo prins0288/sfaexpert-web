@@ -83,6 +83,12 @@ public class DcrController {
         service.delete(dcrId);
     }
 
+    @GetMapping("/client-analysis/{clientId}")
+    @Operation(summary = "Pre-Call Analysis of one of my clients: facts, month-wise visits, samples / inputs")
+    public Map<String, Object> clientAnalysis(@PathVariable Long clientId) {
+        return service.clientAnalysis(clientId);
+    }
+
     @PostMapping("/{dcrId}/approve")
     public DcrDto approve(@PathVariable Long dcrId, @RequestBody(required = false) Map<String, String> body) {
         return service.approve(dcrId, body == null ? null : body.get("remarks"));
