@@ -53,6 +53,18 @@ public class TourPlanController {
     @PostMapping("/{tourMain}/approve")
     public Map<String, Object> approve(@PathVariable Long tourMain) { return service.approve(tourMain); }
 
+    @PostMapping("/{tourMain}/unapprove")
+    @Operation(summary = "Take a submitted / approved plan back to the employee for changes (reason required)")
+    public Map<String, Object> unapprove(@PathVariable Long tourMain, @RequestBody Map<String, Object> body) { return service.unapprove(tourMain, body.get("reason") == null ? null : String.valueOf(body.get("reason"))); }
+
+    @PostMapping("/{tourMain}/delete")
+    @Operation(summary = "Delete a whole plan (manager of the employee / admin, reason required); recorded in tour_emp_delete_log")
+    public Map<String, Object> deletePlan(@PathVariable Long tourMain, @RequestBody Map<String, Object> body) { return service.deletePlan(tourMain, body.get("reason") == null ? null : String.valueOf(body.get("reason"))); }
+
+    @GetMapping("/deleted")
+    @Operation(summary = "Record of deleted plans: who, when, why, with the saved plan")
+    public List<Map<String, Object>> deleted(@RequestParam(required = false) Integer year, @RequestParam(required = false) Integer month) { return service.deleted(year, month); }
+
     @PostMapping("/{tourMain}/reject")
     public Map<String, Object> reject(@PathVariable Long tourMain, @RequestBody Map<String, Object> body) { return service.reject(tourMain, body.get("reason") == null ? null : String.valueOf(body.get("reason"))); }
 }

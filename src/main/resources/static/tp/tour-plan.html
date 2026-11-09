@@ -44,6 +44,7 @@
   .tp-cell.off { background: var(--bs-tertiary-bg); } .tp-cell.off .h { color: var(--bs-secondary-color); }
   .tp-cell.hol { background: var(--bs-danger-bg-subtle); border-color: var(--bs-danger-border-subtle); }
   .tp-cell.past { opacity: .55; } .tp-cell.today { border: 2px solid var(--bs-primary); }
+  .tp-cell.chg { background: var(--bs-warning-bg-subtle); border-color: var(--bs-warning); }
   .tp-cell.blank { border: 0; background: transparent; }
   .tp-cell .m { font-size: .58rem; color: var(--bs-secondary-color); }
   @media (min-width: 992px) { .tp-cell { min-height: 6rem; border-radius: .5rem; padding: .45rem .55rem; } .tp-cell .n { font-size: 1.05rem; } .tp-cell .t { font-size: .74rem; } .tp-cell .h { font-size: .72rem; } .tp-cell .m { font-size: .7rem; } .tp-cell:hover:not(.blank) { background: var(--bs-tertiary-bg); } }
@@ -54,6 +55,11 @@
   .tp-kind .box { max-height: 15rem; overflow-y: auto; border: 1px solid var(--bs-border-color); border-radius: .7rem; padding: 0 .6rem; margin-top: .5rem; overscroll-behavior: contain; }
   .tp-prog { height: .5rem; border-radius: 999px; background: var(--bs-secondary-bg); overflow: hidden; }
   .tp-prog > div { height: 100%; background: var(--bs-success); transition: width .3s; }
+  .tp-ed { position: absolute; right: .3rem; top: .3rem; font-size: .7rem; color: var(--bs-warning); }
+  .tp-chg { border: 1px solid var(--bs-warning-border-subtle); background: var(--bs-warning-bg-subtle); border-radius: .85rem; padding: .7rem .85rem; margin-bottom: .6rem; }
+  .tp-chg .ln { font-size: .85rem; padding: .1rem 0; } .tp-chg .ln.add { color: var(--bs-success-text-emphasis); } .tp-chg .ln.del { color: var(--bs-danger-text-emphasis); } .tp-chg .ln.mod { color: var(--bs-body-color); }
+  .tp-ba { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; margin-top: .5rem; }
+  .tp-ba > div { background: var(--bs-body-bg); border-radius: .7rem; padding: .5rem .65rem; font-size: .8rem; } .tp-ba h6 { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: var(--bs-secondary-color); margin: 0 0 .25rem; }
   .tp-leg { display: flex; flex-wrap: wrap; gap: .75rem; font-size: .78rem; color: var(--bs-secondary-color); }
   .tp-leg i { display: inline-block; width: .8rem; height: .8rem; border-radius: .25rem; vertical-align: -1px; margin-right: .25rem; }
 </style>
@@ -77,13 +83,16 @@
     <div class="ap-card"><label class="form-label small mb-1">Goal of the month</label><textarea class="form-control" rows="2" id="tpGoal" maxlength="1000" placeholder="What do you want to achieve this month?" onchange="tpGoalSave()"></textarea></div>
     <div class="ap-card d-none" id="tpProg"></div>
     <div class="ap-card"><div class="tp-cal mb-1" id="tpDow"></div><div class="tp-cal" id="tpCal"></div>
-      <div class="tp-leg mt-2"><span><i style="background:var(--bs-primary-bg-subtle)"></i>Field day</span><span><i style="background:var(--bs-secondary-bg)"></i>Other day type</span><span><i style="background:var(--bs-danger-bg-subtle)"></i>Holiday</span><span><i style="background:var(--bs-tertiary-bg)"></i>Weekly off</span></div></div>
+      <div class="tp-leg mt-2"><span><i style="background:var(--bs-primary-bg-subtle)"></i>Field day</span><span><i style="background:var(--bs-secondary-bg)"></i>Other day type</span><span><i style="background:var(--bs-danger-bg-subtle)"></i>Holiday</span><span><i style="background:var(--bs-tertiary-bg)"></i>Weekly off</span><span><i style="background:var(--bs-warning-bg-subtle);border:1px solid var(--bs-warning)"></i>Changed by manager / admin (tap the date to see what changed)</span><span><i style="border:1.5px dashed var(--bs-warning)"></i>Still to plan</span></div></div>
     <div class="ap-card d-none" id="tpTrailCard"><div class="ap-sec mt-0">Approval</div><div id="tpTrail"></div></div>
   </div>
-  <div id="pTeam" class="d-none"><div class="ap-card" id="tpTeamList"></div></div>
+  <div id="pTeam" class="d-none"><div class="ap-seg" id="tpTeamSeg"><button class="active" data-k="plans" onclick="teamSeg('plans')">Plans</button><button data-k="deleted" onclick="teamSeg('deleted')"><i class="bi bi-trash3"></i> Deleted plans</button></div>
+    <div class="ap-card" id="tpTeamList"></div><div class="ap-card d-none" id="tpDelList"></div></div>
   <div class="ap-bar" id="tpBar"><div class="info" id="tpBarInfo"></div>
-    <button class="ap-btn danger" onclick="tpReject()"><i class="bi bi-x-circle"></i> Reject</button>
-    <button class="ap-btn go" onclick="tpApprove()"><i class="bi bi-patch-check"></i> Approve</button></div>
+    <button class="ap-btn danger" id="tpRejectBtn" onclick="tpReject()"><i class="bi bi-x-circle"></i> Reject</button>
+    <button class="ap-btn danger" id="tpDelBtn" onclick="tpDelete()" title="Delete the whole plan - recorded"><i class="bi bi-trash"></i></button>
+    <button class="ap-btn danger" id="tpUnBtn" onclick="tpUnapprove()"><i class="bi bi-arrow-counterclockwise"></i> Unapprove</button>
+    <button class="ap-btn go" id="tpOkBtn" onclick="tpApprove()"><i class="bi bi-patch-check"></i> Approve</button></div>
   <div class="offcanvas offcanvas-bottom ap-sheet" tabindex="-1" id="tpSheet" data-bs-backdrop="true">
     <div class="offcanvas-header"><h5 class="offcanvas-title" id="tpSheetTitle"></h5><button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button></div>
     <div class="offcanvas-body" id="tpSheetBody"></div>
@@ -129,7 +138,7 @@
   const areaOf = (id) => OPT.areas.find(a => String(a.id) === String(id)) || {};
   const fmt = (d) => new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
-  function tpMonth(n) { M += n; if (M < 1) { M = 12; Y--; } if (M > 12) { M = 1; Y++; } tpLoad().then(() => { if (TAB === 'team') teamLoad(); }).catch(e => SFA.toast(e.message, false)); }
+  function tpMonth(n) { M += n; if (M < 1) { M = 12; Y--; } if (M > 12) { M = 1; Y++; } tpLoad().then(() => { if (TAB === 'team') teamSeg(document.querySelector('#tpTeamSeg button.active').dataset.k); }).catch(e => SFA.toast(e.message, false)); }
   function tpTab(t) {
     TAB = t; if (t === 'my') VIEW = null;
     document.querySelectorAll('#tpSeg button').forEach(b => b.classList.toggle('active', b.dataset.t === t));
@@ -152,19 +161,27 @@
     const ban = [];
     if (!PLAN.mine) ban.push(`<div class="ap-card d-flex align-items-center gap-2"><i class="bi bi-person-lines-fill text-primary fs-4"></i><div class="flex-fill"><b>${esc(PLAN.empName)}</b><small class="d-block text-muted">Viewing this plan</small></div><button class="ap-btn light sm" onclick="tpBack()">Back</button></div>`);
     if (PLAN.canApprove) ban.push('<div class="alert alert-info py-2 small"><i class="bi bi-pencil-square"></i> You can correct any upcoming date of this plan before you approve it - tap the date. Your changes are noted in the approval trail.</div>');
-    if (PLAN.status === 'REJECTED' && PLAN.rejectReason) ban.push(`<div class="alert alert-danger py-2 small"><i class="bi bi-x-circle"></i> Rejected: ${esc(PLAN.rejectReason)} - correct the plan and submit again.</div>`);
+    if (PLAN.status === 'REJECTED' && PLAN.rejectReason) {
+      const back = (PLAN.approval || []).slice().reverse().find(t => t.action === 'UNAPPROVED' || t.action === 'REJECTED');
+      ban.push(`<div class="alert alert-${back && back.action === 'UNAPPROVED' ? 'warning' : 'danger'} py-2 small"><i class="bi bi-${back && back.action === 'UNAPPROVED' ? 'arrow-counterclockwise' : 'x-circle'}"></i> ${back && back.action === 'UNAPPROVED' ? 'Sent back for changes' : 'Rejected'}${back && back.byName ? ' by ' + esc(back.byName) : ''}: ${esc(PLAN.rejectReason)} - ${PLAN.mine ? 'edit the plan (nothing is deleted) and submit it again.' : 'waiting for the employee to correct it.'}</div>`);
+    }
     document.getElementById('tpBanner').innerHTML = ban.join('');
     document.getElementById('pMy').classList.toggle('d-none', TAB !== 'my' && !VIEW);
     document.getElementById('pTeam').classList.toggle('d-none', TAB !== 'team' || !!VIEW);
     const goal = document.getElementById('tpGoal'); goal.value = PLAN.monthGoal || ''; goal.disabled = !PLAN.canEdit;
     progress();
-    const bar = document.getElementById('tpBar'); bar.classList.toggle('show', !!PLAN.canApprove);
-    document.getElementById('tpBarInfo').textContent = PLAN.canApprove ? (PLAN.empName + "'s plan is waiting for you") : '';
+    const bar = document.getElementById('tpBar'), showBar = !!(PLAN.canApprove || PLAN.canUnapprove || PLAN.canDelete);
+    bar.classList.toggle('show', showBar);
+    document.getElementById('tpRejectBtn').style.display = PLAN.canApprove ? '' : 'none';
+    document.getElementById('tpOkBtn').style.display = PLAN.canApprove ? '' : 'none';
+    document.getElementById('tpUnBtn').style.display = PLAN.canUnapprove ? '' : 'none';
+    document.getElementById('tpDelBtn').style.display = PLAN.canDelete && PLAN.tourMain ? '' : 'none';
+    document.getElementById('tpBarInfo').textContent = PLAN.canApprove ? (PLAN.empName + "'s plan is waiting for you") : (PLAN.canUnapprove || PLAN.canDelete) ? (PLAN.empName + "'s plan is " + (ST_NAME[PLAN.status] || [PLAN.status])[0].toLowerCase()) : '';
     calendar();
     const trail = PLAN.approval || [];
     document.getElementById('tpTrailCard').classList.toggle('d-none', !trail.length);
-    document.getElementById('tpTrail').innerHTML = trail.map(t => `<div class="ap-row" style="cursor:default"><i class="bi bi-${t.action === 'REJECTED' ? 'x-circle text-danger' : t.action === 'APPROVED' ? 'check-circle text-success' : t.action === 'EDITED' ? 'pencil-square text-warning' : 'send text-primary'} fs-5"></i>
-      <div class="grow"><b>${esc(({ REQUESTED: 'Submitted', APPROVED: 'Approved', REJECTED: 'Rejected', EDITED: 'Edited' })[t.action] || t.action)}</b> <small class="d-inline text-muted">${esc(t.step === 'MANAGER' ? 'manager step' : t.step === 'FINAL' ? 'final' : '')}</small>
+    document.getElementById('tpTrail').innerHTML = trail.map(t => `<div class="ap-row" style="cursor:default"><i class="bi bi-${t.action === 'REJECTED' ? 'x-circle text-danger' : t.action === 'APPROVED' ? 'check-circle text-success' : t.action === 'EDITED' ? 'pencil-square text-warning' : t.action === 'UNAPPROVED' ? 'arrow-counterclockwise text-warning' : 'send text-primary'} fs-5"></i>
+      <div class="grow"><b>${esc(({ REQUESTED: 'Submitted', APPROVED: 'Approved', REJECTED: 'Rejected', EDITED: 'Edited', UNAPPROVED: 'Sent back' })[t.action] || t.action)}</b> <small class="d-inline text-muted">${esc(t.step === 'MANAGER' ? 'manager step' : t.step === 'FINAL' ? 'final' : '')}</small>
         <small>${esc(t.byName || '')}${t.byDesignation ? ' · ' + esc(t.byDesignation) : ''} · ${esc(String(t.at).replace('T', ' ').slice(0, 16))}${t.remarks ? ' · ' + esc(t.remarks) : ''}</small></div></div>`).join('');
   }
 
@@ -196,8 +213,8 @@
     for (let d = 1; d <= days; d++) {
       const ds = Y + '-' + pad(M) + '-' + pad(d), p = byDate[ds], hol = (PLAN.holidays || {})[ds] || [];
       const isHoliday = hol.some(x => x.kind === 'HOLIDAY'), isOff = !isHoliday && hol.length;
-      const needs = PLAN.canEdit && ds >= today && !hol.length && !p;
-      h += `<button type="button" class="tp-cell ${isHoliday ? 'hol' : isOff ? 'off' : ''} ${ds < today ? 'past' : ''} ${ds === today ? 'today' : ''} ${needs ? 'need' : ''}" onclick="dayOpen('${ds}')"><span class="n">${d}</span>
+      const needs = PLAN.canEdit && ds >= today && !hol.length && !p, changed = (PLAN.changes || []).some(c => c.date === ds);
+      h += `<button type="button" class="tp-cell ${isHoliday ? 'hol' : isOff ? 'off' : ''} ${ds < today ? 'past' : ''} ${ds === today ? 'today' : ''} ${needs ? 'need' : ''} ${changed ? 'chg' : ''}" onclick="dayOpen('${ds}')"><span class="n">${d}</span>${(PLAN.changes || []).some(c => c.date === ds) ? '<i class="bi bi-pencil-fill tp-ed" title="Changed by an approver"></i>' : ''}
         ${hol.map(x => `<span class="h">${esc(x.name)}</span>`).join('')}
         ${p ? `<span class="t ${isField(p.worktypeCode) ? 'field' : ''}">${esc(wtName(p.worktypeCode))}</span>${p.areas.length ? `<span class="m">${p.areas.map(a => esc(a.name)).join(', ')}</span>` : ''}` : ''}</button>`;
     }
@@ -215,6 +232,15 @@
     if (!DAY.worktypeCode) { const w = OPT.workTypes.find(x => x.fieldWork) || OPT.workTypes[0]; DAY.worktypeCode = w ? w.code : ''; }
     dayForm(true);
   }
+  const dayLines = (b) => !b || !b.worktype ? '<div class="text-muted">Nothing planned</div>' : `<div><b>${esc(b.worktype)}</b></div>${(b.areas || []).map(x => `<div>📍 ${esc(x)}</div>`).join('')}${(b.clients || []).length ? `<div class="text-muted">Clients: ${b.clients.map(esc).join(', ')}</div>` : ''}${(b.visitWith || []).length ? `<div class="text-muted">With: ${b.visitWith.map(esc).join(', ')}</div>` : ''}${b.stay ? `<div class="text-muted">Stay: ${esc(b.stay)}</div>` : ''}${b.remark ? `<div class="text-muted">${esc(b.remark)}</div>` : ''}`;
+  // what a manager / admin changed on this date: who, when, what was added / removed / changed, and the day before and after
+  function changesHtml() {
+    const list = (PLAN.changes || []).filter(c => c.date === DAY.date);
+    if (!list.length) return '';
+    return '<div class="ap-sec mt-3">Changed by manager / admin</div>' + list.map(c => `<div class="tp-chg"><div class="d-flex justify-content-between"><b><i class="bi bi-pencil-square"></i> ${esc(({ ADDED: 'Added', CHANGED: 'Changed', REMOVED: 'Removed' })[c.action] || c.action)} by ${esc(c.byName)}${c.byDesignation ? ' · ' + esc(c.byDesignation) : ''}</b><small class="text-muted">${esc(String(c.at).replace('T', ' ').slice(0, 16))}</small></div>
+      ${(c.lines || []).map(l => `<div class="ln ${l.startsWith('+') ? 'add' : l.startsWith('-') ? 'del' : 'mod'}">${esc(l)}</div>`).join('')}
+      <div class="tp-ba"><div><h6>Before</h6>${dayLines(c.beforeDay)}</div><div><h6>After</h6>${dayLines(c.afterDay)}</div></div></div>`).join('');
+  }
   function holBanner() {
     return DAY.hol.map(x => `<div class="alert ${x.kind === 'HOLIDAY' ? 'alert-danger' : 'alert-secondary'} py-2 small mb-2"><b><i class="bi bi-calendar-x"></i> ${esc(x.name)}</b>${x.remarks ? ' · ' + esc(x.remarks) : ''}</div>`).join('');
   }
@@ -229,6 +255,7 @@
           ${cs.length ? cs.map(c => `<div class="small py-1 border-bottom">${esc(c.name)} <span class="text-muted">${esc(c.code)}</span></div>`).join('') : '<small class="text-muted">No client picked - all clients of this area</small>'}</div>`; });
       if (p.visitWith.length) h += `<div class="ap-card"><div class="fw-bold mb-1"><i class="bi bi-people text-primary"></i> Visit with</div>${p.visitWith.map(w => `<div class="small py-1 border-bottom">${esc(w.name)}</div>`).join('')}</div>`;
     }
+    h += changesHtml();
     sheetOpen(fmt(DAY.date), h, '<button class="ap-btn light" data-bs-dismiss="offcanvas">Close</button>');
   }
   function sheetOpen(title, body, foot) { document.getElementById('tpSheetTitle').textContent = title; document.getElementById('tpSheetBody').innerHTML = body; document.getElementById('tpSheetFoot').innerHTML = foot; SHEET.show(); }
@@ -293,7 +320,7 @@
       h += '<div class="ap-sec">Visit with</div>' + (OPT.joint.length ? groups.map(([rel, name]) => { const l = OPT.joint.filter(j => j.relation === rel); return l.length ? `<div class="small fw-bold text-muted mt-2">${name}</div><div class="ap-pick" style="max-height:26vh">${l.map(j => `<label class="ap-row"><input type="checkbox" class="form-check-input" ${DAY.visitWith.has(j.id) ? 'checked' : ''} onchange="dayWith('${esc(j.id)}', this.checked)"><div class="grow">${esc(j.empName)} <span class="text-muted">(${esc(j.empCode)})</span><small>${esc(j.designation || '')}</small></div></label>`).join('')}</div>` : ''; }).join('') : '<div class="small text-muted">No manager, senior or junior found.</div>');
       h += `<div class="ap-sec">Night stay</div><select class="form-select" onchange="DAY.stayAreaId=this.value"><option value="">No night stay</option>${OPT.areas.map(a => `<option value="${a.id}" ${String(a.id) === DAY.stayAreaId ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>`;
     }
-    h += `<div class="ap-sec">Remark</div><input class="form-control" maxlength="250" value="${esc(DAY.remark)}" oninput="DAY.remark=this.value">`;
+    h += `<div class="ap-sec">Remark</div><input class="form-control" maxlength="250" value="${esc(DAY.remark)}" oninput="DAY.remark=this.value">` + changesHtml();
     sheetOpen(fmt(DAY.date), h, `${DAY.existing ? '<button class="ap-btn danger" style="flex:0 0 auto" onclick="dayClear()" title="Take this day out of the plan"><i class="bi bi-trash"></i></button>' : ''}<button class="ap-btn light" data-bs-dismiss="offcanvas">Cancel</button><button class="ap-btn go" onclick="daySave()"><i class="bi bi-check2"></i> Save day</button>`);
     document.getElementById('tpSheetBody').scrollTop = top;
   }
@@ -325,6 +352,39 @@
   async function tpReject() {
     const reason = prompt('Reason for rejecting the plan of ' + PLAN.empName + ':'); if (!reason) return;
     try { await Api.post(EP.reject(PLAN.tourMain), { reason }); await tpLoad(); teamPending(); SFA.toast('Rejected'); } catch (e) { SFA.toast(e.message, false); }
+  }
+  async function tpUnapprove() {
+    const reason = prompt('Take the plan of ' + PLAN.empName + ' back for changes? It returns to the employee as editable and must be submitted again.\nReason:'); if (!reason) return;
+    try { await Api.post(EP.unapprove(PLAN.tourMain), { reason }); await tpLoad(); teamPending(); SFA.toast('Plan sent back to ' + PLAN.empName); } catch (e) { SFA.toast(e.message, false); }
+  }
+  async function tpDelete() {
+    const reason = prompt('DELETE the whole tour plan of ' + PLAN.empName + ' (' + MONTHS[M - 1] + ' ' + Y + ')?\nIt is removed, but the delete is recorded: who, when, why and the full plan.\nReason:'); if (!reason) return;
+    try { await Api.post(EP.remove(PLAN.tourMain), { reason }); VIEW = null; SFA.toast('Plan deleted and recorded'); tpTab('team'); } catch (e) { SFA.toast(e.message, false); }
+  }
+  // record of deleted plans (who / when / why) - a segment of the Team plans tab
+  async function delLoad() {
+    const rows = await Api.get(EP.deleted, { query: { year: Y, month: M } });
+    document.getElementById('tpDelList').innerHTML = rows.map(r => `<div class="ap-row" onclick="delOpen(${r.id})"><i class="bi bi-trash3 text-danger fs-5"></i>
+      <div class="grow"><b>${esc(r.empName)}</b> <small class="d-inline text-muted">${MONTHS[r.month - 1]} ${r.year} · ${esc((ST_NAME[r.status] || [r.status])[0])} · ${r.plannedDays} days</small>
+        <small>Deleted by ${esc(r.deletedByName)}${r.deletedByDesignation ? ' (' + esc(r.deletedByDesignation) + ')' : ''} · ${esc(String(r.deletedAt).replace('T', ' ').slice(0, 16))}</small><small>Reason: ${esc(r.reason)}</small></div><i class="bi bi-chevron-right text-muted"></i></div>`).join('')
+      || '<div class="ap-empty"><i class="bi bi-trash3 fs-1"></i><div>No plan was deleted in this month</div></div>';
+    window.__DEL = rows;
+  }
+  function delOpen(id) {
+    const r = window.__DEL.find(x => x.id === id); let snap = {}; try { snap = typeof r.snapshot === 'string' ? JSON.parse(r.snapshot) : (r.snapshot || {}); } catch (e) { }
+    const kv = (l, v) => v ? `<div class="d-flex justify-content-between py-1 border-bottom"><span class="text-muted">${l}</span><b class="text-end ms-3">${esc(v)}</b></div>` : '';
+    let h = `<div class="ap-card">${kv('Employee', r.empName)}${kv('Month', MONTHS[r.month - 1] + ' ' + r.year)}${kv('Status when deleted', (ST_NAME[r.status] || [r.status])[0])}${kv('Deleted by', r.deletedByName + (r.deletedByDesignation ? ' · ' + r.deletedByDesignation : ''))}${kv('Deleted on', String(r.deletedAt).replace('T', ' ').slice(0, 16))}${kv('Reason', r.reason)}</div>`;
+    h += '<div class="ap-sec">The plan as it was</div>' + ((snap.days || []).map(d => `<div class="ap-card"><b>${esc(fmt(d.date))}</b> <span class="ap-badge">${esc(d.worktypeCode)}</span>
+      ${(d.areas || []).map(a => `<div class="small mt-1"><i class="bi bi-geo-alt text-primary"></i> ${esc(a.name)} ${a.areaType ? '<span class="ap-badge">' + esc(a.areaType) + '</span>' : ''}</div>`).join('')}
+      ${(d.clients || []).length ? `<div class="small text-muted">Clients: ${d.clients.map(c => esc(c.name)).join(', ')}</div>` : ''}${(d.visitWith || []).length ? `<div class="small text-muted">With: ${d.visitWith.map(w => esc(w.name)).join(', ')}</div>` : ''}${d.remark ? `<div class="small text-muted">${esc(d.remark)}</div>` : ''}</div>`).join('') || '<div class="ap-empty">Nothing was planned</div>');
+    if ((snap.changes || []).length) h += '<div class="ap-sec">Changed by manager / admin</div>' + snap.changes.map(c => `<div class="tp-chg"><b>${esc(fmt(c.date))}</b> · ${esc(c.action)} by ${esc(c.byName)} · ${esc(String(c.at).replace('T', ' ').slice(0, 16))}${(c.lines || []).map(l => `<div class="ln">${esc(l)}</div>`).join('')}</div>`).join('');
+    if ((snap.approval || []).length) h += '<div class="ap-sec">Approval trail</div>' + snap.approval.map(t => `<div class="small py-1 border-bottom">${esc(t.action)} · ${esc(t.byName || '')} · ${esc(String(t.at).replace('T', ' ').slice(0, 16))}${t.remarks ? ' · ' + esc(t.remarks) : ''}</div>`).join('');
+    sheetOpen('Deleted plan', h, '<button class="ap-btn light" data-bs-dismiss="offcanvas">Close</button>');
+  }
+  function teamSeg(k) {
+    document.querySelectorAll('#tpTeamSeg button').forEach(b => b.classList.toggle('active', b.dataset.k === k));
+    document.getElementById('tpTeamList').classList.toggle('d-none', k !== 'plans'); document.getElementById('tpDelList').classList.toggle('d-none', k !== 'deleted');
+    if (k === 'deleted') delLoad().catch(e => SFA.toast(e.message, false)); else teamLoad();
   }
   function tpBack() { VIEW = null; tpTab('team'); }
   async function teamLoad() {

@@ -50,3 +50,10 @@
   .ap-sheet.offcanvas-bottom.showing, .ap-sheet.offcanvas-bottom.show:not(.hiding) { transform: none; }
   .ap-sheet-foot { justify-content: flex-end; } .ap-sheet-foot .ap-btn { flex: 0 1 auto; min-width: 8rem; }
 }
+/* phone: the action bar keeps its message on its own line and the buttons share the rest, so none is cut off */
+@media (max-width: 991px) {
+  .ap-bar { flex-wrap: wrap; }
+  .ap-bar .info { flex: 1 0 100%; }
+  .ap-bar .ap-btn { flex: 1 1 auto; padding-left: .6rem; padding-right: .6rem; }
+  .ap-app { padding-bottom: 8rem; }
+}

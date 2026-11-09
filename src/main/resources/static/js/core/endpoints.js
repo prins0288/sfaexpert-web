@@ -258,6 +258,9 @@
         goal: "/api/tp/goal",                                          // POST {year, month, goal}
         submit: "/api/tp/submit",                                      // POST {year, month}
         approve: (id) => `/api/tp/${id}/approve`,
+        remove: (id) => `/api/tp/${id}/delete`,                       // body { reason } delete a whole plan (recorded)
+        deleted: "/api/tp/deleted",                                    // GET ?year=&month= who deleted what, when, why
+        unapprove: (id) => `/api/tp/${id}/unapprove`,                  // body { reason }  take it back to the employee
         reject: (id) => `/api/tp/${id}/reject`,                        // body { reason }
       },
       holiday: {
