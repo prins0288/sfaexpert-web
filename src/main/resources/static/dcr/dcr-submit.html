@@ -441,9 +441,9 @@
       (ST.canEdit ? `<button class="dcr-add" onclick="${kind === 'v' ? `pickClient('${esc(tab.code)}')` : `newUnlisted('${esc(tab.code)}')`}"><i class="bi bi-plus-circle"></i> Add ${kind === 'v' ? 'client' : 'unlisted client'}</button>` : '');
   }
 
+  // a check-in tab lists ONLY the clients of its own client type (Doctor / Retailer / Party ...), set in app_dcr_worktype
   function clientsFor(tab) {
-    const claimed = new Set(OPT.tabs.filter(t => t.form === 'CHECKIN' && t.clientTypeId != null).map(t => t.clientTypeId));
-    return OPT.clients.filter(c => tab.clientTypeId != null ? c.clientTypeId === tab.clientTypeId : !claimed.has(c.clientTypeId));
+    return tab.clientTypeId == null ? [] : OPT.clients.filter(c => c.clientTypeId === tab.clientTypeId);
   }
   function pickClient(code) {
     EDIT = null;
@@ -453,7 +453,7 @@
     const sel = (id, label, vals) => `<div class="col-4"><select class="form-select form-select-sm" id="${id}" data-no-search onchange="pickFilter()"><option value="">${label}</option>${vals.map(v => `<option>${esc(v)}</option>`).join('')}</select></div>`;
     sheetOpen('Select client · ' + tab.name.replace(/ Check-?in$/i, ''), `<div class="row g-2 mb-2">${sel('pickArea', 'Area', uniq('areaName'))}${sel('pickCat', 'Category', uniq('category'))}${sel('pickSpec', 'Speciality', uniq('speciality'))}</div>
       <input class="form-control mb-2" id="pickQ" placeholder="Search name, code…" oninput="pickFilter()" />
-      <div class="small text-muted mb-1" id="pickCount"></div><div class="dcr-pick" id="pickList"></div>`, `<button class="btn btn-light" onclick="sheetClose()">Close</button>`);
+      <div class="small text-muted mb-1" id="pickCount"></div>${tab.clientTypeId == null ? '<div class="alert alert-warning py-2 small">No client type is set for this tab - ask your admin.</div>' : ''}<div class="dcr-pick" id="pickList"></div>`, `<button class="btn btn-light" onclick="sheetClose()">Close</button>`);
     window.__pick = list; window.__pickTab = code; pickFilter();
   }
   function pickFilter() {

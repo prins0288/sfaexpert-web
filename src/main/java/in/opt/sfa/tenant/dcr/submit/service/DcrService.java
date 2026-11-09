@@ -389,12 +389,9 @@ public class DcrService {
             if (tab == null || !"CHECKIN".equals(tab.get("form"))) throw new IllegalStateException("The tab '" + v.getWorktypeCode() + "' is not enabled for you");
             Object tType = tab.get("clientTypeId");
             Long cType = lng(myClients.get(v.getClientId()).get("client_type_id"));
-            if (tType != null && !Objects.equals(((Number) tType).longValue(), cType)) {
+            if (tType == null) throw new IllegalStateException("The " + tab.get("name") + " tab has no client type set — ask your admin");
+            if (!Objects.equals(((Number) tType).longValue(), cType)) {
                 throw new IllegalStateException("That client does not belong in the " + tab.get("name") + " tab");
-            }
-            if (tType == null && cType != null && tabs.values().stream().anyMatch(t -> "CHECKIN".equals(t.get("form")) && t.get("clientTypeId") != null
-                    && ((Number) t.get("clientTypeId")).longValue() == cType)) {
-                throw new IllegalStateException("That client has its own tab — enter the call there, not under " + tab.get("name"));
             }
             if (!seen.add(v.getClientId() + "|" + nz(v.getVisitType()))) throw new IllegalStateException("The same client is added twice with the same visit type");
             checkCall(v, tab);
