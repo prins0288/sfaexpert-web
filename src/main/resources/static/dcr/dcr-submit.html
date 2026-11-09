@@ -349,11 +349,7 @@
           <button class="dcr-start-btn" onclick="startSheet()"><i class="bi bi-play-circle"></i> Start Day</button></div>
         <div class="small text-muted text-center mt-3">Client check-in, expense and the other tabs open once your day is started.</div>`;
     }
-    return `<div class="card-lite"><div class="d-flex justify-content-between text-center">
-        <div class="flex-fill"><small class="text-muted d-block">Time in</small><b class="fs-5">${esc(ST.timeIn || '--:--')}</b></div>
-        <div class="flex-fill"><small class="text-muted d-block">Time out</small><b class="fs-5">${esc(ST.timeOut || '--:--')}</b><small class="text-muted d-block">${ST.timeOut ? '' : 'set when you submit'}</small></div>
-        <div class="flex-fill"><small class="text-muted d-block">Day</small><b class="fs-6">${esc(wtName(ST.workType))}</b></div></div></div>
-      ${working && ST.canEdit ? '<button class="dcr-addvisit" onclick="addVisitSheet()"><i class="bi bi-plus-circle"></i> Add visit</button>' : ''}
+    return `${working && ST.canEdit ? '<button class="dcr-addvisit" onclick="addVisitSheet()"><i class="bi bi-plus-circle"></i> Add visit</button>' : ''}
       ${working ? visitSummary() + expenseSummary() + jointSummary() : ''}
       ${daySummary()}
       ${ST.canEdit ? `<button class="btn btn-outline-danger w-100 mt-1" onclick="dcrDelete(${ST.dcrId})"><i class="bi bi-trash"></i> Delete this DCR</button>` : ''}`;
@@ -419,12 +415,48 @@
     if (!ST.jointWith.length) return '';
     return `<div class="dcr-sec mt-0">Joint working</div><div class="card-lite">${ST.jointWith.map(id => esc(jname(id))).join(', ')}</div>`;
   }
+  // client facts of a call, all from the masters: type, area, category, speciality
+  function callInfo(k, c) {
+    const nm = (list, id) => ((list || []).find(x => String(x.id) === String(id)) || {}).name;
+    if (k === 'v') { const m = OPT.clients.find(x => x.id === c.clientId) || {}; return { type: c.clientTypeName || m.clientTypeName, area: m.areaName || nm(OPT.areas, c.areaId), category: m.category, speciality: m.speciality, code: c.clientCode }; }
+    return { type: nm(OPT.clientTypes, c.clientTypeId), area: nm(OPT.areas, c.areaId), category: nm(OPT.categories, c.categoryId), speciality: nm(OPT.specialities, c.specialityId), code: c.mobile };
+  }
   function visitSummary() {
     const rows = ST.visits.map((c, i) => ['v', i, c]).concat(ST.unlisted.map((c, i) => ['u', i, c])).filter(x => x[2].inTime);
     if (!rows.length) return '';
-    return '<div class="dcr-sec mt-0">Visit summary</div>' + rows.map(([k, i, c]) => `<div class="card-lite dcr-visit" onclick="editCall('${k}',${i})"><div class="ava">${esc(initials(c.clientName))}</div>
-      <div class="meta"><b>${esc(c.clientName)}</b><small class="text-muted">${esc(c.inTime)}${c.outTime ? ' – ' + esc(c.outTime) : ''}${k === 'u' ? ' · Unlisted' : ''}</small></div>
-      ${isOpen(c) ? '<span class="badge bg-success">Checked in</span>' : c.refused ? '<span class="badge bg-warning text-dark">Refused</span>' : '<span class="badge bg-secondary">Done</span>'}</div>`).join('');
+    return '<div class="dcr-sec mt-0">Visit summary</div>' + rows.map(([k, i, c]) => { const f = callInfo(k, c);
+      return `<div class="card-lite dcr-visit" onclick="callOpen('${k}',${i})"><div class="ava">${esc(initials(c.clientName))}</div>
+      <div class="meta"><b>${esc(c.clientName)}${k === 'u' ? ' <small class="text-muted">(Unlisted)</small>' : ''}</b>
+        <small class="text-muted">${esc([f.type, f.area].filter(Boolean).join(' · '))}</small>
+        <small class="text-muted">${esc([f.category, f.speciality].filter(Boolean).join(' · '))}</small>
+        <small class="text-muted"><i class="bi bi-clock"></i> ${esc(c.inTime)}${c.outTime ? ' – ' + esc(c.outTime) : ''}</small></div>
+      ${isOpen(c) ? '<span class="badge bg-success">Checked in</span>' : c.refused ? '<span class="badge bg-warning text-dark">Refused</span>' : '<span class="badge bg-secondary">Done</span>'}</div>`; }).join('');
+  }
+  // a call still open goes straight to its check-out screen; a finished one opens its full details
+  function callOpen(k, i) { const c = (k === 'v' ? ST.visits : ST.unlisted)[i]; (isOpen(c) && ST.canEdit) ? editCall(k, i) : callDetail(k, i); }
+  function callDetail(k, i) {
+    const c = (k === 'v' ? ST.visits : ST.unlisted)[i], f = callInfo(k, c), nm = (list, id) => ((list || []).find(x => String(x.id) === String(id)) || {}).name || id;
+    const card = (title, icon, body) => `<div class="card-lite"><div class="fw-bold mb-1"><i class="bi bi-${icon} text-primary"></i> ${title}</div>${body}</div>`;
+    const kv = (l, v) => v ? `<div class="d-flex justify-content-between py-1 border-bottom"><span class="text-muted">${l}</span><b class="text-end ms-3">${esc(v)}</b></div>` : '';
+    const byPanel = (panel, fld) => (c.items || []).filter(x => panelOfRow(x) === panel && Number(x[fld] || 0) > 0);
+    const list = (rows, fn) => rows.length ? rows.map(fn).join('') : '';
+    let h = card('Client', 'person-badge', kv('Name', c.clientName) + kv(k === 'v' ? 'Code' : 'Mobile', f.code) + kv('Client type', f.type) + kv('Area', f.area) + kv('Category', f.category) + kv('Speciality', f.speciality)
+      + (k === 'u' ? kv('Qualification', c.qualification) + kv('Contact person', c.contactPerson) + kv('Address', c.address) : ''));
+    h += card('Visit', 'geo-alt', kv('Visit type', c.visitType) + kv('Checked in', c.inTime) + kv('Checked out', c.outTime) + (c.refused ? kv('Result', 'Refused to meet') : '') + (c.checkinLat ? kv('Location', 'saved') : ''));
+    h += card('Joint Work', 'people', (c.jointWith || []).length ? c.jointWith.map(id => { const j = OPT.joint.find(x => x.id === id);
+      return `<div class="py-1 border-bottom"><b>${esc(j ? j.empName : id)}</b> <small class="text-muted">${j ? '(' + esc(j.empCode) + ') · ' + esc(j.designation || '') : ''}</small></div>`; }).join('') : '<span class="text-muted">Self work</span>');
+    const det = (c.items || []).filter(x => x.detailed);
+    if (det.length) h += card('Item Detailed List', 'journal-check', list(det, x => `<div class="py-1 border-bottom">${esc(x.itemName || nm(OPT.items, x.itemId))}</div>`));
+    const smp = byPanel('SAMPLE', 'qty'); if (smp.length) h += card('Sample', 'capsule', list(smp, x => kv(x.itemName || nm(OPT.items, x.itemId), 'x ' + x.qty)));
+    const inp = byPanel('INPUT', 'qty'); if (inp.length) h += card('Input', 'gift', list(inp, x => kv(x.itemName || nm(OPT.items, x.itemId), 'x ' + x.qty)));
+    const pob = (c.items || []).filter(x => Number(x.pobQty) > 0); if (pob.length || Number(c.pobValue) > 0) h += card('POB / Order', 'cart-check', list(pob, x => kv(x.itemName || nm(OPT.items, x.itemId), x.pobQty + ' x ₹' + money(x.rate))) + kv('POB total', '₹' + money(callPob(c))));
+    if ((c.leaflets || []).length) h += card('Leaflets', 'file-earmark-text', c.leaflets.map(l => kv(nm(OPT.items, l.itemId), 'x ' + l.qty)).join(''));
+    if ((c.treatments || []).length) h += card('Treatment', 'heart-pulse', `<div class="dcr-chips">${c.treatments.map(t => `<span class="dcr-chip on">${esc(nm(OPT.treatments, t))}</span>`).join('')}</div>`);
+    if (c.signaturePath) h += card('Image', 'camera', `${SFAFiles.thumb(c.signaturePath, null, { name: 'image' })}`);
+    h += card('Activity / Remarks', 'chat-left-text', kv('Activity', c.activityType) + kv('Remarks', c.remarks) + kv('Next visit', c.nextVisit) + kv('Priority', c.nextVisitPriority) + kv('Next visit remarks', c.nextVisitRemarks) || '<span class="text-muted">—</span>');
+    EDIT = null;
+    sheetOpen(c.clientName, h, `<button class="btn btn-light" onclick="sheetClose()">Close</button>${ST.canEdit ? `<button class="btn btn-primary" onclick="editCall('${k}',${i})"><i class="bi bi-pencil"></i> Edit</button>` : ''}`);
+    if (window.SFAFiles && SFAFiles.hydrate) SFAFiles.hydrate(document.getElementById('sheetBody'));
   }
 
   // ---- check-in / unlisted card lists
