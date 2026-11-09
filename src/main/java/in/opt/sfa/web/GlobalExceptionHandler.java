@@ -39,7 +39,7 @@ public class GlobalExceptionHandler {
         this.serverLabels = serverLabels;
     }
 
-    /** 503 — a database server is down: "Server N is not responding" (never the JPA / SQL error). */
+    /** 503 — a database is down: one friendly message (never the JPA / SQL error). */
     @ExceptionHandler(ServerUnavailableException.class)
     public ResponseEntity<ResponseFormat<Object>> handleServerDown(ServerUnavailableException e, HttpServletRequest req) {
         log.error("Server unavailable at {}: {}", req.getRequestURI(), e.getCause() == null ? e.getMessage() : e.getCause().toString());
