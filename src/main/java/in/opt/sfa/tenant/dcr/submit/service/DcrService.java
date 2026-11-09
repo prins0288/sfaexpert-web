@@ -87,20 +87,31 @@ public class DcrService {
             areas = jdbc.queryForList("SELECT oid AS id, area_name AS name FROM area_master WHERE status = 'Y' AND approval_status = 'APPROVED' ORDER BY area_name");
         }
         m.put("areas", areas);
-        m.put("items", jdbc.queryForList("""
-                SELECT i.id, i.item_code AS code, i.item_name AS name, t.item_type_code AS type, t.dcr_panel AS panel,
+        String itemSql = """
+                SELECT i.id, i.item_code AS code, i.item_name AS name, t.item_type_code AS type, %s AS panel,
                        COALESCE((SELECT r.pts FROM item_rate r WHERE r.item_id = i.id AND r.status = 1
                                  AND (r.effective_from IS NULL OR r.effective_from <= CURDATE()) AND (r.effective_to IS NULL OR r.effective_to >= CURDATE())
                                  ORDER BY r.effective_from DESC LIMIT 1), 0) AS rate
                 FROM item_master i JOIN item_type_master t ON t.id = i.item_type_id
-                WHERE i.status = 1 ORDER BY i.item_name"""));
+                WHERE i.status = 1 ORDER BY i.item_name""";
+        try {
+            m.put("items", jdbc.queryForList(itemSql.formatted("t.dcr_panel")));
+        } catch (org.springframework.dao.DataAccessException e) {   // migration 91 not run yet: the page still opens, Sample / Input panels stay empty
+            org.slf4j.LoggerFactory.getLogger(DcrService.class).warn("item_type_master.dcr_panel is missing - run migration 91_dcr_masters.sql");
+            m.put("items", jdbc.queryForList(itemSql.formatted("NULL")));
+        }
         m.put("expenseTypes", jdbc.queryForList("SELECT id, expense_name AS name, is_travel AS travel FROM expense_master WHERE is_active = 1 ORDER BY sort_order, expense_name"));
         m.put("treatments", jdbc.queryForList("SELECT id, treatment_type AS type, treatment_name AS name FROM treatment_master WHERE is_active = 1 ORDER BY treatment_type, sort_order, treatment_name"));
         m.put("visitTypes", jdbc.queryForList("SELECT type_name AS name FROM visit_type_master WHERE is_active = 1 ORDER BY type_name").stream().map(r -> r.get("name")).toList());
         m.put("activityTypes", jdbc.queryForList("SELECT type_name AS name FROM activity_type_master WHERE is_active = 1 ORDER BY type_name").stream().map(r -> r.get("name")).toList());
         m.put("travelModes", jdbc.queryForList("SELECT travel_type_name AS name FROM travel_type_master WHERE is_active = 1 ORDER BY travel_type_name").stream().map(r -> r.get("name")).toList());
         m.put("clientTypes", jdbc.queryForList("SELECT oid AS id, type_name AS name FROM client_type WHERE is_active = 1 ORDER BY type_name"));
-        m.put("priorities", jdbc.queryForList("SELECT priority_name AS name FROM visit_priority_master WHERE is_active = 1 ORDER BY sort_order, priority_name").stream().map(r -> r.get("name")).toList());
+        try {
+            m.put("priorities", jdbc.queryForList("SELECT priority_name AS name FROM visit_priority_master WHERE is_active = 1 ORDER BY sort_order, priority_name").stream().map(r -> r.get("name")).toList());
+        } catch (org.springframework.dao.DataAccessException e) {
+            org.slf4j.LoggerFactory.getLogger(DcrService.class).warn("visit_priority_master is missing - run migration 91_dcr_masters.sql");
+            m.put("priorities", List.of());
+        }
         m.put("specialities", jdbc.queryForList("SELECT oid AS id, speciality_name AS name FROM speciality_master WHERE status = 1 ORDER BY speciality_name"));
         m.put("categories", jdbc.queryForList("SELECT oid AS id, category_name AS name FROM category_master WHERE status = 1 ORDER BY category_name"));
         m.put("joint", jointCandidates(me));

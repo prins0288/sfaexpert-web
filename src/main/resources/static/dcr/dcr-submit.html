@@ -238,8 +238,10 @@
 
   window.pageInit = async function () {
     SHEET = new bootstrap.Offcanvas('#dcrSheet');
+    const dd = document.getElementById('dcrDate'); dd.max = todayStr(); dd.value = todayStr();   // today by default, even before the data arrives
     try {
       OPT = await Api.get(EP.options);
+      if (!OPT) throw new Error('The DCR form could not load its data - refresh the page; if it persists, ask your administrator.');
       document.getElementById('dcrWho').textContent = [OPT.meName, OPT.meDesignation, OPT.meHq].filter(Boolean).join(' · ');
       const d = document.getElementById('dcrDate');
       d.max = todayStr(); d.value = todayStr();
