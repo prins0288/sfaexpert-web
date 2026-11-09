@@ -15,8 +15,8 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * When a database cannot be reached the user must see "Server N is not responding"
  * instead of a JPA / SQL error. Server 1 = the central database (logins, companies,
- * settings); Server 2, 3 … = the company databases, numbered by their host:port in
- * the order they were configured (companies sharing one DB host share a number).
+ * settings); Server 2, 3 … = one per company, in the order they were configured. There is
+ * really one server — the numbers only make it look like each company has its own.
  */
 @Component
 public class ServerLabels {
@@ -84,16 +84,13 @@ public class ServerLabels {
         return n == null ? 2 : n;
     }
 
-    /** (Re)number the company DB servers: distinct host:port in configuration order, starting at 2. */
+    /** (Re)number the companies: one "server" each, in configuration order, starting at 2 (all run on one real server). */
     private void refresh() {
         try {
             List<TenantConfig> all = new ArrayList<>(configs.findAll());
             all.sort(Comparator.comparing(TenantConfig::getId));
-            Map<String, Integer> byHost = new LinkedHashMap<>();
-            for (TenantConfig c : all) {
-                int n = byHost.computeIfAbsent(c.getDbHost() + ":" + c.getDbPort(), k -> byHost.size() + 2);
-                serverOfCompany.put(c.getCompanyCode(), n);
-            }
+            int n = 2;
+            for (TenantConfig c : all) serverOfCompany.put(c.getCompanyCode(), n++);
         } catch (Exception ex) {
             log.warn("Could not number the servers (central database unreachable?): {}", ex.getMessage());
         }
