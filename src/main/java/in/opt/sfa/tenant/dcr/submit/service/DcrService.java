@@ -109,16 +109,33 @@ public class DcrService {
 
     /** Who the user can work together with: his seniors and his team (never admin-level users). */
     private List<Map<String, Object>> jointCandidates(String me) {
-        Set<String> ids = new LinkedHashSet<>(scope.seniors(me));
-        ids.addAll(scope.team(me));
-        ids.removeAll(scope.adminLevelIds());
-        ids.remove(me);
-        if (ids.isEmpty()) return List.of();
-        String in = String.join(",", Collections.nCopies(ids.size(), "?"));
-        return jdbc.queryForList("""
-                SELECT e.emp_id AS id, CONCAT(e.emp_name, ' (', e.emp_code, ')') AS name, d.designation AS designation
+        List<String> seniors = scope.seniors(me);
+        Set<String> juniors = new LinkedHashSet<>(scope.team(me));
+        Set<String> admins = scope.adminLevelIds();
+        Map<String, String> relation = new LinkedHashMap<>();   // emp_id -> MANAGER / SENIOR / JUNIOR (never admin-level users, never me)
+        for (int i = 0; i < seniors.size(); i++) relation.putIfAbsent(seniors.get(i), i == 0 ? "MANAGER" : "SENIOR");
+        for (String j : juniors) relation.putIfAbsent(j, "JUNIOR");
+        relation.keySet().removeAll(admins);
+        relation.remove(me);
+        if (relation.isEmpty()) return List.of();
+        String in = String.join(",", Collections.nCopies(relation.size(), "?"));
+        Map<String, Map<String, Object>> byId = new HashMap<>();
+        for (Map<String, Object> r : jdbc.queryForList("""
+                SELECT e.emp_id AS id, e.emp_name AS empName, e.emp_code AS empCode, d.designation AS designation
                 FROM emp_detail e LEFT JOIN designation_master d ON d.id = e.designation
-                WHERE e.is_active = 1 AND e.emp_id IN (""" + in + ") ORDER BY e.emp_name", ids.toArray());
+                WHERE e.is_active = 1 AND e.emp_id IN (""" + in + ")", relation.keySet().toArray())) byId.put((String) r.get("id"), r);
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (String rel : List.of("MANAGER", "SENIOR", "JUNIOR")) {
+            List<Map<String, Object>> grp = new ArrayList<>();
+            relation.forEach((id, r) -> { Map<String, Object> e = byId.get(id); if (rel.equals(r) && e != null) {
+                Map<String, Object> m = new LinkedHashMap<>(e);
+                m.put("name", e.get("empName") + " (" + e.get("empCode") + ")");   // name with the employee CODE, never the internal id
+                m.put("relation", rel);
+                grp.add(m); } });
+            if (!"MANAGER".equals(rel) && !"SENIOR".equals(rel)) grp.sort(Comparator.comparing(x -> String.valueOf(x.get("empName"))));
+            out.addAll(grp);
+        }
+        return out;
     }
 
     // =========================================================================================

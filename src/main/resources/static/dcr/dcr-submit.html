@@ -584,6 +584,20 @@
     if (!r) { const it = OPT.items.find(x => String(x.id) === String(id)); r = { itemId: it.id, itemType: it.type, itemName: it.name, qty: 0, pobQty: 0, rate: it.rate, detailed: false, remarks: '' }; EDIT.o.items.push(r); }
     r.detailed = !r.detailed; renderCall();
   }
+  // joint working: manager first, then seniors, then juniors - name with employee code, tap to select several
+  const REL = { MANAGER: 'Manager', SENIOR: 'Seniors', JUNIOR: 'Juniors' };
+  function jointPicker(sel, arr, after) {
+    let h = `<button class="btn ${sel.length ? 'btn-outline-primary' : 'btn-primary'} w-100 mb-3" onclick="${arr}=[];${after}">Click For Self Work</button>`;
+    ['MANAGER', 'SENIOR', 'JUNIOR'].forEach(rel => {
+      const list = OPT.joint.filter(j => j.relation === rel);
+      if (!list.length) return;
+      h += `<div class="dcr-sec mt-2">${REL[rel]}</div>` + list.map(j => { const on = sel.includes(j.id);
+        return `<div class="d-flex align-items-center gap-2 py-2 border-bottom" style="cursor:pointer" onclick="toggleIn(${arr},'${esc(j.id)}');${after}">
+          <i class="bi bi-${on ? 'check-square-fill text-primary' : 'square'} fs-5"></i><div class="flex-fill"><b>${esc(j.empName)}</b> <small class="text-muted">(${esc(j.empCode)})</small>
+          <small class="d-block text-muted">${esc(j.designation || '')}</small></div></div>`; }).join('');
+    });
+    return h + (OPT.joint.length ? '' : '<div class="dcr-empty">No manager, senior or junior found</div>');
+  }
   function panelShell(title, count, body) {
     return `<div class="d-flex align-items-center mb-2"><button class="btn btn-link px-0" onclick="closePanel()"><i class="bi bi-chevron-left"></i> Back</button><div class="fw-bold ms-2 flex-fill text-center me-4">${title}</div></div>${body}
       <div class="dcr-panel-done"><button class="dcr-start-btn w-100" onclick="closePanel()">Done${count != null ? ' (' + count + ')' : ''}</button></div>`;
@@ -596,8 +610,7 @@
   }
   function panelHtml(o, k) {
     const o_ = (x) => `EDIT.o.${x}`;
-    if (k === 'joint') return panelShell('Joint Work', o.jointWith.length, `<button class="btn ${o.jointWith.length ? 'btn-outline-primary' : 'btn-primary'} w-100 mb-3" onclick="EDIT.o.jointWith=[];renderCall()">Click For Self Work</button>
-      <div class="dcr-chips">${OPT.joint.map(j => `<button type="button" class="dcr-chip ${o.jointWith.includes(j.id) ? 'on' : ''}" onclick="toggleIn(EDIT.o.jointWith,'${esc(j.id)}');renderCall()">${esc(j.name)}</button>`).join('')}</div>`);
+    if (k === 'joint') return panelShell('Joint Work', o.jointWith.length, jointPicker(o.jointWith, 'EDIT.o.jointWith', 'renderCall()'));
     if (k === 'detail') return panelShell('Item Detailed List', o.items.filter(i => i.detailed).length, itemList(typeOf('POB'), 'detailed', true));
     if (k === 'sample') return panelShell('Sample', cnt('qty', 'SAMPLE'), itemList(typeOf('SAMPLE'), 'qty'));
     if (k === 'input') return panelShell('Input', cnt('qty', 'INPUT'), itemList(typeOf('INPUT'), 'qty'));
@@ -691,9 +704,7 @@
   // ============================================================== joint / expense / day end
   function paneJoint() {
     if (!OPT.joint.length) return '<div class="dcr-empty"><i class="bi bi-people fs-1"></i><div>No one to work with — you need a manager or a team</div></div>';
-    return `<div class="card-lite"><div class="dcr-sec mt-0">Worked with, the whole day</div><div class="dcr-chips">` +
-      OPT.joint.map(j => `<button type="button" class="dcr-chip ${ST.jointWith.includes(j.id) ? 'on' : ''}" onclick="toggleIn(ST.jointWith,'${esc(j.id)}');render()">${esc(j.name)}<small class="text-muted"> ${esc(j.designation || '')}</small></button>`).join('') +
-      `</div><div class="small text-muted mt-2">For a single call, pick the person inside that call.</div></div>`;
+    return `<div class="card-lite"><div class="dcr-sec mt-0">Worked with, the whole day</div>${jointPicker(ST.jointWith, 'ST.jointWith', 'render()')}</div>`;
   }
   function expLink(e) {
     if (e.clientKind === 1) { const v = ST.visits.find(x => x.clientId === e.clientId); return v ? v.clientName : ''; }
