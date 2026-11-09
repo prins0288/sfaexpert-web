@@ -557,7 +557,7 @@
     let h = '';
     if (OPT.tabs.some(t => t.form === 'JOINT') && OPT.joint.length) h += row('joint', 'people', 'Joint Work', o.jointWith.length ? o.jointWith.map(jname).join(', ') : 'Self work');
     if (subs.includes('ITEMS')) {
-      const det = o.items.filter(i => i.detailed).length, smp = cnt('qty', 'SAMPLE'), inp = cnt('qty', 'GIFT', 'INPUT'), pob = o.items.filter(i => Number(i.pobQty) > 0).length;
+      const det = o.items.filter(i => i.detailed).length, smp = cnt('qty', 'PRODUCT', 'SAMPLE'), inp = cnt('qty', 'GIFT', 'INPUT'), pob = o.items.filter(i => Number(i.pobQty) > 0).length;
       h += row('detail', 'journal-check', 'Item Detailed List', det ? det + ' detailed' : '');
       h += row('sample', 'capsule', 'Sample', smp ? smp + ' item' + (smp > 1 ? 's' : '') : '');
       h += row('input', 'gift', 'Input', inp ? inp + ' item' + (inp > 1 ? 's' : '') : '');
@@ -597,7 +597,7 @@
     if (k === 'joint') return panelShell('Joint Work', o.jointWith.length, `<button class="btn ${o.jointWith.length ? 'btn-outline-primary' : 'btn-primary'} w-100 mb-3" onclick="EDIT.o.jointWith=[];renderCall()">Click For Self Work</button>
       <div class="dcr-chips">${OPT.joint.map(j => `<button type="button" class="dcr-chip ${o.jointWith.includes(j.id) ? 'on' : ''}" onclick="toggleIn(EDIT.o.jointWith,'${esc(j.id)}');renderCall()">${esc(j.name)}</button>`).join('')}</div>`);
     if (k === 'detail') return panelShell('Item Detailed List', o.items.filter(i => i.detailed).length, itemList(typeOf('PRODUCT'), 'detailed', true));
-    if (k === 'sample') return panelShell('Sample', cnt('qty', 'SAMPLE'), itemList(typeOf('SAMPLE'), 'qty'));
+    if (k === 'sample') return panelShell('Sample', cnt('qty', 'PRODUCT', 'SAMPLE'), itemList(typeOf('PRODUCT', 'SAMPLE'), 'qty'));
     if (k === 'input') return panelShell('Input', cnt('qty', 'GIFT', 'INPUT'), itemList(typeOf('GIFT', 'INPUT'), 'qty'));
     if (k === 'pob') return panelShell('POB / Order', o.items.filter(i => Number(i.pobQty) > 0).length, itemList(typeOf('PRODUCT'), 'pobQty') + `<div class="d-flex justify-content-between pt-3"><span class="text-muted">POB total</span><b>₹${money(callPob(o))}</b></div>`);
     if (k === 'pobv') return panelShell('POB value', null, field('POB value (₹)', `<input class="form-control" type="number" inputmode="decimal" value="${esc(o.pobValue)}" oninput="${o_('pobValue')}=this.value" />`));
