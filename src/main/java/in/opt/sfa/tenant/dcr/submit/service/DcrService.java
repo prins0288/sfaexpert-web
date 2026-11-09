@@ -442,6 +442,9 @@ public class DcrService {
         LocalTime tout = existing.get(0).get("time_out") == null ? null : LocalTime.parse(existing.get(0).get("time_out").toString());
         if (f.isSubmit() && tout == null) tout = date.equals(today) ? LocalTime.now().withSecond(0).withNano(0) : time(f.getTimeOut(), "Time out");
         if (tin != null && tout != null && tout.isBefore(tin) && date.equals(today)) tout = tin;
+        if (f.isSubmit() && tin != null && tout != null && tout.isBefore(tin) && DcrRuleService.bool(rl, "DAYEND_BEFORE_DAYSTART_VALIDATION", false)) {
+            throw new IllegalStateException("Day end time cannot be before the day start time (" + tin + ")");
+        }
         if (f.getMeterStart() != null && f.getMeterEnd() != null && f.getMeterEnd().compareTo(f.getMeterStart()) < 0) throw new IllegalStateException("Meter end cannot be less than meter start");
 
         // ---- the parent row (snapshot of designation / immediate manager that day) ----

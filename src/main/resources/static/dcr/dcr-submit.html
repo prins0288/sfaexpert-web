@@ -660,7 +660,28 @@
         fromAreaId: n(e.fromAreaId), toAreaId: n(e.toAreaId), startKm: n(e.startKm), endKm: n(e.endKm), startImagePath: s(e.startImagePath), endImagePath: s(e.endImagePath),
         fileName: s(e.fileName), fileType: s(e.fileType), filePath: s(e.filePath) })) };
   }
+  // The same rules the server enforces (app_validations), checked first so the user sees ALL problems at once.
+  function submitIssues() {
+    const out = [], calls = ST.visits.concat(ST.unlisted).filter(c => c.inTime), working = ST.workType === 'WORKING';
+    if (working && !calls.length) out.push('Add at least one client call');
+    if (RULE('CHECKOUT', true)) calls.filter(c => !c.outTime && !c.refused).forEach(c => out.push('Check out of ' + (c.clientName || 'the client') + ' first'));
+    if (RULE('DCR_Remarks', false) && !String(ST.remarks || '').trim()) out.push('Remarks are required');
+    ST.unlisted.filter(u => u.inTime).forEach(u => {
+      [['MOBILE', 'mobile', 'Mobile'], ['SPECIALITY', 'specialityId', 'Speciality'], ['CATEGORY', 'categoryId', 'Category']].forEach(([c, k, l]) => {
+        if (RULE('UNLISTED_VISIT_' + c + '_VISIBLITY', true) && RULE('UNLISTED_VISIT_' + c, false) && !String(u[k] || '').trim()) out.push(l + ' of ' + (u.clientName || 'unlisted client') + ' is required');
+      });
+    });
+    const w = ((OPT.rules || {}).DCR_BETWEEN_TIME || '').split('-');
+    if (working && w.length === 2) calls.forEach(c => [c.inTime, c.outTime].filter(Boolean).forEach(t => {
+      const hm = String(t).slice(-5); if (hm < w[0].trim() || hm > w[1].trim()) out.push((c.clientName || 'A call') + ': time ' + hm + ' is outside ' + w[0].trim() + '-' + w[1].trim());
+    }));
+    return [...new Set(out)];
+  }
   async function dcrSave(submit, silent) {
+    if (submit) {
+      const issues = submitIssues();
+      if (issues.length) { SFA.toast(issues.slice(0, 4).join(' · ') + (issues.length > 4 ? ' (+' + (issues.length - 4) + ' more)' : ''), false); CUR = 'day'; render(); return false; }
+    }
     if (submit && !confirm('Submit this DCR for approval? Your time out is captured now.')) return false;
     try {
       const saved = await Api.post(EP.save, payload(submit));
