@@ -101,8 +101,8 @@ public class DcrService {
         m.put("travelModes", jdbc.queryForList("SELECT travel_type_name AS name FROM travel_type_master WHERE is_active = 1 ORDER BY travel_type_name").stream().map(r -> r.get("name")).toList());
         m.put("clientTypes", jdbc.queryForList("SELECT oid AS id, type_name AS name FROM client_type WHERE is_active = 1 ORDER BY type_name"));
         m.put("priorities", jdbc.queryForList("SELECT priority_name AS name FROM visit_priority_master WHERE is_active = 1 ORDER BY sort_order, priority_name").stream().map(r -> r.get("name")).toList());
-        m.put("specialities", jdbc.queryForList("SELECT oid AS id, speciality_name AS name FROM speciality_master WHERE status = 'Y' ORDER BY speciality_name"));
-        m.put("categories", jdbc.queryForList("SELECT oid AS id, category_name AS name FROM category_master WHERE status = 'Y' ORDER BY category_name"));
+        m.put("specialities", jdbc.queryForList("SELECT oid AS id, speciality_name AS name FROM speciality_master WHERE status = 1 ORDER BY speciality_name"));
+        m.put("categories", jdbc.queryForList("SELECT oid AS id, category_name AS name FROM category_master WHERE status = 1 ORDER BY category_name"));
         m.put("joint", jointCandidates(me));
         return m;
     }
