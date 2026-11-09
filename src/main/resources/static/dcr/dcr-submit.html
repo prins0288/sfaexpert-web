@@ -430,10 +430,10 @@
     if (u) {
       h += `<div class="dcr-sec mt-0">Client</div><div class="row g-2">
         ${field('Name *', `<input class="form-control" value="${esc(o.clientName)}" oninput="${o_('clientName')}=this.value;document.getElementById('sheetTitle').textContent=this.value||'New unlisted client'" />`)}
-        ${RULE('UNLISTED_VISIT_MOBILE', true) ? field('Mobile', `<input class="form-control" inputmode="numeric" maxlength="10" value="${esc(o.mobile)}" oninput="${o_('mobile')}=this.value" />`, 'col-6') : ''}
+        ${field('Mobile' + (RULE('UNLISTED_VISIT_MOBILE', false) ? ' *' : ''), `<input class="form-control" inputmode="numeric" maxlength="10" value="${esc(o.mobile)}" oninput="${o_('mobile')}=this.value" />`, 'col-6')}
         ${field('Client type', `<select class="form-select" data-no-search onchange="${o_('clientTypeId')}=this.value">${opts(OPT.clientTypes, o.clientTypeId)}</select>`, 'col-6')}
-        ${!RULE('UNLISTED_VISIT_SPECIALITY', true) ? '' : field('Speciality', `<select class="form-select" data-no-search onchange="${o_('specialityId')}=this.value">${opts(OPT.specialities, o.specialityId)}</select>`, 'col-6')}
-        ${!RULE('UNLISTED_VISIT_CATEGORY', true) ? '' : field('Category', `<select class="form-select" data-no-search onchange="${o_('categoryId')}=this.value">${opts(OPT.categories, o.categoryId)}</select>`, 'col-6')}
+        ${field('Speciality' + (RULE('UNLISTED_VISIT_SPECIALITY', false) ? ' *' : ''), `<select class="form-select" data-no-search onchange="${o_('specialityId')}=this.value">${opts(OPT.specialities, o.specialityId)}</select>`, 'col-6')}
+        ${field('Category' + (RULE('UNLISTED_VISIT_CATEGORY', false) ? ' *' : ''), `<select class="form-select" data-no-search onchange="${o_('categoryId')}=this.value">${opts(OPT.categories, o.categoryId)}</select>`, 'col-6')}
         ${field('Qualification', `<input class="form-control" value="${esc(o.qualification)}" oninput="${o_('qualification')}=this.value" />`, 'col-6')}
         ${field('Contact person', `<input class="form-control" value="${esc(o.contactPerson)}" oninput="${o_('contactPerson')}=this.value" />`, 'col-6')}
         ${field('Area', `<select class="form-select" data-no-search onchange="${o_('areaId')}=this.value">${opts(OPT.areas, o.areaId, 'Select area')}</select>`)}
