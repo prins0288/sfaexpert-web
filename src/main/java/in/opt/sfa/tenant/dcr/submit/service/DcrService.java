@@ -78,8 +78,11 @@ public class DcrService {
         String clientSql = """
                 SELECT c.id, c.client_code AS code, CONCAT(COALESCE(CONCAT(c.salutation, ' '), ''), c.client_name) AS name,
                        c.client_type_id AS clientTypeId, ct.type_name AS clientTypeName, %TAB% AS dcrTab, c.city_id AS areaId, ar.area_name AS areaName,
-                       c.speciality_id AS specialityId, c.category_id AS categoryId, sp.speciality_name AS speciality, cat.category_name AS category, c.mobile_number_1 AS mobile
+                       c.speciality_id AS specialityId, c.category_id AS categoryId, sp.speciality_name AS speciality, cat.category_name AS category, c.mobile_number_1 AS mobile,
+                       COALESCE(v.visits, 0) AS visits, v.last_visit AS lastVisit
                 FROM client_master c
+                LEFT JOIN (SELECT s.client_id, COUNT(*) AS visits, MAX(p.dcr_date) AS last_visit FROM dcr_client_summary s JOIN dcr_parent_summary p ON p.dcr_id = s.dcr_id
+                           WHERE s.emp_id = ? GROUP BY s.client_id) v ON v.client_id = c.id
                 LEFT JOIN client_type ct ON ct.oid = c.client_type_id
                 LEFT JOIN area_master ar ON ar.oid = c.city_id
                 LEFT JOIN speciality_master sp ON sp.oid = c.speciality_id
@@ -87,10 +90,10 @@ public class DcrService {
                 WHERE c.is_active = 1 AND c.approval_status = 'APPROVED' AND (c.mapped_emp_code = ? OR (c.mapped_emp_code IS NULL AND c.created_by COLLATE utf8mb4_0900_ai_ci = ?))
                 ORDER BY c.client_name""";
         try {
-            m.put("clients", jdbc.queryForList(clientSql.replace("%TAB%", TAB_COL), me, me));
+            m.put("clients", jdbc.queryForList(clientSql.replace("%TAB%", TAB_COL), me, me, me));
         } catch (org.springframework.dao.DataAccessException e) {   // migration 94 (client_type.dcr_tab) not run yet
             org.slf4j.LoggerFactory.getLogger(DcrService.class).warn("client_type.dcr_tab is missing - run migration 94_client_type_dcr_tab.sql");
-            m.put("clients", jdbc.queryForList(clientSql.replace("%TAB%", TAB_GUESS), me, me));
+            m.put("clients", jdbc.queryForList(clientSql.replace("%TAB%", TAB_GUESS), me, me, me));
         }
         List<Map<String, Object>> areas = jdbc.queryForList("""
                 SELECT oid AS id, area_name AS name FROM area_master
