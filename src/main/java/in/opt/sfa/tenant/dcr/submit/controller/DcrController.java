@@ -26,9 +26,11 @@ public class DcrController {
 
     private final DcrService service;
     private final DcrWorktypeService worktypes;
+    private final in.opt.sfa.tenant.dcr.submit.service.DcrRuleService rules;
     private final FileUploadService uploads;
 
-    public DcrController(DcrService service, DcrWorktypeService worktypes, FileUploadService uploads) {
+    public DcrController(DcrService service, DcrWorktypeService worktypes, in.opt.sfa.tenant.dcr.submit.service.DcrRuleService rules, FileUploadService uploads) {
+        this.rules = rules;
         this.service = service;
         this.worktypes = worktypes;
         this.uploads = uploads;
@@ -117,5 +119,27 @@ public class DcrController {
     @DeleteMapping("/worktypes/{id}")
     public void deleteWorktype(@PathVariable Long id) {
         worktypes.delete(id);
+    }
+
+    // ---- DCR rules (app_validations) — admin ----
+
+    @GetMapping("/rules")
+    public List<Map<String, Object>> rules(@RequestParam(required = false) String empId) {
+        return rules.list(empId);
+    }
+
+    @GetMapping("/rules/summary")
+    public List<Map<String, Object>> rulesSummary() {
+        return rules.summary();
+    }
+
+    @PostMapping("/rules/{id}")
+    public void saveRule(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        rules.save(id, body.get("value") == null ? null : body.get("value").toString(), body.get("enabled") == null ? null : Boolean.valueOf(body.get("enabled").toString()));
+    }
+
+    @PostMapping("/rules/apply-all")
+    public Map<String, Object> applyAll(@RequestBody Map<String, Object> body) {
+        return Map.of("updated", rules.applyToAll(String.valueOf(body.get("code")), String.valueOf(body.get("value"))));
     }
 }

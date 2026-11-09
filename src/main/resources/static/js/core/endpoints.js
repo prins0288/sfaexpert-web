@@ -261,6 +261,10 @@
         upload: "/api/dcr/upload",                                    // multipart file (+ kind=image|document) -> { path }
         worktypes: "/api/dcr/worktypes",                              // GET all rows / POST one row (admin)
         worktype: (id) => `/api/dcr/worktypes/${id}`,                 // DELETE
+        rules: "/api/dcr/rules",                                      // GET ?empId= (blank = master)
+        rulesSummary: "/api/dcr/rules/summary",                       // GET who has which value
+        rule: (id) => `/api/dcr/rules/${id}`,                         // POST {value, enabled}
+        rulesApplyAll: "/api/dcr/rules/apply-all",                    // POST {code, value}
       },
       teamHierarchy: {
         list: "/api/master/team-hierarchy",

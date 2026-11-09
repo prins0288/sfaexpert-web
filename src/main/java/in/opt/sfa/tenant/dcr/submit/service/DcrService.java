@@ -37,9 +37,11 @@ public class DcrService {
     private final JdbcTemplate jdbc;
     private final TeamScope scope;
     private final DcrWorktypeService worktypes;
+    private final DcrRuleService rules;
     private final CompanySettingStore settings;
 
-    public DcrService(JdbcTemplate jdbc, TeamScope scope, DcrWorktypeService worktypes, CompanySettingStore settings) {
+    public DcrService(JdbcTemplate jdbc, TeamScope scope, DcrWorktypeService worktypes, DcrRuleService rules, CompanySettingStore settings) {
+        this.rules = rules;
         this.jdbc = jdbc;
         this.scope = scope;
         this.worktypes = worktypes;
@@ -63,6 +65,7 @@ public class DcrService {
         m.put("meDesignation", who.get("designation"));
         m.put("meHq", who.get("hq"));
         m.put("workTypes", worktypes.dayTypes(me));
+        m.put("rules", rules.of(me));
         m.put("backDays", backDays());
         m.put("tabs", worktypes.tabsFor(me));
         m.put("clients", jdbc.queryForList("""
@@ -314,6 +317,15 @@ public class DcrService {
         LocalTime timeIn = date.equals(today) ? LocalTime.now().withSecond(0).withNano(0) : time(f.getTimeIn(), "Time in");
         if (timeIn == null) throw new IllegalStateException("Enter the time your day started");
         boolean working = "WORKING".equals(workType);
+        Map<String, String> rl = rules.of(me);
+        if (date.equals(today)) {
+            LocalTime earliest = DcrRuleService.time(rl, "DAY_START_STOP_BEFORE_TIME"), latest = DcrRuleService.time(rl, "DAY_START_TIME");
+            if (earliest != null && timeIn.isBefore(earliest)) throw new IllegalStateException("Your day can be started only after " + earliest);
+            if (latest != null && timeIn.isAfter(latest)) throw new IllegalStateException("Day start time is over (allowed till " + latest + ")");
+        }
+        if (working && DcrRuleService.bool(rl, "DAY_START_TRAVEL_MODE_VISIBLITY", true) && DcrRuleService.bool(rl, "DAY_START_TRAVEL_MODE_MANDATORY", false) && Strings.isBlank(f.getTravelMode())) {
+            throw new IllegalStateException("Select the travel mode to start your day");
+        }
         if (working && f.getStartAreaId() == null) throw new IllegalStateException("Choose the area you start the day from");
         if (f.getStartAreaId() != null) checkAreaIds(List.of(f.getStartAreaId()));
         if (f.getMeterStart() != null && f.getMeterStart().signum() < 0) throw new IllegalStateException("Meter start cannot be negative");
@@ -325,7 +337,7 @@ public class DcrService {
                     INSERT INTO dcr_parent_summary (emp_id, dcr_date, work_type, designation_id, manager_id, start_area_id, time_in, travel_mode, meter_start, remarks, status, submitted_through)
                     VALUES (?,?,?,?,?,?,?,?,?,?,0,2)""", Statement.RETURN_GENERATED_KEYS);
             ps.setString(1, me); ps.setObject(2, d); ps.setString(3, workType); ps.setObject(4, emp.get("designation")); ps.setObject(5, emp.get("manager_id"));
-            ps.setObject(6, working ? f.getStartAreaId() : null); ps.setObject(7, ti); ps.setObject(8, blank(f.getTravelMode())); ps.setObject(9, f.getMeterStart()); ps.setObject(10, blank(f.getRemarks()));
+            ps.setObject(6, working ? f.getStartAreaId() : null); ps.setObject(7, ti); ps.setObject(8, blank(f.getTravelMode())); ps.setObject(9, DcrRuleService.bool(rl, "METER_READING_DAYSTART_VISIBLITY", true) ? f.getMeterStart() : null); ps.setObject(10, blank(f.getRemarks()));
             return ps;
         }, kh);
         long id = kh.getKey().longValue();
@@ -404,6 +416,10 @@ public class DcrService {
         f.getVisits().forEach(v -> wanted.addAll(v.getJointWith()));
         f.getUnlisted().forEach(u -> wanted.addAll(u.getJointWith()));
         for (String w : wanted) if (!allowedJoint.contains(w)) throw new IllegalStateException("You cannot record joint working with " + w);
+        Map<String, String> rl = rules.of(me);
+        int maxUnlisted = DcrRuleService.integer(rl, "UNLISTED_CLIENT_MAXIMUM_VALIDATION", 0);
+        if (maxUnlisted > 0 && f.getUnlisted().size() > maxUnlisted) throw new IllegalStateException("You can add at most " + maxUnlisted + " unlisted check-ins in a day");
+        if (f.isSubmit() && DcrRuleService.bool(rl, "DCR_Remarks", false) && Strings.isBlank(f.getRemarks())) throw new IllegalStateException("Remarks are required to submit the day");
         if (f.isSubmit() && working && f.getVisits().isEmpty() && f.getUnlisted().isEmpty()) {
             throw new IllegalStateException("Add at least one client call before submitting (or save it as a draft)");
         }
@@ -413,9 +429,10 @@ public class DcrService {
             if (Strings.isBlank(c.getInTime())) throw new IllegalStateException("A call is not checked in — check in the client first");
             if (Strings.isBlank(c.getOutTime()) && !c.isRefused()) open.add(callName(c));
             checkNotFuture(date, c);
+            checkWindow(rl, c);
         }
         if (open.size() > 1) throw new IllegalStateException("Check out of " + open.get(0) + " before checking in another client");
-        if (f.isSubmit() && !open.isEmpty()) throw new IllegalStateException("Check out of " + open.get(0) + " before submitting the day");
+        if (f.isSubmit() && !open.isEmpty() && DcrRuleService.bool(rl, "CHECKOUT", true)) throw new IllegalStateException("Check out of " + open.get(0) + " before submitting the day");
         // time in is fixed when the day starts; time out is stamped on submit (a past day: as typed)
         LocalTime tin = existing.get(0).get("time_in") == null ? null : LocalTime.parse(existing.get(0).get("time_in").toString());
         LocalTime tout = existing.get(0).get("time_out") == null ? null : LocalTime.parse(existing.get(0).get("time_out").toString());
@@ -626,6 +643,16 @@ public class DcrService {
         }
         LocalTime in = time(c.getInTime(), "In time"), out = time(c.getOutTime(), "Out time");
         if (in != null && out != null && out.isBefore(in)) throw new IllegalStateException("Check-out time cannot be before check-in time");
+    }
+
+    /** DCR_BETWEEN_TIME: a call's check-in / check-out must fall inside the allowed window. */
+    private static void checkWindow(Map<String, String> rl, DcrDto.Call c) {
+        LocalTime[] w = DcrRuleService.window(rl, "DCR_BETWEEN_TIME");
+        if (w == null) return;
+        for (String t : new String[]{c.getInTime(), c.getOutTime()}) {
+            LocalTime lt = time(t, "Call time");
+            if (lt != null && (lt.isBefore(w[0]) || lt.isAfter(w[1]))) throw new IllegalStateException("Client calls are allowed only between " + w[0] + " and " + w[1]);
+        }
     }
 
     private static boolean hasDayEnd(DcrDto f) {
