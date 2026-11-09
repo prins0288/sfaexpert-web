@@ -69,9 +69,9 @@ public class DcrService {
         m.put("isAdmin", TeamScope.isAdmin());
         m.put("backDays", backDays());
         m.put("tabs", worktypes.tabsFor(me));
-        m.put("clients", jdbc.queryForList("""
+        String clientSql = """
                 SELECT c.id, c.client_code AS code, CONCAT(COALESCE(CONCAT(c.salutation, ' '), ''), c.client_name) AS name,
-                       c.client_type_id AS clientTypeId, ct.type_name AS clientTypeName, c.city_id AS areaId, ar.area_name AS areaName,
+                       c.client_type_id AS clientTypeId, ct.type_name AS clientTypeName, ct.dcr_tab AS dcrTab, c.city_id AS areaId, ar.area_name AS areaName,
                        sp.speciality_name AS speciality, cat.category_name AS category, c.mobile_number_1 AS mobile
                 FROM client_master c
                 LEFT JOIN client_type ct ON ct.oid = c.client_type_id
@@ -79,7 +79,13 @@ public class DcrService {
                 LEFT JOIN speciality_master sp ON sp.oid = c.speciality_id
                 LEFT JOIN category_master cat ON cat.oid = c.category_id
                 WHERE c.is_active = 1 AND c.approval_status = 'APPROVED' AND (c.mapped_emp_code = ? OR (c.mapped_emp_code IS NULL AND c.created_by COLLATE utf8mb4_0900_ai_ci = ?))
-                ORDER BY c.client_name""", me, me));
+                ORDER BY c.client_name""";
+        try {
+            m.put("clients", jdbc.queryForList(clientSql, me, me));
+        } catch (org.springframework.dao.DataAccessException e) {   // migration 94 (client_type.dcr_tab) not run yet
+            org.slf4j.LoggerFactory.getLogger(DcrService.class).warn("client_type.dcr_tab is missing - run migration 94_client_type_dcr_tab.sql");
+            m.put("clients", jdbc.queryForList(clientSql.replace("ct.dcr_tab AS dcrTab", "NULL AS dcrTab"), me, me));
+        }
         List<Map<String, Object>> areas = jdbc.queryForList("""
                 SELECT oid AS id, area_name AS name FROM area_master
                 WHERE status = 'Y' AND approval_status = 'APPROVED' AND emp_id = ? ORDER BY area_name""", me);
@@ -406,8 +412,9 @@ public class DcrService {
         Map<Long, Map<String, Object>> myClients = new HashMap<>();
         if (working) {
             for (Map<String, Object> c : jdbc.queryForList("""
-                    SELECT id, client_type_id, city_id FROM client_master WHERE is_active = 1 AND approval_status = 'APPROVED'
-                      AND (mapped_emp_code = ? OR (mapped_emp_code IS NULL AND created_by COLLATE utf8mb4_0900_ai_ci = ?))""", me, me)) myClients.put(((Number) c.get("id")).longValue(), c);
+                    SELECT c.id, c.client_type_id, c.city_id, ct.dcr_tab FROM client_master c LEFT JOIN client_type ct ON ct.oid = c.client_type_id
+                    WHERE c.is_active = 1 AND c.approval_status = 'APPROVED'
+                      AND (c.mapped_emp_code = ? OR (c.mapped_emp_code IS NULL AND c.created_by COLLATE utf8mb4_0900_ai_ci = ?))""", me, me)) myClients.put(((Number) c.get("id")).longValue(), c);
         }
         Set<String> seen = new HashSet<>();
         for (DcrDto.Visit v : f.getVisits()) {
@@ -417,10 +424,10 @@ public class DcrService {
             if (tab == null || !"CHECKIN".equals(tab.get("form"))) throw new IllegalStateException("The tab '" + v.getWorktypeCode() + "' is not enabled for you");
             Object tType = tab.get("clientTypeId");
             Long cType = lng(myClients.get(v.getClientId()).get("client_type_id"));
-            if (tType == null) throw new IllegalStateException("The " + tab.get("name") + " tab has no client type set — ask your admin");
-            if (!Objects.equals(((Number) tType).longValue(), cType)) {
-                throw new IllegalStateException("That client does not belong in the " + tab.get("name") + " tab");
-            }
+            // Client / Retailer / Party tab = clients whose client type is mapped to that tab (client_type.dcr_tab), or the tab's own client type
+            boolean fits = v.getWorktypeCode() != null && v.getWorktypeCode().equals(myClients.get(v.getClientId()).get("dcr_tab"))
+                    || (tType != null && Objects.equals(((Number) tType).longValue(), cType));
+            if (!fits) throw new IllegalStateException("That client does not belong in the " + tab.get("name") + " tab");
             if (!seen.add(v.getClientId() + "|" + nz(v.getVisitType()))) throw new IllegalStateException("The same client is added twice with the same visit type");
             checkCall(v, tab);
         }

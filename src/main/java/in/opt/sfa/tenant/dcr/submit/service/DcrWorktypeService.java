@@ -20,6 +20,8 @@ import java.util.*;
 public class DcrWorktypeService {
 
     public static final List<String> ROW_TYPES = List.of("wd", "attn", "av", "tab");
+    /** The three client check-in kinds are fixed; only their label (Doctor / Chemist / Stockist ...) is free. */
+    public static final List<String> CHECKIN_CODES = List.of("CLIENT", "RETAILER", "PARTY");
     public static final List<String> FORMS = List.of("CHECKIN", "UNLISTED", "EXPENSE", "JOINT", "DAYEND");
     public static final List<String> SUB_FORMS = List.of("ITEMS", "LEAFLETS", "TREATMENT");
 
@@ -136,6 +138,7 @@ public class DcrWorktypeService {
         String rowType = str(f.get("rowType"));
         if (rowType == null || !ROW_TYPES.contains(rowType)) throw new IllegalStateException("Type must be one of " + ROW_TYPES);
         boolean day = "wd".equals(rowType) || "attn".equals(rowType);
+        if ("av".equals(rowType) && !CHECKIN_CODES.contains(code)) throw new IllegalStateException("A client check-in tab is CLIENT, RETAILER or PARTY (only its label changes)");
         String form = day ? (Boolean.TRUE.equals(f.get("fieldWork")) || "true".equals(String.valueOf(f.get("fieldWork"))) ? "WORK" : "ATTN") : str(f.get("formOpen"));
         if (form == null || (!day && !FORMS.contains(form))) throw new IllegalStateException("Form must be one of " + FORMS);
         if ("av".equals(rowType) && !"CHECKIN".equals(form)) throw new IllegalStateException("A check-in tab opens the Check-in form");
