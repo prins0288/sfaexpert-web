@@ -455,7 +455,7 @@
     if (c.signaturePath) h += card('Image', 'camera', `${SFAFiles.thumb(c.signaturePath, null, { name: 'image' })}`);
     h += card('Activity / Remarks', 'chat-left-text', kv('Activity', c.activityType) + kv('Remarks', c.remarks) + kv('Next visit', c.nextVisit) + kv('Priority', c.nextVisitPriority) + kv('Next visit remarks', c.nextVisitRemarks) || '<span class="text-muted">—</span>');
     EDIT = null;
-    sheetOpen(c.clientName, h, `<button class="btn btn-light" onclick="sheetClose()">Close</button>${ST.canEdit ? `<button class="btn btn-primary" onclick="editCall('${k}',${i})"><i class="bi bi-pencil"></i> Edit</button>` : ''}`);
+    sheetOpen(c.clientName, h, `<button class="btn btn-light" onclick="sheetClose()">Close</button>${ST.canEdit ? `<button class="btn btn-outline-danger" onclick="callRemove('${k}',${i})"><i class="bi bi-trash"></i> Delete check-in</button>` : ''}`);
     if (window.SFAFiles && SFAFiles.hydrate) SFAFiles.hydrate(document.getElementById('sheetBody'));
   }
 
@@ -725,6 +725,15 @@
     const fd = new FormData(); fd.append('file', file); fd.append('kind', kind);
     return Api.post(EP.upload, fd);
   }
+  // a finished check-in is not edited - it is deleted (the client can then be checked in again)
+  async function callRemove(k, i) {
+    const c = (k === 'v' ? ST.visits : ST.unlisted)[i];
+    if (!ST.canEdit || !confirm('Delete the check-in of ' + c.clientName + '? You can check in again after this.')) return;
+    if (k === 'v') ST.visits.splice(i, 1);
+    else { const key = c.key; ST.unlisted.splice(i, 1); ST.expenses.forEach(e => { if (e.unlistedKey === key) { e.clientKind = 0; e.unlistedKey = null; } }); }
+    sheetClose();
+    if (await dcrSave(false, true)) SFA.toast('Check-in deleted - you can add the client again', true); else render();
+  }
   async function callDelete() {
     if (!confirm(EDIT.o.inTime ? 'Delete this check-in? The visit is removed from your DCR.' : 'Remove this client?')) return;
     if (EDIT.kind === 'v') ST.visits.splice(EDIT.idx, 1);
@@ -751,6 +760,7 @@
       (ST.canEdit ? '<button class="dcr-add" onclick="editExpense(-1)"><i class="bi bi-plus-circle"></i> Add expense</button>' : '');
   }
   function editExpense(idx) {
+    if (!ST.canEdit) return;   // submitted: nothing can change
     const blankE = { expenseId: '', amount: '', description: '', clientKind: 0, clientId: null, unlistedKey: null, fromAreaId: '', toAreaId: '', startKm: '', endKm: '', startImagePath: '', endImagePath: '', fileName: '', fileType: '', filePath: '' };
     EDIT = { kind: 'e', idx, o: idx < 0 ? blankE : JSON.parse(JSON.stringify(ST.expenses[idx])) };
     ['fromAreaId', 'toAreaId', 'startKm', 'endKm'].forEach(k => { if (EDIT.o[k] == null) EDIT.o[k] = ''; });

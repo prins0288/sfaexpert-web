@@ -229,7 +229,7 @@ public class DcrService {
         d.setEmpName(name(owner));
         Map<String, Object> des = jdbc.queryForList("SELECT designation FROM designation_master WHERE id = ?", p.get("designation_id")).stream().findFirst().orElse(Map.of());
         d.setDesignation((String) des.get("designation"));
-        d.setCanEdit(owner.equals(me()) && st != APPROVED);
+        d.setCanEdit(owner.equals(me()) && (st == DRAFT || st == REJECTED));   // after Final Submit nothing can change (a rejected DCR opens again)
         d.setCanApprove(st == SUBMITTED && canApprove(owner));
 
         Map<Long, List<DcrDto.Item>> items = new HashMap<>();   // key: kind*1e12 + ref
@@ -384,9 +384,9 @@ public class DcrService {
 
         List<Map<String, Object>> existing = jdbc.queryForList("SELECT dcr_id, status, time_in, time_out FROM dcr_parent_summary WHERE emp_id = ? AND dcr_date = ?", me, date);
         if (existing.isEmpty()) throw new IllegalStateException("Start your day first");
-        if (((Number) existing.get(0).get("status")).intValue() == APPROVED) {
-            throw new IllegalStateException("This DCR is already approved and cannot be changed");
-        }
+        int curStatus = ((Number) existing.get(0).get("status")).intValue();
+        if (curStatus == APPROVED) throw new IllegalStateException("This DCR is already approved and cannot be changed");
+        if (curStatus == SUBMITTED) throw new IllegalStateException("This DCR is already submitted - nothing can be added, changed or deleted now");
         boolean working = worktypes.isFieldWork(me, workType);
         Map<String, Map<String, Object>> tabs = new HashMap<>();
         worktypes.tabsFor(me).forEach(t -> tabs.put((String) t.get("code"), t));
