@@ -47,6 +47,13 @@
   .tp-cell.blank { border: 0; background: transparent; }
   .tp-cell .m { font-size: .58rem; color: var(--bs-secondary-color); }
   @media (min-width: 992px) { .tp-cell { min-height: 6rem; border-radius: .5rem; padding: .45rem .55rem; } .tp-cell .n { font-size: 1.05rem; } .tp-cell .t { font-size: .74rem; } .tp-cell .h { font-size: .72rem; } .tp-cell .m { font-size: .7rem; } .tp-cell:hover:not(.blank) { background: var(--bs-tertiary-bg); } }
+  .tp-cell.need { border: 1.5px dashed var(--bs-warning); }
+  .tp-kind { border: 1px solid var(--bs-border-color); border-radius: .85rem; margin-top: .6rem; overflow: hidden; }
+  .tp-kind > .hd { display: flex; align-items: center; gap: .5rem; padding: .6rem .8rem; cursor: pointer; background: var(--bs-tertiary-bg); font-weight: 700; }
+  .tp-kind > .bd { padding: .6rem .7rem; }
+  .tp-kind .box { max-height: 15rem; overflow-y: auto; border: 1px solid var(--bs-border-color); border-radius: .7rem; padding: 0 .6rem; margin-top: .5rem; overscroll-behavior: contain; }
+  .tp-prog { height: .5rem; border-radius: 999px; background: var(--bs-secondary-bg); overflow: hidden; }
+  .tp-prog > div { height: 100%; background: var(--bs-success); transition: width .3s; }
   .tp-leg { display: flex; flex-wrap: wrap; gap: .75rem; font-size: .78rem; color: var(--bs-secondary-color); }
   .tp-leg i { display: inline-block; width: .8rem; height: .8rem; border-radius: .25rem; vertical-align: -1px; margin-right: .25rem; }
 </style>
@@ -68,6 +75,7 @@
   <div id="tpBanner"></div>
   <div id="pMy">
     <div class="ap-card"><label class="form-label small mb-1">Goal of the month</label><textarea class="form-control" rows="2" id="tpGoal" maxlength="1000" placeholder="What do you want to achieve this month?" onchange="tpGoalSave()"></textarea></div>
+    <div class="ap-card d-none" id="tpProg"></div>
     <div class="ap-card"><div class="tp-cal mb-1" id="tpDow"></div><div class="tp-cal" id="tpCal"></div>
       <div class="tp-leg mt-2"><span><i style="background:var(--bs-primary-bg-subtle)"></i>Field day</span><span><i style="background:var(--bs-secondary-bg)"></i>Other day type</span><span><i style="background:var(--bs-danger-bg-subtle)"></i>Holiday</span><span><i style="background:var(--bs-tertiary-bg)"></i>Weekly off</span></div></div>
     <div class="ap-card d-none" id="tpTrailCard"><div class="ap-sec mt-0">Approval</div><div id="tpTrail"></div></div>
@@ -146,7 +154,7 @@
     document.getElementById('pMy').classList.toggle('d-none', TAB !== 'my' && !VIEW);
     document.getElementById('pTeam').classList.toggle('d-none', TAB !== 'team' || !!VIEW);
     const goal = document.getElementById('tpGoal'); goal.value = PLAN.monthGoal || ''; goal.disabled = !PLAN.canEdit;
-    document.getElementById('tpSubmitBtn').classList.toggle('d-none', !PLAN.canSubmit);
+    progress();
     const bar = document.getElementById('tpBar'); bar.classList.toggle('show', !!PLAN.canApprove);
     document.getElementById('tpBarInfo').textContent = PLAN.canApprove ? (PLAN.empName + "'s plan is waiting for you") : '';
     calendar();
@@ -157,6 +165,26 @@
         <small>${esc(t.byName || '')}${t.byDesignation ? ' · ' + esc(t.byDesignation) : ''} · ${esc(String(t.at).replace('T', ' ').slice(0, 16))}${t.remarks ? ' · ' + esc(t.remarks) : ''}</small></div></div>`).join('');
   }
 
+  // dates the plan must cover before it can be submitted: from TODAY to the month end (never the 1st if the month is running), minus holidays / weekly off
+  function requiredDates() {
+    if (!PLAN || !PLAN.canEdit) return [];
+    const today = todayStr(), days = new Date(Y, M, 0).getDate(), out = [];
+    for (let d = 1; d <= days; d++) { const ds = Y + '-' + pad(M) + '-' + pad(d); if (ds >= today && !(PLAN.holidays || {})[ds]) out.push(ds); }
+    return out;
+  }
+  function progress() {
+    const card = document.getElementById('tpProg'), btn = document.getElementById('tpSubmitBtn'), req = requiredDates();
+    if (!PLAN.canEdit) { card.classList.add('d-none'); btn.classList.add('d-none'); return; }
+    const planned = new Set((PLAN.days || []).map(d => d.date)), left = req.filter(d => !planned.has(d)), done = req.length - left.length;
+    const from = todayStr() > Y + '-' + pad(M) + '-01' ? 'from today (' + new Date().getDate() + ' ' + MONTHS[M - 1].slice(0, 3) + ')' : 'for the whole month';
+    card.classList.remove('d-none');
+    card.innerHTML = `<div class="d-flex justify-content-between align-items-baseline mb-1"><b>${done} of ${req.length} days planned</b><small class="text-muted">${from} to month end</small></div>
+      <div class="tp-prog"><div style="width:${req.length ? Math.round(done * 100 / req.length) : 100}%"></div></div>
+      <small class="d-block mt-2 ${left.length ? 'text-warning-emphasis' : 'text-success'}">${left.length ? '<i class="bi bi-exclamation-triangle"></i> The plan can be submitted only when <b>every working day till the month end</b> is planned. ' + left.length + ' day' + (left.length === 1 ? '' : 's') + ' left: ' + left.slice(0, 6).map(x => Number(x.slice(8))).join(', ') + (left.length > 6 ? ' …' : '') + '.'
+        : '<i class="bi bi-check-circle"></i> The whole month is planned - you can submit it now.'}</small>`;
+    btn.classList.remove('d-none'); btn.disabled = left.length > 0 || !(PLAN.days || []).length;
+    btn.innerHTML = left.length ? `<i class="bi bi-send-check"></i> Submit (${left.length} day${left.length === 1 ? '' : 's'} left)` : '<i class="bi bi-send-check"></i> Submit for approval';
+  }
   function calendar() {
     const first = new Date(Y, M - 1, 1), days = new Date(Y, M, 0).getDate(), lead = (first.getDay() + 6) % 7, today = todayStr();
     const byDate = {}; (PLAN.days || []).forEach(d => byDate[d.date] = d);
@@ -165,7 +193,8 @@
     for (let d = 1; d <= days; d++) {
       const ds = Y + '-' + pad(M) + '-' + pad(d), p = byDate[ds], hol = (PLAN.holidays || {})[ds] || [];
       const isHoliday = hol.some(x => x.kind === 'HOLIDAY'), isOff = !isHoliday && hol.length;
-      h += `<button type="button" class="tp-cell ${isHoliday ? 'hol' : isOff ? 'off' : ''} ${ds < today ? 'past' : ''} ${ds === today ? 'today' : ''}" onclick="dayOpen('${ds}')"><span class="n">${d}</span>
+      const needs = PLAN.canEdit && ds >= today && !hol.length && !p;
+      h += `<button type="button" class="tp-cell ${isHoliday ? 'hol' : isOff ? 'off' : ''} ${ds < today ? 'past' : ''} ${ds === today ? 'today' : ''} ${needs ? 'need' : ''}" onclick="dayOpen('${ds}')"><span class="n">${d}</span>
         ${hol.map(x => `<span class="h">${esc(x.name)}</span>`).join('')}
         ${p ? `<span class="t ${isField(p.worktypeCode) ? 'field' : ''}">${esc(wtName(p.worktypeCode))}</span>${p.areas.length ? `<span class="m">${p.areas.map(a => esc(a.name)).join(', ')}</span>` : ''}` : ''}</button>`;
     }
@@ -203,26 +232,59 @@
 
   const KINDS = ['CLIENT', 'RETAILER', 'PARTY'];
   const kindLabel = (k) => ((OPT.clientTypes.find(t => t.dcrTab === k) || {}).label) || ((OPT.tabs.find(t => t.code === k) || {}).name) || k;
+  const KOPEN = {};   // section key -> open / closed (kept while the form is re-drawn)
+
+  // one collapsible box per area + kind: own search, own scroll, own counter - so 100 doctors never make the page long
+  function kindSection(aid, k, list) {
+    const key = aid + '_' + k, open = key in KOPEN ? KOPEN[key] : list.length <= 8;
+    const sel = list.filter(c => DAY.clients.get(String(c.id)) === String(aid)).length;
+    return `<div class="tp-kind" id="kd_${key}"><div class="hd" onclick="kToggle('${key}')"><i class="bi bi-chevron-${open ? 'down' : 'right'}" id="ki_${key}"></i><span class="flex-fill">${esc(kindLabel(k))}</span>
+        <span class="ap-badge ${sel ? 'ok' : ''}" id="kc_${key}">${sel} / ${list.length}</span></div>
+      <div class="bd ${open ? '' : 'd-none'}" id="kb_${key}">
+        <div class="d-flex gap-2 align-items-center">
+          <input class="form-control form-control-sm" id="kq_${key}" placeholder="Search ${esc(kindLabel(k)).toLowerCase()} (name or code)…" oninput="kFilter('${key}')">
+          <label class="small text-nowrap d-flex align-items-center gap-1"><input type="checkbox" class="form-check-input" id="ks_${key}" onchange="kFilter('${key}')"> Selected</label></div>
+        <div class="d-flex justify-content-between small mt-2"><a href="javascript:void(0)" onclick="kAll('${aid}','${k}',true)">Select all shown</a><a href="javascript:void(0)" onclick="kAll('${aid}','${k}',false)">Clear shown</a></div>
+        <div class="box" id="kx_${key}">${list.map(c => `<label class="ap-row kr" data-n="${esc((c.name + ' ' + c.code).toLowerCase())}"><input type="checkbox" class="form-check-input" data-c="${c.id}" ${DAY.clients.get(String(c.id)) === String(aid) ? 'checked' : ''} onchange="dayClient('${c.id}','${aid}','${k}',this.checked)">
+          <div class="grow">${esc(c.name)}<small>${esc(c.code)}${c.speciality ? ' · ' + esc(c.speciality) : ''}</small></div></label>`).join('')}<div class="ap-empty d-none" id="ke_${key}">No match</div></div>
+      </div></div>`;
+  }
+  function kToggle(key) { const b = document.getElementById('kb_' + key), open = b.classList.contains('d-none'); KOPEN[key] = open; b.classList.toggle('d-none', !open); document.getElementById('ki_' + key).className = 'bi bi-chevron-' + (open ? 'down' : 'right'); }
+  function kFilter(key) {
+    const q = (document.getElementById('kq_' + key).value || '').toLowerCase(), only = document.getElementById('ks_' + key).checked; let n = 0;
+    document.querySelectorAll('#kx_' + key + ' .kr').forEach(r => { const show = (!q || r.dataset.n.includes(q)) && (!only || r.querySelector('input').checked); r.style.display = show ? '' : 'none'; if (show) n++; });
+    document.getElementById('ke_' + key).classList.toggle('d-none', n > 0);
+  }
+  function kCount(aid, k) {
+    const key = aid + '_' + k, list = OPT.clients.filter(c => String(c.areaId) === String(aid) && c.dcrTab === k), sel = list.filter(c => DAY.clients.get(String(c.id)) === String(aid)).length, b = document.getElementById('kc_' + key);
+    if (b) { b.textContent = sel + ' / ' + list.length; b.classList.toggle('ok', sel > 0); }
+  }
+  function dayClient(cid, aid, k, on) { on ? DAY.clients.set(String(cid), String(aid)) : DAY.clients.delete(String(cid)); kCount(aid, k); if (document.getElementById('ks_' + aid + '_' + k).checked) kFilter(aid + '_' + k); }
+  function kAll(aid, k, on) {
+    const key = aid + '_' + k;
+    document.querySelectorAll('#kx_' + key + ' .kr').forEach(r => { if (r.style.display === 'none') return; const i = r.querySelector('input'); i.checked = on; on ? DAY.clients.set(String(i.dataset.c), String(aid)) : DAY.clients.delete(String(i.dataset.c)); });
+    kCount(aid, k);
+  }
+  function areaFilter() {
+    const q = (document.getElementById('aq').value || '').toLowerCase();
+    document.querySelectorAll('#ax .ar').forEach(r => r.style.display = !q || r.dataset.n.includes(q) ? '' : 'none');
+  }
   function dayForm(keepScroll) {
     const sb = document.getElementById('tpSheetBody'), top = keepScroll && sb ? sb.scrollTop : 0;
     const field = isField(DAY.worktypeCode);
     let h = holBanner();
     h += `<div class="ap-sec mt-0">Work type</div><div class="ap-chips scroll">${OPT.workTypes.map(w => `<button type="button" class="ap-chip ${DAY.worktypeCode === w.code ? 'on' : ''}" onclick="dayWork('${esc(w.code)}')">${esc(w.name)}</button>`).join('')}</div>`;
     if (field) {
-      h += `<div class="ap-sec">Areas <span class="text-muted fw-normal">(${DAY.areaIds.size} selected)</span></div><div class="ap-pick">${OPT.areas.map(a => `<label class="ap-row"><input type="checkbox" class="form-check-input" ${DAY.areaIds.has(String(a.id)) ? 'checked' : ''} onchange="dayArea('${a.id}', this.checked)">
+      h += `<div class="ap-sec">Areas <span class="text-muted fw-normal">(${DAY.areaIds.size} selected)</span></div>
+        ${OPT.areas.length > 6 ? '<input class="form-control mb-2" id="aq" placeholder="Search area…" oninput="areaFilter()">' : '<span id="aq" class="d-none"></span>'}
+        <div class="ap-pick" id="ax">${OPT.areas.map(a => `<label class="ap-row ar" data-n="${esc(a.name.toLowerCase())}"><input type="checkbox" class="form-check-input" ${DAY.areaIds.has(String(a.id)) ? 'checked' : ''} onchange="dayArea('${a.id}', this.checked)">
         <div class="grow">${esc(a.name)}</div>${a.areaType ? `<span class="ap-badge">${esc(a.areaType)}</span>` : ''}</label>`).join('') || '<div class="ap-empty">You have no approved area</div>'}</div>`;
       [...DAY.areaIds].forEach(aid => {
         const a = areaOf(aid);
         h += `<div class="ap-card mt-3"><div class="fw-bold mb-1"><i class="bi bi-geo-alt text-primary"></i> ${esc(a.name)} ${a.areaType ? `<span class="ap-badge">${esc(a.areaType)}</span>` : ''}</div>`;
         let any = false;
-        KINDS.forEach(k => {
-          const list = OPT.clients.filter(c => String(c.areaId) === String(aid) && c.dcrTab === k);
-          if (!list.length) return; any = true;
-          const all = list.every(c => DAY.clients.get(String(c.id)) === String(aid));
-          h += `<div class="d-flex align-items-center"><div class="ap-sec flex-fill mb-1">${esc(kindLabel(k))}</div><a href="javascript:void(0)" class="small" onclick="daySelKind('${aid}','${k}',${all ? 'false' : 'true'})">${all ? 'Clear' : 'Select all'}</a></div>
-            <div class="ap-pick" style="max-height:30vh">${list.map(c => `<label class="ap-row"><input type="checkbox" class="form-check-input" ${DAY.clients.get(String(c.id)) === String(aid) ? 'checked' : ''} onchange="dayClient('${c.id}','${aid}',this.checked)"><div class="grow">${esc(c.name)}<small>${esc(c.code)}${c.speciality ? ' · ' + esc(c.speciality) : ''}</small></div></label>`).join('')}</div>`;
-        });
-        h += (any ? '<small class="text-muted d-block mt-1">Pick none = every client of this area is allowed in the DCR.</small>' : '<small class="text-muted">No client in this area.</small>') + '</div>';
+        KINDS.forEach(k => { const list = OPT.clients.filter(c => String(c.areaId) === String(aid) && c.dcrTab === k); if (!list.length) return; any = true; h += kindSection(aid, k, list); });
+        h += (any ? '<small class="text-muted d-block mt-2">Pick none = every client of this area is allowed in the DCR.</small>' : '<small class="text-muted">No client in this area.</small>') + '</div>';
       });
       const groups = [['MANAGER', 'Manager'], ['SENIOR', 'Seniors'], ['JUNIOR', 'Juniors']];
       h += '<div class="ap-sec">Visit with</div>' + (OPT.joint.length ? groups.map(([rel, name]) => { const l = OPT.joint.filter(j => j.relation === rel); return l.length ? `<div class="small fw-bold text-muted mt-2">${name}</div><div class="ap-pick" style="max-height:26vh">${l.map(j => `<label class="ap-row"><input type="checkbox" class="form-check-input" ${DAY.visitWith.has(j.id) ? 'checked' : ''} onchange="dayWith('${esc(j.id)}', this.checked)"><div class="grow">${esc(j.empName)} <span class="text-muted">(${esc(j.empCode)})</span><small>${esc(j.designation || '')}</small></div></label>`).join('')}</div>` : ''; }).join('') : '<div class="small text-muted">No manager, senior or junior found.</div>');
@@ -234,8 +296,6 @@
   }
   function dayWork(c) { DAY.worktypeCode = c; if (!isField(c)) { DAY.areaIds = new Set(); DAY.clients = new Map(); DAY.visitWith = new Set(); DAY.stayAreaId = ''; } dayForm(true); }
   function dayArea(id, on) { id = String(id); if (on) DAY.areaIds.add(id); else { DAY.areaIds.delete(id); [...DAY.clients].forEach(([c, a]) => { if (a === id) DAY.clients.delete(c); }); } dayForm(true); }
-  function dayClient(cid, aid, on) { on ? DAY.clients.set(String(cid), String(aid)) : DAY.clients.delete(String(cid)); }
-  function daySelKind(aid, k, on) { OPT.clients.filter(c => String(c.areaId) === String(aid) && c.dcrTab === k).forEach(c => on ? DAY.clients.set(String(c.id), String(aid)) : DAY.clients.delete(String(c.id))); dayForm(true); }
   function dayWith(id, on) { on ? DAY.visitWith.add(id) : DAY.visitWith.delete(id); }
   async function daySave() {
     try {

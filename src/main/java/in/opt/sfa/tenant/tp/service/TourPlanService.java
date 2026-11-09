@@ -325,7 +325,7 @@ public class TourPlanService {
             if (!plannable(d) || off.containsKey(d.toString()) || planned.contains(d.toString())) continue;
             missing.add(d.getDayOfMonth() + "");
         }
-        if (!missing.isEmpty()) throw new IllegalStateException("Plan these dates first (or they must be a holiday / weekly off): " + String.join(", ", missing.size() > 8 ? missing.subList(0, 8) : missing) + (missing.size() > 8 ? " …" : ""));
+        if (!missing.isEmpty()) throw new IllegalStateException("The plan can be submitted only when every working day till the month end is planned (checked from today, holidays and weekly off excluded). " + missing.size() + " day(s) left: " + String.join(", ", missing.size() > 8 ? missing.subList(0, 8) : missing) + (missing.size() > 8 ? " …" : ""));
         TourPlanRow row = toRow(p);
         ApprovalEngine.Actor actor = approval.actor(APPROVAL);
         List<ApprovalEngine.LogRow> rows = approval.requestAdd(row, APPROVAL, actor);
