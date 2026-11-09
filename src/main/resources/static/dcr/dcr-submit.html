@@ -346,13 +346,17 @@
         <div class="flex-fill"><small class="text-muted d-block">Day</small><b class="fs-6">${esc(wtName(ST.workType))}</b></div></div></div>
       ${working && ST.canEdit ? '<button class="dcr-addvisit" onclick="addVisitSheet()"><i class="bi bi-plus-circle"></i> Add visit</button>' : ''}
       ${working ? visitSummary() + expenseSummary() + jointSummary() : ''}
-      ${working ? `<div class="card-lite"><div class="row g-3">
-        ${field('Started from', `<select class="form-select" data-no-search onchange="ST.startAreaId=this.value">${opts(OPT.areas, ST.startAreaId, 'Select area')}</select>`)}
-        ${tmField(`<select class="form-select" data-no-search onchange="ST.travelMode=this.value">${opts(OPT.travelModes, ST.travelMode, 'Select')}</select>`)}
-        ${meterField()}
-        ${field('Remarks', `<textarea class="form-control" rows="2" oninput="ST.remarks=this.value">${esc(ST.remarks)}</textarea>`)}</div></div>`
-        : `<div class="card-lite">${field('Remarks', `<textarea class="form-control" rows="2" oninput="ST.remarks=this.value">${esc(ST.remarks)}</textarea>`)}</div>`}
+      ${daySummary()}
       ${ST.canEdit ? `<button class="btn btn-outline-danger w-100 mt-1" onclick="dcrDelete(${ST.dcrId})"><i class="bi bi-trash"></i> Delete this DCR</button>` : ''}`;
+  }
+  // what was chosen when the day was started - read-only history (remarks only stays editable while empty: the submit rule may need it)
+  function daySummary() {
+    const area = (OPT.areas.find(a => String(a.id) === String(ST.startAreaId)) || {}).name, tm = ST.travelMode;
+    const row = (l, v) => v ? `<div class="d-flex justify-content-between py-1 border-bottom"><span class="text-muted">${l}</span><b class="text-end ms-3">${esc(v)}</b></div>` : '';
+    const rem = ST.remarks ? row('Remarks', ST.remarks)
+      : (ST.canEdit ? `<div class="pt-2">${field('Remarks' + (RULE('DCR_Remarks', false) ? ' *' : ''), `<textarea class="form-control" rows="2" oninput="ST.remarks=this.value"></textarea>`)}</div>` : '');
+    return `<div class="dcr-sec mt-0">Day start summary</div><div class="card-lite">
+      ${row('Day type', wtName(ST.workType))}${row('Started at', ST.timeIn)}${ST.workType === 'WORKING' ? row('Started from', area) + row('Travel mode', tm) + (ST.meterStart ? row('Meter start', ST.meterStart + ' km') : '') : ''}${rem}</div>`;
   }
   async function dcrDelete(id) {
     if (!confirm('Delete this DCR with all its visits and expenses? This cannot be undone.')) return;
@@ -437,15 +441,19 @@
     EDIT = null;
     const tab = OPT.tabs.find(t => t.code === code), used = new Set(ST.visits.filter(v => v.worktypeCode === code).map(v => v.clientId));
     const list = clientsFor(tab).filter(c => !used.has(c.id));
-    sheetOpen('Add ' + tab.name.replace(/ Check-in$/, ''), `<input class="form-control mb-2" id="pickQ" placeholder="Search name, code, area…" oninput="pickFilter()" />
-      <div class="dcr-pick" id="pickList"></div>`, `<button class="btn btn-light" onclick="sheetClose()">Close</button>`);
+    const uniq = (k) => [...new Set(list.map(c => c[k]).filter(Boolean))].sort();
+    const sel = (id, label, vals) => `<div class="col-4"><select class="form-select form-select-sm" id="${id}" data-no-search onchange="pickFilter()"><option value="">${label}</option>${vals.map(v => `<option>${esc(v)}</option>`).join('')}</select></div>`;
+    sheetOpen('Select client · ' + tab.name.replace(/ Check-?in$/i, ''), `<div class="row g-2 mb-2">${sel('pickArea', 'Area', uniq('areaName'))}${sel('pickCat', 'Category', uniq('category'))}${sel('pickSpec', 'Speciality', uniq('speciality'))}</div>
+      <input class="form-control mb-2" id="pickQ" placeholder="Search name, code…" oninput="pickFilter()" />
+      <div class="small text-muted mb-1" id="pickCount"></div><div class="dcr-pick" id="pickList"></div>`, `<button class="btn btn-light" onclick="sheetClose()">Close</button>`);
     window.__pick = list; window.__pickTab = code; pickFilter();
   }
   function pickFilter() {
-    const q = (document.getElementById('pickQ').value || '').toLowerCase();
-    const rows = window.__pick.filter(c => !q || (c.name + ' ' + c.code + ' ' + (c.areaName || '') + ' ' + (c.speciality || '')).toLowerCase().includes(q));
+    const v = (id) => document.getElementById(id).value, q = v('pickQ').toLowerCase(), ar = v('pickArea'), ca = v('pickCat'), sp = v('pickSpec');
+    const rows = window.__pick.filter(c => (!q || (c.name + ' ' + c.code).toLowerCase().includes(q)) && (!ar || c.areaName === ar) && (!ca || c.category === ca) && (!sp || c.speciality === sp));
+    document.getElementById('pickCount').textContent = rows.length + ' client' + (rows.length === 1 ? '' : 's');
     document.getElementById('pickList').innerHTML = rows.map(c => `<div class="row-i" onclick="addClient(${c.id})"><div class="dcr-visit"><div class="ava">${esc(initials(c.name))}</div></div>
-      <div class="meta" style="min-width:0"><b>${esc(c.name)}</b><br><small class="text-muted">${esc([c.code, c.speciality, c.areaName].filter(Boolean).join(' · '))}</small></div></div>`).join('')
+      <div class="meta" style="min-width:0"><b>${esc(c.name)}</b><br><small class="text-muted">${esc([c.code, c.speciality, c.category, c.areaName].filter(Boolean).join(' · '))}</small></div></div>`).join('')
       || '<div class="dcr-empty">No client found</div>';
   }
   function addClient(id) {
