@@ -78,7 +78,7 @@ public class DcrService {
         String clientSql = """
                 SELECT c.id, c.client_code AS code, CONCAT(COALESCE(CONCAT(c.salutation, ' '), ''), c.client_name) AS name,
                        c.client_type_id AS clientTypeId, ct.type_name AS clientTypeName, %TAB% AS dcrTab, c.city_id AS areaId, ar.area_name AS areaName,
-                       sp.speciality_name AS speciality, cat.category_name AS category, c.mobile_number_1 AS mobile
+                       c.speciality_id AS specialityId, c.category_id AS categoryId, sp.speciality_name AS speciality, cat.category_name AS category, c.mobile_number_1 AS mobile
                 FROM client_master c
                 LEFT JOIN client_type ct ON ct.oid = c.client_type_id
                 LEFT JOIN area_master ar ON ar.oid = c.city_id
@@ -117,7 +117,12 @@ public class DcrService {
         m.put("visitTypes", jdbc.queryForList("SELECT type_name AS name FROM visit_type_master WHERE is_active = 1 ORDER BY type_name").stream().map(r -> r.get("name")).toList());
         m.put("activityTypes", jdbc.queryForList("SELECT type_name AS name FROM activity_type_master WHERE is_active = 1 ORDER BY type_name").stream().map(r -> r.get("name")).toList());
         m.put("travelModes", jdbc.queryForList("SELECT travel_type_name AS name FROM travel_type_master WHERE is_active = 1 ORDER BY travel_type_name").stream().map(r -> r.get("name")).toList());
-        m.put("clientTypes", jdbc.queryForList("SELECT oid AS id, type_name AS name FROM client_type WHERE is_active = 1 ORDER BY type_name"));
+        String ctSql = "SELECT ct.oid AS id, ct.type_name AS name, COALESCE(ct.singular_label, ct.type_name) AS label, %TAB% AS dcrTab FROM client_type ct WHERE ct.is_active = 1 ORDER BY ct.type_name";
+        try {
+            m.put("clientTypes", jdbc.queryForList(ctSql.replace("%TAB%", TAB_COL)));
+        } catch (org.springframework.dao.DataAccessException e) {   // migration 94 not run yet
+            m.put("clientTypes", jdbc.queryForList(ctSql.replace("%TAB%", TAB_GUESS)));
+        }
         try {
             m.put("priorities", jdbc.queryForList("SELECT priority_name AS name FROM visit_priority_master WHERE is_active = 1 ORDER BY sort_order, priority_name").stream().map(r -> r.get("name")).toList());
         } catch (org.springframework.dao.DataAccessException e) {

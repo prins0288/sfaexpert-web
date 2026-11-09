@@ -481,20 +481,22 @@
   function clientsFor(tab) {
     return OPT.clients.filter(c => c.dcrTab === tab.code || (tab.clientTypeId != null && c.clientTypeId === tab.clientTypeId));
   }
+  // "Select Party" / "Select Retailer" / "Select Doctor": the singular label of the client type mapped to the tab
+  const kindLabel = (tab) => ((OPT.clientTypes.find(t => t.dcrTab === tab.code) || {}).label) || tab.name.replace(/ Check-?in$/i, '');
   function pickClient(code) {
     EDIT = null;
     const tab = OPT.tabs.find(t => t.code === code), used = new Set(ST.visits.filter(v => v.worktypeCode === code).map(v => v.clientId));
     const list = clientsFor(tab).filter(c => !used.has(c.id));
-    const uniq = (k) => [...new Set(list.map(c => c[k]).filter(Boolean))].sort();
-    const sel = (id, label, vals) => `<div class="col-4"><select class="form-select form-select-sm" id="${id}" data-no-search onchange="pickFilter()"><option value="">${label}</option>${vals.map(v => `<option>${esc(v)}</option>`).join('')}</select></div>`;
-    sheetOpen('Select client · ' + tab.name.replace(/ Check-?in$/i, ''), `<div class="row g-2 mb-2">${sel('pickArea', 'Area', uniq('areaName'))}${sel('pickCat', 'Category', uniq('category'))}${sel('pickSpec', 'Speciality', uniq('speciality'))}</div>
+    // the filter values come from the masters (area_master / category_master / speciality_master), not from whoever is in the list
+    const sel = (id, label, vals) => `<div class="col-4"><select class="form-select form-select-sm" id="${id}" data-no-search onchange="pickFilter()"><option value="">${label}</option>${vals.map(v => `<option value="${esc(v.id)}">${esc(v.name)}</option>`).join('')}</select></div>`;
+    sheetOpen('Select ' + kindLabel(tab), `<div class="row g-2 mb-2">${sel('pickArea', 'Area', OPT.areas)}${sel('pickCat', 'Category', OPT.categories)}${sel('pickSpec', 'Speciality', OPT.specialities)}</div>
       <input class="form-control mb-2" id="pickQ" placeholder="Search name, code…" oninput="pickFilter()" />
       <div class="small text-muted mb-1" id="pickCount"></div><div class="dcr-pick" id="pickList"></div>`, `<button class="btn btn-light" onclick="addVisitSheet()"><i class="bi bi-chevron-left"></i> Back</button><button class="btn btn-light" onclick="sheetClose()">Close</button>`);
     window.__pick = list; window.__pickTab = code; pickFilter();
   }
   function pickFilter() {
     const v = (id) => document.getElementById(id).value, q = v('pickQ').toLowerCase(), ar = v('pickArea'), ca = v('pickCat'), sp = v('pickSpec');
-    const rows = window.__pick.filter(c => (!q || (c.name + ' ' + c.code).toLowerCase().includes(q)) && (!ar || c.areaName === ar) && (!ca || c.category === ca) && (!sp || c.speciality === sp));
+    const rows = window.__pick.filter(c => (!q || (c.name + ' ' + c.code).toLowerCase().includes(q)) && (!ar || String(c.areaId) === ar) && (!ca || String(c.categoryId) === ca) && (!sp || String(c.specialityId) === sp));
     document.getElementById('pickCount').textContent = rows.length + ' client' + (rows.length === 1 ? '' : 's');
     document.getElementById('pickList').innerHTML = rows.map(c => `<div class="row-i" onclick="addClient(${c.id})"><div class="dcr-visit"><div class="ava">${esc(initials(c.name))}</div></div>
       <div class="meta" style="min-width:0"><b>${esc(c.name)}</b><br><small class="text-muted">${esc([c.code, c.speciality, c.category, c.areaName].filter(Boolean).join(' · '))}</small></div></div>`).join('')
