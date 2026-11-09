@@ -72,4 +72,26 @@ public class HolidayController {
         @SuppressWarnings("unchecked") List<String> days = (List<String>) body.getOrDefault("days", List.of());
         return Map.of("days", service.saveWeeklyOff(days));
     }
+
+    @GetMapping("/weekly-rules")
+    @Operation(summary = "Weekly off rules (3rd Saturday, Saturday + Sunday ...) with their state / HQ / employee targets")
+    public List<Map<String, Object>> weeklyRules() { return service.weeklyRules(); }
+
+    @RequiresPermission("HOLIDAY_SAVE")
+    @PostMapping("/weekly-rules")
+    public Map<String, Object> saveRule(@RequestBody Map<String, Object> body) { return service.saveRule(body); }
+
+    @RequiresPermission("HOLIDAY_SAVE")
+    @PostMapping("/weekly-rules/delete")
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> deleteRules(@RequestBody Map<String, Object> body) {
+        return Map.of("deleted", service.deleteRules(((List<Object>) body.getOrDefault("ids", List.of())).stream().map(o -> Long.valueOf(String.valueOf(o))).toList()));
+    }
+
+    @RequiresPermission("HOLIDAY_SAVE")
+    @PostMapping("/weekly-rules/targets/delete")
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> deleteRuleTargets(@RequestBody Map<String, Object> body) {
+        return service.deleteRuleTargets(((List<Object>) body.getOrDefault("ids", List.of())).stream().map(o -> Long.valueOf(String.valueOf(o))).toList());
+    }
 }

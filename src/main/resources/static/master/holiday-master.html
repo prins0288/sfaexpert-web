@@ -71,7 +71,11 @@
     <div class="ap-sec mt-0">Weekly off days of the company</div>
     <p class="text-muted small">These days show as "Weekly off" on every tour plan calendar. Leave all unselected if the company has no weekly off - then only the holidays below are shown.</p>
     <div class="ap-chips mb-3" id="offChips"></div>
-    <button class="ap-btn" onclick="offSave()"><i class="bi bi-check2"></i> Save</button></div></div>
+    <button class="ap-btn" onclick="offSave()"><i class="bi bi-check2"></i> Save</button></div>
+    <div class="ap-card"><div class="d-flex align-items-center gap-2 mb-1"><div><div class="ap-sec mt-0 mb-0">Weekly off rules</div>
+        <div class="text-muted small">3rd Saturday for one HQ, 2nd and 4th for another, Saturday + Sunday for a state ... Each rule is for the states / HQs / employees you pick (none = everyone).</div></div>
+        <button class="ap-btn go ms-auto" onclick="wrAdd()"><i class="bi bi-plus-circle"></i> Add rule</button></div>
+      <div id="wrList"></div></div></div>
 
   <div class="ap-bar" id="hBar"><div class="info" id="hBarInfo"></div>
     <button class="ap-btn light" id="hBarAssign" onclick="hBulkAssign()"><i class="bi bi-diagram-3"></i> Assign</button>
@@ -107,7 +111,7 @@
   const esc = (v) => SFA.esc(v == null ? '' : v);
   const DAYS = [['MON', 'Monday'], ['TUE', 'Tuesday'], ['WED', 'Wednesday'], ['THU', 'Thursday'], ['FRI', 'Friday'], ['SAT', 'Saturday'], ['SUN', 'Sunday']];
   const TNAME = { STATE: 'State', HQ: 'HQ', EMP: 'Employee', ALL: 'Everyone' };
-  let CFG = null, HOL = [], SEL = new Set(), REP = [], RSEL = new Set(), SHEET = null, TAB = 'hol', OFF = new Set(), FORM = null;
+  let WR = [], WSEL = new Set(), WF = null, CFG = null, HOL = [], SEL = new Set(), REP = [], RSEL = new Set(), SHEET = null, TAB = 'hol', OFF = new Set(), FORM = null;
   const fmt = (d) => d ? new Date(String(d).slice(0, 10) + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }) : '';
 
   window.pageInit = async function () {
@@ -125,10 +129,10 @@
     TAB = t;
     document.querySelectorAll('#hSeg button').forEach(b => b.classList.toggle('active', b.dataset.t === t));
     ['hol', 'rep', 'off'].forEach(k => document.getElementById({ hol: 'pHol', rep: 'pRep', off: 'pOff' }[k]).classList.toggle('d-none', k !== t));
-    if (t === 'rep') rLoad(); barUpdate();
+    if (t === 'rep') rLoad(); if (t === 'off') wrLoad(); barUpdate();
   }
   function barUpdate() {
-    const bar = document.getElementById('hBar'), n = TAB === 'hol' ? SEL.size : TAB === 'rep' ? RSEL.size : 0;
+    const bar = document.getElementById('hBar'), n = TAB === 'hol' ? SEL.size : TAB === 'rep' ? RSEL.size : TAB === 'off' ? WSEL.size : 0;
     bar.classList.toggle('show', n > 0);
     document.getElementById('hBarInfo').textContent = n + ' selected';
     document.getElementById('hBarAssign').style.display = TAB === 'hol' ? '' : 'none';
@@ -153,6 +157,7 @@
   function hSelAll(on) { SEL = on ? new Set(HOL.map(h => h.id)) : new Set(); hRender(); }
   async function hBarDelete() {
     if (TAB === 'rep') return rDelete();
+    if (TAB === 'off') return wrDelete();
     if (!confirm('Delete ' + SEL.size + ' holiday(s) with their assignments?')) return;
     try { await Api.post(EP.remove, { ids: [...SEL] }); SEL = new Set(); await hLoad(); SFA.toast('Deleted'); } catch (e) { SFA.toast(e.message, false); }
   }
@@ -243,6 +248,62 @@
     try {
       const r = await Api.post(EP.deleteAssignments, { ids: [...RSEL] }); RSEL = new Set(); await rLoad(); await hLoad();
       SFA.toast('Removed ' + r.removed + (r.holidaysForEveryone ? ' · ' + r.holidaysForEveryone + ' holiday(s) are now for everyone' : ''));
+    } catch (e) { SFA.toast(e.message, false); }
+  }
+
+
+  // ---------------- weekly off rules ----------------
+  const WEEKS = [['ALL', 'Every week'], ['1', '1st'], ['2', '2nd'], ['3', '3rd'], ['4', '4th'], ['5', '5th'], ['L', 'Last']];
+  async function wrLoad() { WR = await Api.get(EP.weeklyRules); WSEL = new Set([...WSEL].filter(id => WR.some(r => r.id === id))); wrRender(); }
+  function wrRender() {
+    document.getElementById('wrList').innerHTML = WR.map(r => `<div class="ap-row" onclick="wrEdit(${r.id})" style="align-items:flex-start">
+      <input type="checkbox" class="form-check-input mt-1" ${WSEL.has(r.id) ? 'checked' : ''} onclick="event.stopPropagation()" onchange="wrSel(${r.id}, this.checked)">
+      <div class="grow"><b>${esc(r.label)}</b> ${r.active ? '' : '<span class="ap-badge bad">Off</span>'}<small>${esc(r.weekdays.split(',').join(' · '))} · ${r.weeks === 'ALL' ? 'every week' : esc(r.weeks.split(',').map(w => w === 'L' ? 'last' : w).join(', ')) + ' of the month'}</small>
+        <div class="ap-chips mt-1">${r.targets.length ? r.targets.map(t => `<span class="ap-badge wait" onclick="event.stopPropagation()">${({ STATE: 'State', HQ: 'HQ', EMP: 'Employee' })[t.targetType]}: ${esc(t.targetName)} <a href="javascript:void(0)" class="text-decoration-none ms-1" title="Remove this target" onclick="event.stopPropagation();wrRemoveTarget(${t.assignmentId})">×</a></span>`).join('') : '<span class="ap-badge ok">Everyone</span>'}</div></div>
+      <i class="bi bi-chevron-right text-muted"></i></div>`).join('') || '<div class="ap-empty"><i class="bi bi-calendar2-x fs-1"></i><div>No rule yet - the company weekly off above applies to everyone</div></div>';
+    barUpdate();
+  }
+  function wrSel(id, on) { on ? WSEL.add(id) : WSEL.delete(id); barUpdate(); }
+  async function wrDelete() {
+    if (!confirm('Delete ' + WSEL.size + ' weekly off rule(s)?')) return;
+    try { await Api.post(EP.weeklyRulesDelete, { ids: [...WSEL] }); WSEL = new Set(); await wrLoad(); SFA.toast('Deleted'); } catch (e) { SFA.toast(e.message, false); }
+  }
+  async function wrRemoveTarget(id) {
+    if (!confirm('Remove this target? A rule left with no target applies to everyone.')) return;
+    try { const r = await Api.post(EP.weeklyTargetsDelete, { ids: [id] }); await wrLoad(); SFA.toast('Removed' + (r.rulesForEveryone ? ' · ' + r.rulesForEveryone + ' rule(s) now apply to everyone' : '')); } catch (e) { SFA.toast(e.message, false); }
+  }
+  function wrAdd() { WF = { id: null, name: '', weekdays: new Set(['SAT']), weeks: new Set(['3']), remarks: '', active: true }; wrForm([], [], []); }
+  function wrEdit(id) {
+    const r = WR.find(x => x.id === id); WF = { id, name: r.name || '', weekdays: new Set(r.weekdays.split(',')), weeks: new Set(r.weeks.split(',')), remarks: r.remarks || '', active: !!r.active };
+    const by = (t) => r.targets.filter(x => x.targetType === t).map(x => x.targetValue);
+    wrForm(by('STATE'), by('HQ'), by('EMP'));
+  }
+  function wrChips() {
+    document.getElementById('wf_days').innerHTML = DAYS.map(([c, n]) => `<button type="button" class="ap-chip ${WF.weekdays.has(c) ? 'on' : ''}" onclick="wrToggle('weekdays','${c}')">${n.slice(0, 3)}</button>`).join('');
+    document.getElementById('wf_weeks').innerHTML = WEEKS.map(([c, n]) => `<button type="button" class="ap-chip ${WF.weeks.has(c) ? 'on' : ''}" onclick="wrToggle('weeks','${c}')">${n}</button>`).join('');
+  }
+  function wrToggle(k, c) {
+    const s = WF[k];
+    if (k === 'weeks') { if (c === 'ALL') { s.clear(); s.add('ALL'); } else { s.delete('ALL'); s.has(c) ? s.delete(c) : s.add(c); if (!s.size) s.add('ALL'); } }
+    else s.has(c) ? s.delete(c) : s.add(c);
+    wrChips();
+  }
+  function wrForm(st, hq, em) {
+    sheet(WF.id ? 'Edit weekly off rule' : 'Add weekly off rule', `<div class="ap-sec mt-0">Day(s)</div><div class="ap-chips" id="wf_days"></div>
+      <div class="ap-sec">Which week of the month</div><div class="ap-chips scroll" id="wf_weeks"></div>
+      <div class="small text-muted mt-1">Example: Sat + 3rd = every 3rd Saturday. Sat + Sun + every week = Saturday and Sunday off.</div>
+      <div class="row g-3 mt-1"><div class="col-12"><label class="form-label">Name (optional)</label><input class="form-control" id="wf_name" maxlength="80" placeholder="auto: 3rd Saturday" value="${esc(WF.name)}"></div>
+      <div class="col-12"><label class="form-label">Remarks (shown on the calendar)</label><input class="form-control" id="wf_rem" maxlength="250" value="${esc(WF.remarks)}"></div>
+      <div class="col-12"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="wf_on" ${WF.active ? 'checked' : ''}><label class="form-check-label" for="wf_on">Rule is in force</label></div></div></div>
+      <div class="alert alert-info py-2 small mt-3 mb-0"><i class="bi bi-info-circle"></i> Pick the states, HQs or employees this rule is for. Leave all empty = <b>everyone</b>.</div>` + targetsHtml(st, hq, em),
+      '<button class="ap-btn light" data-bs-dismiss="offcanvas">Cancel</button><button class="ap-btn go" onclick="wrSave()"><i class="bi bi-check2"></i> Save</button>');
+    wrChips(); targetsInit();
+  }
+  async function wrSave() {
+    try {
+      await Api.post(EP.weeklyRules, { id: WF.id, name: document.getElementById('wf_name').value.trim(), remarks: document.getElementById('wf_rem').value.trim(), active: document.getElementById('wf_on').checked,
+        weekdays: [...WF.weekdays], weeks: [...WF.weeks], assign: targetsVal() });
+      SHEET.hide(); await wrLoad(); SFA.toast('Rule saved');
     } catch (e) { SFA.toast(e.message, false); }
   }
 

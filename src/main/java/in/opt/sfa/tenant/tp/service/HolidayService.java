@@ -55,6 +55,7 @@ public class HolidayService {
                         .add(Map.of("name", "Weekly off", "remarks", d.getDayOfWeek().getDisplayName(TextStyle.FULL, Locale.ENGLISH), "kind", "WEEKLY_OFF"));
             }
         }
+        addRuleDays(out, empId, from, to);
         for (Map<String, Object> h : jdbc.queryForList("""
                 SELECT h.holiday_date AS d, h.holiday_name AS name, h.remarks FROM holiday_master h
                 JOIN emp_detail e ON e.emp_id = ?
@@ -70,6 +71,127 @@ public class HolidayService {
             out.computeIfAbsent(h.get("d").toString().substring(0, 10), k -> new ArrayList<>()).add(m);
         }
         return out;
+    }
+
+    private static final String[] ORD = {"", "1st", "2nd", "3rd", "4th", "5th"};
+
+    /** The label of a rule: its own name, else built from the days, e.g. "3rd Saturday", "2nd & 4th Saturday", "Saturday, Sunday". */
+    static String ruleLabel(String name, String weekdays, String weeks) {
+        if (name != null && !name.isBlank()) return name.trim();
+        List<String> days = new ArrayList<>();
+        for (String d : weekdays.split(",")) { int i = DAYS.indexOf(d.trim()); if (i >= 0) days.add(DayOfWeek.of(i + 1).getDisplayName(TextStyle.FULL, Locale.ENGLISH)); }
+        String dayText = String.join(", ", days);
+        if (weeks == null || weeks.isBlank() || "ALL".equalsIgnoreCase(weeks)) return dayText;
+        List<String> w = new ArrayList<>();
+        for (String x : weeks.split(",")) { x = x.trim(); if ("L".equalsIgnoreCase(x)) w.add("last"); else if (x.matches("[1-5]")) w.add(ORD[Integer.parseInt(x)]); }
+        return String.join(" & ", w) + " " + dayText;
+    }
+
+    private static boolean ruleHits(String weekdays, String weeks, LocalDate d) {
+        if (!Arrays.asList(weekdays.split(",")).contains(DAYS.get(d.getDayOfWeek().getValue() - 1))) return false;
+        if (weeks == null || weeks.isBlank() || "ALL".equalsIgnoreCase(weeks)) return true;
+        int nth = (d.getDayOfMonth() - 1) / 7 + 1;
+        boolean last = d.getDayOfMonth() + 7 > d.lengthOfMonth();
+        for (String x : weeks.split(",")) { x = x.trim(); if (x.equals(String.valueOf(nth)) || ("L".equalsIgnoreCase(x) && last)) return true; }
+        return false;
+    }
+
+    /** The recurring weekly-off RULES that apply to this employee (everyone's, or his state / HQ / own) become "Weekly off" days. */
+    private void addRuleDays(Map<String, List<Map<String, Object>>> out, String empId, LocalDate from, LocalDate to) {
+        List<Map<String, Object>> rules;
+        try {
+            rules = jdbc.queryForList("""
+                    SELECT r.rule_name, r.weekdays, r.weeks, r.remarks FROM weekly_off_rule r JOIN emp_detail e ON e.emp_id = ?
+                    WHERE r.is_active = 1
+                      AND (NOT EXISTS (SELECT 1 FROM weekly_off_assignment a WHERE a.rule_id = r.id)
+                           OR EXISTS (SELECT 1 FROM weekly_off_assignment a WHERE a.rule_id = r.id AND (
+                                (a.target_type = 'EMP' AND a.target_value = e.emp_id COLLATE utf8mb4_0900_ai_ci)
+                             OR (a.target_type = 'HQ' AND a.target_value = CAST(e.hq_id AS CHAR))
+                             OR (a.target_type = 'STATE' AND a.target_value = CAST(e.state_id AS CHAR)))))""", empId);
+        } catch (org.springframework.dao.DataAccessException e) { return; }   // migration 98 not run yet
+        for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
+            for (Map<String, Object> r : rules) {
+                if (!ruleHits((String) r.get("weekdays"), (String) r.get("weeks"), d)) continue;
+                List<Map<String, Object>> day = out.computeIfAbsent(d.toString(), k -> new ArrayList<>());
+                if (day.stream().anyMatch(x -> "WEEKLY_OFF".equals(x.get("kind")))) break;   // one weekly-off entry per day
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("name", "Weekly off"); m.put("remarks", r.get("remarks") != null && !String.valueOf(r.get("remarks")).isBlank() ? r.get("remarks") : ruleLabel((String) r.get("rule_name"), (String) r.get("weekdays"), (String) r.get("weeks"))); m.put("kind", "WEEKLY_OFF");
+                day.add(m);
+            }
+        }
+    }
+
+    // ---- weekly off rules (admin) ----
+    @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
+    public List<Map<String, Object>> weeklyRules() {
+        Authz.requireRole("ADMIN");
+        List<Map<String, Object>> rows = jdbc.queryForList("SELECT id, rule_name AS name, weekdays, weeks, remarks, is_active AS active FROM weekly_off_rule ORDER BY id");
+        for (Map<String, Object> r : rows) {
+            r.put("label", ruleLabel((String) r.get("name"), (String) r.get("weekdays"), (String) r.get("weeks")));
+            List<Map<String, Object>> t = jdbc.queryForList("""
+                    SELECT a.id AS assignmentId, a.target_type AS targetType, a.target_value AS targetValue,
+                           CASE a.target_type
+                             WHEN 'STATE' THEN (SELECT s.state_name FROM state_master s WHERE s.oid = CAST(a.target_value AS UNSIGNED))
+                             WHEN 'HQ' THEN (SELECT q.hq_name FROM hq_master q WHERE q.oid = CAST(a.target_value AS UNSIGNED))
+                             ELSE (SELECT CONCAT(e.emp_name, ' (', e.emp_code, ')') FROM emp_detail e WHERE e.emp_id = a.target_value COLLATE utf8mb4_0900_ai_ci) END AS targetName
+                    FROM weekly_off_assignment a WHERE a.rule_id = ? ORDER BY a.target_type, targetName""", r.get("id"));
+            r.put("targets", t);
+        }
+        return rows;
+    }
+
+    @Transactional(transactionManager = "tenantTransactionManager")
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> saveRule(Map<String, Object> f) {
+        Authz.requireRole("ADMIN");
+        List<String> days = new ArrayList<>();
+        for (Object o : (Collection<Object>) f.getOrDefault("weekdays", List.of())) { String u = String.valueOf(o).trim().toUpperCase(); if (!DAYS.contains(u)) throw new IllegalStateException("Unknown day " + o); if (!days.contains(u)) days.add(u); }
+        if (days.isEmpty()) throw new IllegalStateException("Choose at least one day");
+        days.sort(Comparator.comparingInt(DAYS::indexOf));
+        List<String> weeks = new ArrayList<>();
+        for (Object o : (Collection<Object>) f.getOrDefault("weeks", List.of())) { String u = String.valueOf(o).trim().toUpperCase(); if (!u.matches("[1-5LA]|ALL")) throw new IllegalStateException("Unknown week " + o); if (!weeks.contains(u)) weeks.add(u); }
+        if (weeks.isEmpty() || weeks.contains("ALL") || weeks.contains("A")) weeks = List.of("ALL");
+        else weeks.sort(Comparator.comparing(x -> "L".equals(x) ? "9" : x));
+        String name = str(f.get("name")), remarks = str(f.get("remarks"));
+        if (name != null && name.length() > 80) throw new IllegalStateException("Name can be at most 80 characters");
+        if (remarks != null && remarks.length() > 250) throw new IllegalStateException("Remarks can be at most 250 characters");
+        int active = Boolean.FALSE.equals(f.get("active")) || "false".equals(String.valueOf(f.get("active"))) ? 0 : 1;
+        String me = in.opt.sfa.tenant.team.TeamScope.me();
+        Long id = str(f.get("id")) == null ? null : Long.valueOf(str(f.get("id")));
+        if (id == null) {
+            jdbc.update("INSERT INTO weekly_off_rule (rule_name, weekdays, weeks, remarks, is_active, created_by) VALUES (?,?,?,?,?,?)", name, String.join(",", days), String.join(",", weeks), remarks, active, me);
+            id = jdbc.queryForObject("SELECT MAX(id) FROM weekly_off_rule", Long.class);
+        } else if (jdbc.update("UPDATE weekly_off_rule SET rule_name = ?, weekdays = ?, weeks = ?, remarks = ?, is_active = ?, updated_by = ?, updated_at = NOW() WHERE id = ?", name, String.join(",", days), String.join(",", weeks), remarks, active, me, id) == 0) {
+            throw new IllegalStateException("Rule not found");
+        }
+        if (f.get("assign") instanceof Map<?, ?> a) {
+            Map<String, Object> as = (Map<String, Object>) a;
+            jdbc.update("DELETE FROM weekly_off_assignment WHERE rule_id = ?", id);
+            for (Object[] t : new Object[][]{{"STATE", as.get("states")}, {"HQ", as.get("hqs")}, {"EMP", as.get("employees")}}) {
+                if (!(t[1] instanceof Collection<?> c)) continue;
+                for (Object v : new LinkedHashSet<>(c)) { String val = str(v); if (val != null) jdbc.update("INSERT IGNORE INTO weekly_off_assignment (rule_id, target_type, target_value) VALUES (?,?,?)", id, t[0], val); }
+            }
+        }
+        return Map.of("id", id);
+    }
+
+    @Transactional(transactionManager = "tenantTransactionManager")
+    public int deleteRules(List<Long> ids) {
+        Authz.requireRole("ADMIN");
+        if (ids == null || ids.isEmpty()) throw new IllegalStateException("Choose the rules to delete");
+        int n = 0;
+        for (Long id : ids) n += jdbc.update("DELETE FROM weekly_off_rule WHERE id = ?", id);
+        return n;
+    }
+
+    /** Remove wrong targets of rules (many at once); a rule left with none applies to everyone. */
+    @Transactional(transactionManager = "tenantTransactionManager")
+    public Map<String, Object> deleteRuleTargets(List<Long> ids) {
+        Authz.requireRole("ADMIN");
+        if (ids == null || ids.isEmpty()) throw new IllegalStateException("Choose the targets to remove");
+        int n = 0;
+        for (Long id : ids) n += jdbc.update("DELETE FROM weekly_off_assignment WHERE id = ?", id);
+        return Map.of("removed", n, "rulesForEveryone", jdbc.queryForObject("SELECT COUNT(*) FROM weekly_off_rule r WHERE NOT EXISTS (SELECT 1 FROM weekly_off_assignment a WHERE a.rule_id = r.id)", Integer.class));
     }
 
     // ---- master (admin) ---------------------------------------------------------------------

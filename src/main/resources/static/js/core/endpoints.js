@@ -270,7 +270,10 @@
         assignments: "/api/holiday/assignments",                       // GET report ?from&to&type&target
         deleteAssignments: "/api/holiday/assignments/delete",          // POST {ids}
         remove: "/api/holiday/delete",                                 // POST {ids}
-        weeklyOff: "/api/holiday/weekly-off",                          // POST {days}
+        weeklyOff: "/api/holiday/weekly-off",
+        weeklyRules: "/api/holiday/weekly-rules",                       // GET / POST (save)
+        weeklyRulesDelete: "/api/holiday/weekly-rules/delete",          // POST {ids}
+        weeklyTargetsDelete: "/api/holiday/weekly-rules/targets/delete", // POST {ids}                          // POST {days}
       },
       dcrSubmit: {
         options: "/api/dcr/options",                                  // my tabs, clients, areas, items, expense types …
