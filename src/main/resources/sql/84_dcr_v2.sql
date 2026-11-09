@@ -308,9 +308,9 @@ CREATE TABLE IF NOT EXISTS dcr_client_treatment (
   CONSTRAINT fk_dct_t FOREIGN KEY (treatment_id) REFERENCES treatment_master (id)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
 
-INSERT IGNORE INTO permission_master (permission_code, module, description, status, created_at, created_by) VALUES
-  ('DCR_SAVE', 'DCR', 'Fill / submit my own DCR', 1, NOW(), 'seed'),
-  ('DCR_APPROVE', 'DCR', 'Approve / reject the DCR of my team (immediate manager, or admin)', 1, NOW(), 'seed');
+INSERT IGNORE INTO permission_master (permission_code, module, description, status, default_allowed, created_at, created_by) VALUES
+  ('DCR_SAVE', 'DCR', 'Fill / submit my own DCR', 1, 1, NOW(), 'seed'),
+  ('DCR_APPROVE', 'DCR', 'Approve / reject the DCR of my team (immediate manager, or admin)', 1, 1, NOW(), 'seed');
 
 -- menus (added only when the parent menu exists in this company)
 SET @sales := COALESCE((SELECT parent_id FROM company_menu_self WHERE page = 'dcrreport' LIMIT 1),
@@ -606,9 +606,9 @@ CREATE TABLE IF NOT EXISTS dcr_client_treatment (
   CONSTRAINT fk_dct_t FOREIGN KEY (treatment_id) REFERENCES treatment_master (id)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
 
-INSERT IGNORE INTO permission_master (permission_code, module, description, status, created_at, created_by) VALUES
-  ('DCR_SAVE', 'DCR', 'Fill / submit my own DCR', 1, NOW(), 'seed'),
-  ('DCR_APPROVE', 'DCR', 'Approve / reject the DCR of my team (immediate manager, or admin)', 1, NOW(), 'seed');
+INSERT IGNORE INTO permission_master (permission_code, module, description, status, default_allowed, created_at, created_by) VALUES
+  ('DCR_SAVE', 'DCR', 'Fill / submit my own DCR', 1, 1, NOW(), 'seed'),
+  ('DCR_APPROVE', 'DCR', 'Approve / reject the DCR of my team (immediate manager, or admin)', 1, 1, NOW(), 'seed');
 
 -- menus (added only when the parent menu exists in this company)
 SET @sales := COALESCE((SELECT parent_id FROM company_menu_self WHERE page = 'dcrreport' LIMIT 1),
@@ -904,9 +904,9 @@ CREATE TABLE IF NOT EXISTS dcr_client_treatment (
   CONSTRAINT fk_dct_t FOREIGN KEY (treatment_id) REFERENCES treatment_master (id)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
 
-INSERT IGNORE INTO permission_master (permission_code, module, description, status, created_at, created_by) VALUES
-  ('DCR_SAVE', 'DCR', 'Fill / submit my own DCR', 1, NOW(), 'seed'),
-  ('DCR_APPROVE', 'DCR', 'Approve / reject the DCR of my team (immediate manager, or admin)', 1, NOW(), 'seed');
+INSERT IGNORE INTO permission_master (permission_code, module, description, status, default_allowed, created_at, created_by) VALUES
+  ('DCR_SAVE', 'DCR', 'Fill / submit my own DCR', 1, 1, NOW(), 'seed'),
+  ('DCR_APPROVE', 'DCR', 'Approve / reject the DCR of my team (immediate manager, or admin)', 1, 1, NOW(), 'seed');
 
 -- menus (added only when the parent menu exists in this company)
 SET @sales := COALESCE((SELECT parent_id FROM company_menu_self WHERE page = 'dcrreport' LIMIT 1),
@@ -1202,9 +1202,9 @@ CREATE TABLE IF NOT EXISTS dcr_client_treatment (
   CONSTRAINT fk_dct_t FOREIGN KEY (treatment_id) REFERENCES treatment_master (id)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
 
-INSERT IGNORE INTO permission_master (permission_code, module, description, status, created_at, created_by) VALUES
-  ('DCR_SAVE', 'DCR', 'Fill / submit my own DCR', 1, NOW(), 'seed'),
-  ('DCR_APPROVE', 'DCR', 'Approve / reject the DCR of my team (immediate manager, or admin)', 1, NOW(), 'seed');
+INSERT IGNORE INTO permission_master (permission_code, module, description, status, default_allowed, created_at, created_by) VALUES
+  ('DCR_SAVE', 'DCR', 'Fill / submit my own DCR', 1, 1, NOW(), 'seed'),
+  ('DCR_APPROVE', 'DCR', 'Approve / reject the DCR of my team (immediate manager, or admin)', 1, 1, NOW(), 'seed');
 
 -- menus (added only when the parent menu exists in this company)
 SET @sales := COALESCE((SELECT parent_id FROM company_menu_self WHERE page = 'dcrreport' LIMIT 1),
