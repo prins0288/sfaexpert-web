@@ -28,8 +28,11 @@ public class PermissionService {
 
     private final PermissionAssignmentRepository assignments;
     private final PermissionDefinitionRepository definitions;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbc;
 
-    public PermissionService(PermissionAssignmentRepository assignments, PermissionDefinitionRepository definitions) {
+    public PermissionService(PermissionAssignmentRepository assignments, PermissionDefinitionRepository definitions,
+                             org.springframework.jdbc.core.JdbcTemplate jdbc) {
+        this.jdbc = jdbc;
         this.assignments = assignments;
         this.definitions = definitions;
     }
@@ -94,5 +97,26 @@ public class PermissionService {
             result.put(d.getPermissionCode(), allowed);
         }
         return result;
+    }
+
+    /**
+     * Called when an employee is created: writes the user's OWN permission rows (target EMP_ID) for every
+     * active permission - what their designation / hierarchy level gives, else the code's default - so the
+     * permission page shows them and a missing / odd default can never lock a new user out (e.g. DCR_SAVE).
+     * Existing rows are left alone.
+     */
+    @Transactional(transactionManager = "tenantTransactionManager")
+    public void grantDefaults(String empId, Integer designationId) {
+        Integer level = designationId == null ? null : jdbc.query("SELECT hierarchy_level FROM designation_master WHERE id = ?",
+                rs -> rs.next() ? (Integer) rs.getObject(1) : null, designationId);
+        jdbc.update("""
+                INSERT IGNORE INTO permission_assignment (target_type, target_value, permission_code, allowed, created_at, created_by)
+                SELECT 'EMP_ID', ?, m.permission_code,
+                       COALESCE((SELECT a.allowed FROM permission_assignment a WHERE a.target_type = 'DESIGNATION' AND a.target_value = ? AND a.permission_code = m.permission_code),
+                                (SELECT a.allowed FROM permission_assignment a WHERE a.target_type = 'HIERARCHY_LEVEL' AND a.target_value = ? AND a.permission_code = m.permission_code),
+                                m.default_allowed),
+                       NOW(), 'auto-on-create'
+                FROM permission_master m WHERE m.status = 1""",
+                empId, designationId == null ? "-" : String.valueOf(designationId), level == null ? "-" : String.valueOf(level));
     }
 }
