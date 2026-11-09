@@ -253,6 +253,7 @@
         options: "/api/dcr/options",                                  // my tabs, clients, areas, items, expense types …
         list: "/api/dcr",                                             // ?from=&to=&empId= (own / team / all)
         get: (id) => `/api/dcr/${id}`,
+        del: (id) => `/api/dcr/${id}`,                                // DELETE: owner's draft / rejected DCR (admin: any)
         mine: "/api/dcr/mine",                                        // ?date=
         start: "/api/dcr/start",                                      // POST: start my day (time in = now)
         save: "/api/dcr",                                             // POST: create / replace my DCR (submit true|false)

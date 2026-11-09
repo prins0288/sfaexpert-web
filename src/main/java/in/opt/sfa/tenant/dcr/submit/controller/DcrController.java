@@ -77,6 +77,12 @@ public class DcrController {
 
     // Rights checked in the service: the owner's immediate manager (or the next one up), or an admin; never your own
     @RequiresPermission("DCR_APPROVE")
+    @DeleteMapping("/{dcrId}")
+    @Operation(summary = "Delete a DCR — the owner's draft / rejected one, or any DCR for an admin")
+    public void delete(@PathVariable Long dcrId) {
+        service.delete(dcrId);
+    }
+
     @PostMapping("/{dcrId}/approve")
     public DcrDto approve(@PathVariable Long dcrId, @RequestBody(required = false) Map<String, String> body) {
         return service.approve(dcrId, body == null ? null : body.get("remarks"));

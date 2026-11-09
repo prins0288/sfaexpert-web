@@ -66,6 +66,7 @@ public class DcrService {
         m.put("meHq", who.get("hq"));
         m.put("workTypes", worktypes.dayTypes(me));
         m.put("rules", rules.of(me));
+        m.put("isAdmin", TeamScope.isAdmin());
         m.put("backDays", backDays());
         m.put("tabs", worktypes.tabsFor(me));
         m.put("clients", jdbc.queryForList("""
@@ -701,6 +702,27 @@ public class DcrService {
             if (e != null && flag(e.get("is_active")) == 1 && flag(e.get("is_vacant")) == 0) return s;
         }
         return null;
+    }
+
+    /**
+     * Delete a whole DCR (the day and everything under it). The owner can delete their own draft or
+     * rejected DCR; a submitted / approved one only an admin can delete.
+     */
+    @Transactional(transactionManager = "tenantTransactionManager")
+    public void delete(Long dcrId) {
+        Map<String, Object> p = parent(dcrId);
+        String owner = (String) p.get("emp_id");
+        int status = ((Number) p.get("status")).intValue();
+        boolean admin = TeamScope.isAdmin();
+        if (!admin) {
+            if (!owner.equals(me())) throw new ForbiddenException("You can delete only your own DCR");
+            if (status == SUBMITTED || status == 2) throw new IllegalStateException("A submitted or approved DCR cannot be deleted — ask your admin");
+        }
+        for (String t : List.of("dcr_client_sample", "dcr_leaflets_summary", "dcr_client_treatment", "dcr_sm_visits", "dcr_expense",
+                "dcr_area_summary", "dcr_client_summary", "dcr_unlisted_client_summary")) {
+            jdbc.update("DELETE FROM " + t + " WHERE dcr_id = ?", dcrId);
+        }
+        jdbc.update("DELETE FROM dcr_parent_summary WHERE dcr_id = ?", dcrId);
     }
 
     private boolean canApprove(String owner) {

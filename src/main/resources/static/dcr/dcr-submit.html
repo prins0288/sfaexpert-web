@@ -60,6 +60,12 @@
   .dcr-visit .ava { width: 2.6rem; height: 2.6rem; border-radius: 50%; background: var(--bs-primary-bg-subtle); color: var(--bs-primary); display: flex; align-items: center; justify-content: center; font-weight: 700; flex: 0 0 auto; }
   .dcr-visit .meta { min-width: 0; flex: 1; }
   .dcr-visit .meta b, .dcr-visit .meta small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dcr-addvisit { width: 100%; border: 0; background: #d9441a; color: #fff; border-radius: 999px; padding: .85rem 1rem; font-weight: 700; font-size: 1.05rem; box-shadow: 0 4px 12px rgba(217,68,26,.35); margin-bottom: .75rem; }
+  .dcr-kinds { display: grid; grid-template-columns: repeat(2, 1fr); gap: .6rem; max-height: 62vh; overflow-y: auto; padding: .1rem; }
+  .dcr-kind { border: 1px solid var(--bs-border-color); border-radius: 1rem; background: var(--bs-body-bg); padding: 1rem .6rem; text-align: center; font-weight: 600; display: flex; flex-direction: column; align-items: center; gap: .4rem; }
+  .dcr-kind i { font-size: 1.7rem; color: var(--bs-primary); }
+  .dcr-kind:active { background: var(--bs-tertiary-bg); }
+  .dcr-kind small { font-weight: 400; color: var(--bs-secondary-color); }
   .dcr-add { width: 100%; border: 2px dashed var(--bs-border-color); background: transparent; border-radius: 1rem; padding: .85rem; font-weight: 600; color: var(--bs-primary); }
   .dcr-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: flex; gap: .6rem; align-items: center; padding: .65rem 1rem calc(.65rem + env(safe-area-inset-bottom)); background: var(--bs-body-bg); border-top: 1px solid var(--bs-border-color); box-shadow: 0 -4px 14px rgba(0,0,0,.08); }
   .dcr-bar .btn { border-radius: 999px; padding: .55rem 1.1rem; font-weight: 600; }
@@ -95,6 +101,9 @@
     .dcr-tabs button.active .n { background: var(--bs-primary-bg-subtle); }
     .dcr-pane .form-control, .dcr-pane .form-select, .dcr-sheet .form-control, .dcr-sheet .form-select { border-radius: .4rem; min-height: 2.4rem; }
     .dcr-chip { border-radius: .4rem; }
+    .dcr-kinds { grid-template-columns: repeat(3, 1fr); }
+    .dcr-kind { border-radius: .5rem; }
+    .dcr-addvisit { width: auto; border-radius: .4rem; padding: .5rem 1.4rem; box-shadow: none; }
     .dcr-add { border-radius: .5rem; width: auto; padding: .5rem 1.25rem; }
     .dcr-visit { padding: .1rem 0; }
     .dcr-visit:hover { background: var(--bs-tertiary-bg); }
@@ -316,12 +325,23 @@
         <div class="flex-fill"><small class="text-muted d-block">Time in</small><b class="fs-5">${esc(ST.timeIn || '--:--')}</b></div>
         <div class="flex-fill"><small class="text-muted d-block">Time out</small><b class="fs-5">${esc(ST.timeOut || '--:--')}</b><small class="text-muted d-block">${ST.timeOut ? '' : 'set when you submit'}</small></div>
         <div class="flex-fill"><small class="text-muted d-block">Day</small><b class="fs-6">${esc(wtName(ST.workType))}</b></div></div></div>
+      ${working && ST.canEdit ? '<button class="dcr-addvisit" onclick="addVisitSheet()"><i class="bi bi-plus-circle"></i> Add visit</button>' : ''}
+      ${working ? visitSummary() : ''}
       ${working ? `<div class="card-lite"><div class="row g-3">
         ${field('Started from', `<select class="form-select" data-no-search onchange="ST.startAreaId=this.value">${opts(OPT.areas, ST.startAreaId, 'Select area')}</select>`)}
         ${tmField(`<select class="form-select" data-no-search onchange="ST.travelMode=this.value">${opts(OPT.travelModes, ST.travelMode, 'Select')}</select>`)}
         ${meterField()}
         ${field('Remarks', `<textarea class="form-control" rows="2" oninput="ST.remarks=this.value">${esc(ST.remarks)}</textarea>`)}</div></div>`
-        : `<div class="card-lite">${field('Remarks', `<textarea class="form-control" rows="2" oninput="ST.remarks=this.value">${esc(ST.remarks)}</textarea>`)}</div>`}`;
+        : `<div class="card-lite">${field('Remarks', `<textarea class="form-control" rows="2" oninput="ST.remarks=this.value">${esc(ST.remarks)}</textarea>`)}</div>`}
+      ${ST.canEdit ? `<button class="btn btn-outline-danger w-100 mt-1" onclick="dcrDelete(${ST.dcrId})"><i class="bi bi-trash"></i> Delete this DCR</button>` : ''}`;
+  }
+  async function dcrDelete(id) {
+    if (!confirm('Delete this DCR with all its visits and expenses? This cannot be undone.')) return;
+    try {
+      await Api.del(EP.del(id)); SFA.toast('DCR deleted', true);
+      if (VIEW === 'list') { dcrLoadList(); sheetClose(); } else { await loadDay(); }
+      pendingBadge();
+    } catch (e) { SFA.toast(e.message, false); }
   }
   function startSheet() {
     const working = ST.workType === 'WORKING', today = ST.dcrDate === todayStr();
@@ -337,11 +357,34 @@
   async function dcrStart() {
     try {
       const d = await Api.post(EP.start, { dcrDate: ST.dcrDate, workType: ST.workType, startAreaId: n(ST.startAreaId), travelMode: s(ST.travelMode), meterStart: n(ST.meterStart), remarks: s(ST.remarks), timeIn: s(ST.timeIn) });
-      ST = fromDto(d); CUR = (tabList()[1] || {}).code || 'day'; sheetClose(); render();
+      ST = fromDto(d); CUR = 'day'; sheetClose(); render();
       SFA.toast('Day started at ' + ST.timeIn, true);
     } catch (e) { SFA.toast(e.message, false); }
   }
   function setWork(w) { if (!ST.canEdit || started()) return; ST.workType = w; render(); }
+
+
+  // ---- "Add visit": what are you doing now? (one card per tab the table gives this user)
+  const KIND_ICON = { CHECKIN: 'person-badge', UNLISTED: 'person-plus', EXPENSE: 'wallet2', JOINT: 'people', DAYEND: 'moon' };
+  function addVisitSheet() {
+    const cards = OPT.tabs.map(t => `<button class="dcr-kind" onclick="chooseKind('${esc(t.code)}')"><i class="bi bi-${esc(t.icon || KIND_ICON[t.form] || 'journal')}"></i>${esc(t.name)}
+      ${tabCount(t) ? `<small>${tabCount(t)} added</small>` : ''}</button>`).join('');
+    sheetOpen('What are you doing now?', `<div class="dcr-kinds">${cards || '<div class="dcr-empty">Nothing is enabled for you</div>'}</div>`, '<button class="btn btn-light" onclick="sheetClose()">Close</button>');
+  }
+  function chooseKind(code) {
+    const t = OPT.tabs.find(x => x.code === code);
+    if (t.form === 'CHECKIN') return pickClient(code);
+    if (t.form === 'UNLISTED') return newUnlisted(code);
+    if (t.form === 'EXPENSE') return editExpense(-1);
+    CUR = code; sheetClose(); render();   // joint working / day end are plain tabs
+  }
+  function visitSummary() {
+    const rows = ST.visits.map((c, i) => ['v', i, c]).concat(ST.unlisted.map((c, i) => ['u', i, c])).filter(x => x[2].inTime);
+    if (!rows.length) return '';
+    return '<div class="dcr-sec mt-0">Visit summary</div>' + rows.map(([k, i, c]) => `<div class="card-lite dcr-visit" onclick="editCall('${k}',${i})"><div class="ava">${esc(initials(c.clientName))}</div>
+      <div class="meta"><b>${esc(c.clientName)}</b><small class="text-muted">${esc(c.inTime)}${c.outTime ? ' – ' + esc(c.outTime) : ''}${k === 'u' ? ' · Unlisted' : ''}</small></div>
+      ${isOpen(c) ? '<span class="badge bg-success">Checked in</span>' : c.refused ? '<span class="badge bg-warning text-dark">Refused</span>' : '<span class="badge bg-secondary">Done</span>'}</div>`).join('');
+  }
 
   // ---- check-in / unlisted card lists
   function paneCalls(tab, kind) {
@@ -718,7 +761,8 @@
       if (d.empId === OPT.me && d.canEdit) { document.getElementById('dcrDate').value = d.dcrDate; dcrView('form'); await loadDay(); return; }
       const foot = d.canApprove ? `<button class="btn btn-outline-danger" onclick="dcrDecide(${id},false)"><i class="bi bi-x-circle"></i> Reject</button><button class="btn btn-success" onclick="dcrDecide(${id},true)"><i class="bi bi-patch-check"></i> Approve</button>`
         : '<button class="btn btn-light" onclick="sheetClose()">Close</button>';
-      sheetOpen(d.empName + ' · ' + Settings.formatDate(d.dcrDate), detailHtml(d), foot);
+      const delBtn = OPT.isAdmin ? `<button class="btn btn-outline-danger" onclick="dcrDelete(${id})"><i class="bi bi-trash"></i> Delete</button>` : '';
+      sheetOpen(d.empName + ' · ' + Settings.formatDate(d.dcrDate), detailHtml(d), delBtn + foot);
     } catch (e) { SFA.toast(e.message, false); }
   }
   const jname = (id) => { const j = OPT.joint.find(x => x.id === id); return j ? j.name : id; };
