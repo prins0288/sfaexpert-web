@@ -34,6 +34,12 @@ public class DcrService {
     /** Company setting: how many days back a DCR may still be filled (default 7). */
     public static final String BACK_DAYS_KEY = "dcrBackDays";
 
+    /** Which DCR check-in tab (CLIENT / RETAILER / PARTY) a client type belongs to: client_type.dcr_tab, else read from its code / name (works before migration 94 too). */
+    private static final String TAB_GUESS = "CASE WHEN UPPER(ct.type_code) IN ('DR','CLIENT','DOCTOR','CL') OR ct.type_name IN ('Doctor','Client') THEN 'CLIENT' "
+            + "WHEN UPPER(ct.type_code) IN ('RT','RETAILER','CHEMIST','RL','CH') OR ct.type_name LIKE 'Retailer%' OR ct.type_name LIKE 'Chemist%' THEN 'RETAILER' "
+            + "WHEN UPPER(ct.type_code) IN ('PT','PARTY','STOCKIST','ST') OR ct.type_name LIKE 'Party%' OR ct.type_name LIKE 'Stockist%' THEN 'PARTY' END";
+    private static final String TAB_COL = "COALESCE(ct.dcr_tab, " + TAB_GUESS + ")";
+
     private final JdbcTemplate jdbc;
     private final TeamScope scope;
     private final DcrWorktypeService worktypes;
@@ -71,7 +77,7 @@ public class DcrService {
         m.put("tabs", worktypes.tabsFor(me));
         String clientSql = """
                 SELECT c.id, c.client_code AS code, CONCAT(COALESCE(CONCAT(c.salutation, ' '), ''), c.client_name) AS name,
-                       c.client_type_id AS clientTypeId, ct.type_name AS clientTypeName, ct.dcr_tab AS dcrTab, c.city_id AS areaId, ar.area_name AS areaName,
+                       c.client_type_id AS clientTypeId, ct.type_name AS clientTypeName, %TAB% AS dcrTab, c.city_id AS areaId, ar.area_name AS areaName,
                        sp.speciality_name AS speciality, cat.category_name AS category, c.mobile_number_1 AS mobile
                 FROM client_master c
                 LEFT JOIN client_type ct ON ct.oid = c.client_type_id
@@ -81,10 +87,10 @@ public class DcrService {
                 WHERE c.is_active = 1 AND c.approval_status = 'APPROVED' AND (c.mapped_emp_code = ? OR (c.mapped_emp_code IS NULL AND c.created_by COLLATE utf8mb4_0900_ai_ci = ?))
                 ORDER BY c.client_name""";
         try {
-            m.put("clients", jdbc.queryForList(clientSql, me, me));
+            m.put("clients", jdbc.queryForList(clientSql.replace("%TAB%", TAB_COL), me, me));
         } catch (org.springframework.dao.DataAccessException e) {   // migration 94 (client_type.dcr_tab) not run yet
             org.slf4j.LoggerFactory.getLogger(DcrService.class).warn("client_type.dcr_tab is missing - run migration 94_client_type_dcr_tab.sql");
-            m.put("clients", jdbc.queryForList(clientSql.replace("ct.dcr_tab AS dcrTab", "NULL AS dcrTab"), me, me));
+            m.put("clients", jdbc.queryForList(clientSql.replace("%TAB%", TAB_GUESS), me, me));
         }
         List<Map<String, Object>> areas = jdbc.queryForList("""
                 SELECT oid AS id, area_name AS name FROM area_master
@@ -411,10 +417,17 @@ public class DcrService {
         // ---- checks that need no write ----
         Map<Long, Map<String, Object>> myClients = new HashMap<>();
         if (working) {
-            for (Map<String, Object> c : jdbc.queryForList("""
-                    SELECT c.id, c.client_type_id, c.city_id, ct.dcr_tab FROM client_master c LEFT JOIN client_type ct ON ct.oid = c.client_type_id
+            String myClientSql = """
+                    SELECT c.id, c.client_type_id, c.city_id, %TAB% AS dcr_tab FROM client_master c LEFT JOIN client_type ct ON ct.oid = c.client_type_id
                     WHERE c.is_active = 1 AND c.approval_status = 'APPROVED'
-                      AND (c.mapped_emp_code = ? OR (c.mapped_emp_code IS NULL AND c.created_by COLLATE utf8mb4_0900_ai_ci = ?))""", me, me)) myClients.put(((Number) c.get("id")).longValue(), c);
+                      AND (c.mapped_emp_code = ? OR (c.mapped_emp_code IS NULL AND c.created_by COLLATE utf8mb4_0900_ai_ci = ?))""";
+            List<Map<String, Object>> mine;
+            try {
+                mine = jdbc.queryForList(myClientSql.replace("%TAB%", TAB_COL), me, me);
+            } catch (org.springframework.dao.DataAccessException e) {   // client_type.dcr_tab not there yet (migration 94)
+                mine = jdbc.queryForList(myClientSql.replace("%TAB%", TAB_GUESS), me, me);
+            }
+            for (Map<String, Object> c : mine) myClients.put(((Number) c.get("id")).longValue(), c);
         }
         Set<String> seen = new HashSet<>();
         for (DcrDto.Visit v : f.getVisits()) {

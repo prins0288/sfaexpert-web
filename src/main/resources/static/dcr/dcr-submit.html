@@ -489,7 +489,7 @@
     const sel = (id, label, vals) => `<div class="col-4"><select class="form-select form-select-sm" id="${id}" data-no-search onchange="pickFilter()"><option value="">${label}</option>${vals.map(v => `<option>${esc(v)}</option>`).join('')}</select></div>`;
     sheetOpen('Select client · ' + tab.name.replace(/ Check-?in$/i, ''), `<div class="row g-2 mb-2">${sel('pickArea', 'Area', uniq('areaName'))}${sel('pickCat', 'Category', uniq('category'))}${sel('pickSpec', 'Speciality', uniq('speciality'))}</div>
       <input class="form-control mb-2" id="pickQ" placeholder="Search name, code…" oninput="pickFilter()" />
-      <div class="small text-muted mb-1" id="pickCount"></div><div class="dcr-pick" id="pickList"></div>`, `<button class="btn btn-light" onclick="sheetClose()">Close</button>`);
+      <div class="small text-muted mb-1" id="pickCount"></div><div class="dcr-pick" id="pickList"></div>`, `<button class="btn btn-light" onclick="addVisitSheet()"><i class="bi bi-chevron-left"></i> Back</button><button class="btn btn-light" onclick="sheetClose()">Close</button>`);
     window.__pick = list; window.__pickTab = code; pickFilter();
   }
   function pickFilter() {
@@ -526,6 +526,12 @@
   function sheetClose() { SHEET.hide(); }
   // X on a call that was never checked in: drop it again (nothing was saved)
   function sheetX() { dropUnsaved(); sheetClose(); }
+  // Back from a not-yet-checked-in client / unlisted form: drop it and return one step (client list, or the "What are you doing now?" cards)
+  function sheetBack() {
+    const kind = EDIT && EDIT.kind, code = EDIT && EDIT.o && EDIT.o.worktypeCode;
+    dropUnsaved();
+    if (kind === 'v' && code && OPT.tabs.some(t => t.code === code)) pickClient(code); else addVisitSheet();
+  }
   function dropUnsaved() {
     if (!EDIT || (EDIT.kind !== 'v' && EDIT.kind !== 'u')) return;
     const list = EDIT.kind === 'v' ? ST.visits : ST.unlisted;
@@ -544,7 +550,7 @@
     const o = EDIT.o, ro = !ST.canEdit;
     document.getElementById('sheetFoot').classList.toggle('d-none', !!EDIT.panel);
     document.getElementById('sheetFoot').innerHTML = ro ? '<button class="btn btn-light" onclick="sheetClose()">Close</button>'
-      : !o.inTime ? '<button class="btn btn-light" onclick="sheetX()">Cancel</button><button class="btn btn-success" onclick="doCheckIn()"><i class="bi bi-geo-alt"></i> Check in</button>'
+      : !o.inTime ? '<button class="btn btn-light" onclick="sheetBack()"><i class="bi bi-chevron-left"></i> Back</button><button class="btn btn-success" onclick="doCheckIn()"><i class="bi bi-geo-alt"></i> Check in</button>'
       : !o.outTime && !o.refused ? '<button class="btn btn-outline-danger" style="flex:0 0 auto" onclick="callDelete()" title="Delete this check-in"><i class="bi bi-trash"></i></button><button class="btn btn-outline-primary" onclick="callSave()"><i class="bi bi-save"></i> Save</button><button class="btn btn-success" onclick="confirmCheckOut()"><i class="bi bi-box-arrow-right"></i> Submit Details</button>'
       : '<button class="btn btn-outline-danger" style="flex:0 0 auto" onclick="callDelete()" title="Delete this check-in"><i class="bi bi-trash"></i></button><button class="btn btn-primary" onclick="callSave()"><i class="bi bi-check2"></i> Done</button>';
   }
