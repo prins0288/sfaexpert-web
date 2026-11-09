@@ -83,6 +83,10 @@ public class DcrController {
         service.delete(dcrId);
     }
 
+    @GetMapping("/tp")
+    @Operation(summary = "What the approved tour plan of a date lets the DCR offer (rule TP_VALIDATE_FILTER)")
+    public Map<String, Object> tp(@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) { return service.tpFilter(date); }
+
     @GetMapping("/client-analysis/{clientId}")
     @Operation(summary = "Pre-Call Analysis of one of my clients: facts, month-wise visits, samples / inputs")
     public Map<String, Object> clientAnalysis(@PathVariable Long clientId) {

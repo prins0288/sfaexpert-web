@@ -62,6 +62,8 @@
   .dcr-pane .form-control, .dcr-pane .form-select, .dcr-sheet .form-control, .dcr-sheet .form-select { border-radius: .75rem; min-height: 2.8rem; }
   .dcr-chips { display: flex; flex-wrap: wrap; gap: .4rem; }
   .dcr-chip { border: 1px solid var(--bs-border-color); border-radius: 999px; padding: .4rem .85rem; background: var(--bs-body-bg); font-size: .9rem; }
+  .dcr-chips-scroll { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: thin; padding-bottom: .35rem; scroll-snap-type: x proximity; }
+  .dcr-chips-scroll .dcr-chip { flex: 0 0 auto; white-space: nowrap; scroll-snap-align: start; }
   .dcr-chip.on { background: var(--bs-primary-bg-subtle); border-color: var(--bs-primary); color: var(--bs-primary); font-weight: 600; }
   .dcr-visit { display: flex; gap: .75rem; align-items: center; cursor: pointer; }
   .dcr-visit .ava { width: 2.6rem; height: 2.6rem; border-radius: 50%; background: var(--bs-primary-bg-subtle); color: var(--bs-primary); display: flex; align-items: center; justify-content: center; font-weight: 700; flex: 0 0 auto; }
@@ -245,7 +247,7 @@
   const STATUS = [['Draft', 'secondary'], ['Submitted', 'info'], ['Approved', 'success'], ['Rejected', 'danger']];
   const stBadge = (s) => s == null ? '<span class="badge bg-light text-dark border">New</span>' : `<span class="badge bg-${STATUS[s][1]}${s === 1 ? ' text-dark' : ''}">${STATUS[s][0]}</span>`;
 
-  let OPT = null, ST = null, CUR = 'day', VIEW = 'form', SHEET = null, EDIT = null, ROWS = [], KEYSEQ = 0, SHEET_ON_CLOSE = null;
+  let TPF = null, OPT = null, ST = null, CUR = 'day', VIEW = 'form', SHEET = null, EDIT = null, ROWS = [], KEYSEQ = 0, SHEET_ON_CLOSE = null;
 
   const blank = (date) => ({ dcrId: null, dcrDate: date, workType: defaultWork(), startAreaId: '', workingAreaId: '', timeIn: '', timeOut: '', travelMode: '', meterStart: '', meterEnd: '',
     remarks: '', dayEndAreaId: '', dayEndAt: '', dayEndRemarks: '', stayAreaId: '', stayHotel: '', jointWith: [], visits: [], unlisted: [], expenses: [], status: null, canEdit: true });
@@ -269,6 +271,7 @@
     const date = document.getElementById('dcrDate').value || todayStr();
     const d = await Api.get(EP.mine, { query: { date } });
     ST = d && d.dcrId ? fromDto(d) : blank(date);   // no DCR yet: the API answers with an empty envelope
+    try { TPF = await Api.get(EP.tp, { query: { date }, noLoader: true }); } catch (e) { TPF = null; }   // what the approved tour plan lets this date offer
     if (!tabList().some(t => t.code === CUR)) CUR = 'day';
     render();
   }
@@ -379,7 +382,7 @@
     const rem = ST.remarks ? row('Remarks', ST.remarks)
       : (ST.canEdit ? `<div class="pt-2">${field('Remarks' + (RULE('DCR_Remarks', false) ? ' *' : ''), `<textarea class="form-control" rows="2" oninput="ST.remarks=this.value"></textarea>`)}</div>` : '');
     return `<div class="dcr-sec mt-0">Day start summary</div><div class="card-lite">
-      ${row('Day type', wtName(ST.workType))}${row('Started at', ST.timeIn)}${isField(ST.workType) ? row('Started from', area) + row('Travel mode', tm) + (ST.meterStart ? row('Meter start', ST.meterStart + ' km') : '') : ''}${rem}</div>`;
+      ${row('Day type', wtName(ST.workType))}${row('Started at', ST.timeIn)}${isField(ST.workType) ? row('Started from', area) + row('Area type', areaTypeOf(ST.startAreaId)) + row('Travel mode', tm) + (ST.meterStart ? row('Meter start', ST.meterStart + ' km') : '') : ''}${rem}</div>`;
   }
   async function dcrDelete(id) {
     if (!confirm('Delete this DCR with all its visits and expenses? This cannot be undone.')) return;
@@ -393,12 +396,26 @@
     const working = isField(ST.workType), today = ST.dcrDate === todayStr();
     const wt = `<select class="form-select" data-no-search onchange="ST.workType=this.value;startSheet()">${opts(OPT.workTypes.map(w => ({ id: w.code, name: w.name })), ST.workType)}</select>`;
     sheetOpen('Start your day', `<div class="row g-3">${field('Work type', wt)}
-      ${working ? field('Starting from (area)', `<select class="form-select" data-no-search onchange="ST.startAreaId=this.value">${opts(OPT.areas, ST.startAreaId, 'Select area')}</select>`) : ''}
+      ${working ? tpNote() : ''}
+      ${working ? field('Starting from (area)', `<select class="form-select" data-no-search onchange="ST.startAreaId=this.value;areaTypeShow()">${opts(startAreas(), ST.startAreaId, 'Select area')}</select><div class="small mt-1" id="stAreaType"></div>`) : ''}
       ${working ? tmField(`<select class="form-select" data-no-search onchange="ST.travelMode=this.value">${opts(OPT.travelModes, ST.travelMode, 'Select')}</select>`) + meterField() : ''}
       ${today ? '' : field('Time in (earlier day)', inp('timeIn', 'time'), 'col-6')}
       ${field('Remarks', `<textarea class="form-control" rows="2" oninput="ST.remarks=this.value">${esc(ST.remarks)}</textarea>`)}</div>
       <div class="small text-muted mt-3"><i class="bi bi-clock"></i> ${today ? 'Your time in is captured when you tap Start Day.' : 'Enter the time your day started.'}</div>`,
-      '<button class="btn btn-light" onclick="sheetClose()">Cancel</button><button class="dcr-start-btn flex-fill" onclick="dcrStart()"><i class="bi bi-play-circle"></i> Start Day</button>');
+      '<button class="btn btn-light" onclick="sheetClose()">Cancel</button><button class="dcr-start-btn flex-fill" onclick="dcrStart()"' + (tpBlocked() ? ' disabled' : '') + '><i class="bi bi-play-circle"></i> Start Day</button>');
+    areaTypeShow();
+  }
+  // tour plan rule (TP_VALIDATE_FILTER): only the planned areas / clients, and no start without an approved plan
+  const tpOn = () => !!(TPF && TPF.enabled);
+  const tpBlocked = () => tpOn() && !TPF.planned && isField(ST.workType);
+  const startAreas = () => tpOn() && TPF.planned ? OPT.areas.filter(a => TPF.areaIds.includes(a.id)) : (tpBlocked() ? [] : OPT.areas);
+  const tpNote = () => !tpOn() ? '' : TPF.planned ? '<div class="col-12"><div class="alert alert-info py-2 small mb-0"><i class="bi bi-calendar-check"></i> Following your approved tour plan: only the planned areas and clients are offered.</div></div>'
+    : '<div class="col-12"><div class="alert alert-warning py-2 small mb-0"><i class="bi bi-calendar-x"></i> There is no approved tour plan for this date, so a field day cannot start. Submit / get your Tour Plan approved first.</div></div>';
+  // the area's type (HQ / EX / OUT ...) comes from area_master and shows under the area
+  const areaTypeOf = (id) => ((OPT.areas.find(a => String(a.id) === String(id)) || {}).areaType) || '';
+  function areaTypeShow() {
+    const el = document.getElementById('stAreaType'); if (!el) return;
+    const t = areaTypeOf(ST.startAreaId); el.innerHTML = t ? `<span class="badge bg-primary-subtle text-primary-emphasis">Area type: ${esc(t)}</span>` : '';
   }
   async function dcrStart() {
     try {
@@ -493,7 +510,8 @@
 
   // a check-in tab lists ONLY the clients of its own client type (Doctor / Retailer / Party ...), set in app_dcr_worktype
   function clientsFor(tab) {
-    return OPT.clients.filter(c => c.dcrTab === tab.code || (tab.clientTypeId != null && c.clientTypeId === tab.clientTypeId));
+    const mine = OPT.clients.filter(c => c.dcrTab === tab.code || (tab.clientTypeId != null && c.clientTypeId === tab.clientTypeId));
+    return tpOn() && TPF.planned ? mine.filter(c => TPF.clientIds.includes(c.id)) : mine;   // tour plan rule: planned clients only
   }
   // "Select Party" / "Select Retailer" / "Select Doctor": the singular label of the client type mapped to the tab
   const kindLabel = (tab) => ((OPT.clientTypes.find(t => t.dcrTab === tab.code) || {}).label) || tab.name.replace(/ Check-?in$/i, '');
@@ -619,7 +637,7 @@
       h = panelHtml(o, EDIT.panel);   // one detail panel at a time, like the phone app
     } else {
       h += `<div class="alert ${o.outTime || o.refused ? 'alert-secondary' : 'alert-success'} mb-3 py-2"><i class="bi bi-geo-alt-fill"></i> Checked in at <b>${esc(o.inTime)}</b>${o.checkinLat ? ' · location saved' : ''}${o.outTime ? ` · Checked out at <b>${esc(o.outTime)}</b>` : o.refused ? '' : ' — tap <b>Submit Details</b> when you leave'}</div>`;
-      h += `<div class="dcr-sec mt-0">Visit type</div><div class="dcr-chips">` + OPT.visitTypes.map(v => `<button type="button" class="dcr-chip ${o.visitType === v ? 'on' : ''}" onclick="EDIT.o.visitType='${esc(v)}';renderCall()">${esc(v)}</button>`).join('') + '</div>';
+      h += `<div class="dcr-sec mt-0">Visit type</div><div class="dcr-chips dcr-chips-scroll">` + OPT.visitTypes.map(v => `<button type="button" class="dcr-chip ${o.visitType === v ? 'on' : ''}" onclick="EDIT.o.visitType='${esc(v)}';renderCall()">${esc(v)}</button>`).join('') + '</div>';
       h += `<div class="form-check form-switch my-3"><input class="form-check-input" type="checkbox" id="refSw" ${o.refused ? 'checked' : ''} onchange="${o_('refused')}=this.checked"><label class="form-check-label" for="refSw">Client refused to meet</label></div>`;
       h += '<div class="dcr-sec">Activity details</div><div class="dcr-rows">' + detailRows(o, subs) + '</div>';
     }

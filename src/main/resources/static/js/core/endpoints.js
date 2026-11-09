@@ -255,6 +255,7 @@
         list: "/api/dcr",                                             // ?from=&to=&empId= (own / team / all)
         get: (id) => `/api/dcr/${id}`,
         del: (id) => `/api/dcr/${id}`,                                // DELETE: owner's draft / rejected DCR (admin: any)
+        tp: "/api/dcr/tp",                                           // ?date= what the approved tour plan lets the DCR offer
         analysis: (clientId) => `/api/dcr/client-analysis/${clientId}`,  // Pre-Call Analysis of one of my clients
         mine: "/api/dcr/mine",                                        // ?date=
         start: "/api/dcr/start",                                      // POST: start my day (time in = now)

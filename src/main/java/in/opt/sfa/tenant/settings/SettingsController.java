@@ -31,6 +31,8 @@ public class SettingsController {
             in.opt.sfa.tenant.master.clientmaster.service.ClientMasterService.DEFAULT_FLOW,
             in.opt.sfa.tenant.master.area.service.AreaService.APPROVAL.flowKey(),
             in.opt.sfa.tenant.approval.ApprovalEngine.DEFAULT_FLOW,
+            in.opt.sfa.tenant.tp.service.TourPlanService.APPROVAL.flowKey(),
+            in.opt.sfa.tenant.approval.ApprovalEngine.DEFAULT_FLOW,
             LevelRoleService.MANAGER_KEY, LevelRoleService.DEFAULTS.get(LevelRoleService.MANAGER_KEY),
             LevelRoleService.ADMIN_KEY, LevelRoleService.DEFAULTS.get(LevelRoleService.ADMIN_KEY),
             LevelRoleService.SUPER_ADMIN_KEY, LevelRoleService.DEFAULTS.get(LevelRoleService.SUPER_ADMIN_KEY)
@@ -57,7 +59,8 @@ public class SettingsController {
     @Transactional(transactionManager = "commonTransactionManager")
     public Map<String, String> save(@RequestBody Map<String, String> body) {
         for (String flowKey : List.of(in.opt.sfa.tenant.master.clientmaster.service.ClientMasterService.FLOW_KEY,
-                                      in.opt.sfa.tenant.master.area.service.AreaService.APPROVAL.flowKey())) {
+                                      in.opt.sfa.tenant.master.area.service.AreaService.APPROVAL.flowKey(),
+                                      in.opt.sfa.tenant.tp.service.TourPlanService.APPROVAL.flowKey())) {
             if (!body.containsKey(flowKey)) continue;
             // who approves clients / areas is a company policy: admins only, and only a known flow
             in.opt.sfa.security.Authz.requireRole("ADMIN");

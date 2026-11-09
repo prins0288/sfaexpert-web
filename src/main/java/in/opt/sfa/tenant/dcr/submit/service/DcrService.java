@@ -44,10 +44,12 @@ public class DcrService {
     private final TeamScope scope;
     private final DcrWorktypeService worktypes;
     private final DcrRuleService rules;
+    private final in.opt.sfa.tenant.tp.service.TourPlanLookup tourPlans;
     private final CompanySettingStore settings;
 
-    public DcrService(JdbcTemplate jdbc, TeamScope scope, DcrWorktypeService worktypes, DcrRuleService rules, CompanySettingStore settings) {
+    public DcrService(JdbcTemplate jdbc, TeamScope scope, DcrWorktypeService worktypes, DcrRuleService rules, in.opt.sfa.tenant.tp.service.TourPlanLookup tourPlans, CompanySettingStore settings) {
         this.rules = rules;
+        this.tourPlans = tourPlans;
         this.jdbc = jdbc;
         this.scope = scope;
         this.worktypes = worktypes;
@@ -75,31 +77,12 @@ public class DcrService {
         m.put("isAdmin", TeamScope.isAdmin());
         m.put("backDays", backDays());
         m.put("tabs", worktypes.tabsFor(me));
-        String clientSql = """
-                SELECT c.id, c.client_code AS code, CONCAT(COALESCE(CONCAT(c.salutation, ' '), ''), c.client_name) AS name,
-                       c.client_type_id AS clientTypeId, ct.type_name AS clientTypeName, %TAB% AS dcrTab, c.city_id AS areaId, ar.area_name AS areaName,
-                       c.speciality_id AS specialityId, c.category_id AS categoryId, sp.speciality_name AS speciality, cat.category_name AS category, c.mobile_number_1 AS mobile,
-                       COALESCE(v.visits, 0) AS visits, v.last_visit AS lastVisit
-                FROM client_master c
-                LEFT JOIN (SELECT s.client_id, COUNT(*) AS visits, MAX(p.dcr_date) AS last_visit FROM dcr_client_summary s JOIN dcr_parent_summary p ON p.dcr_id = s.dcr_id
-                           WHERE s.emp_id = ? GROUP BY s.client_id) v ON v.client_id = c.id
-                LEFT JOIN client_type ct ON ct.oid = c.client_type_id
-                LEFT JOIN area_master ar ON ar.oid = c.city_id
-                LEFT JOIN speciality_master sp ON sp.oid = c.speciality_id
-                LEFT JOIN category_master cat ON cat.oid = c.category_id
-                WHERE c.is_active = 1 AND c.approval_status = 'APPROVED' AND (c.mapped_emp_code = ? OR (c.mapped_emp_code IS NULL AND c.created_by COLLATE utf8mb4_0900_ai_ci = ?))
-                ORDER BY c.client_name""";
-        try {
-            m.put("clients", jdbc.queryForList(clientSql.replace("%TAB%", TAB_COL), me, me, me));
-        } catch (org.springframework.dao.DataAccessException e) {   // migration 94 (client_type.dcr_tab) not run yet
-            org.slf4j.LoggerFactory.getLogger(DcrService.class).warn("client_type.dcr_tab is missing - run migration 94_client_type_dcr_tab.sql");
-            m.put("clients", jdbc.queryForList(clientSql.replace("%TAB%", TAB_GUESS), me, me, me));
-        }
+        m.put("clients", myClients(me));
         List<Map<String, Object>> areas = jdbc.queryForList("""
-                SELECT oid AS id, area_name AS name FROM area_master
+                SELECT oid AS id, area_name AS name, area_type AS areaType FROM area_master
                 WHERE status = 'Y' AND approval_status = 'APPROVED' AND emp_id = ? ORDER BY area_name""", me);
         if (areas.isEmpty()) {   // nobody's own areas yet: fall back to every approved area
-            areas = jdbc.queryForList("SELECT oid AS id, area_name AS name FROM area_master WHERE status = 'Y' AND approval_status = 'APPROVED' ORDER BY area_name");
+            areas = jdbc.queryForList("SELECT oid AS id, area_name AS name, area_type AS areaType FROM area_master WHERE status = 'Y' AND approval_status = 'APPROVED' ORDER BY area_name");
         }
         m.put("areas", areas);
         String itemSql = """
@@ -138,8 +121,49 @@ public class DcrService {
         return m;
     }
 
+    /**
+     * What the approved tour plan of a date lets the DCR offer. {enabled} follows the rule TP_VALIDATE_FILTER; when on and a plan exists:
+     * the planned area ids and the client ids (per area: the clients picked for it, or all its clients when none was picked).
+     */
+    @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
+    public Map<String, Object> tpFilter(LocalDate date) {
+        String me = me();
+        Map<String, Object> out = new LinkedHashMap<>();
+        boolean on = DcrRuleService.bool(rules.of(me), "TP_VALIDATE_FILTER", false);
+        out.put("enabled", on);
+        if (!on) return out;
+        Map<String, Object> plan = tourPlans.planFor(me, date == null ? LocalDate.now() : date);
+        out.put("planned", plan != null);
+        if (plan != null) out.putAll(plan);
+        return out;
+    }
+
+    /** My approved, active clients with their type / tab, category, speciality, area and visit history. */
+    public List<Map<String, Object>> myClients(String me) {
+        String clientSql = """
+                SELECT c.id, c.client_code AS code, CONCAT(COALESCE(CONCAT(c.salutation, ' '), ''), c.client_name) AS name,
+                       c.client_type_id AS clientTypeId, ct.type_name AS clientTypeName, %TAB% AS dcrTab, c.city_id AS areaId, ar.area_name AS areaName,
+                       c.speciality_id AS specialityId, c.category_id AS categoryId, sp.speciality_name AS speciality, cat.category_name AS category, c.mobile_number_1 AS mobile,
+                       COALESCE(v.visits, 0) AS visits, v.last_visit AS lastVisit
+                FROM client_master c
+                LEFT JOIN (SELECT s.client_id, COUNT(*) AS visits, MAX(p.dcr_date) AS last_visit FROM dcr_client_summary s JOIN dcr_parent_summary p ON p.dcr_id = s.dcr_id
+                           WHERE s.emp_id = ? GROUP BY s.client_id) v ON v.client_id = c.id
+                LEFT JOIN client_type ct ON ct.oid = c.client_type_id
+                LEFT JOIN area_master ar ON ar.oid = c.city_id
+                LEFT JOIN speciality_master sp ON sp.oid = c.speciality_id
+                LEFT JOIN category_master cat ON cat.oid = c.category_id
+                WHERE c.is_active = 1 AND c.approval_status = 'APPROVED' AND (c.mapped_emp_code = ? OR (c.mapped_emp_code IS NULL AND c.created_by COLLATE utf8mb4_0900_ai_ci = ?))
+                ORDER BY c.client_name""";
+        try {
+            return jdbc.queryForList(clientSql.replace("%TAB%", TAB_COL), me, me, me);
+        } catch (org.springframework.dao.DataAccessException e) {   // migration 94 (client_type.dcr_tab) not run yet
+            org.slf4j.LoggerFactory.getLogger(DcrService.class).warn("client_type.dcr_tab is missing - run migration 94_client_type_dcr_tab.sql");
+            return jdbc.queryForList(clientSql.replace("%TAB%", TAB_GUESS), me, me, me);
+        }
+    }
+
     /** Who the user can work together with: his seniors and his team (never admin-level users). */
-    private List<Map<String, Object>> jointCandidates(String me) {
+    public List<Map<String, Object>> jointCandidates(String me) {
         List<String> seniors = scope.seniors(me);
         Set<String> juniors = new LinkedHashSet<>(scope.team(me));
         Set<String> admins = scope.adminLevelIds();
@@ -377,6 +401,11 @@ public class DcrService {
             throw new IllegalStateException("Select the travel mode to start your day");
         }
         if (working && f.getStartAreaId() == null) throw new IllegalStateException("Choose the area you start the day from");
+        if (working && DcrRuleService.bool(rl, "TP_VALIDATE_FILTER", false)) {
+            Map<String, Object> plan = tourPlans.planFor(me, date);
+            if (plan == null) throw new IllegalStateException("There is no approved tour plan for " + date + " - your day cannot start");
+            if (!((Collection<?>) plan.get("areaIds")).contains(f.getStartAreaId())) throw new IllegalStateException("Start the day from an area of your tour plan");
+        }
         if (f.getStartAreaId() != null) checkAreaIds(List.of(f.getStartAreaId()));
         if (f.getMeterStart() != null && f.getMeterStart().signum() < 0) throw new IllegalStateException("Meter start cannot be negative");
         Map<String, Object> emp = jdbc.queryForList("SELECT designation, manager_id FROM emp_detail WHERE emp_id = ?", me).get(0);
@@ -391,6 +420,11 @@ public class DcrService {
             return ps;
         }, kh);
         long id = kh.getKey().longValue();
+        if (working && f.getStartAreaId() != null) {
+            try {   // area type (HQ / EX / OUT ...) of the start area, kept with the day (column from migration 95)
+                jdbc.update("UPDATE dcr_parent_summary SET start_area_type = (SELECT area_type FROM area_master WHERE oid = ?) WHERE dcr_id = ?", f.getStartAreaId(), id);
+            } catch (org.springframework.dao.DataAccessException e) { /* migration 95 not run yet */ }
+        }
         if (working && f.getStartAreaId() != null) {
             jdbc.update("INSERT INTO dcr_area_summary (dcr_id, emp_id, dcr_date, area_id, area_role) VALUES (?,?,?,?, 'START')", id, me, date, f.getStartAreaId());
         }
@@ -437,8 +471,15 @@ public class DcrService {
             }
             for (Map<String, Object> c : mine) myClients.put(((Number) c.get("id")).longValue(), c);
         }
+        Set<Long> tpClients = null;
+        if (working && !f.getVisits().isEmpty() && DcrRuleService.bool(rules.of(me), "TP_VALIDATE_FILTER", false)) {
+            Map<String, Object> plan = tourPlans.planFor(me, date);
+            if (plan == null) throw new IllegalStateException("There is no approved tour plan for " + date);
+            tpClients = new HashSet<>(); for (Object c : (Collection<?>) plan.get("clientIds")) tpClients.add(((Number) c).longValue());
+        }
         Set<String> seen = new HashSet<>();
         for (DcrDto.Visit v : f.getVisits()) {
+            if (tpClients != null && v.getClientId() != null && !tpClients.contains(v.getClientId())) throw new IllegalStateException("That client is not in your tour plan for " + date);
             if (!working) throw new IllegalStateException("A " + workType.toLowerCase() + " day has no client calls");
             if (v.getClientId() == null || !myClients.containsKey(v.getClientId())) throw new IllegalStateException("Client " + v.getClientId() + " is not one of your approved, active clients");
             Map<String, Object> tab = tabs.get(v.getWorktypeCode() == null ? "CLIENT" : v.getWorktypeCode());
