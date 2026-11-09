@@ -114,7 +114,7 @@
   window.pageInit = async function () {
     SHEET = new bootstrap.Offcanvas('#tpSheet');
     document.getElementById('tpDow').innerHTML = DOW.map(d => `<div class="tp-dow">${d}</div>`).join('');
-    try { OPT = await Api.get(EP.options); await tpLoad(); teamPending(); } catch (e) { SFA.toast(e.message, false); }
+    try { OPT = await Api.get(EP.options); await tpLoad(); teamPending(); if (/[?&]tab=team/.test(location.search)) tpTab('team'); } catch (e) { SFA.toast(e.message, false); }
   };
   const isField = (code) => !!((OPT.workTypes.find(w => w.code === code) || {}).fieldWork);
   const wtName = (code) => ((OPT.workTypes.find(w => w.code === code) || {}).name) || code;
