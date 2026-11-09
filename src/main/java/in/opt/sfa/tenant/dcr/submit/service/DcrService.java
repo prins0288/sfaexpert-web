@@ -88,7 +88,7 @@ public class DcrService {
         }
         m.put("areas", areas);
         m.put("items", jdbc.queryForList("""
-                SELECT i.id, i.item_code AS code, i.item_name AS name, t.item_type_code AS type,
+                SELECT i.id, i.item_code AS code, i.item_name AS name, t.item_type_code AS type, t.dcr_panel AS panel,
                        COALESCE((SELECT r.pts FROM item_rate r WHERE r.item_id = i.id AND r.status = 1
                                  AND (r.effective_from IS NULL OR r.effective_from <= CURDATE()) AND (r.effective_to IS NULL OR r.effective_to >= CURDATE())
                                  ORDER BY r.effective_from DESC LIMIT 1), 0) AS rate
@@ -100,6 +100,7 @@ public class DcrService {
         m.put("activityTypes", jdbc.queryForList("SELECT type_name AS name FROM activity_type_master WHERE is_active = 1 ORDER BY type_name").stream().map(r -> r.get("name")).toList());
         m.put("travelModes", jdbc.queryForList("SELECT travel_type_name AS name FROM travel_type_master WHERE is_active = 1 ORDER BY travel_type_name").stream().map(r -> r.get("name")).toList());
         m.put("clientTypes", jdbc.queryForList("SELECT oid AS id, type_name AS name FROM client_type WHERE is_active = 1 ORDER BY type_name"));
+        m.put("priorities", jdbc.queryForList("SELECT priority_name AS name FROM visit_priority_master WHERE is_active = 1 ORDER BY sort_order, priority_name").stream().map(r -> r.get("name")).toList());
         m.put("specialities", jdbc.queryForList("SELECT oid AS id, speciality_name AS name FROM speciality_master WHERE status = 'Y' ORDER BY speciality_name"));
         m.put("categories", jdbc.queryForList("SELECT oid AS id, category_name AS name FROM category_master WHERE status = 'Y' ORDER BY category_name"));
         m.put("joint", jointCandidates(me));
@@ -310,14 +311,14 @@ public class DcrService {
         if (date == null) date = today;
         if (date.isAfter(today)) throw new IllegalStateException("A day cannot be started in the future");
         if (date.isBefore(today.minusDays(backDays()))) throw new IllegalStateException("A DCR can be filled only up to " + backDays() + " days back");
-        String workType = f.getWorkType() == null ? "WORKING" : f.getWorkType().toUpperCase();
+        String workType = f.getWorkType() == null ? "" : f.getWorkType().toUpperCase();
         if (!worktypes.isDayType(me, workType)) throw new IllegalStateException("Please choose a valid work type");
         if (jdbc.queryForObject("SELECT COUNT(*) FROM dcr_parent_summary WHERE emp_id = ? AND dcr_date = ?", Integer.class, me, date) > 0) {
             throw new IllegalStateException("Your day is already started");
         }
         LocalTime timeIn = date.equals(today) ? LocalTime.now().withSecond(0).withNano(0) : time(f.getTimeIn(), "Time in");
         if (timeIn == null) throw new IllegalStateException("Enter the time your day started");
-        boolean working = "WORKING".equals(workType);
+        boolean working = worktypes.isFieldWork(me, workType);
         Map<String, String> rl = rules.of(me);
         if (date.equals(today)) {
             LocalTime earliest = DcrRuleService.time(rl, "DAY_START_STOP_BEFORE_TIME"), latest = DcrRuleService.time(rl, "DAY_START_TIME");
@@ -361,7 +362,7 @@ public class DcrService {
         LocalDate today = LocalDate.now();
         if (date.isAfter(today)) throw new IllegalStateException("A DCR cannot be filled for a future date");
         if (date.isBefore(today.minusDays(backDays()))) throw new IllegalStateException("A DCR can be filled only up to " + backDays() + " days back");
-        String workType = f.getWorkType() == null ? "WORKING" : f.getWorkType().toUpperCase();
+        String workType = f.getWorkType() == null ? "" : f.getWorkType().toUpperCase();
         if (!worktypes.isDayType(me, workType)) throw new IllegalStateException("Please choose a valid work type");
 
         List<Map<String, Object>> existing = jdbc.queryForList("SELECT dcr_id, status, time_in, time_out FROM dcr_parent_summary WHERE emp_id = ? AND dcr_date = ?", me, date);
@@ -369,7 +370,7 @@ public class DcrService {
         if (((Number) existing.get(0).get("status")).intValue() == APPROVED) {
             throw new IllegalStateException("This DCR is already approved and cannot be changed");
         }
-        boolean working = "WORKING".equals(workType);
+        boolean working = worktypes.isFieldWork(me, workType);
         Map<String, Map<String, Object>> tabs = new HashMap<>();
         worktypes.tabsFor(me).forEach(t -> tabs.put((String) t.get("code"), t));
 
@@ -468,6 +469,8 @@ public class DcrService {
             }
         }
         checkAreas(f);
+        // day end time is never typed: it is captured when the day is submitted (a past day: its time out)
+        LocalDateTime dayEndAt = !f.isSubmit() ? null : date.equals(today) || tout == null ? LocalDateTime.now().withSecond(0).withNano(0) : date.atTime(tout);
         jdbc.update("""
                 UPDATE dcr_parent_summary SET work_type = ?, designation_id = ?, manager_id = ?, start_area_id = ?, working_area_id = ?,
                        time_in = ?, time_out = ?, travel_mode = ?, meter_start = ?, meter_end = ?, remarks = ?,
@@ -475,7 +478,7 @@ public class DcrService {
                        status = ?, submitted_at = ?, submitted_through = 2, approved_by = NULL, approved_at = NULL, approval_remarks = NULL
                 WHERE dcr_id = ?""",
                 workType, emp.get("designation"), emp.get("manager_id"), f.getStartAreaId(), f.getWorkingAreaId(), tin, tout, blank(f.getTravelMode()),
-                f.getMeterStart(), f.getMeterEnd(), blank(f.getRemarks()), f.getDayEndAreaId(), dateTime(f.getDayEndAt(), "Day end time"),
+                f.getMeterStart(), f.getMeterEnd(), blank(f.getRemarks()), f.getDayEndAreaId(), dayEndAt,
                 blank(f.getDayEndRemarks()), f.getStayAreaId(), blank(f.getStayHotel()), status,
                 f.isSubmit() ? Timestamp.valueOf(LocalDateTime.now()) : null, dcrId);
 

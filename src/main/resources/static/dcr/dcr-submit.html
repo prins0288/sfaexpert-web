@@ -231,7 +231,7 @@
 
   let OPT = null, ST = null, CUR = 'day', VIEW = 'form', SHEET = null, EDIT = null, ROWS = [], KEYSEQ = 0, SHEET_ON_CLOSE = null;
 
-  const blank = (date) => ({ dcrId: null, dcrDate: date, workType: 'WORKING', startAreaId: '', workingAreaId: '', timeIn: '', timeOut: '', travelMode: '', meterStart: '', meterEnd: '',
+  const blank = (date) => ({ dcrId: null, dcrDate: date, workType: defaultWork(), startAreaId: '', workingAreaId: '', timeIn: '', timeOut: '', travelMode: '', meterStart: '', meterEnd: '',
     remarks: '', dayEndAreaId: '', dayEndAt: '', dayEndRemarks: '', stayAreaId: '', stayHotel: '', jointWith: [], visits: [], unlisted: [], expenses: [], status: null, canEdit: true });
 
   window.pageInit = async function () {
@@ -283,13 +283,13 @@
   // ============================================================== tabs / panes
   function headBtns(show) {
     document.getElementById('dcrFinalBtn').classList.toggle('d-none', !show);
-    document.getElementById('dcrDayEndBtn').classList.toggle('d-none', !(show && OPT && OPT.tabs.some(t => t.form === 'DAYEND') && ST.workType === 'WORKING'));
+    document.getElementById('dcrDayEndBtn').classList.toggle('d-none', !(show && OPT && OPT.tabs.some(t => t.form === 'DAYEND') && isField(ST.workType)));
   }
   function dcrGoDayEnd() { const t = OPT.tabs.find(x => x.form === 'DAYEND'); if (t) dcrTab(t.code); }
   function tabList() {
     const t = [{ code: 'day', name: 'Day', form: 'DAY' }];
     if (!started()) return t;   // nothing else until the day is started
-    if (ST && ST.workType === 'WORKING') OPT.tabs.forEach(x => t.push({ code: x.code, name: x.name, form: x.form, clientTypeId: x.clientTypeId, subForms: x.subForms }));
+    if (ST && isField(ST.workType)) OPT.tabs.forEach(x => t.push({ code: x.code, name: x.name, form: x.form, clientTypeId: x.clientTypeId, subForms: x.subForms }));
     t.push({ code: 'review', name: 'Review', form: 'REVIEW' });
     return t;
   }
@@ -337,9 +337,11 @@
   const RULE = (code, dflt) => { const v = ((OPT && OPT.rules) || {})[code]; return v == null || v === '' ? dflt : /^(true|1|y)$/i.test(v); };
   const tmField = (sel) => RULE('DAY_START_TRAVEL_MODE_VISIBLITY', true) ? field('Travel mode' + (RULE('DAY_START_TRAVEL_MODE_MANDATORY', false) ? ' *' : ''), sel, 'col-6') : '';
   const meterField = () => RULE('METER_READING_DAYSTART_VISIBLITY', true) ? field('Meter start (km)', inp('meterStart', 'number', 'inputmode="decimal" step="0.1"'), 'col-6') : '';
+  const isField = (c) => { const w = (OPT.workTypes || []).find(x => x.code === c); return !!(w && w.fieldWork); };
+  const defaultWork = () => { const w = (OPT && OPT.workTypes) || []; return (w.find(x => x.fieldWork) || w[0] || {}).code || ''; };
   const wtName = (c) => { const w = (OPT.workTypes || []).find(x => x.code === c); return w ? w.name : c; };
   function paneDay() {
-    const working = ST.workType === 'WORKING', today = ST.dcrDate === todayStr();
+    const working = isField(ST.workType), today = ST.dcrDate === todayStr();
     if (!started()) {
       const when = today ? 'Today: ' : 'Date: ', dt = new Date(ST.dcrDate + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
       return `<div class="card-lite d-flex align-items-center gap-3"><div class="flex-fill"><div class="fs-5 fw-bold">Day not started</div>
@@ -363,7 +365,7 @@
     const rem = ST.remarks ? row('Remarks', ST.remarks)
       : (ST.canEdit ? `<div class="pt-2">${field('Remarks' + (RULE('DCR_Remarks', false) ? ' *' : ''), `<textarea class="form-control" rows="2" oninput="ST.remarks=this.value"></textarea>`)}</div>` : '');
     return `<div class="dcr-sec mt-0">Day start summary</div><div class="card-lite">
-      ${row('Day type', wtName(ST.workType))}${row('Started at', ST.timeIn)}${ST.workType === 'WORKING' ? row('Started from', area) + row('Travel mode', tm) + (ST.meterStart ? row('Meter start', ST.meterStart + ' km') : '') : ''}${rem}</div>`;
+      ${row('Day type', wtName(ST.workType))}${row('Started at', ST.timeIn)}${isField(ST.workType) ? row('Started from', area) + row('Travel mode', tm) + (ST.meterStart ? row('Meter start', ST.meterStart + ' km') : '') : ''}${rem}</div>`;
   }
   async function dcrDelete(id) {
     if (!confirm('Delete this DCR with all its visits and expenses? This cannot be undone.')) return;
@@ -374,7 +376,7 @@
     } catch (e) { SFA.toast(e.message, false); }
   }
   function startSheet() {
-    const working = ST.workType === 'WORKING', today = ST.dcrDate === todayStr();
+    const working = isField(ST.workType), today = ST.dcrDate === todayStr();
     const wt = `<select class="form-select" data-no-search onchange="ST.workType=this.value;startSheet()">${opts(OPT.workTypes.map(w => ({ id: w.code, name: w.name })), ST.workType)}</select>`;
     sheetOpen('Start your day', `<div class="row g-3">${field('Work type', wt)}
       ${working ? field('Starting from (area)', `<select class="form-select" data-no-search onchange="ST.startAreaId=this.value">${opts(OPT.areas, ST.startAreaId, 'Select area')}</select>`) : ''}
@@ -395,9 +397,8 @@
 
 
   // ---- "Add visit": what are you doing now? (one card per tab the table gives this user)
-  const KIND_ICON = { CHECKIN: 'person-badge', UNLISTED: 'person-plus', EXPENSE: 'wallet2', JOINT: 'people', DAYEND: 'moon' };
   function addVisitSheet() {
-    const cards = OPT.tabs.map(t => `<button class="dcr-kind" onclick="chooseKind('${esc(t.code)}')"><i class="bi bi-${esc(t.icon || KIND_ICON[t.form] || 'journal')}"></i>${esc(t.name)}
+    const cards = OPT.tabs.map(t => `<button class="dcr-kind" onclick="chooseKind('${esc(t.code)}')"><i class="bi bi-${esc(t.icon || 'journal')}"></i>${esc(t.name)}
       ${tabCount(t) ? `<small>${tabCount(t)} added</small>` : ''}</button>`).join('');
     sheetOpen('What are you doing now?', `<div class="dcr-kinds">${cards || '<div class="dcr-empty">Nothing is enabled for you</div>'}</div>`, '<button class="btn btn-light" onclick="sheetClose()">Close</button>');
   }
@@ -465,14 +466,14 @@
   }
   function addClient(id) {
     const c = OPT.clients.find(x => x.id === id), code = window.__pickTab;
-    ST.visits.push({ clientId: c.id, clientName: c.name, clientCode: c.code, clientTypeName: c.clientTypeName, worktypeCode: code, visitType: (OPT.visitTypes[0] || 'CALL'), activityType: '', areaId: c.areaId || '',
+    ST.visits.push({ clientId: c.id, clientName: c.name, clientCode: c.code, clientTypeName: c.clientTypeName, worktypeCode: code, visitType: (OPT.visitTypes[0] || ''), activityType: '', areaId: c.areaId || '',
       inTime: '', outTime: '', checkinAt: '', checkinLat: null, checkinLng: null, pobValue: '', remarks: '', refused: false, nextVisit: '', nextVisitPriority: '', nextVisitRemarks: '',
       signaturePath: '', items: [], leaflets: [], treatments: [], jointWith: [] });
     render(); editCall('v', ST.visits.length - 1);   // same sheet: its content is replaced (closing + reopening it would race)
   }
   function newUnlisted(code) {
     ST.unlisted.push({ key: 'n' + (++KEYSEQ), worktypeCode: code, clientName: '', clientTypeId: '', specialityId: '', categoryId: '', qualification: '', mobile: '', contactPerson: '', address: '', areaId: '',
-      visitType: (OPT.visitTypes[0] || 'CALL'), activityType: '', inTime: '', outTime: '', checkinAt: '', checkinLat: null, checkinLng: null, pobValue: '', remarks: '', refused: false,
+      visitType: (OPT.visitTypes[0] || ''), activityType: '', inTime: '', outTime: '', checkinAt: '', checkinLat: null, checkinLng: null, pobValue: '', remarks: '', refused: false,
       nextVisit: '', nextVisitPriority: '', nextVisitRemarks: '', signaturePath: '', items: [], leaflets: [], treatments: [], jointWith: [] });
     render(); editCall('u', ST.unlisted.length - 1, true);
   }
@@ -535,7 +536,7 @@
       h = panelHtml(o, EDIT.panel);   // one detail panel at a time, like the phone app
     } else {
       h += `<div class="alert ${o.outTime || o.refused ? 'alert-secondary' : 'alert-success'} mb-3 py-2"><i class="bi bi-geo-alt-fill"></i> Checked in at <b>${esc(o.inTime)}</b>${o.checkinLat ? ' · location saved' : ''}${o.outTime ? ` · Checked out at <b>${esc(o.outTime)}</b>` : o.refused ? '' : ' — tap <b>Submit Details</b> when you leave'}</div>`;
-      h += `<div class="dcr-sec mt-0">Visit type</div><div class="dcr-chips">` + (OPT.visitTypes.length ? OPT.visitTypes : ['CALL']).map(v => `<button type="button" class="dcr-chip ${o.visitType === v ? 'on' : ''}" onclick="EDIT.o.visitType='${esc(v)}';renderCall()">${esc(v)}</button>`).join('') + '</div>';
+      h += `<div class="dcr-sec mt-0">Visit type</div><div class="dcr-chips">` + OPT.visitTypes.map(v => `<button type="button" class="dcr-chip ${o.visitType === v ? 'on' : ''}" onclick="EDIT.o.visitType='${esc(v)}';renderCall()">${esc(v)}</button>`).join('') + '</div>';
       h += `<div class="form-check form-switch my-3"><input class="form-check-input" type="checkbox" id="refSw" ${o.refused ? 'checked' : ''} onchange="${o_('refused')}=this.checked"><label class="form-check-label" for="refSw">Client refused to meet</label></div>`;
       h += '<div class="dcr-sec">Activity details</div><div class="dcr-rows">' + detailRows(o, subs) + '</div>';
     }
@@ -549,9 +550,10 @@
       <small class="text-muted">${esc([o.clientCode, o.clientTypeName, (OPT.areas.find(a => String(a.id) === String(o.areaId)) || {}).name].filter(Boolean).join(' · '))}</small></div>
       ${o.inTime ? `<span class="badge bg-success">In ${esc(o.inTime)}</span>` : ''}</div>`;
   }
-  const typeOf = (...codes) => OPT.items.filter(i => codes.includes(i.type));
+  const typeOf = (panel) => OPT.items.filter(i => i.panel === panel);
+  const panelOfRow = (r) => ((OPT.items.find(x => String(x.id) === String(r.itemId)) || {}).panel);
   const rowOf = (id) => EDIT.o.items.find(i => String(i.itemId) === String(id));
-  const cnt = (f, ...codes) => EDIT.o.items.filter(i => codes.includes(i.itemType) && Number(i[f] || 0) > 0).length;
+  const cnt = (f, panel) => EDIT.o.items.filter(i => panelOfRow(i) === panel && Number(i[f] || 0) > 0).length;
   function detailRows(o, subs) {
     const row = (key, icon, title, summary) => `<button type="button" class="dcr-row" onclick="openPanel('${key}')"><i class="bi bi-${icon}"></i><span class="flex-fill text-start"><b>${title}</b>${summary ? `<small class="d-block text-muted">${esc(summary)}</small>` : ''}</span><i class="bi bi-chevron-right text-muted"></i></button>`;
     let h = '';
@@ -596,10 +598,10 @@
     const o_ = (x) => `EDIT.o.${x}`;
     if (k === 'joint') return panelShell('Joint Work', o.jointWith.length, `<button class="btn ${o.jointWith.length ? 'btn-outline-primary' : 'btn-primary'} w-100 mb-3" onclick="EDIT.o.jointWith=[];renderCall()">Click For Self Work</button>
       <div class="dcr-chips">${OPT.joint.map(j => `<button type="button" class="dcr-chip ${o.jointWith.includes(j.id) ? 'on' : ''}" onclick="toggleIn(EDIT.o.jointWith,'${esc(j.id)}');renderCall()">${esc(j.name)}</button>`).join('')}</div>`);
-    if (k === 'detail') return panelShell('Item Detailed List', o.items.filter(i => i.detailed).length, itemList(typeOf('PRODUCT'), 'detailed', true));
+    if (k === 'detail') return panelShell('Item Detailed List', o.items.filter(i => i.detailed).length, itemList(typeOf('POB'), 'detailed', true));
     if (k === 'sample') return panelShell('Sample', cnt('qty', 'SAMPLE'), itemList(typeOf('SAMPLE'), 'qty'));
     if (k === 'input') return panelShell('Input', cnt('qty', 'INPUT'), itemList(typeOf('INPUT'), 'qty'));
-    if (k === 'pob') return panelShell('POB / Order', o.items.filter(i => Number(i.pobQty) > 0).length, itemList(typeOf('PRODUCT'), 'pobQty') + `<div class="d-flex justify-content-between pt-3"><span class="text-muted">POB total</span><b>₹${money(callPob(o))}</b></div>`);
+    if (k === 'pob') return panelShell('POB / Order', o.items.filter(i => Number(i.pobQty) > 0).length, itemList(typeOf('POB'), 'pobQty') + `<div class="d-flex justify-content-between pt-3"><span class="text-muted">POB total</span><b>₹${money(callPob(o))}</b></div>`);
     if (k === 'pobv') return panelShell('POB value', null, field('POB value (₹)', `<input class="form-control" type="number" inputmode="decimal" value="${esc(o.pobValue)}" oninput="${o_('pobValue')}=this.value" />`));
     if (k === 'leaflets') return panelShell('Leaflets', o.leaflets.length, (o.leaflets.map((l, i) => `<div class="dcr-item"><div class="row g-2 align-items-end">
         ${field('Leaflet', `<select class="form-select" data-no-search onchange="EDIT.o.leaflets[${i}].itemId=this.value">${opts(OPT.items, l.itemId, 'Select')}</select>`, 'col-8')}
@@ -612,7 +614,7 @@
     return panelShell('Activity / Remarks', null, `<div class="dcr-chips mb-3">${OPT.activityTypes.map(a => `<button type="button" class="dcr-chip ${o.activityType === a ? 'on' : ''}" onclick="EDIT.o.activityType=EDIT.o.activityType==='${esc(a)}'?'':'${esc(a)}';renderCall()">${esc(a)}</button>`).join('')}</div>
       <div class="row g-2">${field('Remarks', `<textarea class="form-control" rows="3" oninput="${o_('remarks')}=this.value">${esc(o.remarks)}</textarea>`)}
       ${field('Next visit', `<input class="form-control" type="date" value="${esc(o.nextVisit)}" oninput="${o_('nextVisit')}=this.value" />`, 'col-6')}
-      ${field('Priority', `<select class="form-select" data-no-search onchange="${o_('nextVisitPriority')}=this.value">${opts(['LOW', 'MEDIUM', 'HIGH'], o.nextVisitPriority)}</select>`, 'col-6')}
+      ${field('Priority', `<select class="form-select" data-no-search onchange="${o_('nextVisitPriority')}=this.value">${opts(OPT.priorities, o.nextVisitPriority)}</select>`, 'col-6')}
       ${field('Next visit remarks', `<input class="form-control" value="${esc(o.nextVisitRemarks)}" oninput="${o_('nextVisitRemarks')}=this.value" />`)}</div>`);
   }
   function itemRow(it, i) {
@@ -756,7 +758,7 @@
   function paneDayEnd() {
     return `<div class="card-lite"><div class="row g-3">
       ${field('Day ended at (area)', `<select class="form-select" data-no-search onchange="ST.dayEndAreaId=this.value">${opts(OPT.areas, ST.dayEndAreaId, 'Select area')}</select>`)}
-      ${field('Day end time', `<div class="input-group"><input class="form-control" type="datetime-local" value="${esc(ST.dayEndAt)}" oninput="ST.dayEndAt=this.value" /><button class="btn btn-outline-secondary" onclick="ST.dayEndAt=nowDt();render()">Now</button></div>`)}
+      ${field('Day end time', `<div class="form-control bg-body-tertiary text-muted">${ST.dayEndAt ? esc(ST.dayEndAt.replace('T', ' ')) : 'Captured automatically when you submit'}</div>`)}
       ${field('Meter end (km)', inp('meterEnd', 'number', 'inputmode="decimal" step="0.1"'), 'col-6')}
       ${field('Day end remarks', `<input class="form-control" maxlength="200" value="${esc(ST.dayEndRemarks)}" oninput="ST.dayEndRemarks=this.value" />`, 'col-6')}
       ${field('Night stay area', `<select class="form-select" data-no-search onchange="ST.stayAreaId=this.value">${opts(OPT.areas, ST.stayAreaId, 'Not staying')}</select>`, 'col-6')}
@@ -767,8 +769,8 @@
   function paneReview() {
     const calls = ST.visits.length + ST.unlisted.length, pob = ST.visits.concat(ST.unlisted).reduce((s, c) => s + callPob(c), 0), exp = ST.expenses.reduce((s, e) => s + Number(e.amount || 0), 0);
     const warn = [];
-    if (ST.workType === 'WORKING' && !calls) warn.push('No client call added yet');
-    if (ST.workType === 'WORKING' && !ST.startAreaId) warn.push('Day start area not selected');
+    if (isField(ST.workType) && !calls) warn.push('No client call added yet');
+    if (isField(ST.workType) && !ST.startAreaId) warn.push('Day start area not selected');
     const open = ST.visits.concat(ST.unlisted).filter(isOpen);
     if (open.length) warn.push('Check out of ' + open[0].clientName + ' before submitting');
     return `<div class="card-lite"><div class="row text-center g-2">
@@ -802,7 +804,7 @@
   }
   // The same rules the server enforces (app_validations), checked first so the user sees ALL problems at once.
   function submitIssues() {
-    const out = [], calls = ST.visits.concat(ST.unlisted).filter(c => c.inTime), working = ST.workType === 'WORKING';
+    const out = [], calls = ST.visits.concat(ST.unlisted).filter(c => c.inTime), working = isField(ST.workType);
     if (working && !calls.length) out.push('Add at least one client call');
     if (RULE('CHECKOUT', true)) calls.filter(c => !c.outTime && !c.refused).forEach(c => out.push('Check out of ' + (c.clientName || 'the client') + ' first'));
     if (RULE('DCR_Remarks', false) && !String(ST.remarks || '').trim()) out.push('Remarks are required');

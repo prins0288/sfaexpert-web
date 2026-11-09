@@ -67,6 +67,7 @@
           <select class="form-select" id="w_rtype" data-no-search onchange="wtTypeChanged()">
             <option value="wd">Day type (Start Day dropdown)</option><option value="attn">Attendance type (Start Day dropdown)</option>
             <option value="av">Client check-in tab</option><option value="tab">Other tab</option></select></div>
+        <div class="col-md-6 d-flex align-items-end" id="w_fieldWrap"><div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" id="w_field"><label class="form-check-label" for="w_field">Field day (client calls, start area)</label></div></div>
         <div class="col-md-6" id="w_formWrap"><label class="form-label">Opens</label>
           <select class="form-select" id="w_form" data-no-search onchange="wtTypeChanged()">
             <option value="CHECKIN">Check-in (listed clients)</option><option value="UNLISTED">Unlisted check-in</option><option value="EXPENSE">Daily expense</option><option value="JOINT">Joint working</option><option value="DAYEND">Day end</option></select></div>
@@ -137,6 +138,7 @@
     const t = document.getElementById('w_rtype').value, day = t === 'wd' || t === 'attn';
     if (t === 'av') document.getElementById('w_form').value = 'CHECKIN';
     document.getElementById('w_formWrap').style.display = day ? 'none' : '';
+    document.getElementById('w_fieldWrap').style.display = day ? '' : 'none';
     document.getElementById('w_form').disabled = t === 'av';
     document.getElementById('w_ctWrap').style.display = !day && document.getElementById('w_form').value === 'CHECKIN' ? '' : 'none';
     document.getElementById('w_subWrap').style.display = !day && ['CHECKIN', 'UNLISTED'].includes(document.getElementById('w_form').value) ? '' : 'none';
@@ -146,6 +148,7 @@
     document.getElementById('w_name').value = r.displayName || ''; document.getElementById('w_rtype').value = r.rowType || 'av';
     document.getElementById('w_form').value = ['WORK', 'ATTN'].includes(r.formOpen) ? 'CHECKIN' : (r.formOpen || 'CHECKIN');
     document.getElementById('w_ct').value = r.clientTypeId || '';
+    document.getElementById('w_field').checked = r.formOpen === 'WORK';
     document.querySelectorAll('.w-sub').forEach(c => c.checked = (r.subForms || '').split(',').includes(c.value));
     document.getElementById('w_sort').value = r.sortOrder == null ? 100 : r.sortOrder; document.getElementById('w_icon').value = r.icon || '';
     document.getElementById('w_on').checked = r.enabled !== false && r.enabled !== 0;
@@ -155,7 +158,7 @@
   function wtEdit(id) { setForm(ROWS.find(r => r.id === id)); document.getElementById('wtTitle').textContent = 'Edit'; MODAL.show(); }
   async function post(r, enabled) {
     await Api.post(EP.worktypes, { empId: scope() || null, worktypeCode: r.worktypeCode, displayName: r.displayName, rowType: r.rowType, formOpen: r.formOpen,
-      clientTypeId: r.clientTypeId, subForms: r.subForms ? r.subForms.split(',') : [], sortOrder: r.sortOrder, icon: r.icon, enabled });
+      clientTypeId: r.clientTypeId, subForms: r.subForms ? r.subForms.split(',') : [], sortOrder: r.sortOrder, icon: r.icon, fieldWork: r.formOpen === 'WORK', enabled });
   }
   async function wtToggle(id) {
     const r = ROWS.find(x => x.id === id);
@@ -172,7 +175,7 @@
         empId: scope() || null, worktypeCode: document.getElementById('w_code').value, displayName: document.getElementById('w_name').value,
         rowType: document.getElementById('w_rtype').value, formOpen: document.getElementById('w_form').value, clientTypeId: document.getElementById('w_ct').value || null,
         subForms: [...document.querySelectorAll('.w-sub:checked')].map(c => c.value), sortOrder: document.getElementById('w_sort').value,
-        icon: document.getElementById('w_icon').value, enabled: document.getElementById('w_on').checked });
+        icon: document.getElementById('w_icon').value, fieldWork: document.getElementById('w_field').checked, enabled: document.getElementById('w_on').checked });
       MODAL.hide(); await reload(); SFA.toast('Saved');
     } catch (e) { SFA.toast(e.message, false); }
   }

@@ -285,7 +285,9 @@ public class AreaService {
 
     private void apply(Area a, AreaDto f) {
         String code = Strings.isBlank(f.getAreaCode()) ? null : f.getAreaCode().trim();
+        String place = Strings.isBlank(f.getGooglePlaceName()) ? null : f.getGooglePlaceName().trim();
         String name = Strings.isBlank(f.getAreaName()) ? null : f.getAreaName().trim();
+        if (name == null && place != null) name = place.split(",")[0].trim();   // area name = first part of the Google place name
         if (code == null) throw new IllegalStateException("Area code is required");
         if (code.length() > 40) throw new IllegalStateException("Area code can be at most 40 characters");
         if (name == null) throw new IllegalStateException("Area name is required");
@@ -298,6 +300,13 @@ public class AreaService {
         a.setStateOid(f.getStateOid());
         a.setHqOid(f.getHqOid());
         a.setPincode(Strings.isBlank(f.getPincode()) ? null : f.getPincode().trim());
+        if (place != null && place.length() > 300) throw new IllegalStateException("Place name can be at most 300 characters");
+        if (f.getLatitude() != null && (f.getLatitude().abs().compareTo(new java.math.BigDecimal(90)) > 0)) throw new IllegalStateException("Latitude must be between -90 and 90");
+        if (f.getLongitude() != null && (f.getLongitude().abs().compareTo(new java.math.BigDecimal(180)) > 0)) throw new IllegalStateException("Longitude must be between -180 and 180");
+        a.setGooglePlaceName(place);
+        a.setGooglePlaceId(Strings.isBlank(f.getGooglePlaceId()) ? null : f.getGooglePlaceId().trim());
+        a.setLatitude(f.getLatitude());
+        a.setLongitude(f.getLongitude());
         a.setAreaType(Strings.isBlank(f.getAreaType()) ? null : f.getAreaType().trim());
         a.setDistanceKm(f.getDistanceKm());
     }

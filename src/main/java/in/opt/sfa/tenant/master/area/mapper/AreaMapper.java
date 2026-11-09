@@ -18,6 +18,10 @@ public class AreaMapper {
         d.setHqOid(e.getHqOid());
         d.setEmpId(e.getEmpId());
         d.setPincode(e.getPincode());
+        d.setGooglePlaceName(e.getGooglePlaceName());
+        d.setGooglePlaceId(e.getGooglePlaceId());
+        d.setLatitude(e.getLatitude());
+        d.setLongitude(e.getLongitude());
         d.setAreaType(e.getAreaType());
         d.setDistanceKm(e.getDistanceKm());
         d.setStatus(e.getStatus());

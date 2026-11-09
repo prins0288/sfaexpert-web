@@ -148,6 +148,7 @@
         saveMultiple: "/api/master/area/save-multiple",
         get: (oid) => `/api/master/area/${oid}`,
         status: (oid) => `/api/master/area/${oid}/status`,
+        placesConfig: "/api/master/area/places-config",               // Google Places key of this company (company_details.google_api_key)
         options: "/api/master/area/options",                           // pick employee (admin) + flow
         deleteRequest: (oid) => `/api/master/area/${oid}/delete-request`, // body { reason }
         approve: (oid) => `/api/master/area/${oid}/approve`,              // the step it waits for

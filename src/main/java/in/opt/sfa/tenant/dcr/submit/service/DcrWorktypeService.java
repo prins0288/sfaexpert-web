@@ -77,6 +77,11 @@ public class DcrWorktypeService {
         return out;
     }
 
+    /** True when the day type is a field day (client calls, start area ...) - the row's form_open = WORK. */
+    public boolean isFieldWork(String empId, String code) {
+        return dayTypes(empId).stream().anyMatch(d -> d.get("code").equals(code) && Boolean.TRUE.equals(d.get("fieldWork")));
+    }
+
     /** True when {@code code} is a day type the user may start a day with. */
     public boolean isDayType(String empId, String code) {
         return dayTypes(empId).stream().anyMatch(d -> d.get("code").equals(code));
@@ -131,7 +136,7 @@ public class DcrWorktypeService {
         String rowType = str(f.get("rowType"));
         if (rowType == null || !ROW_TYPES.contains(rowType)) throw new IllegalStateException("Type must be one of " + ROW_TYPES);
         boolean day = "wd".equals(rowType) || "attn".equals(rowType);
-        String form = day ? ("WORKING".equals(code) ? "WORK" : "ATTN") : str(f.get("formOpen"));
+        String form = day ? (Boolean.TRUE.equals(f.get("fieldWork")) || "true".equals(String.valueOf(f.get("fieldWork"))) ? "WORK" : "ATTN") : str(f.get("formOpen"));
         if (form == null || (!day && !FORMS.contains(form))) throw new IllegalStateException("Form must be one of " + FORMS);
         if ("av".equals(rowType) && !"CHECKIN".equals(form)) throw new IllegalStateException("A check-in tab opens the Check-in form");
         Long ctype = day || str(f.get("clientTypeId")) == null ? null : Long.valueOf(str(f.get("clientTypeId")));

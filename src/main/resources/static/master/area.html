@@ -73,6 +73,14 @@
       <div class="modal-body"><div class="row g-3">
         <input type="hidden" id="a_oid" />
         <div class="col-12"><div class="alert alert-warning py-2 small d-none mb-0" id="a_statusNote"></div></div>
+        <div class="col-12" id="a_gWrap"><label class="form-label"><i class="bi bi-geo-alt"></i> Search place (Google)</label>
+          <div class="position-relative"><input class="form-control" id="a_gSearch" autocomplete="off" placeholder="Type any place name…" oninput="gSuggest()" />
+            <div class="list-group position-absolute w-100 shadow d-none" id="a_gList" style="z-index:1056;max-height:16rem;overflow:auto"></div></div>
+          <div class="form-text" id="a_gHint"></div></div>
+        <div class="col-md-8"><label class="form-label">Full place name</label><input class="form-control" id="a_googlePlaceName" maxlength="300" readonly placeholder="filled when you pick a place" /></div>
+        <div class="col-md-2"><label class="form-label">Latitude</label><input class="form-control" id="a_latitude" type="number" step="any" /></div>
+        <div class="col-md-2"><label class="form-label">Longitude</label><input class="form-control" id="a_longitude" type="number" step="any" /></div>
+        <input type="hidden" id="a_googlePlaceId" />
         <div class="col-md-4"><label class="form-label">Area Code <span class="required-star">*</span></label>
           <input class="form-control" id="a_areaCode" required maxlength="40" /></div>
         <div class="col-md-8"><label class="form-label">Area Name <span class="required-star">*</span></label>
@@ -190,6 +198,7 @@
       SFA.fillSelect(document.getElementById('a_hqOid'), LK.hqs);
       SFA.fillSelect(document.getElementById('a_empId'), OPT.employees);
       SFA.fillSelect(document.getElementById('am_empId'), OPT.employees);
+      gInit();
       document.querySelectorAll('.a-admin-only').forEach(el => el.classList.toggle('d-none', !OPT.pickEmployee));
       document.querySelectorAll('.a-self-only').forEach(el => el.classList.toggle('d-none', OPT.pickEmployee));
       const flow = { AUTO: 'approved at once', MANAGER: 'approved by the employee\'s manager', ADMIN: 'approved by an admin',
@@ -245,6 +254,57 @@
     DT = sfaDataTable('#areaTable');
   }
 
+
+  // ---- Google place auto-complete (Places API (New), key from sfa_central.company_details.google_api_key) ----
+  let GKEY = null, GTOK = null, GTIMER = null;
+  async function gInit() {
+    try {
+      const c = await Api.get(EP.placesConfig, { noLoader: true });
+      GKEY = c && c.enabled ? c.apiKey : null;
+      GTOK = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
+    } catch (e) { GKEY = null; }
+    document.getElementById('a_gWrap').classList.toggle('d-none', !GKEY);
+  }
+  function gSuggest() {
+    clearTimeout(GTIMER);
+    const q = document.getElementById('a_gSearch').value.trim(), box = document.getElementById('a_gList');
+    if (!GKEY || q.length < 2) { box.classList.add('d-none'); return; }
+    GTIMER = setTimeout(async () => {
+      try {
+        const r = await fetch('https://places.googleapis.com/v1/places:autocomplete', { method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': GKEY }, body: JSON.stringify({ input: q, sessionToken: GTOK }) });
+        const j = await r.json();
+        if (!r.ok) throw new Error((j.error && j.error.message) || 'Google request failed');
+        const list = (j.suggestions || []).filter(x => x.placePrediction);
+        box.innerHTML = list.map(x => `<button type="button" class="list-group-item list-group-item-action" data-id="${esc(x.placePrediction.placeId)}" data-full="${esc(x.placePrediction.text.text)}">
+          <b>${esc((x.placePrediction.text.text || '').split(',')[0])}</b><small class="text-muted d-block">${esc((x.placePrediction.text.text || '').split(',').slice(1).join(',').trim())}</small></button>`).join('')
+          || '<div class="list-group-item text-muted small">No place found</div>';
+        box.classList.remove('d-none');
+        box.querySelectorAll('button').forEach(b => b.onclick = () => gPick(b.dataset.id, b.dataset.full));
+        document.getElementById('a_gHint').textContent = '';
+      } catch (e) { box.classList.add('d-none'); document.getElementById('a_gHint').textContent = 'Google: ' + e.message; }
+    }, 300);
+  }
+  async function gPick(id, full) {
+    document.getElementById('a_gList').classList.add('d-none');
+    const set = (k, v) => { document.getElementById(k).value = v == null ? '' : v; };
+    set('a_googlePlaceName', full); set('a_googlePlaceId', id);
+    set('a_areaName', (full || '').split(',')[0].trim());                    // first comma part = area name
+    set('a_gSearch', full);
+    try {
+      const r = await fetch('https://places.googleapis.com/v1/places/' + encodeURIComponent(id) + '?sessionToken=' + encodeURIComponent(GTOK),
+        { headers: { 'X-Goog-Api-Key': GKEY, 'X-Goog-FieldMask': 'location,addressComponents' } });
+      const j = await r.json();
+      if (!r.ok) throw new Error((j.error && j.error.message) || 'Google request failed');
+      if (j.location) { set('a_latitude', (+j.location.latitude).toFixed(7)); set('a_longitude', (+j.location.longitude).toFixed(7)); }
+      const comp = (t) => ((j.addressComponents || []).find(c => (c.types || []).includes(t)) || {}).longText;
+      if (!document.getElementById('a_city').value && comp('locality')) set('a_city', comp('locality'));
+      if (!document.getElementById('a_pincode').value && comp('postal_code')) set('a_pincode', comp('postal_code'));
+      GTOK = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
+    } catch (e) { document.getElementById('a_gHint').textContent = 'Picked, but the location could not be fetched: ' + e.message; }
+  }
+  document.addEventListener('click', (e) => { if (!e.target.closest('#a_gWrap')) { const b = document.getElementById('a_gList'); if (b) b.classList.add('d-none'); } });
+
   function fillForm(r) {
     document.getElementById('a_oid').value = r.oid || '';
     document.getElementById('a_areaCode').value = r.areaCode || '';
@@ -255,6 +315,11 @@
     document.getElementById('a_stateOid').value = r.stateOid || '';
     document.getElementById('a_hqOid').value = r.hqOid || '';
     document.getElementById('a_pincode').value = r.pincode || '';
+    document.getElementById('a_googlePlaceName').value = r.googlePlaceName || '';
+    document.getElementById('a_googlePlaceId').value = r.googlePlaceId || '';
+    document.getElementById('a_latitude').value = r.latitude == null ? '' : r.latitude;
+    document.getElementById('a_longitude').value = r.longitude == null ? '' : r.longitude;
+    document.getElementById('a_gSearch').value = ''; document.getElementById('a_gList').classList.add('d-none');
     document.getElementById('a_areaType').value = r.areaType || '';
     document.getElementById('a_distanceKm').value = r.distanceKm == null ? '' : r.distanceKm;
     ['a_empId', 'a_stateOid', 'a_hqOid'].forEach(id => { const el = document.getElementById(id); if (window.$ && $(el).data('select2')) $(el).trigger('change'); });
@@ -283,6 +348,7 @@
     const body = {
       oid: v('a_oid'), areaCode: v('a_areaCode'), areaName: v('a_areaName'), city: v('a_city'),
       stateOid: v('a_stateOid'), hqOid: v('a_hqOid'), pincode: v('a_pincode'),
+      googlePlaceName: v('a_googlePlaceName'), googlePlaceId: v('a_googlePlaceId'), latitude: v('a_latitude'), longitude: v('a_longitude'),
       areaType: v('a_areaType'), distanceKm: v('a_distanceKm'), empId: OPT.pickEmployee ? v('a_empId') : null
     };
     try {

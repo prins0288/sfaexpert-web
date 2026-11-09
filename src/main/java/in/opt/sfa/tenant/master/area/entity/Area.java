@@ -43,6 +43,19 @@ public class Area implements Approvable {
 
     private String pincode;
 
+    /** Full place name picked from Google ("Adajan, Surat, Gujarat, India"); area_name keeps its first comma part. */
+    @Column(name = "google_place_name", length = 300)
+    private String googlePlaceName;
+
+    @Column(name = "google_place_id", length = 200)
+    private String googlePlaceId;
+
+    @Column(precision = 10, scale = 7)
+    private BigDecimal latitude;
+
+    @Column(precision = 10, scale = 7)
+    private BigDecimal longitude;
+
     @Column(name = "area_type")
     private String areaType;
 

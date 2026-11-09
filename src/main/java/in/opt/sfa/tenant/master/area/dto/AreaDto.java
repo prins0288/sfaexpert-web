@@ -18,6 +18,10 @@ public class AreaDto {
     /** Whose area (emp_detail.emp_id). Only an admin chooses it; others always get their own. */
     private String empId;
     private String pincode;
+    private String googlePlaceName;
+    private String googlePlaceId;
+    private BigDecimal latitude;
+    private BigDecimal longitude;
     private String areaType;
     private BigDecimal distanceKm;
     private String status;

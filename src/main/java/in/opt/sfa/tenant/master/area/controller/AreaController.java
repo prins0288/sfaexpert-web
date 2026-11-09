@@ -21,9 +21,11 @@ import java.util.Map;
 public class AreaController {
 
     private final AreaService service;
+    private final in.opt.sfa.common.repository.CompanyDetailsRepository companies;
 
-    public AreaController(AreaService service) {
+    public AreaController(AreaService service, in.opt.sfa.common.repository.CompanyDetailsRepository companies) {
         this.service = service;
+        this.companies = companies;
     }
 
     @GetMapping
@@ -53,6 +55,17 @@ public class AreaController {
     @PostMapping("/{oid}/status")
     public AreaDto status(@PathVariable Long oid, @RequestParam String status) {
         return service.updateStatus(oid, status);
+    }
+
+    @GetMapping("/places-config")
+    @Operation(summary = "Google Places key of this company (sfa_central.company_details.google_api_key) for the area name auto-complete")
+    public Map<String, Object> placesConfig() {
+        String key = companies.findById(in.opt.sfa.tenant.context.TenantContext.getCompanyCode())
+                .map(c -> c.getGoogleApiKey()).filter(k -> k != null && !k.isBlank()).orElse(null);
+        Map<String, Object> m = new java.util.LinkedHashMap<>();
+        m.put("enabled", key != null);
+        m.put("apiKey", key);
+        return m;
     }
 
     @GetMapping("/options")

@@ -1,5 +1,6 @@
 package in.opt.sfa.common.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -44,6 +45,11 @@ public class CompanyDetails {
 
     @Column(columnDefinition = "MEDIUMTEXT")
     private String logo;
+
+    /** Google Maps / Places API key of this company (plain text). Never serialised with the profile - only the Area form reads it. */
+    @JsonIgnore
+    @Column(name = "google_api_key", length = 200)
+    private String googleApiKey;
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
