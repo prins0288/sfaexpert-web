@@ -31,10 +31,13 @@ INSERT IGNORE INTO app_validations (emp_id, config_code, display_name, module_na
  (NULL,'CHECKOUT','Check-out is compulsory','DCR','CHECKIN','APP','VALIDATION','BOOLEAN','TRUE','TRUE','TRUE = every call must be checked out before the day is submitted.',21),
  (NULL,'DCR_Remarks','Day remarks are mandatory','DCR','SUBMIT','APP','VALIDATION','BOOLEAN','FALSE','FALSE','TRUE = the day cannot be submitted without remarks.',30),
  (NULL,'UNLISTED_CLIENT_MAXIMUM_VALIDATION','Max unlisted check-ins per day','DCR','UNLISTED','APP','LIMIT','INTEGER','0','0','0 = no limit.',40),
- (NULL,'UNLISTED_VISIT_CATEGORY','Unlisted: Category is mandatory','DCR','UNLISTED','APP','VALIDATION','BOOLEAN','TRUE','TRUE','TRUE = mandatory, FALSE = optional (the field is always shown)',41),
- (NULL,'UNLISTED_VISIT_SPECIALITY','Unlisted: Speciality is mandatory','DCR','UNLISTED','APP','VALIDATION','BOOLEAN','TRUE','TRUE','TRUE = mandatory, FALSE = optional (the field is always shown)',42),
- (NULL,'UNLISTED_VISIT_MOBILE','Unlisted: Mobile is mandatory','DCR','UNLISTED','APP','VALIDATION','BOOLEAN','TRUE','TRUE','TRUE = mandatory, FALSE = optional (the field is always shown)',43),
- (NULL,'UNLISTED_VISIT_EMAIL','Unlisted: E-mail is mandatory','DCR','UNLISTED','APP','VALIDATION','BOOLEAN','FALSE','FALSE','TRUE = mandatory, FALSE = optional (the field is always shown)',44);
+ (NULL,'UNLISTED_VISIT_CATEGORY_VISIBLITY','Unlisted: show category','DCR','UNLISTED','APP','VISIBILITY','BOOLEAN','TRUE','TRUE','FALSE hides the field; the mandatory rule works only while this is TRUE.',45),
+ (NULL,'UNLISTED_VISIT_SPECIALITY_VISIBLITY','Unlisted: show speciality','DCR','UNLISTED','APP','VISIBILITY','BOOLEAN','TRUE','TRUE','FALSE hides the field; the mandatory rule works only while this is TRUE.',46),
+ (NULL,'UNLISTED_VISIT_MOBILE_VISIBLITY','Unlisted: show mobile','DCR','UNLISTED','APP','VISIBILITY','BOOLEAN','TRUE','TRUE','FALSE hides the field; the mandatory rule works only while this is TRUE.',47),
+ (NULL,'UNLISTED_VISIT_CATEGORY','Unlisted: Category is mandatory','DCR','UNLISTED','APP','VALIDATION','BOOLEAN','TRUE','TRUE','TRUE = mandatory, FALSE = optional (works only while its _VISIBLITY rule is TRUE)',41),
+ (NULL,'UNLISTED_VISIT_SPECIALITY','Unlisted: Speciality is mandatory','DCR','UNLISTED','APP','VALIDATION','BOOLEAN','TRUE','TRUE','TRUE = mandatory, FALSE = optional (works only while its _VISIBLITY rule is TRUE)',42),
+ (NULL,'UNLISTED_VISIT_MOBILE','Unlisted: Mobile is mandatory','DCR','UNLISTED','APP','VALIDATION','BOOLEAN','TRUE','TRUE','TRUE = mandatory, FALSE = optional (works only while its _VISIBLITY rule is TRUE)',43),
+ (NULL,'UNLISTED_VISIT_EMAIL','Unlisted: E-mail is mandatory','DCR','UNLISTED','APP','VALIDATION','BOOLEAN','FALSE','FALSE','TRUE = mandatory, FALSE = optional (works only while its _VISIBLITY rule is TRUE)',44);
 
 -- every employee gets their own copy of the master DCR rules
 INSERT IGNORE INTO app_validations (emp_id, config_code, display_name, module_name, screen_name, platform, config_type, data_type, config_value, default_value, description, display_order)
@@ -63,10 +66,10 @@ INSERT IGNORE INTO app_validations (emp_id, config_code, display_name, module_na
  (NULL,'CHECKOUT','Check-out is compulsory','DCR','CHECKIN','APP','VALIDATION','BOOLEAN','TRUE','TRUE','TRUE = every call must be checked out before the day is submitted.',21),
  (NULL,'DCR_Remarks','Day remarks are mandatory','DCR','SUBMIT','APP','VALIDATION','BOOLEAN','FALSE','FALSE','TRUE = the day cannot be submitted without remarks.',30),
  (NULL,'UNLISTED_CLIENT_MAXIMUM_VALIDATION','Max unlisted check-ins per day','DCR','UNLISTED','APP','LIMIT','INTEGER','0','0','0 = no limit.',40),
- (NULL,'UNLISTED_VISIT_CATEGORY','Unlisted: Category is mandatory','DCR','UNLISTED','APP','VALIDATION','BOOLEAN','TRUE','TRUE','TRUE = mandatory, FALSE = optional (the field is always shown)',41),
- (NULL,'UNLISTED_VISIT_SPECIALITY','Unlisted: Speciality is mandatory','DCR','UNLISTED','APP','VALIDATION','BOOLEAN','TRUE','TRUE','TRUE = mandatory, FALSE = optional (the field is always shown)',42),
- (NULL,'UNLISTED_VISIT_MOBILE','Unlisted: Mobile is mandatory','DCR','UNLISTED','APP','VALIDATION','BOOLEAN','TRUE','TRUE','TRUE = mandatory, FALSE = optional (the field is always shown)',43),
- (NULL,'UNLISTED_VISIT_EMAIL','Unlisted: E-mail is mandatory','DCR','UNLISTED','APP','VALIDATION','BOOLEAN','FALSE','FALSE','TRUE = mandatory, FALSE = optional (the field is always shown)',44);
+ (NULL,'UNLISTED_VISIT_CATEGORY','Unlisted: Category is mandatory','DCR','UNLISTED','APP','VALIDATION','BOOLEAN','TRUE','TRUE','TRUE = mandatory, FALSE = optional (works only while its _VISIBLITY rule is TRUE)',41),
+ (NULL,'UNLISTED_VISIT_SPECIALITY','Unlisted: Speciality is mandatory','DCR','UNLISTED','APP','VALIDATION','BOOLEAN','TRUE','TRUE','TRUE = mandatory, FALSE = optional (works only while its _VISIBLITY rule is TRUE)',42),
+ (NULL,'UNLISTED_VISIT_MOBILE','Unlisted: Mobile is mandatory','DCR','UNLISTED','APP','VALIDATION','BOOLEAN','TRUE','TRUE','TRUE = mandatory, FALSE = optional (works only while its _VISIBLITY rule is TRUE)',43),
+ (NULL,'UNLISTED_VISIT_EMAIL','Unlisted: E-mail is mandatory','DCR','UNLISTED','APP','VALIDATION','BOOLEAN','FALSE','FALSE','TRUE = mandatory, FALSE = optional (works only while its _VISIBLITY rule is TRUE)',44);
 
 -- every employee gets their own copy of the master DCR rules
 INSERT IGNORE INTO app_validations (emp_id, config_code, display_name, module_name, screen_name, platform, config_type, data_type, config_value, default_value, description, display_order)
@@ -95,10 +98,10 @@ INSERT IGNORE INTO app_validations (emp_id, config_code, display_name, module_na
  (NULL,'CHECKOUT','Check-out is compulsory','DCR','CHECKIN','APP','VALIDATION','BOOLEAN','TRUE','TRUE','TRUE = every call must be checked out before the day is submitted.',21),
  (NULL,'DCR_Remarks','Day remarks are mandatory','DCR','SUBMIT','APP','VALIDATION','BOOLEAN','FALSE','FALSE','TRUE = the day cannot be submitted without remarks.',30),
  (NULL,'UNLISTED_CLIENT_MAXIMUM_VALIDATION','Max unlisted check-ins per day','DCR','UNLISTED','APP','LIMIT','INTEGER','0','0','0 = no limit.',40),
- (NULL,'UNLISTED_VISIT_CATEGORY','Unlisted: Category is mandatory','DCR','UNLISTED','APP','VALIDATION','BOOLEAN','TRUE','TRUE','TRUE = mandatory, FALSE = optional (the field is always shown)',41),
- (NULL,'UNLISTED_VISIT_SPECIALITY','Unlisted: Speciality is mandatory','DCR','UNLISTED','APP','VALIDATION','BOOLEAN','TRUE','TRUE','TRUE = mandatory, FALSE = optional (the field is always shown)',42),
- (NULL,'UNLISTED_VISIT_MOBILE','Unlisted: Mobile is mandatory','DCR','UNLISTED','APP','VALIDATION','BOOLEAN','TRUE','TRUE','TRUE = mandatory, FALSE = optional (the field is always shown)',43),
- (NULL,'UNLISTED_VISIT_EMAIL','Unlisted: E-mail is mandatory','DCR','UNLISTED','APP','VALIDATION','BOOLEAN','FALSE','FALSE','TRUE = mandatory, FALSE = optional (the field is always shown)',44);
+ (NULL,'UNLISTED_VISIT_CATEGORY','Unlisted: Category is mandatory','DCR','UNLISTED','APP','VALIDATION','BOOLEAN','TRUE','TRUE','TRUE = mandatory, FALSE = optional (works only while its _VISIBLITY rule is TRUE)',41),
+ (NULL,'UNLISTED_VISIT_SPECIALITY','Unlisted: Speciality is mandatory','DCR','UNLISTED','APP','VALIDATION','BOOLEAN','TRUE','TRUE','TRUE = mandatory, FALSE = optional (works only while its _VISIBLITY rule is TRUE)',42),
+ (NULL,'UNLISTED_VISIT_MOBILE','Unlisted: Mobile is mandatory','DCR','UNLISTED','APP','VALIDATION','BOOLEAN','TRUE','TRUE','TRUE = mandatory, FALSE = optional (works only while its _VISIBLITY rule is TRUE)',43),
+ (NULL,'UNLISTED_VISIT_EMAIL','Unlisted: E-mail is mandatory','DCR','UNLISTED','APP','VALIDATION','BOOLEAN','FALSE','FALSE','TRUE = mandatory, FALSE = optional (works only while its _VISIBLITY rule is TRUE)',44);
 
 -- every employee gets their own copy of the master DCR rules
 INSERT IGNORE INTO app_validations (emp_id, config_code, display_name, module_name, screen_name, platform, config_type, data_type, config_value, default_value, description, display_order)
@@ -127,10 +130,10 @@ INSERT IGNORE INTO app_validations (emp_id, config_code, display_name, module_na
  (NULL,'CHECKOUT','Check-out is compulsory','DCR','CHECKIN','APP','VALIDATION','BOOLEAN','TRUE','TRUE','TRUE = every call must be checked out before the day is submitted.',21),
  (NULL,'DCR_Remarks','Day remarks are mandatory','DCR','SUBMIT','APP','VALIDATION','BOOLEAN','FALSE','FALSE','TRUE = the day cannot be submitted without remarks.',30),
  (NULL,'UNLISTED_CLIENT_MAXIMUM_VALIDATION','Max unlisted check-ins per day','DCR','UNLISTED','APP','LIMIT','INTEGER','0','0','0 = no limit.',40),
- (NULL,'UNLISTED_VISIT_CATEGORY','Unlisted: Category is mandatory','DCR','UNLISTED','APP','VALIDATION','BOOLEAN','TRUE','TRUE','TRUE = mandatory, FALSE = optional (the field is always shown)',41),
- (NULL,'UNLISTED_VISIT_SPECIALITY','Unlisted: Speciality is mandatory','DCR','UNLISTED','APP','VALIDATION','BOOLEAN','TRUE','TRUE','TRUE = mandatory, FALSE = optional (the field is always shown)',42),
- (NULL,'UNLISTED_VISIT_MOBILE','Unlisted: Mobile is mandatory','DCR','UNLISTED','APP','VALIDATION','BOOLEAN','TRUE','TRUE','TRUE = mandatory, FALSE = optional (the field is always shown)',43),
- (NULL,'UNLISTED_VISIT_EMAIL','Unlisted: E-mail is mandatory','DCR','UNLISTED','APP','VALIDATION','BOOLEAN','FALSE','FALSE','TRUE = mandatory, FALSE = optional (the field is always shown)',44);
+ (NULL,'UNLISTED_VISIT_CATEGORY','Unlisted: Category is mandatory','DCR','UNLISTED','APP','VALIDATION','BOOLEAN','TRUE','TRUE','TRUE = mandatory, FALSE = optional (works only while its _VISIBLITY rule is TRUE)',41),
+ (NULL,'UNLISTED_VISIT_SPECIALITY','Unlisted: Speciality is mandatory','DCR','UNLISTED','APP','VALIDATION','BOOLEAN','TRUE','TRUE','TRUE = mandatory, FALSE = optional (works only while its _VISIBLITY rule is TRUE)',42),
+ (NULL,'UNLISTED_VISIT_MOBILE','Unlisted: Mobile is mandatory','DCR','UNLISTED','APP','VALIDATION','BOOLEAN','TRUE','TRUE','TRUE = mandatory, FALSE = optional (works only while its _VISIBLITY rule is TRUE)',43),
+ (NULL,'UNLISTED_VISIT_EMAIL','Unlisted: E-mail is mandatory','DCR','UNLISTED','APP','VALIDATION','BOOLEAN','FALSE','FALSE','TRUE = mandatory, FALSE = optional (works only while its _VISIBLITY rule is TRUE)',44);
 
 -- every employee gets their own copy of the master DCR rules
 INSERT IGNORE INTO app_validations (emp_id, config_code, display_name, module_name, screen_name, platform, config_type, data_type, config_value, default_value, description, display_order)

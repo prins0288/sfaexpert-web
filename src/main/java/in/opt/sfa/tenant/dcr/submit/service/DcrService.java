@@ -404,9 +404,9 @@ public class DcrService {
             if (tab == null || !"UNLISTED".equals(tab.get("form"))) throw new IllegalStateException("The Unlisted tab is not enabled for you");
             if (Strings.isBlank(u.getClientName())) throw new IllegalStateException("Name of the unlisted client is required");
             // rule TRUE = mandatory, FALSE = optional
-            if (DcrRuleService.bool(rules.of(me), "UNLISTED_VISIT_MOBILE", false) && Strings.isBlank(u.getMobile())) throw new IllegalStateException("Mobile of '" + u.getClientName() + "' is required");
-            if (DcrRuleService.bool(rules.of(me), "UNLISTED_VISIT_SPECIALITY", false) && u.getSpecialityId() == null) throw new IllegalStateException("Speciality of '" + u.getClientName() + "' is required");
-            if (DcrRuleService.bool(rules.of(me), "UNLISTED_VISIT_CATEGORY", false) && u.getCategoryId() == null) throw new IllegalStateException("Category of '" + u.getClientName() + "' is required");
+            if (DcrRuleService.bool(rules.of(me), "UNLISTED_VISIT_MOBILE_VISIBLITY", true) && DcrRuleService.bool(rules.of(me), "UNLISTED_VISIT_MOBILE", false) && Strings.isBlank(u.getMobile())) throw new IllegalStateException("Mobile of '" + u.getClientName() + "' is required");
+            if (DcrRuleService.bool(rules.of(me), "UNLISTED_VISIT_SPECIALITY_VISIBLITY", true) && DcrRuleService.bool(rules.of(me), "UNLISTED_VISIT_SPECIALITY", false) && u.getSpecialityId() == null) throw new IllegalStateException("Speciality of '" + u.getClientName() + "' is required");
+            if (DcrRuleService.bool(rules.of(me), "UNLISTED_VISIT_CATEGORY_VISIBLITY", true) && DcrRuleService.bool(rules.of(me), "UNLISTED_VISIT_CATEGORY", false) && u.getCategoryId() == null) throw new IllegalStateException("Category of '" + u.getClientName() + "' is required");
             if (!unlistedSeen.add(u.getClientName().trim().toLowerCase() + "|" + nz(u.getMobile()))) throw new IllegalStateException("The unlisted client '" + u.getClientName() + "' is added twice");
             if (u.getKey() != null && !keys.add(u.getKey())) throw new IllegalStateException("Duplicate unlisted key " + u.getKey());
             checkCall(u, tab);
