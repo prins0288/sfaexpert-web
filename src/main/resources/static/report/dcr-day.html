@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>/* reverse-proxy sub-path support: make relative css/js resolve under the deploy prefix (e.g. /sfaexpert), "" locally */
+  (function(){try{var p=location.pathname,m=p.match(/^(.*?)\/u\/\d+(\/|$)/),c=m?m[1]:p.replace(/\/[^\/]*$/,'');document.write('<base href="'+(c||'')+'/">');}catch(e){}})();</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StarSFA &middot; DCR Report</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css" rel="stylesheet" />
+  <link href="css/app.css" rel="stylesheet" />
+  <link href="css/app-ui.css" rel="stylesheet" />
+  <script>
+    /* Apply the saved theme (mode / layout / density / colours) BEFORE first
+       paint so there is no flash. theme.js re-applies from the server after. */
+    (function () {
+      try {
+        var d = document.documentElement, s = localStorage;
+        // theme is PER TENANT and several tenants can be signed in at once
+        // (/u/0, /u/1...), so these caches are scoped to the account slot —
+        // a shared key would paint the last-customised tenant's colours here.
+        var m = location.pathname.match(/\/u\/(\d+)(\/|$)/), q = '_u' + (m ? m[1] : '0');
+        d.setAttribute('data-theme', s.getItem('sfa_mode' + q) || 'light');
+        d.setAttribute('data-nav', s.getItem('sfa_nav' + q) || 'vertical');
+        d.setAttribute('data-density', s.getItem('sfa_density' + q) || 'comfortable');
+        var f = s.getItem('sfa_font' + q); if (f) d.style.setProperty('--sfa-font-scale', f);
+        var c = s.getItem('sfa_theme' + q);
+        if (c) { c = JSON.parse(c); var t = (c.resolved && c.resolved[c.mode]) || {};
+          for (var k in t) d.style.setProperty('--sfa-' + k, t[k]); }
+      } catch (e) {}
+    })();
+  </script>
+<style>
+  .rp-kpis { display: grid; grid-template-columns: repeat(2, 1fr); gap: .6rem; margin-bottom: .75rem; }
+  @media (min-width: 768px) { .rp-kpis { grid-template-columns: repeat(6, 1fr); } }
+  .rp-kpi { background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: 1rem; padding: .65rem .8rem; }
+  .rp-kpi small { color: var(--bs-secondary-color); display: block; font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; }
+  .rp-kpi b { font-size: 1.35rem; line-height: 1.15; }
+  .rp-kpi.bad { background: var(--bs-danger-bg-subtle); border-color: var(--bs-danger-border-subtle); } .rp-kpi.bad b { color: var(--bs-danger-text-emphasis); }
+  /* soft, easy-on-the-eye colours for days without a DCR */
+  .rp-absent { background: var(--bs-danger-bg-subtle) !important; color: var(--bs-danger-text-emphasis); }
+  .rp-off { background: var(--bs-tertiary-bg) !important; color: var(--bs-secondary-color); }
+  .rp-tag { display: inline-block; font-size: .72rem; font-weight: 700; border-radius: .45rem; padding: .1rem .5rem; }
+  .rp-tag.absent { background: rgba(220, 53, 69, .13); color: var(--bs-danger-text-emphasis); } .rp-tag.off { background: var(--bs-secondary-bg); color: var(--bs-secondary-color); }
+  .rp-tag.web { background: var(--bs-info-bg-subtle); color: var(--bs-info-text-emphasis); } .rp-tag.app { background: var(--bs-success-bg-subtle); color: var(--bs-success-text-emphasis); }
+  .rp-card { border: 1px solid var(--bs-border-color); border-radius: 1rem; padding: .7rem .9rem; margin-bottom: .55rem; background: var(--bs-body-bg); }
+  .rp-card.clk { cursor: pointer; } .rp-card.clk:active { background: var(--bs-tertiary-bg); }
+  .rp-card .l2 { font-size: .82rem; color: var(--bs-secondary-color); }
+  .rp-table { width: 100%; font-size: .88rem; } .rp-table th { position: sticky; top: 0; background: var(--bs-tertiary-bg); font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; padding: .5rem .6rem; white-space: nowrap; }
+  .rp-table td { padding: .45rem .6rem; border-top: 1px solid var(--bs-border-color); vertical-align: middle; } .rp-table tr.clk { cursor: pointer; } .rp-table tr.clk:hover td { background: var(--bs-tertiary-bg); }
+  .rp-wrap { max-height: 70vh; overflow: auto; border: 1px solid var(--bs-border-color); border-radius: .5rem; }
+  @media (max-width: 991.98px) { .rp-desk { display: none; } }
+  @media (min-width: 992px) { .rp-mob { display: none; } }
+  .rp-filters .form-label { font-size: .75rem; font-weight: 600; color: var(--bs-secondary-color); margin-bottom: .15rem; }
+</style>
+<style>
+  .dd-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: .5rem; }
+  @media (min-width: 768px) { .dd-grid { grid-template-columns: repeat(4, 1fr); } }
+  .dd-grid > div { background: var(--bs-tertiary-bg); border-radius: .8rem; padding: .5rem .7rem; }
+  .dd-grid small { display: block; color: var(--bs-secondary-color); font-size: .7rem; text-transform: uppercase; letter-spacing: .04em; } .dd-grid b { word-break: break-word; }
+  .dd-tag { display: inline-block; font-size: .72rem; font-weight: 700; border-radius: .45rem; padding: .1rem .5rem; background: var(--bs-secondary-bg); color: var(--bs-secondary-color); }
+  .dd-tag.ok { background: var(--bs-success-bg-subtle); color: var(--bs-success-text-emphasis); } .dd-tag.bad { background: var(--bs-danger-bg-subtle); color: var(--bs-danger-text-emphasis); } .dd-tag.web { background: var(--bs-info-bg-subtle); color: var(--bs-info-text-emphasis); }
+  .dd-call { border: 1px solid var(--bs-border-color); border-radius: 1rem; padding: .8rem 1rem; margin-bottom: .75rem; background: var(--bs-body-bg); break-inside: avoid; }
+  .dd-tbl { width: 100%; font-size: .85rem; } .dd-tbl th { font-size: .7rem; text-transform: uppercase; color: var(--bs-secondary-color); padding: .25rem .4rem; } .dd-tbl td { padding: .25rem .4rem; border-top: 1px solid var(--bs-border-color); }
+  .dd-sub { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; font-weight: 700; color: var(--bs-secondary-color); margin: .6rem 0 .2rem; }
+  @media print {
+    body * { visibility: hidden !important; } .ap-app, .ap-app * { visibility: visible !important; } .ap-app { position: absolute; left: 0; top: 0; width: 100%; max-width: none; padding: 0; } .no-print { display: none !important; }
+    .ap-card, .dd-call { box-shadow: none; }
+  }
+</style>
+</head>
+<body>
+<div id="app" data-page="dcrreport" data-title="DCR Day"></div>
+<template id="pageContent">
+<div class="ap-app">
+  <div class="ap-top no-print"><div><a href="report/dcr-report.html" class="text-decoration-none"><i class="bi bi-chevron-left"></i> DCR Report</a><h1 class="ap-title mt-1">DCR of the day</h1></div>
+    <div class="d-flex gap-2"><button class="ap-btn light sm" onclick="window.print()"><i class="bi bi-printer"></i> Print</button><button class="ap-btn go sm" onclick="ddExcel()"><i class="bi bi-file-earmark-excel"></i> Excel</button></div></div>
+  <div id="ddBody"><div class="ap-empty">Loading…</div></div>
+</div>
+</template>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.colVis.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="js/core/session.js"></script>
+<script src="js/core/endpoints.js"></script>
+<script src="js/core/http.js"></script>
+<script src="js/core/theme.js"></script>
+<script src="js/core/settings.js"></script>
+<script src="js/core/i18n.js"></script>
+<script src="js/app.js"></script>
+<script src="js/core/uikit.js"></script>
+<script src="js/core/activity.js"></script>
+<script src="js/shell.js"></script>
+<script>
+  const EP = API.report.dcr;
+  const esc = (v) => SFA.esc(v == null ? '' : v);
+  const money = (v) => Number(v || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+  const hm = (t) => t ? String(t).slice(0, 5) : '';
+  const fmtD = (d) => d ? new Date(String(d).slice(0, 10) + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : '';
+  const fmtT = (d) => d ? String(d).replace('T', ' ').slice(0, 16) : '';
+  let D = null;
+  window.pageInit = async function () {
+    const id = new URLSearchParams(location.search).get('id');
+    if (!id) { document.getElementById('ddBody').innerHTML = '<div class="ap-empty">No DCR chosen</div>'; return; }
+    try { D = await Api.get(EP + '/day/' + id); render(); } catch (e) { SFA.toast(e.message, false); document.getElementById('ddBody').innerHTML = '<div class="ap-empty">' + esc(e.message) + '</div>'; }
+  };
+  const cell = (l, v) => v == null || v === '' ? '' : `<div><small>${l}</small><b>${esc(v)}</b></div>`;
+  const mins = (a, b) => { if (!a || !b) return ''; const [h1, m1] = String(a).split(':'), [h2, m2] = String(b).split(':'); const m = (h2 * 60 + +m2) - (h1 * 60 + +m1); return m > 0 ? Math.floor(m / 60) + 'h ' + (m % 60) + 'm' : ''; };
+  const itemRows = (list) => list.map(i => `<tr><td>${esc(i.name)}${i.detailed ? ' <span class="dd-tag">detailed</span>' : ''}</td><td class="text-end">${i.qty || 0}</td><td class="text-end">${i.pobQty || 0}</td><td class="text-end">${i.rate ? money(i.rate) : ''}</td><td class="text-end">${i.amount ? money(i.amount) : ''}</td></tr>`).join('');
+  function render() {
+    const d = D.day, st = d.status === 2 ? 'ok' : d.status === 3 ? 'bad' : '';
+    let h = `<div class="ap-card"><div class="d-flex justify-content-between align-items-start flex-wrap gap-2"><div><div class="fs-5 fw-bold">${esc(d.empName)} <small class="text-muted">${esc(d.empCode)}</small></div>
+        <div class="text-muted">${esc(d.designation || '')}${d.hq ? ' · ' + esc(d.hq) : ''}${d.state ? ' · ' + esc(d.state) : ''}${d.manager ? ' · Manager: ' + esc(d.manager) : ''}</div><div class="fw-semibold mt-1">${esc(fmtD(d.date))}</div></div>
+        <div class="text-end"><span class="dd-tag ${st}">${esc(d.statusName)}</span> <span class="dd-tag ${d.source === 'Web' ? 'web' : 'ok'}">Submitted from ${esc(d.source)}</span>
+        <div class="small text-muted mt-1">${d.submittedAt ? 'Submitted ' + esc(fmtT(d.submittedAt)) : 'Not submitted'}${d.approvedBy ? '<br>Approved by ' + esc(d.approvedBy) + ' · ' + esc(fmtT(d.approvedAt)) : ''}</div></div></div>
+      ${d.approvalRemarks ? `<div class="alert alert-secondary py-2 small mt-2 mb-0">Approver: ${esc(d.approvalRemarks)}</div>` : ''}</div>
+      <div class="ap-card"><div class="ap-sec mt-0">Day</div><div class="dd-grid">${cell('Work type', d.workType)}${cell('Time in', hm(d.timeIn))}${cell('Time out', hm(d.timeOut))}${cell('Duration', mins(hm(d.timeIn), hm(d.timeOut)))}
+        ${cell('Start area', d.startArea)}${cell('Area type', d.areaType)}${cell('Working area', d.workingArea)}${cell('Travel mode', d.travelMode)}${cell('Meter start', d.meterStart)}${cell('Meter end', d.meterEnd)}
+        ${cell('Calls', (d.listedCalls || 0) + (d.unlistedCalls || 0) + ' (' + (d.listedCalls || 0) + ' listed, ' + (d.unlistedCalls || 0) + ' unlisted)')}${cell('POB', '₹' + money(d.pob))}${cell('Expense', '₹' + money(d.expense))}
+        ${cell('Day end area', d.dayEndArea)}${cell('Day end time', fmtT(d.dayEndAt))}${cell('Night stay', d.stayArea)}${cell('Hotel', d.stayHotel)}</div>
+        ${d.remarks ? `<div class="mt-2 small"><b>Remarks:</b> ${esc(d.remarks)}</div>` : ''}${d.dayEndRemarks ? `<div class="small"><b>Day end remarks:</b> ${esc(d.dayEndRemarks)}</div>` : ''}
+        ${D.dayJoint.length ? `<div class="mt-2 small"><b>Joint working (whole day):</b> ${D.dayJoint.map(j => esc(j.name)).join(', ')}</div>` : ''}</div>`;
+    h += `<div class="ap-sec">Calls (${D.calls.length})</div>` + (D.calls.map((c, n) => {
+      const smp = c.items.filter(i => /sample/i.test(i.type) && i.qty > 0), inp = c.items.filter(i => /input/i.test(i.type) && i.qty > 0), pob = c.items.filter(i => i.pobQty > 0), det = c.items.filter(i => i.detailed);
+      return `<div class="dd-call"><div class="d-flex justify-content-between align-items-start gap-2"><div><b>${n + 1}. ${esc(c.name)}</b> <span class="dd-tag">${esc(c.kind)}</span> ${c.refused ? '<span class="dd-tag bad">Refused</span>' : ''}
+          <div class="small text-muted">${esc([c.code || c.mobile, c.clientType, c.category, c.speciality, c.area].filter(Boolean).join(' · '))}</div></div>
+          <div class="text-end small"><b>${hm(c.inTime)} - ${hm(c.outTime)}</b><br>${esc(mins(hm(c.inTime), hm(c.outTime)))}${c.lat ? `<br><a class="no-print" target="_blank" href="https://www.google.com/maps?q=${c.lat},${c.lng}"><i class="bi bi-geo-alt"></i> Location</a>` : ''}</div></div>
+        <div class="small mt-1">${esc([c.visitType, c.activityType].filter(Boolean).join(' · '))}${c.pob ? ' · POB ₹' + money(c.pob) : ''}${(c.jointWith || []).length ? ' · With ' + c.jointWith.map(j => esc(j.name)).join(', ') : ''}</div>
+        ${smp.length ? `<div class="dd-sub">Sample</div><table class="dd-tbl"><tbody>${smp.map(i => `<tr><td>${esc(i.name)}</td><td class="text-end">${i.qty}</td></tr>`).join('')}</tbody></table>` : ''}
+        ${inp.length ? `<div class="dd-sub">Input</div><table class="dd-tbl"><tbody>${inp.map(i => `<tr><td>${esc(i.name)}</td><td class="text-end">${i.qty}</td></tr>`).join('')}</tbody></table>` : ''}
+        ${pob.length ? `<div class="dd-sub">POB / Order</div><table class="dd-tbl"><thead><tr><th>Item</th><th class="text-end">Qty</th><th class="text-end">Rate</th><th class="text-end">Amount</th></tr></thead><tbody>${pob.map(i => `<tr><td>${esc(i.name)}</td><td class="text-end">${i.pobQty}</td><td class="text-end">${money(i.rate)}</td><td class="text-end">${money(i.amount)}</td></tr>`).join('')}</tbody></table>` : ''}
+        ${det.length ? `<div class="dd-sub">Detailed</div><div class="small">${det.map(i => esc(i.name)).join(', ')}</div>` : ''}
+        ${c.leaflets.length ? `<div class="dd-sub">Leaflets</div><div class="small">${c.leaflets.map(l => esc(l.name) + ' x' + l.qty).join(', ')}</div>` : ''}
+        ${c.treatments.length ? `<div class="dd-sub">Treatment</div><div class="small">${c.treatments.map(esc).join(', ')}</div>` : ''}
+        ${c.remarks ? `<div class="dd-sub">Remarks</div><div class="small">${esc(c.remarks)}</div>` : ''}
+        ${c.nextVisit ? `<div class="dd-sub">Next visit</div><div class="small">${esc(fmtD(c.nextVisit))}${c.priority ? ' · ' + esc(c.priority) : ''}${c.nextRemarks ? ' · ' + esc(c.nextRemarks) : ''}</div>` : ''}</div>`; }).join('') || '<div class="ap-card ap-empty">No call on this day</div>');
+    if (D.expenses.length) h += `<div class="ap-sec">Expenses</div><div class="ap-card"><table class="dd-tbl"><thead><tr><th>Expense</th><th>Details</th><th class="text-end">Amount</th></tr></thead><tbody>${D.expenses.map(e => `<tr><td>${esc(e.type)}</td><td>${esc([e.description, e.fromArea && e.toArea ? e.fromArea + ' → ' + e.toArea : '', e.totalKm ? e.totalKm + ' km' : '', e.client].filter(Boolean).join(' · '))}</td><td class="text-end">${money(e.amount)}</td></tr>`).join('')}
+      <tr><td colspan="2" class="text-end fw-bold">Total</td><td class="text-end fw-bold">₹${money(D.expenses.reduce((s, e) => s + Number(e.amount || 0), 0))}</td></tr></tbody></table></div>`;
+    document.getElementById('ddBody').innerHTML = h;
+  }
+  function ddExcel() { Api.download(EP + '/export?from=' + D.day.date + '&to=' + D.day.date + '&empId=' + encodeURIComponent(D.day.empId) + '&absent=false', 'DCR-' + D.day.empCode + '-' + D.day.date + '.xlsx').catch(e => SFA.toast(e.message, false)); }
+</script>
+</body>
+</html>
