@@ -249,6 +249,18 @@
         template: "/api/master/client-master/template",
         upload: "/api/master/client-master/upload",
       },
+      dcrSubmit: {
+        options: "/api/dcr/options",                                  // my tabs, clients, areas, items, expense types …
+        list: "/api/dcr",                                             // ?from=&to=&empId= (own / team / all)
+        get: (id) => `/api/dcr/${id}`,
+        mine: "/api/dcr/mine",                                        // ?date=
+        save: "/api/dcr",                                             // POST: create / replace my DCR (submit true|false)
+        approve: (id) => `/api/dcr/${id}/approve`,                    // body { remarks }
+        reject: (id) => `/api/dcr/${id}/reject`,                      // body { reason }
+        upload: "/api/dcr/upload",                                    // multipart file (+ kind=image|document) -> { path }
+        worktypes: "/api/dcr/worktypes",                              // GET all rows / POST one row (admin)
+        worktype: (id) => `/api/dcr/worktypes/${id}`,                 // DELETE
+      },
       teamHierarchy: {
         list: "/api/master/team-hierarchy",
         setManager: (empId) => `/api/master/team-hierarchy/${encodeURIComponent(empId)}/manager`,   // POST { managerId, effectiveDate?, remarks? }

@@ -3,11 +3,11 @@ package in.opt.sfa.tenant.dcr.view.repository;
 import java.time.LocalDate;
 import java.time.LocalTime;
 
-/** Interface projection for the DCR report's native filtered query — see DcrRepository.report(). */
+/** One DCR call (listed or unlisted client) for the day-wise report. */
 public interface DcrReportRow {
     Long getOid();
+    String getEmpId();
     LocalDate getDcrDate();
-    String getDcrDateNp();
     String getWorkType();
     String getRemarks();
     LocalTime getTimeIn();
@@ -16,7 +16,9 @@ public interface DcrReportRow {
     String getClientName();
     String getClientTypeName();
     String getAreaName();
-    String getRouteName();
     String getDivisionName();
-    String getCountryName();
+    /** Listed / Unlisted. */
+    String getCallKind();
+    java.math.BigDecimal getPobValue();
+    Integer getDcrStatus();
 }

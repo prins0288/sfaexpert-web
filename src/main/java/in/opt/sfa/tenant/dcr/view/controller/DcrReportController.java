@@ -14,14 +14,13 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * Day-wise DCR report. Filters apply Division first (via client -> route ->
- * division), then Route/Area/Employee/date range. Each row also carries the
- * client's country: the UI reads dcrDateNp instead of dcrDate whenever
- * countryName is "Nepal" (Nepali calendar date, stored as text).
+ * Day-wise DCR report over dcr_parent_summary / dcr_client_summary /
+ * dcr_unlisted_client_summary: one row per call. Filters: Division (the employee's), Area,
+ * Employee, date range. Own / team / all by role (TeamScope).
  *
  * View-only (no save/edit/delete) — hence the "view" sub-package.
  */
-@Tag(name = "DCR Report", description = "Day-wise DCR entries, Division-first filtering, Nepal-aware date")
+@Tag(name = "DCR Report", description = "Day-wise DCR calls (listed + unlisted)")
 @RestController
 @RequestMapping("/api/report/dcr")
 public class DcrReportController {
@@ -36,11 +35,10 @@ public class DcrReportController {
     @Operation(summary = "Filtered DCR report rows")
     public List<DcrReportRow> report(
             @RequestParam(required = false) Long divisionOid,
-            @RequestParam(required = false) Long routeOid,
             @RequestParam(required = false) Long areaOid,
             @RequestParam(required = false) String empId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate) {
-        return service.report(divisionOid, routeOid, areaOid, empId, fromDate, toDate);
+        return service.report(divisionOid, areaOid, empId, fromDate, toDate);
     }
 }

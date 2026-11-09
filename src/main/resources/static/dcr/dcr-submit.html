@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>/* reverse-proxy sub-path support: make relative css/js resolve under the deploy prefix (e.g. /sfaexpert), "" locally */
+  (function(){try{var p=location.pathname,m=p.match(/^(.*?)\/u\/\d+(\/|$)/),c=m?m[1]:p.replace(/\/[^\/]*$/,'');document.write('<base href="'+(c||'')+'/">');}catch(e){}})();</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StarSFA &middot; DCR</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css" rel="stylesheet" />
+  <link href="css/app.css" rel="stylesheet" />
+  <script>
+    /* Apply the saved theme (mode / layout / density / colours) BEFORE first
+       paint so there is no flash. theme.js re-applies from the server after. */
+    (function () {
+      try {
+        var d = document.documentElement, s = localStorage;
+        // theme is PER TENANT and several tenants can be signed in at once
+        // (/u/0, /u/1...), so these caches are scoped to the account slot —
+        // a shared key would paint the last-customised tenant's colours here.
+        var m = location.pathname.match(/\/u\/(\d+)(\/|$)/), q = '_u' + (m ? m[1] : '0');
+        d.setAttribute('data-theme', s.getItem('sfa_mode' + q) || 'light');
+        d.setAttribute('data-nav', s.getItem('sfa_nav' + q) || 'vertical');
+        d.setAttribute('data-density', s.getItem('sfa_density' + q) || 'comfortable');
+        var f = s.getItem('sfa_font' + q); if (f) d.style.setProperty('--sfa-font-scale', f);
+        var c = s.getItem('sfa_theme' + q);
+        if (c) { c = JSON.parse(c); var t = (c.resolved && c.resolved[c.mode]) || {};
+          for (var k in t) d.style.setProperty('--sfa-' + k, t[k]); }
+      } catch (e) {}
+    })();
+  </script>
+<style>
+  .dcr-app { max-width: 760px; margin: 0 auto; padding-bottom: 5.5rem; }
+  .card-lite { background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: 1rem; padding: .85rem 1rem; margin-bottom: .75rem; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+  .dcr-seg { display: flex; background: var(--bs-tertiary-bg); border-radius: 999px; padding: .25rem; margin-bottom: .75rem; }
+  .dcr-seg button { flex: 1; border: 0; background: transparent; padding: .5rem; border-radius: 999px; font-weight: 600; color: var(--bs-secondary-color); display: flex; align-items: center; justify-content: center; gap: .4rem; }
+  .dcr-seg button.active { background: var(--bs-body-bg); color: var(--bs-primary); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+  .dcr-badge { background: #dc3545; color: #fff; border-radius: 999px; font-size: .7rem; padding: 0 .4rem; }
+  .dcr-date { max-width: 11rem; font-weight: 600; border-radius: 999px; text-align: center; }
+  .dcr-tabs { display: flex; gap: .5rem; overflow-x: auto; padding: .1rem .1rem .6rem; scrollbar-width: none; position: sticky; top: 0; z-index: 5; background: var(--bs-body-bg); }
+  .dcr-tabs::-webkit-scrollbar { display: none; }
+  .dcr-tabs button { flex: 0 0 auto; border: 1px solid var(--bs-border-color); background: var(--bs-body-bg); border-radius: 999px; padding: .45rem .95rem; font-weight: 600; font-size: .9rem; white-space: nowrap; color: var(--bs-body-color); }
+  .dcr-tabs button.active { background: var(--bs-primary); border-color: var(--bs-primary); color: #fff; }
+  .dcr-tabs .n { background: rgba(0,0,0,.12); border-radius: 999px; padding: 0 .45rem; margin-left: .35rem; font-size: .75rem; }
+  .dcr-tabs button.active .n { background: rgba(255,255,255,.3); }
+  .dcr-pane .form-label { font-size: .8rem; font-weight: 600; color: var(--bs-secondary-color); margin-bottom: .2rem; }
+  .dcr-pane .form-control, .dcr-pane .form-select, .dcr-sheet .form-control, .dcr-sheet .form-select { border-radius: .75rem; min-height: 2.8rem; }
+  .dcr-chips { display: flex; flex-wrap: wrap; gap: .4rem; }
+  .dcr-chip { border: 1px solid var(--bs-border-color); border-radius: 999px; padding: .4rem .85rem; background: var(--bs-body-bg); font-size: .9rem; }
+  .dcr-chip.on { background: var(--bs-primary-bg-subtle); border-color: var(--bs-primary); color: var(--bs-primary); font-weight: 600; }
+  .dcr-visit { display: flex; gap: .75rem; align-items: center; cursor: pointer; }
+  .dcr-visit .ava { width: 2.6rem; height: 2.6rem; border-radius: 50%; background: var(--bs-primary-bg-subtle); color: var(--bs-primary); display: flex; align-items: center; justify-content: center; font-weight: 700; flex: 0 0 auto; }
+  .dcr-visit .meta { min-width: 0; flex: 1; }
+  .dcr-visit .meta b, .dcr-visit .meta small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dcr-add { width: 100%; border: 2px dashed var(--bs-border-color); background: transparent; border-radius: 1rem; padding: .85rem; font-weight: 600; color: var(--bs-primary); }
+  .dcr-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: flex; gap: .6rem; align-items: center; padding: .65rem 1rem calc(.65rem + env(safe-area-inset-bottom)); background: var(--bs-body-bg); border-top: 1px solid var(--bs-border-color); box-shadow: 0 -4px 14px rgba(0,0,0,.08); }
+  .dcr-bar .btn { border-radius: 999px; padding: .55rem 1.1rem; font-weight: 600; }
+  .dcr-bar-sum { flex: 1; font-size: .8rem; line-height: 1.2; color: var(--bs-secondary-color); }
+  .dcr-bar-sum b { color: var(--bs-body-color); }
+  @media (min-width: 992px) { .dcr-bar { left: 250px; } }
+  .dcr-sheet { height: 92vh !important; max-width: 760px; margin: 0 auto; border-radius: 1.25rem 1.25rem 0 0; }
+  .dcr-sheet .offcanvas-body { padding-bottom: 6rem; }
+  .dcr-sheet-foot { position: absolute; left: 0; right: 0; bottom: 0; padding: .7rem 1rem calc(.7rem + env(safe-area-inset-bottom)); background: var(--bs-body-bg); border-top: 1px solid var(--bs-border-color); display: flex; gap: .6rem; }
+  .dcr-sheet-foot .btn { flex: 1; border-radius: 999px; font-weight: 600; padding: .6rem; }
+  .dcr-sec { font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; color: var(--bs-secondary-color); font-weight: 700; margin: 1rem 0 .4rem; }
+  .dcr-item { background: var(--bs-tertiary-bg); border-radius: .85rem; padding: .65rem; margin-bottom: .5rem; }
+  .dcr-pick { max-height: 55vh; overflow-y: auto; }
+  .dcr-pick .row-i { display: flex; align-items: center; gap: .7rem; padding: .7rem .5rem; border-bottom: 1px solid var(--bs-border-color); cursor: pointer; }
+  .dcr-pick .row-i:active { background: var(--bs-tertiary-bg); }
+  .dcr-empty { text-align: center; color: var(--bs-secondary-color); padding: 1.5rem .5rem; }
+  .dcr-readonly input, .dcr-readonly select, .dcr-readonly textarea, .dcr-readonly .dcr-add { pointer-events: none; opacity: .7; }
+  @media (max-width: 575px) { .dcr-date { max-width: 9rem; } }
+</style>
+</head>
+<body>
+<div id="app" data-page="dcrsubmit" data-title="Daily Call Report"></div>
+<template id="pageContent">
+<div class="dcr-app">
+
+  <!-- top: my DCR / history -->
+  <div class="dcr-seg" id="dcrSeg">
+    <button class="active" data-v="form" onclick="dcrView('form')"><i class="bi bi-pencil-square"></i> <span>My DCR</span></button>
+    <button data-v="list" onclick="dcrView('list')"><i class="bi bi-clock-history"></i> <span>History</span><span class="dcr-badge d-none" id="dcrPendingBadge"></span></button>
+  </div>
+
+  <!-- ================= FORM ================= -->
+  <div id="dcrForm">
+    <div class="dcr-head card-lite">
+      <div class="d-flex align-items-center gap-2">
+        <button class="btn btn-light btn-sm rounded-circle" onclick="dcrShiftDay(-1)" title="Previous day"><i class="bi bi-chevron-left"></i></button>
+        <input type="date" class="form-control dcr-date" id="dcrDate" onchange="dcrDateChanged()" />
+        <button class="btn btn-light btn-sm rounded-circle" onclick="dcrShiftDay(1)" title="Next day"><i class="bi bi-chevron-right"></i></button>
+        <span id="dcrStatus" class="ms-auto"></span>
+      </div>
+      <div class="small mt-2 d-none" id="dcrReject"></div>
+    </div>
+
+    <div class="dcr-tabs" id="dcrTabs"></div>
+    <div id="dcrPane" class="dcr-pane"></div>
+    <div class="dcr-spacer"></div>
+  </div>
+
+  <!-- ================= HISTORY ================= -->
+  <div id="dcrList" class="d-none">
+    <div class="card-lite d-flex gap-2 flex-wrap align-items-center">
+      <select class="form-select form-select-sm w-auto" id="hRange" data-no-search onchange="dcrLoadList()">
+        <option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option>
+      </select>
+      <select class="form-select form-select-sm w-auto" id="hStatus" data-no-search onchange="dcrRenderList()">
+        <option value="">All</option><option value="mine">Waiting for my approval</option><option value="0">Draft</option><option value="1">Submitted</option><option value="2">Approved</option><option value="3">Rejected</option>
+      </select>
+      <input class="form-control form-control-sm w-auto flex-grow-1" id="hSearch" placeholder="Search employee…" oninput="dcrRenderList()" />
+    </div>
+    <div id="hRows" class="mt-2"></div>
+  </div>
+
+  <!-- bottom action bar (form only) -->
+  <div class="dcr-bar" id="dcrBar">
+    <div class="dcr-bar-sum" id="dcrSum"></div>
+    <button class="btn btn-outline-secondary" id="dcrDraftBtn" onclick="dcrSave(false)"><i class="bi bi-save"></i> Draft</button>
+    <button class="btn btn-primary" id="dcrSubmitBtn" onclick="dcrSave(true)"><i class="bi bi-send-check"></i> Submit</button>
+  </div>
+</div>
+
+<!-- bottom sheet (call / expense / detail editors) -->
+<div class="offcanvas offcanvas-bottom dcr-sheet" tabindex="-1" id="dcrSheet" data-bs-backdrop="static">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title" id="sheetTitle"></h5>
+    <button type="button" class="btn-close" onclick="sheetClose()"></button>
+  </div>
+  <div class="offcanvas-body" id="sheetBody"></div>
+  <div class="dcr-sheet-foot" id="sheetFoot"></div>
+</div>
+</template>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.colVis.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="js/core/session.js"></script>
+<script src="js/core/endpoints.js"></script>
+<script src="js/core/http.js"></script>
+<script src="js/core/theme.js"></script>
+<script src="js/core/settings.js"></script>
+<script src="js/core/i18n.js"></script>
+<script src="js/app.js"></script>
+<script src="js/core/uikit.js"></script>
+<script src="js/shell.js"></script>
+<script>
+  const EP = API.master.dcrSubmit;
+  const esc = (v) => SFA.esc(v == null ? '' : v);
+  const pad = (n) => String(n).padStart(2, '0');
+  const todayStr = () => { const d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
+  const nowHm = () => { const d = new Date(); return pad(d.getHours()) + ':' + pad(d.getMinutes()); };
+  const nowDt = () => todayStr() + 'T' + nowHm();
+  const initials = (n) => (n || '?').replace(/^(Dr\.?|Mr\.?|Mrs\.?|Ms\.?)\s+/i, '').split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+  const money = (v) => (Number(v || 0)).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+  const STATUS = [['Draft', 'secondary'], ['Submitted', 'info'], ['Approved', 'success'], ['Rejected', 'danger']];
+  const stBadge = (s) => s == null ? '<span class="badge bg-light text-dark border">New</span>' : `<span class="badge bg-${STATUS[s][1]}${s === 1 ? ' text-dark' : ''}">${STATUS[s][0]}</span>`;
+
+  let OPT = null, ST = null, CUR = 'day', VIEW = 'form', SHEET = null, EDIT = null, ROWS = [], KEYSEQ = 0, SHEET_ON_CLOSE = null;
+
+  const blank = (date) => ({ dcrId: null, dcrDate: date, workType: 'WORKING', startAreaId: '', workingAreaId: '', timeIn: '', timeOut: '', travelMode: '', meterStart: '', meterEnd: '',
+    remarks: '', dayEndAreaId: '', dayEndAt: '', dayEndRemarks: '', stayAreaId: '', stayHotel: '', jointWith: [], visits: [], unlisted: [], expenses: [], status: null, canEdit: true });
+
+  window.pageInit = async function () {
+    SHEET = new bootstrap.Offcanvas('#dcrSheet');
+    try {
+      OPT = await Api.get(EP.options);
+      const d = document.getElementById('dcrDate');
+      d.max = todayStr(); d.value = todayStr();
+      await loadDay();
+      pendingBadge();
+    } catch (e) { SFA.toast(e.message, false); }
+  };
+
+  // ============================================================== day load / header
+  async function loadDay() {
+    const date = document.getElementById('dcrDate').value || todayStr();
+    const d = await Api.get(EP.mine, { query: { date } });
+    ST = d && d.dcrId ? fromDto(d) : blank(date);   // no DCR yet: the API answers with an empty envelope
+    if (!tabList().some(t => t.code === CUR)) CUR = 'day';
+    render();
+  }
+  function dcrDateChanged() { loadDay().catch(e => SFA.toast(e.message, false)); }
+  function dcrShiftDay(n) {
+    const el = document.getElementById('dcrDate'), d = new Date((el.value || todayStr()) + 'T00:00:00');
+    d.setDate(d.getDate() + n);
+    const v = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+    if (v > todayStr()) return;
+    el.value = v; dcrDateChanged();
+  }
+  function fromDto(d) {
+    const x = JSON.parse(JSON.stringify(d));
+    ['startAreaId', 'workingAreaId', 'dayEndAreaId', 'stayAreaId'].forEach(k => { if (x[k] == null) x[k] = ''; });
+    ['timeIn', 'timeOut', 'travelMode', 'meterStart', 'meterEnd', 'remarks', 'dayEndAt', 'dayEndRemarks', 'stayHotel'].forEach(k => { if (x[k] == null) x[k] = ''; });
+    x.unlisted.forEach(u => { u.key = u.key || ('n' + (++KEYSEQ)); });
+    return x;
+  }
+  function dcrView(v) {
+    VIEW = v;
+    document.querySelectorAll('#dcrSeg button').forEach(b => b.classList.toggle('active', b.dataset.v === v));
+    document.getElementById('dcrForm').classList.toggle('d-none', v !== 'form');
+    document.getElementById('dcrList').classList.toggle('d-none', v !== 'list');
+    document.getElementById('dcrBar').classList.toggle('d-none', v !== 'form');
+    if (v === 'list') dcrLoadList();
+  }
+
+  // ============================================================== tabs / panes
+  function tabList() {
+    const t = [{ code: 'day', name: 'Day', form: 'DAY' }];
+    if (ST && ST.workType === 'WORKING') OPT.tabs.forEach(x => t.push({ code: x.code, name: x.name, form: x.form, clientTypeId: x.clientTypeId, subForms: x.subForms }));
+    t.push({ code: 'review', name: 'Review', form: 'REVIEW' });
+    return t;
+  }
+  const tabCount = (t) => t.form === 'CHECKIN' ? ST.visits.filter(v => v.worktypeCode === t.code).length : t.form === 'UNLISTED' ? ST.unlisted.length
+    : t.form === 'EXPENSE' ? ST.expenses.length : t.form === 'JOINT' ? ST.jointWith.length : 0;
+
+  function render() {
+    document.getElementById('dcrStatus').innerHTML = stBadge(ST.status);
+    const rj = document.getElementById('dcrReject');
+    if (ST.status === 3) { rj.className = 'small mt-2 text-danger'; rj.innerHTML = '<i class="bi bi-x-circle"></i> Rejected' + (ST.approvedByName ? ' by ' + esc(ST.approvedByName) : '') + ': ' + esc(ST.approvalRemarks || '') + ' — correct it and submit again.'; }
+    else if (ST.status === 2) { rj.className = 'small mt-2 text-success'; rj.innerHTML = '<i class="bi bi-patch-check"></i> Approved' + (ST.approvedByName ? ' by ' + esc(ST.approvedByName) : '') + '.'; }
+    else rj.className = 'small mt-2 d-none';
+    const tabs = tabList();
+    document.getElementById('dcrTabs').innerHTML = tabs.map(t => { const n = tabCount(t);
+      return `<button class="${t.code === CUR ? 'active' : ''}" onclick="dcrTab('${esc(t.code)}')">${esc(t.name)}${n ? `<span class="n">${n}</span>` : ''}</button>`; }).join('');
+    const tab = tabs.find(t => t.code === CUR) || tabs[0];
+    const pane = document.getElementById('dcrPane');
+    pane.innerHTML = tab.form === 'DAY' ? paneDay() : tab.form === 'CHECKIN' ? paneCalls(tab, 'v') : tab.form === 'UNLISTED' ? paneCalls(tab, 'u')
+      : tab.form === 'JOINT' ? paneJoint() : tab.form === 'EXPENSE' ? paneExpense() : tab.form === 'DAYEND' ? paneDayEnd() : paneReview();
+    pane.classList.toggle('dcr-readonly', !ST.canEdit);
+    summary();
+  }
+  function dcrTab(code) { CUR = code; render(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+
+  function summary() {
+    const pob = ST.visits.concat(ST.unlisted).reduce((s, c) => s + callPob(c), 0), exp = ST.expenses.reduce((s, e) => s + Number(e.amount || 0), 0);
+    document.getElementById('dcrSum').innerHTML = `<b>${ST.visits.length + ST.unlisted.length}</b> calls · POB <b>₹${money(pob)}</b><br>Expense <b>₹${money(exp)}</b>`;
+    const ro = !ST.canEdit;
+    document.getElementById('dcrDraftBtn').disabled = ro; document.getElementById('dcrSubmitBtn').disabled = ro;
+    document.getElementById('dcrSubmitBtn').innerHTML = ST.status === 3 ? '<i class="bi bi-send-check"></i> <span class="t">Resubmit</span>' : '<i class="bi bi-send-check"></i> <span class="t">Submit</span>';
+  }
+  const callPob = (c) => { const s = (c.items || []).reduce((a, i) => a + Number(i.pobQty || 0) * Number(i.rate || 0), 0); return s > 0 ? s : Number(c.pobValue || 0); };
+
+  const opts = (list, sel, ph) => `<option value="">${ph || '--'}</option>` + list.map(o => { const v = o.id != null ? o.id : o, l = o.name != null ? o.name : o;
+    return `<option value="${esc(v)}"${String(v) === String(sel) ? ' selected' : ''}>${esc(l)}</option>`; }).join('');
+  const field = (label, html, cls) => `<div class="${cls || 'col-12'}"><label class="form-label">${label}</label>${html}</div>`;
+  const inp = (key, type, extra) => `<input class="form-control" type="${type || 'text'}" value="${esc(ST[key])}" oninput="ST.${key}=this.value" ${extra || ''} />`;
+
+  function paneDay() {
+    const wt = OPT.workTypes.map(w => `<button class="dcr-chip ${ST.workType === w ? 'on' : ''}" onclick="setWork('${w}')">${w.charAt(0) + w.slice(1).toLowerCase()}</button>`).join('');
+    const working = ST.workType === 'WORKING';
+    return `<div class="card-lite"><div class="dcr-sec mt-0">Day type</div><div class="dcr-chips">${wt}</div></div>
+      <div class="card-lite"><div class="row g-3">
+        ${working ? field('Day started from (area)', `<select class="form-select" data-no-search onchange="ST.startAreaId=this.value">${opts(OPT.areas, ST.startAreaId, 'Select area')}</select>`) : ''}
+        ${field('Time in', inp('timeIn', 'time'), 'col-6')}${field('Time out', inp('timeOut', 'time'), 'col-6')}
+        ${working ? field('Travel mode', `<select class="form-select" data-no-search onchange="ST.travelMode=this.value">${opts(OPT.travelModes, ST.travelMode, 'Select')}</select>`, 'col-6') + field('Meter start (km)', inp('meterStart', 'number', 'inputmode="decimal" step="0.1"'), 'col-6') : ''}
+        ${field('Remarks', `<textarea class="form-control" rows="2" oninput="ST.remarks=this.value">${esc(ST.remarks)}</textarea>`)}
+      </div></div>`;
+  }
+  function setWork(w) { if (!ST.canEdit) return; ST.workType = w; render(); }
+
+  // ---- check-in / unlisted card lists
+  function paneCalls(tab, kind) {
+    const list = kind === 'v' ? ST.visits.map((c, i) => [c, i]).filter(x => x[0].worktypeCode === tab.code) : ST.unlisted.map((c, i) => [c, i]);
+    const cards = list.map(([c, i]) => {
+      const name = kind === 'v' ? c.clientName : c.clientName, sub = kind === 'v' ? [c.clientCode, c.clientTypeName].filter(Boolean).join(' · ') : (c.mobile || 'Unlisted');
+      const pob = callPob(c), nItems = (c.items || []).length;
+      return `<div class="card-lite dcr-visit" onclick="editCall('${kind}',${i})"><div class="ava">${esc(initials(name))}</div>
+        <div class="meta"><b>${esc(name)}</b><small class="text-muted">${esc(sub)}${c.inTime ? ' · ' + esc(c.inTime) + (c.outTime ? '–' + esc(c.outTime) : '') : ''}</small>
+        <small>${c.refused ? '<span class="badge bg-warning text-dark">Refused</span> ' : ''}${pob ? `<span class="badge bg-success">POB ₹${money(pob)}</span> ` : ''}${nItems ? `<span class="badge bg-light text-dark border">${nItems} item${nItems > 1 ? 's' : ''}</span>` : ''}</small></div>
+        <i class="bi bi-chevron-right text-muted"></i></div>`; }).join('');
+    return (cards || `<div class="dcr-empty"><i class="bi bi-person-plus fs-1"></i><div>No ${kind === 'v' ? 'client' : 'unlisted'} calls yet</div></div>`) +
+      (ST.canEdit ? `<button class="dcr-add" onclick="${kind === 'v' ? `pickClient('${esc(tab.code)}')` : `newUnlisted('${esc(tab.code)}')`}"><i class="bi bi-plus-circle"></i> Add ${kind === 'v' ? 'client' : 'unlisted client'}</button>` : '');
+  }
+
+  function clientsFor(tab) {
+    const claimed = new Set(OPT.tabs.filter(t => t.form === 'CHECKIN' && t.clientTypeId != null).map(t => t.clientTypeId));
+    return OPT.clients.filter(c => tab.clientTypeId != null ? c.clientTypeId === tab.clientTypeId : !claimed.has(c.clientTypeId));
+  }
+  function pickClient(code) {
+    const tab = OPT.tabs.find(t => t.code === code), used = new Set(ST.visits.filter(v => v.worktypeCode === code).map(v => v.clientId));
+    const list = clientsFor(tab).filter(c => !used.has(c.id));
+    sheetOpen('Add ' + tab.name.replace(/ Check-in$/, ''), `<input class="form-control mb-2" id="pickQ" placeholder="Search name, code, area…" oninput="pickFilter()" />
+      <div class="dcr-pick" id="pickList"></div>`, `<button class="btn btn-light" onclick="sheetClose()">Close</button>`);
+    window.__pick = list; window.__pickTab = code; pickFilter();
+  }
+  function pickFilter() {
+    const q = (document.getElementById('pickQ').value || '').toLowerCase();
+    const rows = window.__pick.filter(c => !q || (c.name + ' ' + c.code + ' ' + (c.areaName || '') + ' ' + (c.speciality || '')).toLowerCase().includes(q));
+    document.getElementById('pickList').innerHTML = rows.map(c => `<div class="row-i" onclick="addClient(${c.id})"><div class="dcr-visit"><div class="ava">${esc(initials(c.name))}</div></div>
+      <div class="meta" style="min-width:0"><b>${esc(c.name)}</b><br><small class="text-muted">${esc([c.code, c.speciality, c.areaName].filter(Boolean).join(' · '))}</small></div></div>`).join('')
+      || '<div class="dcr-empty">No client found</div>';
+  }
+  function addClient(id) {
+    const c = OPT.clients.find(x => x.id === id), code = window.__pickTab;
+    ST.visits.push({ clientId: c.id, clientName: c.name, clientCode: c.code, clientTypeName: c.clientTypeName, worktypeCode: code, visitType: (OPT.visitTypes[0] || 'CALL'), activityType: '', areaId: c.areaId || '',
+      inTime: '', outTime: '', checkinAt: '', checkinLat: null, checkinLng: null, pobValue: '', remarks: '', refused: false, nextVisit: '', nextVisitPriority: '', nextVisitRemarks: '',
+      signaturePath: '', items: [], leaflets: [], treatments: [], jointWith: [] });
+    render(); editCall('v', ST.visits.length - 1);   // same sheet: its content is replaced (closing + reopening it would race)
+  }
+  function newUnlisted(code) {
+    ST.unlisted.push({ key: 'n' + (++KEYSEQ), worktypeCode: code, clientName: '', clientTypeId: '', specialityId: '', categoryId: '', qualification: '', mobile: '', contactPerson: '', address: '', areaId: '',
+      visitType: (OPT.visitTypes[0] || 'CALL'), activityType: '', inTime: '', outTime: '', checkinAt: '', checkinLat: null, checkinLng: null, pobValue: '', remarks: '', refused: false,
+      nextVisit: '', nextVisitPriority: '', nextVisitRemarks: '', signaturePath: '', items: [], leaflets: [], treatments: [], jointWith: [] });
+    render(); editCall('u', ST.unlisted.length - 1, true);
+  }
+
+  // ============================================================== bottom sheet
+  function sheetOpen(title, body, foot, onClose) {
+    document.getElementById('sheetTitle').textContent = title;
+    document.getElementById('sheetBody').innerHTML = body;
+    document.getElementById('sheetFoot').innerHTML = foot || '';
+    SHEET_ON_CLOSE = onClose || null;
+    SHEET.show();
+  }
+  function sheetClose() { SHEET.hide(); }
+
+  // ============================================================== call editor
+  function editCall(kind, idx, isNew) {
+    const src = kind === 'v' ? ST.visits[idx] : ST.unlisted[idx];
+    EDIT = { kind, idx, isNew: !!isNew, o: JSON.parse(JSON.stringify(src)) };
+    renderCall();
+    const ro = !ST.canEdit;
+    sheetOpen(kind === 'v' ? EDIT.o.clientName : (EDIT.o.clientName || 'New unlisted client'), '', '', null);
+    renderCall();
+    document.getElementById('sheetFoot').innerHTML = ro ? '<button class="btn btn-light" onclick="sheetClose()">Close</button>'
+      : `<button class="btn btn-outline-danger" style="flex:0 0 auto" onclick="callDelete()"><i class="bi bi-trash"></i></button><button class="btn btn-primary" onclick="callDone()"><i class="bi bi-check2"></i> Done</button>`;
+  }
+  const tabOf = (code) => OPT.tabs.find(t => t.code === code) || { subForms: [] };
+  function renderCall() {
+    const o = EDIT.o, tab = tabOf(o.worktypeCode), subs = tab.subForms || [], u = EDIT.kind === 'u';
+    const o_ = (k) => `EDIT.o.${k}`;
+    let h = '';
+    if (u) {
+      h += `<div class="dcr-sec mt-0">Client</div><div class="row g-2">
+        ${field('Name *', `<input class="form-control" value="${esc(o.clientName)}" oninput="${o_('clientName')}=this.value;document.getElementById('sheetTitle').textContent=this.value||'New unlisted client'" />`)}
+        ${field('Mobile', `<input class="form-control" inputmode="numeric" maxlength="10" value="${esc(o.mobile)}" oninput="${o_('mobile')}=this.value" />`, 'col-6')}
+        ${field('Client type', `<select class="form-select" data-no-search onchange="${o_('clientTypeId')}=this.value">${opts(OPT.clientTypes, o.clientTypeId)}</select>`, 'col-6')}
+        ${field('Speciality', `<select class="form-select" data-no-search onchange="${o_('specialityId')}=this.value">${opts(OPT.specialities, o.specialityId)}</select>`, 'col-6')}
+        ${field('Category', `<select class="form-select" data-no-search onchange="${o_('categoryId')}=this.value">${opts(OPT.categories, o.categoryId)}</select>`, 'col-6')}
+        ${field('Qualification', `<input class="form-control" value="${esc(o.qualification)}" oninput="${o_('qualification')}=this.value" />`, 'col-6')}
+        ${field('Contact person', `<input class="form-control" value="${esc(o.contactPerson)}" oninput="${o_('contactPerson')}=this.value" />`, 'col-6')}
+        ${field('Area', `<select class="form-select" data-no-search onchange="${o_('areaId')}=this.value">${opts(OPT.areas, o.areaId, 'Select area')}</select>`)}
+        ${field('Address', `<textarea class="form-control" rows="2" oninput="${o_('address')}=this.value">${esc(o.address)}</textarea>`)}</div>`;
+    } else {
+      h += `<div class="small text-muted mb-2">${esc([o.clientCode, o.clientTypeName].filter(Boolean).join(' · '))}</div>`;
+    }
+    h += `<div class="dcr-sec">Check-in</div>
+      <div class="d-flex gap-2 mb-2"><button class="btn btn-success flex-fill" onclick="checkIn()"><i class="bi bi-geo-alt"></i> Check in now</button>
+        <button class="btn btn-outline-secondary flex-fill" onclick="checkOut()"><i class="bi bi-box-arrow-right"></i> Check out</button></div>
+      <div class="row g-2">${field('In time', `<input class="form-control" type="time" value="${esc(o.inTime)}" oninput="${o_('inTime')}=this.value" />`, 'col-6')}
+        ${field('Out time', `<input class="form-control" type="time" value="${esc(o.outTime)}" oninput="${o_('outTime')}=this.value" />`, 'col-6')}
+        ${field('Visit type', `<select class="form-select" data-no-search onchange="${o_('visitType')}=this.value">${opts(OPT.visitTypes.length ? OPT.visitTypes : ['CALL'], o.visitType, '')}</select>`, 'col-6')}
+        ${field('Activity', `<select class="form-select" data-no-search onchange="${o_('activityType')}=this.value">${opts(OPT.activityTypes, o.activityType)}</select>`, 'col-6')}
+        ${u ? '' : field('Area', `<select class="form-select" data-no-search onchange="${o_('areaId')}=this.value">${opts(OPT.areas, o.areaId)}</select>`)}</div>
+      <div id="geoNote" class="small text-muted mt-1">${o.checkinLat ? `<i class="bi bi-geo-alt-fill text-success"></i> Location saved` : ''}</div>`;
+    h += `<div class="form-check form-switch my-3"><input class="form-check-input" type="checkbox" id="refSw" ${o.refused ? 'checked' : ''} onchange="${o_('refused')}=this.checked"><label class="form-check-label" for="refSw">Client refused to meet</label></div>`;
+    if (subs.includes('ITEMS')) {
+      h += `<div class="dcr-sec">Items — sample / gift / input / POB</div>` + (o.items.map((it, i) => itemRow(it, i)).join('') || '<div class="small text-muted mb-2">No items added</div>')
+        + `<button class="btn btn-outline-primary btn-sm rounded-pill" onclick="addItem()"><i class="bi bi-plus"></i> Add item</button>
+          <div class="row g-2 mt-2">${field('POB value (₹) — used when no POB items', `<input class="form-control" type="number" inputmode="decimal" value="${esc(o.pobValue)}" oninput="${o_('pobValue')}=this.value" />`)}</div>`;
+    } else {
+      h += `<div class="row g-2 mt-1">${field('POB value (₹)', `<input class="form-control" type="number" inputmode="decimal" value="${esc(o.pobValue)}" oninput="${o_('pobValue')}=this.value" />`)}</div>`;
+    }
+    if (subs.includes('LEAFLETS')) {
+      const leafItems = OPT.items;
+      h += `<div class="dcr-sec">Leaflets</div>` + (o.leaflets.map((l, i) => `<div class="dcr-item"><div class="row g-2 align-items-end">
+        ${field('Leaflet', `<select class="form-select" data-no-search onchange="EDIT.o.leaflets[${i}].itemId=this.value">${opts(leafItems, l.itemId, 'Select')}</select>`, 'col-8')}
+        ${field('Qty', `<input class="form-control" type="number" inputmode="numeric" value="${esc(l.qty)}" oninput="EDIT.o.leaflets[${i}].qty=this.value" />`, 'col-3')}
+        <div class="col-1 text-end"><button class="btn btn-sm text-danger" onclick="EDIT.o.leaflets.splice(${i},1);renderCall()"><i class="bi bi-x-lg"></i></button></div></div></div>`).join(''))
+        + `<button class="btn btn-outline-primary btn-sm rounded-pill" onclick="EDIT.o.leaflets.push({itemId:'',qty:1,value:0});renderCall()"><i class="bi bi-plus"></i> Add leaflet</button>`;
+    }
+    if (subs.includes('TREATMENT') && OPT.treatments.length) {
+      h += `<div class="dcr-sec">Treatment</div><div class="dcr-chips">` + OPT.treatments.map(t => `<button type="button" class="dcr-chip ${o.treatments.includes(t.id) ? 'on' : ''}" onclick="toggleIn(EDIT.o.treatments,${t.id});renderCall()">${esc(t.name)}</button>`).join('') + '</div>';
+    }
+    if (OPT.tabs.some(t => t.form === 'JOINT') && OPT.joint.length) {
+      h += `<div class="dcr-sec">Worked with</div><div class="dcr-chips">` + OPT.joint.map(j => `<button type="button" class="dcr-chip ${o.jointWith.includes(j.id) ? 'on' : ''}" onclick="toggleIn(EDIT.o.jointWith,'${esc(j.id)}');renderCall()">${esc(j.name)}</button>`).join('') + '</div>';
+    }
+    h += `<div class="dcr-sec">Remarks & next visit</div><div class="row g-2">
+      ${field('Remarks', `<textarea class="form-control" rows="2" oninput="${o_('remarks')}=this.value">${esc(o.remarks)}</textarea>`)}
+      ${field('Next visit', `<input class="form-control" type="date" value="${esc(o.nextVisit)}" oninput="${o_('nextVisit')}=this.value" />`, 'col-6')}
+      ${field('Priority', `<select class="form-select" data-no-search onchange="${o_('nextVisitPriority')}=this.value">${opts(['LOW', 'MEDIUM', 'HIGH'], o.nextVisitPriority)}</select>`, 'col-6')}
+      ${field('Next visit remarks', `<input class="form-control" value="${esc(o.nextVisitRemarks)}" oninput="${o_('nextVisitRemarks')}=this.value" />`)}</div>
+      <div class="dcr-sec">Signature (optional)</div>${o.signaturePath ? `<div class="mb-2">${SFAFiles.thumb(o.signaturePath, null, { name: 'signature' })}</div>` : ''}
+      <input class="form-control" type="file" accept="image/*" onchange="callUpload(this,'signaturePath')" />`;
+    const sb = document.getElementById('sheetBody'), top = sb.scrollTop;
+    sb.innerHTML = h; sb.scrollTop = top;
+    if (window.SFAFiles && SFAFiles.hydrate) SFAFiles.hydrate(sb);
+  }
+  function itemRow(it, i) {
+    return `<div class="dcr-item"><div class="row g-2 align-items-end">
+      ${field('Item', `<select class="form-select" data-no-search onchange="itemPick(${i},this.value)">${itemOpts(it.itemId)}</select>`, 'col-12')}
+      ${field('Given qty', `<input class="form-control" type="number" inputmode="numeric" value="${esc(it.qty)}" oninput="EDIT.o.items[${i}].qty=this.value" />`, 'col-4')}
+      ${field('POB qty', `<input class="form-control" type="number" inputmode="numeric" value="${esc(it.pobQty)}" oninput="EDIT.o.items[${i}].pobQty=this.value" />`, 'col-4')}
+      ${field('Rate', `<input class="form-control" type="number" inputmode="decimal" value="${esc(it.rate)}" oninput="EDIT.o.items[${i}].rate=this.value" />`, 'col-4')}
+      <div class="col-8"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="det${i}" ${it.detailed ? 'checked' : ''} onchange="EDIT.o.items[${i}].detailed=this.checked"><label class="form-check-label" for="det${i}">Detailed</label></div></div>
+      <div class="col-4 text-end"><button class="btn btn-sm text-danger" onclick="EDIT.o.items.splice(${i},1);renderCall()"><i class="bi bi-trash"></i> Remove</button></div></div></div>`;
+  }
+  const itemOpts = (sel) => {
+    const groups = {};
+    OPT.items.forEach(i => (groups[i.type] = groups[i.type] || []).push(i));
+    return '<option value="">Select item</option>' + Object.keys(groups).sort().map(g => `<optgroup label="${esc(g)}">${groups[g].map(i => `<option value="${i.id}"${String(i.id) === String(sel) ? ' selected' : ''}>${esc(i.name)}</option>`).join('')}</optgroup>`).join('');
+  };
+  function itemPick(i, id) {
+    const it = OPT.items.find(x => String(x.id) === String(id)), row = EDIT.o.items[i];
+    row.itemId = id || ''; row.itemType = it ? it.type : ''; row.itemName = it ? it.name : '';
+    if (it) row.rate = it.rate;
+    renderCall();
+  }
+  function addItem() { EDIT.o.items.push({ itemId: '', itemType: '', qty: 0, pobQty: 0, rate: '', detailed: false, remarks: '' }); renderCall(); }
+  function toggleIn(arr, v) { const k = arr.indexOf(v); k < 0 ? arr.push(v) : arr.splice(k, 1); }
+  function checkIn() {
+    EDIT.o.inTime = EDIT.o.inTime || nowHm(); EDIT.o.checkinAt = nowDt();
+    const note = () => renderCall();
+    if (navigator.geolocation) navigator.geolocation.getCurrentPosition(p => { EDIT.o.checkinLat = +p.coords.latitude.toFixed(7); EDIT.o.checkinLng = +p.coords.longitude.toFixed(7); note(); }, note, { timeout: 6000, maximumAge: 60000 });
+    else note();
+  }
+  function checkOut() { EDIT.o.outTime = nowHm(); renderCall(); }
+  async function callUpload(inputEl, key) {
+    const f = inputEl.files[0]; if (!f) return;
+    try { EDIT.o[key] = (await dcrUpload(f, 'image')).path; renderCall(); } catch (e) { SFA.toast(e.message, false); }
+  }
+  async function dcrUpload(file, kind) {
+    const fd = new FormData(); fd.append('file', file); fd.append('kind', kind);
+    return Api.post(EP.upload, fd);
+  }
+  function callDone() {
+    const o = EDIT.o;
+    if (EDIT.kind === 'u' && !(o.clientName || '').trim()) { SFA.toast('Enter the name of the unlisted client', false); return; }
+    if (o.inTime && o.outTime && o.outTime < o.inTime) { SFA.toast('Out time cannot be before in time', false); return; }
+    if (o.items.some(i => !i.itemId)) { SFA.toast('Choose the item in every item row (or remove the row)', false); return; }
+    if (o.leaflets.some(l => !l.itemId)) { SFA.toast('Choose the leaflet in every leaflet row (or remove it)', false); return; }
+    (EDIT.kind === 'v' ? ST.visits : ST.unlisted)[EDIT.idx] = o;
+    sheetClose(); render();
+  }
+  function callDelete() {
+    if (!confirm('Remove this call from the DCR?')) return;
+    if (EDIT.kind === 'v') ST.visits.splice(EDIT.idx, 1);
+    else { const k = ST.unlisted[EDIT.idx].key; ST.unlisted.splice(EDIT.idx, 1); ST.expenses.forEach(e => { if (e.unlistedKey === k) { e.clientKind = 0; e.unlistedKey = null; } }); }
+    sheetClose(); render();
+  }
+
+  // ============================================================== joint / expense / day end
+  function paneJoint() {
+    if (!OPT.joint.length) return '<div class="dcr-empty"><i class="bi bi-people fs-1"></i><div>No one to work with — you need a manager or a team</div></div>';
+    return `<div class="card-lite"><div class="dcr-sec mt-0">Worked with, the whole day</div><div class="dcr-chips">` +
+      OPT.joint.map(j => `<button type="button" class="dcr-chip ${ST.jointWith.includes(j.id) ? 'on' : ''}" onclick="toggleIn(ST.jointWith,'${esc(j.id)}');render()">${esc(j.name)}<small class="text-muted"> ${esc(j.designation || '')}</small></button>`).join('') +
+      `</div><div class="small text-muted mt-2">For a single call, pick the person inside that call.</div></div>`;
+  }
+  function expLink(e) {
+    if (e.clientKind === 1) { const v = ST.visits.find(x => x.clientId === e.clientId); return v ? v.clientName : ''; }
+    if (e.clientKind === 2) { const u = ST.unlisted.find(x => x.key === e.unlistedKey); return u ? u.clientName : ''; }
+    return '';
+  }
+  function paneExpense() {
+    const cards = ST.expenses.map((e, i) => { const t = OPT.expenseTypes.find(x => x.id === e.expenseId);
+      return `<div class="card-lite dcr-visit" onclick="editExpense(${i})"><div class="ava"><i class="bi bi-receipt"></i></div>
+        <div class="meta"><b>${esc(t ? t.name : 'Expense')}</b><small class="text-muted">${esc([e.description, expLink(e)].filter(Boolean).join(' · ') || ' ')}</small></div><b>₹${money(e.amount)}</b></div>`; }).join('');
+    return (cards || '<div class="dcr-empty"><i class="bi bi-receipt fs-1"></i><div>No expense yet</div></div>') +
+      (ST.canEdit ? '<button class="dcr-add" onclick="editExpense(-1)"><i class="bi bi-plus-circle"></i> Add expense</button>' : '');
+  }
+  function editExpense(idx) {
+    const blankE = { expenseId: '', amount: '', description: '', clientKind: 0, clientId: null, unlistedKey: null, fromAreaId: '', toAreaId: '', startKm: '', endKm: '', startImagePath: '', endImagePath: '', fileName: '', fileType: '', filePath: '' };
+    EDIT = { kind: 'e', idx, o: idx < 0 ? blankE : JSON.parse(JSON.stringify(ST.expenses[idx])) };
+    ['fromAreaId', 'toAreaId', 'startKm', 'endKm'].forEach(k => { if (EDIT.o[k] == null) EDIT.o[k] = ''; });
+    sheetOpen(idx < 0 ? 'Add expense' : 'Expense', '', '');
+    renderExpense();
+    document.getElementById('sheetFoot').innerHTML = !ST.canEdit ? '<button class="btn btn-light" onclick="sheetClose()">Close</button>'
+      : (idx >= 0 ? '<button class="btn btn-outline-danger" style="flex:0 0 auto" onclick="expDelete()"><i class="bi bi-trash"></i></button>' : '') + '<button class="btn btn-primary" onclick="expDone()"><i class="bi bi-check2"></i> Done</button>';
+  }
+  function renderExpense() {
+    const o = EDIT.o, t = OPT.expenseTypes.find(x => String(x.id) === String(o.expenseId)), travel = t && t.travel;
+    const links = [{ id: '0', name: 'Not about a client' }].concat(ST.visits.map(v => ({ id: '1:' + v.clientId, name: v.clientName }))).concat(ST.unlisted.filter(u => u.clientName).map(u => ({ id: '2:' + u.key, name: u.clientName + ' (unlisted)' })));
+    const cur = o.clientKind === 1 ? '1:' + o.clientId : o.clientKind === 2 ? '2:' + o.unlistedKey : '0';
+    const up = (key, label) => `<div class="col-6"><label class="form-label">${label}</label>${o[key] ? `<div class="mb-1">${SFAFiles.thumb(o[key], null, { name: label })}</div>` : ''}<input class="form-control" type="file" accept="image/*" capture="environment" onchange="expUpload(this,'${key}','image')" /></div>`;
+    let h = `<div class="row g-3">
+      ${field('Expense type *', `<select class="form-select" data-no-search onchange="EDIT.o.expenseId=this.value;renderExpense()">${opts(OPT.expenseTypes, o.expenseId, 'Select type')}</select>`)}
+      ${field('Amount (₹) *', `<input class="form-control" type="number" inputmode="decimal" value="${esc(o.amount)}" oninput="EDIT.o.amount=this.value" />`, 'col-6')}
+      ${field('For client', `<select class="form-select" data-no-search onchange="expLinkSet(this.value)">${opts(links, cur, '')}</select>`, 'col-6')}
+      ${field('Description', `<input class="form-control" maxlength="150" value="${esc(o.description)}" oninput="EDIT.o.description=this.value" />`)}`;
+    if (travel) h += `${field('From area', `<select class="form-select" data-no-search onchange="EDIT.o.fromAreaId=this.value">${opts(OPT.areas, o.fromAreaId)}</select>`, 'col-6')}
+      ${field('To area', `<select class="form-select" data-no-search onchange="EDIT.o.toAreaId=this.value">${opts(OPT.areas, o.toAreaId)}</select>`, 'col-6')}
+      ${field('Start km', `<input class="form-control" type="number" inputmode="decimal" value="${esc(o.startKm)}" oninput="EDIT.o.startKm=this.value" />`, 'col-6')}
+      ${field('End km', `<input class="form-control" type="number" inputmode="decimal" value="${esc(o.endKm)}" oninput="EDIT.o.endKm=this.value" />`, 'col-6')}
+      ${up('startImagePath', 'Start meter photo')}${up('endImagePath', 'End meter photo')}`;
+    h += `<div class="col-12"><label class="form-label">Bill / receipt</label>${o.filePath ? `<div class="small mb-1"><i class="bi bi-paperclip"></i> ${esc(o.fileName || 'attached')}</div>` : ''}
+      <input class="form-control" type="file" accept="image/*,application/pdf" onchange="expUpload(this,'filePath','document')" /></div></div>`;
+    document.getElementById('sheetBody').innerHTML = h;
+  }
+  function expLinkSet(v) {
+    const o = EDIT.o;
+    if (v.startsWith('1:')) { o.clientKind = 1; o.clientId = Number(v.slice(2)); o.unlistedKey = null; }
+    else if (v.startsWith('2:')) { o.clientKind = 2; o.unlistedKey = v.slice(2); o.clientId = null; }
+    else { o.clientKind = 0; o.clientId = null; o.unlistedKey = null; }
+  }
+  async function expUpload(el, key, kind) {
+    const f = el.files[0]; if (!f) return;
+    try { const r = await dcrUpload(f, kind); EDIT.o[key] = r.path; if (key === 'filePath') { EDIT.o.fileName = r.name; EDIT.o.fileType = r.type; } renderExpense(); } catch (e) { SFA.toast(e.message, false); }
+  }
+  function expDone() {
+    const o = EDIT.o;
+    if (!o.expenseId) { SFA.toast('Choose the expense type', false); return; }
+    if (!(Number(o.amount) > 0)) { SFA.toast('Enter the amount', false); return; }
+    o.expenseId = Number(o.amount) ? Number(o.expenseId) : o.expenseId;
+    if (EDIT.idx < 0) ST.expenses.push(o); else ST.expenses[EDIT.idx] = o;
+    sheetClose(); render();
+  }
+  function expDelete() { if (!confirm('Remove this expense?')) return; ST.expenses.splice(EDIT.idx, 1); sheetClose(); render(); }
+
+  function paneDayEnd() {
+    return `<div class="card-lite"><div class="row g-3">
+      ${field('Day ended at (area)', `<select class="form-select" data-no-search onchange="ST.dayEndAreaId=this.value">${opts(OPT.areas, ST.dayEndAreaId, 'Select area')}</select>`)}
+      ${field('Day end time', `<div class="input-group"><input class="form-control" type="datetime-local" value="${esc(ST.dayEndAt)}" oninput="ST.dayEndAt=this.value" /><button class="btn btn-outline-secondary" onclick="ST.dayEndAt=nowDt();render()">Now</button></div>`)}
+      ${field('Meter end (km)', inp('meterEnd', 'number', 'inputmode="decimal" step="0.1"'), 'col-6')}
+      ${field('Day end remarks', `<input class="form-control" maxlength="200" value="${esc(ST.dayEndRemarks)}" oninput="ST.dayEndRemarks=this.value" />`, 'col-6')}
+      ${field('Night stay area', `<select class="form-select" data-no-search onchange="ST.stayAreaId=this.value">${opts(OPT.areas, ST.stayAreaId, 'Not staying')}</select>`, 'col-6')}
+      ${field('Hotel', `<input class="form-control" maxlength="100" value="${esc(ST.stayHotel)}" oninput="ST.stayHotel=this.value" />`, 'col-6')}
+    </div></div>`;
+  }
+
+  function paneReview() {
+    const calls = ST.visits.length + ST.unlisted.length, pob = ST.visits.concat(ST.unlisted).reduce((s, c) => s + callPob(c), 0), exp = ST.expenses.reduce((s, e) => s + Number(e.amount || 0), 0);
+    const warn = [];
+    if (ST.workType === 'WORKING' && !calls) warn.push('No client call added yet');
+    if (ST.workType === 'WORKING' && !ST.startAreaId) warn.push('Day start area not selected');
+    if (!ST.timeIn) warn.push('Time in is empty');
+    return `<div class="card-lite"><div class="row text-center g-2">
+        <div class="col-4"><div class="fs-3 fw-bold">${calls}</div><small class="text-muted">Calls</small></div>
+        <div class="col-4"><div class="fs-3 fw-bold">₹${money(pob)}</div><small class="text-muted">POB</small></div>
+        <div class="col-4"><div class="fs-3 fw-bold">₹${money(exp)}</div><small class="text-muted">Expense</small></div></div></div>
+      ${warn.length ? `<div class="alert alert-warning small">${warn.map(w => '<div><i class="bi bi-exclamation-triangle"></i> ' + esc(w) + '</div>').join('')}</div>` : '<div class="alert alert-success small"><i class="bi bi-check-circle"></i> Looks good — tap Submit to send it for approval.</div>'}
+      <div class="small text-muted">Draft keeps it with you to finish later. Submit sends it to your manager; once approved it cannot be changed.</div>`;
+  }
+
+  // ============================================================== save / submit
+  const n = (v) => (v === '' || v == null ? null : Number(v));
+  const s = (v) => (v === '' || v == null ? null : v);
+  function callPayload(c) {
+    return { worktypeCode: c.worktypeCode, visitType: c.visitType, activityType: s(c.activityType), areaId: n(c.areaId), inTime: s(c.inTime), outTime: s(c.outTime), checkinAt: s(c.checkinAt),
+      checkinLat: c.checkinLat, checkinLng: c.checkinLng, pobValue: n(c.pobValue), remarks: s(c.remarks), refused: !!c.refused, nextVisit: s(c.nextVisit), nextVisitPriority: s(c.nextVisitPriority),
+      nextVisitRemarks: s(c.nextVisitRemarks), signaturePath: s(c.signaturePath), jointWith: c.jointWith || [], treatments: c.treatments || [],
+      items: (c.items || []).map(i => ({ itemId: Number(i.itemId), itemType: i.itemType, qty: n(i.qty) || 0, pobQty: n(i.pobQty) || 0, rate: n(i.rate), detailed: !!i.detailed, remarks: s(i.remarks) })),
+      leaflets: (c.leaflets || []).map(l => ({ itemId: Number(l.itemId), qty: n(l.qty) || 0, value: n(l.value) || 0 })) };
+  }
+  function payload(submit) {
+    return { dcrDate: ST.dcrDate, workType: ST.workType, startAreaId: n(ST.startAreaId), workingAreaId: n(ST.workingAreaId), timeIn: s(ST.timeIn), timeOut: s(ST.timeOut), travelMode: s(ST.travelMode),
+      meterStart: n(ST.meterStart), meterEnd: n(ST.meterEnd), remarks: s(ST.remarks), dayEndAreaId: n(ST.dayEndAreaId), dayEndAt: s(ST.dayEndAt), dayEndRemarks: s(ST.dayEndRemarks),
+      stayAreaId: n(ST.stayAreaId), stayHotel: s(ST.stayHotel), jointWith: ST.jointWith, submit,
+      visits: ST.visits.map(v => Object.assign({ clientId: v.clientId }, callPayload(v))),
+      unlisted: ST.unlisted.map(u => Object.assign({ key: u.key, clientName: u.clientName, clientTypeId: n(u.clientTypeId), specialityId: n(u.specialityId), categoryId: n(u.categoryId),
+        qualification: s(u.qualification), mobile: s(u.mobile), contactPerson: s(u.contactPerson), address: s(u.address) }, callPayload(u))),
+      expenses: ST.expenses.map(e => ({ expenseId: Number(e.expenseId), amount: Number(e.amount), description: s(e.description), clientKind: e.clientKind || 0, clientId: e.clientId, unlistedKey: e.unlistedKey,
+        fromAreaId: n(e.fromAreaId), toAreaId: n(e.toAreaId), startKm: n(e.startKm), endKm: n(e.endKm), startImagePath: s(e.startImagePath), endImagePath: s(e.endImagePath),
+        fileName: s(e.fileName), fileType: s(e.fileType), filePath: s(e.filePath) })) };
+  }
+  async function dcrSave(submit) {
+    if (submit && !confirm('Submit this DCR for approval?')) return;
+    try {
+      const saved = await Api.post(EP.save, payload(submit));
+      ST = fromDto(saved); render();
+      SFA.toast(submit ? 'DCR submitted' : 'Draft saved', true);
+    } catch (e) { SFA.toast(e.message, false); }
+  }
+
+  // ============================================================== history / approval
+  async function dcrLoadList() {
+    const days = Number(document.getElementById('hRange').value || 30), from = new Date(); from.setDate(from.getDate() - days);
+    const f = from.getFullYear() + '-' + pad(from.getMonth() + 1) + '-' + pad(from.getDate());
+    try { ROWS = await Api.get(EP.list, { query: { from: f, to: todayStr() } }); dcrRenderList(); } catch (e) { SFA.toast(e.message, false); }
+  }
+  async function pendingBadge() {
+    try {
+      const from = new Date(); from.setDate(from.getDate() - 30);
+      const rows = await Api.get(EP.list, { query: { from: from.getFullYear() + '-' + pad(from.getMonth() + 1) + '-' + pad(from.getDate()), to: todayStr() }, noLoader: true });
+      const k = rows.filter(r => r.canApprove).length, b = document.getElementById('dcrPendingBadge');
+      b.textContent = k; b.classList.toggle('d-none', !k);
+    } catch (e) { /* the badge is optional */ }
+  }
+  function dcrRenderList() {
+    const st = document.getElementById('hStatus').value, q = document.getElementById('hSearch').value.trim().toLowerCase();
+    const rows = ROWS.filter(r => (st === '' || (st === 'mine' ? r.canApprove : String(r.status) === st)) && (!q || (r.empName + ' ' + r.empCode).toLowerCase().includes(q)));
+    document.getElementById('hRows').innerHTML = rows.map(r => `<div class="card-lite dcr-visit" onclick="dcrOpen(${r.dcrId})"><div class="ava">${esc(initials(r.empName))}</div>
+      <div class="meta"><b>${esc(r.empName)}${r.mine ? ' <small class="text-muted">(me)</small>' : ''}</b><small class="text-muted">${esc(Settings.formatDate(r.dcrDate))} · ${esc(r.workType)} · ${r.listedCalls + r.unlistedCalls} calls · POB ₹${money(r.pobTotal)}${Number(r.expenseTotal) ? ' · Exp ₹' + money(r.expenseTotal) : ''}</small></div>
+      <div class="text-end">${stBadge(r.status)}${r.canApprove ? '<div><small class="text-danger fw-bold">Review</small></div>' : ''}</div></div>`).join('') || '<div class="dcr-empty"><i class="bi bi-journal-x fs-1"></i><div>No DCR found</div></div>';
+  }
+  async function dcrOpen(id) {
+    try {
+      const d = await Api.get(EP.get(id));
+      if (d.empId === OPT.me && d.canEdit) { document.getElementById('dcrDate').value = d.dcrDate; dcrView('form'); await loadDay(); return; }
+      const foot = d.canApprove ? `<button class="btn btn-outline-danger" onclick="dcrDecide(${id},false)"><i class="bi bi-x-circle"></i> Reject</button><button class="btn btn-success" onclick="dcrDecide(${id},true)"><i class="bi bi-patch-check"></i> Approve</button>`
+        : '<button class="btn btn-light" onclick="sheetClose()">Close</button>';
+      sheetOpen(d.empName + ' · ' + Settings.formatDate(d.dcrDate), detailHtml(d), foot);
+    } catch (e) { SFA.toast(e.message, false); }
+  }
+  const jname = (id) => { const j = OPT.joint.find(x => x.id === id); return j ? j.name : id; };
+  function detailHtml(d) {
+    const call = (c, u) => `<div class="card-lite"><b>${esc(c.clientName)}</b> <small class="text-muted">${esc(u ? (c.mobile || 'Unlisted') : (c.clientCode || ''))}</small>
+      <div class="small text-muted">${esc([c.inTime && c.outTime ? c.inTime + '–' + c.outTime : c.inTime, c.visitType, c.activityType].filter(Boolean).join(' · '))}</div>
+      ${c.refused ? '<span class="badge bg-warning text-dark">Refused to meet</span>' : ''}
+      ${(c.items || []).map(i => `<div class="small">• ${esc(i.itemName)} <span class="text-muted">(${esc(i.itemType)})</span> given ${i.qty}${i.pobQty ? ', POB ' + i.pobQty + ' × ₹' + money(i.rate) : ''}${i.detailed ? ' · detailed' : ''}</div>`).join('')}
+      ${(c.leaflets || []).map(l => `<div class="small">• Leaflet ${esc(l.itemName)} × ${l.qty}</div>`).join('')}
+      ${(c.treatments || []).map(t => { const x = OPT.treatments.find(z => z.id === t); return `<div class="small">• Treatment: ${esc(x ? x.name : t)}</div>`; }).join('')}
+      ${(c.jointWith || []).length ? `<div class="small">With: ${c.jointWith.map(j => esc(jname(j))).join(', ')}</div>` : ''}
+      ${Number(c.pobValue) ? `<span class="badge bg-success">POB ₹${money(c.pobValue)}</span>` : ''} ${c.remarks ? `<div class="small mt-1">${esc(c.remarks)}</div>` : ''}</div>`;
+    return `<div class="d-flex justify-content-between align-items-center mb-2"><div class="text-muted small">${esc(d.designation || '')} · ${esc(d.workType)}${d.timeIn ? ' · ' + esc(d.timeIn) + (d.timeOut ? '–' + esc(d.timeOut) : '') : ''}</div>${stBadge(d.status)}</div>
+      ${d.remarks ? `<div class="small mb-2">${esc(d.remarks)}</div>` : ''}
+      ${(d.jointWith || []).length ? `<div class="small mb-2">Worked with: ${d.jointWith.map(j => esc(jname(j))).join(', ')}</div>` : ''}
+      ${d.visits.length ? '<div class="dcr-sec">Client calls</div>' + d.visits.map(v => call(v, false)).join('') : ''}
+      ${d.unlisted.length ? '<div class="dcr-sec">Unlisted calls</div>' + d.unlisted.map(v => call(v, true)).join('') : ''}
+      ${d.expenses.length ? '<div class="dcr-sec">Expenses</div>' + d.expenses.map(e => `<div class="card-lite d-flex justify-content-between"><span>${esc(e.expenseName)} <small class="text-muted">${esc(e.description || '')}</small></span><b>₹${money(e.amount)}</b></div>`).join('') : ''}
+      ${d.approvalRemarks ? `<div class="alert alert-light small">${esc(d.approvedByName || '')}: ${esc(d.approvalRemarks)}</div>` : ''}`;
+  }
+  async function dcrDecide(id, ok) {
+    try {
+      if (ok) { await Api.post(EP.approve(id), { remarks: null }); SFA.toast('DCR approved', true); }
+      else { const r = prompt('Why is this DCR rejected? (the employee sees this)'); if (r === null) return; if (!r.trim()) { SFA.toast('Please give the reason', false); return; }
+        await Api.post(EP.reject(id), { reason: r.trim() }); SFA.toast('DCR rejected', true); }
+      sheetClose(); dcrLoadList(); pendingBadge();
+    } catch (e) { SFA.toast(e.message, false); }
+  }
+</script>
+</body>
+</html>

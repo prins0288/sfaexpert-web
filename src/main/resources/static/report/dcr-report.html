@@ -54,10 +54,6 @@
       <hr class="my-3" />
       <div class="row g-3">
         <div class="col-md-3">
-          <label class="form-label">Route</label>
-          <select class="form-select" id="f_route"><option value="">All Routes</option></select>
-        </div>
-        <div class="col-md-3">
           <label class="form-label">Area</label>
           <select class="form-select" id="f_area"><option value="">All Areas</option></select>
         </div>
@@ -106,8 +102,8 @@
       <div class="table-responsive">
         <table id="dcrTable" data-screen-key="DCR_REPORT" class="table table-striped table-bordered nowrap" style="width:100%">
           <thead><tr>
-            <th>S.No</th><th data-field="date">Date</th><th data-field="employee">Employee</th><th data-field="division">Division</th><th data-field="route">Route</th><th data-field="area">Area</th>
-            <th data-field="client">Client</th><th data-field="clientType">Client Type</th><th data-field="workType">Work Type</th><th data-field="timeIn">Time In</th><th data-field="timeOut">Time Out</th><th data-field="remarks">Remarks</th>
+            <th>S.No</th><th data-field="date">Date</th><th data-field="employee">Employee</th><th data-field="division">Division</th><th data-field="callKind">Call</th><th data-field="area">Area</th>
+            <th data-field="client">Client</th><th data-field="clientType">Client Type</th><th data-field="workType">Work Type</th><th data-field="timeIn">Time In</th><th data-field="timeOut">Time Out</th><th data-field="pob">POB</th><th data-field="remarks">Remarks</th>
           </tr></thead>
           <tbody></tbody>
         </table>
@@ -154,13 +150,7 @@
   const REPORT_KEY = 'dcrreport';
   const REPORT_LABEL = 'DCR Report';
 
-  // Nepal clients store their DCR date as free text (Bikram Sambat calendar) in
-  // dcrDateNp, since it isn't a Gregorian date; every other client uses the
-  // real dcrDate column. The report shows whichever one applies per row.
-  function displayDate(r) {
-    if (r.countryName === 'Nepal') return SFA.esc(r.dcrDateNp || '');
-    return SFA.esc(Settings.formatDate(r.dcrDate));
-  }
+  const displayDate = (r) => SFA.esc(Settings.formatDate(r.dcrDate));
   const hhmm = (t) => (t ? SFA.esc(t.substring(0, 5)) : '');
 
   function fillSelect(id, items, placeholder) {
@@ -178,7 +168,6 @@
     try {
       const lk = await Api.get(API.lookups);
       fillSelect('f_division', lk.divisions || [], 'All Divisions');
-      fillSelect('f_route', lk.routes || [], 'All Routes');
       fillSelect('f_area', lk.areas || [], 'All Areas');
       fillSelect('f_employee', lk.employees || [], 'All Employees');
       await dcrSearch();
@@ -190,7 +179,6 @@
     try {
       const rows = await Api.get(API.report.dcr, { query: {
         divisionOid: v('f_division'),
-        routeOid: v('f_route'),
         areaOid: v('f_area'),
         empId: v('f_employee'),
         fromDate: v('f_from'),
@@ -207,7 +195,6 @@
   function currentFilters() {
     return {
       divisionOid: document.getElementById('f_division').value,
-      routeOid: document.getElementById('f_route').value,
       areaOid: document.getElementById('f_area').value,
       empId: document.getElementById('f_employee').value,
       workType: document.getElementById('f_workType').value,
@@ -221,7 +208,6 @@
     const label = id => { const el = document.getElementById(id); return el.selectedIndex >= 0 ? el.options[el.selectedIndex].text : ''; };
     const parts = [];
     if (document.getElementById('f_division').value) parts.push('Division: ' + label('f_division'));
-    if (document.getElementById('f_route').value) parts.push('Route: ' + label('f_route'));
     if (document.getElementById('f_area').value) parts.push('Area: ' + label('f_area'));
     if (document.getElementById('f_employee').value) parts.push('Employee: ' + label('f_employee'));
     if (document.getElementById('f_workType').value) parts.push('Work: ' + label('f_workType'));
@@ -234,7 +220,6 @@
   // exact filters AND re-runs the search live (dcrSearch), one click.
   function applyActivityFilters(f) {
     document.getElementById('f_division').value = f.divisionOid || '';
-    document.getElementById('f_route').value = f.routeOid || '';
     document.getElementById('f_area').value = f.areaOid || '';
     document.getElementById('f_employee').value = f.empId || '';
     document.getElementById('f_workType').value = f.workType || '';
@@ -267,7 +252,7 @@
   }
 
   function dcrReset() {
-    ['f_division', 'f_route', 'f_area', 'f_employee', 'f_workType', 'f_quickRange']
+    ['f_division', 'f_area', 'f_employee', 'f_workType', 'f_quickRange']
       .forEach(id => document.getElementById(id).value = '');
     ['f_from', 'f_to'].forEach(id => sfaSetDate(id, ''));
     dcrSearch();
@@ -281,13 +266,14 @@
         <td>${displayDate(r)}</td>
         <td>${SFA.esc(r.empName)}</td>
         <td>${SFA.esc(r.divisionName)}</td>
-        <td>${SFA.esc(r.routeName)}</td>
+        <td>${SFA.esc(r.callKind)}</td>
         <td>${SFA.esc(r.areaName)}</td>
         <td>${SFA.esc(r.clientName)}</td>
         <td>${SFA.esc(r.clientTypeName)}</td>
         <td>${SFA.esc(r.workType)}</td>
         <td>${hhmm(r.timeIn)}</td>
         <td>${hhmm(r.timeOut)}</td>
+        <td>${r.pobValue != null ? SFA.esc(r.pobValue) : ''}</td>
         <td>${SFA.esc(r.remarks)}</td>
       </tr>`).join('');
     DT = sfaDataTable('#dcrTable');
