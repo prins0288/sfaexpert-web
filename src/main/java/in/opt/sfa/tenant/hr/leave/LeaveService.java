@@ -177,6 +177,7 @@ public class LeaveService {
         jdbc.update("INSERT INTO hr_leave_application (emp_id, leave_type_id, from_date, to_date, day_part, days, lwp_days, reason, status, source, dcr_id, decided_at) VALUES (?,?,?,?,?,?,?,?,?,?,?, " + ("APPROVED".equals(status) ? "NOW()" : "NULL") + ")",
                 empId, typeId, from, to, part == null ? "FULL" : part, r.days(), r.lwpDays(), reason == null || reason.isBlank() ? null : reason.trim(), status, source, dcrId);
         Long id = jdbc.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+        if ("APPROVED".equals(status)) createDcrDays(id);
         audit.log("LEAVE", id, empId, "CREATE", "application", null, t.get("code") + " " + from + (to.equals(from) ? "" : " to " + to) + " (" + r.days() + " d, " + status + ")", reason);
         return Map.of("id", id, "status", status, "days", r.days(), "lwpDays", r.lwpDays());
     }
@@ -185,6 +186,42 @@ public class LeaveService {
     public Map<String, Object> applyMine(Map<String, Object> f) {
         return apply(me(), Long.parseLong(f.get("leaveTypeId").toString()), LocalDate.parse(f.get("fromDate").toString()), LocalDate.parse(f.get("toDate") == null || f.get("toDate").toString().isBlank() ? f.get("fromDate").toString() : f.get("toDate").toString()),
                 f.get("dayPart") == null ? "FULL" : f.get("dayPart").toString(), f.get("reason") == null ? null : f.get("reason").toString(), "WEB", null);
+    }
+
+
+    // ---- DCR rows of an approved leave ---------------------------------------------------------------------------
+    private static String tag(long appId) { return "LEAVE-APP-" + appId; }
+
+    /** Approved leave => a LEAVE DCR (approved) for every working day of it, so reports show leave, not absent. Existing DCRs are left alone. */
+    private int createDcrDays(long appId) {
+        Map<String, Object> a = jdbc.queryForList("SELECT a.emp_id, a.from_date, a.to_date, a.dcr_id, t.code FROM hr_leave_application a JOIN hr_leave_type t ON t.id = a.leave_type_id WHERE a.id = ?", appId).get(0);
+        String emp = (String) a.get("emp_id");
+        LocalDate from = ((java.sql.Date) a.get("from_date")).toLocalDate(), to = ((java.sql.Date) a.get("to_date")).toLocalDate();
+        if (a.get("dcr_id") != null)   // the leave day started from the DCR screen: approve it too
+            jdbc.update("UPDATE dcr_parent_summary SET status = 2, submitted_at = COALESCE(submitted_at, NOW()), approved_by = ?, approved_at = NOW(), approval_remarks = ? WHERE dcr_id = ? AND work_type = 'LEAVE'", me(), "Leave approved", a.get("dcr_id"));
+        Set<LocalDate> off = new HashSet<>();
+        holidays.forEmployee(emp, from, to).keySet().forEach(k -> off.add(LocalDate.parse(k)));
+        Map<String, Object> e = jdbc.queryForList("SELECT designation, manager_id FROM emp_detail WHERE emp_id = ?", emp).get(0);
+        int made = 0;
+        for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
+            if (off.contains(d)) continue;
+            if (jdbc.queryForObject("SELECT COUNT(*) FROM dcr_parent_summary WHERE emp_id = ? AND dcr_date = ?", Integer.class, emp, d) > 0) continue;
+            jdbc.update("INSERT INTO dcr_parent_summary (emp_id, dcr_date, work_type, designation_id, manager_id, remarks, status, submitted_at, submitted_through, approved_by, approved_at, approval_remarks) VALUES (?,?, 'LEAVE', ?, ?, ?, 2, NOW(), 2, ?, NOW(), 'Leave approved')",
+                    emp, d, e.get("designation"), e.get("manager_id"), tag(appId) + " " + a.get("code"), me());
+            made++;
+        }
+        return made;
+    }
+
+    /** Leave rejected / cancelled => the LEAVE DCRs made for it go away (a draft leave day from the DCR screen too). */
+    private void removeDcrDays(long appId) {
+        List<Long> ids = jdbc.queryForList("SELECT dcr_id FROM dcr_parent_summary WHERE work_type = 'LEAVE' AND (remarks LIKE ? OR dcr_id = (SELECT dcr_id FROM hr_leave_application WHERE id = ?))", Long.class, tag(appId) + "%", appId);
+        for (Long id : ids) {
+            if (id == null) continue;
+            for (String t : List.of("dcr_client_sample", "dcr_leaflets_summary", "dcr_client_treatment", "dcr_sm_visits", "dcr_expense", "dcr_area_summary", "dcr_client_summary", "dcr_unlisted_client_summary"))
+                jdbc.update("DELETE FROM " + t + " WHERE dcr_id = ?", id);
+            jdbc.update("DELETE FROM dcr_parent_summary WHERE dcr_id = ?", id);
+        }
     }
 
     // ---- lists / decisions ---------------------------------------------------------------------------------------
@@ -219,7 +256,9 @@ public class LeaveService {
         if (!"PENDING".equals(a.get("status"))) throw new IllegalStateException("Already " + a.get("status").toString().toLowerCase());
         if (!approve && (remarks == null || remarks.isBlank())) throw new IllegalArgumentException("Please give a reason for rejecting");
         jdbc.update("UPDATE hr_leave_application SET status = ?, decided_by = ?, decided_at = NOW(), decision_remarks = ? WHERE id = ?", approve ? "APPROVED" : "REJECTED", me(), remarks, id);
-        audit.log("LEAVE", id, (String) a.get("emp_id"), "UPDATE", "status", "PENDING", approve ? "APPROVED" : "REJECTED", remarks);
+        int made = approve ? createDcrDays(id) : 0;
+        if (!approve) removeDcrDays(id);
+        audit.log("LEAVE", id, (String) a.get("emp_id"), "UPDATE", "status", "PENDING", approve ? "APPROVED (" + made + " DCR day(s) made)" : "REJECTED", remarks);
     }
 
     @Transactional(transactionManager = "tenantTransactionManager")
@@ -231,6 +270,7 @@ public class LeaveService {
         if (a.get("dcr_id") != null) throw new IllegalStateException("This leave is part of a DCR day - delete that DCR to cancel it");
         if (mine && "APPROVED".equals(a.get("status")) && ((java.sql.Date) a.get("from_date")).toLocalDate().isBefore(LocalDate.now())) throw new IllegalStateException("An approved leave of a past date can be cancelled only by HR");
         jdbc.update("UPDATE hr_leave_application SET status = 'CANCELLED', decided_by = ?, decided_at = NOW(), decision_remarks = ? WHERE id = ?", me(), reason, id);
+        removeDcrDays(id);
         audit.log("LEAVE", id, (String) a.get("emp_id"), "UPDATE", "status", (String) a.get("status"), "CANCELLED", reason);
     }
 
@@ -239,6 +279,7 @@ public class LeaveService {
     public void cancelForDcr(long dcrId) {
         for (Map<String, Object> a : jdbc.queryForList("SELECT id, emp_id, status FROM hr_leave_application WHERE dcr_id = ? AND status IN ('PENDING','APPROVED')", dcrId)) {
             jdbc.update("UPDATE hr_leave_application SET status = 'CANCELLED', decided_by = ?, decided_at = NOW(), decision_remarks = 'DCR deleted' WHERE id = ?", me(), a.get("id"));
+            removeDcrDays(((Number) a.get("id")).longValue());
             audit.log("LEAVE", a.get("id"), (String) a.get("emp_id"), "UPDATE", "status", (String) a.get("status"), "CANCELLED", "DCR deleted");
         }
     }
