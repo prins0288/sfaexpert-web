@@ -33,6 +33,10 @@ public class DcrDto {
     private String dayEndRemarks;
     private Long stayAreaId;
     private String stayHotel;
+    /** LEAVE day: the leave type, optional last day (to take several days) and day part (FULL / FIRST / SECOND). The reason is the remarks. */
+    private Long leaveTypeId;
+    private String leaveToDate;
+    private String leaveDayPart;
     /** true = submit now, false = save as a draft. */
     private boolean submit;
     private List<Visit> visits = new ArrayList<>();

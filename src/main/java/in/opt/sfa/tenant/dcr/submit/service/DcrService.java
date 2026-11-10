@@ -42,12 +42,14 @@ public class DcrService {
 
     private final JdbcTemplate jdbc;
     private final TeamScope scope;
+    private final in.opt.sfa.tenant.hr.leave.LeaveService leaves;
     private final DcrWorktypeService worktypes;
     private final DcrRuleService rules;
     private final in.opt.sfa.tenant.tp.service.TourPlanLookup tourPlans;
     private final CompanySettingStore settings;
 
-    public DcrService(JdbcTemplate jdbc, TeamScope scope, DcrWorktypeService worktypes, DcrRuleService rules, in.opt.sfa.tenant.tp.service.TourPlanLookup tourPlans, CompanySettingStore settings) {
+    public DcrService(JdbcTemplate jdbc, TeamScope scope, DcrWorktypeService worktypes, DcrRuleService rules, in.opt.sfa.tenant.tp.service.TourPlanLookup tourPlans, CompanySettingStore settings, in.opt.sfa.tenant.hr.leave.LeaveService leaves) {
+        this.leaves = leaves;
         this.rules = rules;
         this.tourPlans = tourPlans;
         this.jdbc = jdbc;
@@ -73,6 +75,7 @@ public class DcrService {
         m.put("meDesignation", who.get("designation"));
         m.put("meHq", who.get("hq"));
         m.put("workTypes", worktypes.dayTypes(me));
+        m.put("leaveTypes", leaves.balances(me, LocalDate.now()));
         m.put("rules", rules.of(me));
         m.put("isAdmin", TeamScope.isAdmin());
         m.put("backDays", backDays());
@@ -396,6 +399,13 @@ public class DcrService {
         LocalTime timeIn = date.equals(today) ? LocalTime.now().withSecond(0).withNano(0) : time(f.getTimeIn(), "Time in");
         if (timeIn == null) throw new IllegalStateException("Enter the time your day started");
         boolean working = worktypes.isFieldWork(me, workType);
+        boolean leaveDay = "LEAVE".equals(workType);
+        LocalDate leaveTo = date;
+        if (leaveDay) {   // a leave day is applied under the leave policy right here
+            if (f.getLeaveTypeId() == null) throw new IllegalStateException("Choose the leave type");
+            leaveTo = Strings.isBlank(f.getLeaveToDate()) ? date : date(f.getLeaveToDate(), "Leave till date");
+            leaves.validate(me, f.getLeaveTypeId(), date, leaveTo, f.getLeaveDayPart() == null ? "FULL" : f.getLeaveDayPart(), f.getRemarks(), null);
+        }
         Map<String, String> rl = rules.of(me);
         if (date.equals(today)) {
             LocalTime earliest = DcrRuleService.time(rl, "DAY_START_STOP_BEFORE_TIME"), latest = DcrRuleService.time(rl, "DAY_START_TIME");
@@ -425,6 +435,7 @@ public class DcrService {
             return ps;
         }, kh);
         long id = kh.getKey().longValue();
+        if (leaveDay) leaves.apply(me, f.getLeaveTypeId(), date, leaveTo, f.getLeaveDayPart() == null ? "FULL" : f.getLeaveDayPart(), f.getRemarks(), "DCR", id);
         if (working && f.getStartAreaId() != null) {
             try {   // area type (HQ / EX / OUT ...) of the start area, kept with the day (column from migration 95)
                 jdbc.update("UPDATE dcr_parent_summary SET start_area_type = (SELECT area_type FROM area_master WHERE oid = ?) WHERE dcr_id = ?", f.getStartAreaId(), id);
@@ -825,6 +836,7 @@ public class DcrService {
             jdbc.update("DELETE FROM " + t + " WHERE dcr_id = ?", dcrId);
         }
         jdbc.update("DELETE FROM dcr_parent_summary WHERE dcr_id = ?", dcrId);
+        leaves.cancelForDcr(dcrId);
     }
 
     /**

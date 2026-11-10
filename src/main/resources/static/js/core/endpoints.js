@@ -278,6 +278,15 @@
         empRoles: (empId) => `/api/hr/employees/${empId}/roles`,       // POST {roles, reason}
         employees: "/api/hr/employees",                                // ?q=
         employee: (empId) => `/api/hr/employees/${empId}`,             // GET / POST employment facts
+        leave: {
+          types: "/api/hr/leave/types", typesDelete: "/api/hr/leave/types/delete",   // leave master (policy) GET / POST save / POST {ids}
+          mine: "/api/hr/leave/mine",                                    // my balances + applications
+          preview: "/api/hr/leave/preview",                              // ?typeId=&from=&to=&part=&reason=  days + policy errors, nothing saved
+          apply: "/api/hr/leave/apply",
+          approvals: "/api/hr/leave/approvals",                          // ?all=true  my team's (admin: everyone's)
+          approve: (id) => `/api/hr/leave/${id}/approve`, reject: (id) => `/api/hr/leave/${id}/reject`, cancel: (id) => `/api/hr/leave/${id}/cancel`,
+          balances: "/api/hr/leave/balances", adjust: "/api/hr/leave/adjust",
+        },
         audit: "/api/hr/audit",                                        // ?entity=&empId=&by=&from=&to=
       },
       marquee: {

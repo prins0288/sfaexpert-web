@@ -400,11 +400,24 @@
       ${working ? tpNote() : ''}
       ${working ? field('Starting from (area)', `<select class="form-select" data-no-search onchange="ST.startAreaId=this.value;areaTypeShow()">${opts(startAreas(), ST.startAreaId, 'Select area')}</select><div class="small mt-1" id="stAreaType"></div>`) : ''}
       ${working ? tmField(`<select class="form-select" data-no-search onchange="ST.travelMode=this.value">${opts(OPT.travelModes, ST.travelMode, 'Select')}</select>`) + meterField() : ''}
+      ${ST.workType === 'LEAVE' ? leaveFields() : ''}
       ${today ? '' : field('Time in (earlier day)', inp('timeIn', 'time'), 'col-6')}
-      ${field('Remarks', `<textarea class="form-control" rows="2" oninput="ST.remarks=this.value">${esc(ST.remarks)}</textarea>`)}</div>
+      ${field(ST.workType === 'LEAVE' ? 'Reason for leave' : 'Remarks', `<textarea class="form-control" rows="2" oninput="ST.remarks=this.value">${esc(ST.remarks)}</textarea>`)}</div>
       <div class="small text-muted mt-3"><i class="bi bi-clock"></i> ${today ? 'Your time in is captured when you tap Start Day.' : 'Enter the time your day started.'}</div>`,
       '<button class="btn btn-light" onclick="sheetClose()">Cancel</button><button class="dcr-start-btn flex-fill" onclick="dcrStart()"' + (tpBlocked() ? ' disabled' : '') + '><i class="bi bi-play-circle"></i> Start Day</button>');
     areaTypeShow();
+  }
+  // leave: the type, day part and last day come from the leave master (policy checked on the server when you tap Start Day)
+  const lvTypes = () => (OPT && OPT.leaveTypes) || [];
+  function leaveFields() {
+    const lt = lvTypes().find(x => String(x.typeId) === String(ST.leaveTypeId));
+    if (!ST.leaveTypeId && lvTypes().length) ST.leaveTypeId = lvTypes()[0].typeId;
+    const cur = lvTypes().find(x => String(x.typeId) === String(ST.leaveTypeId)) || {};
+    const typeSel = `<select class="form-select" data-no-search onchange="ST.leaveTypeId=this.value;startSheet()">${lvTypes().map(x => `<option value="${x.typeId}" ${String(x.typeId) === String(ST.leaveTypeId) ? 'selected' : ''}>${esc(x.name)} (${x.paid ? Number(x.balance) + ' left' : 'unpaid'})</option>`).join('')}</select>`;
+    const part = `<select class="form-select" data-no-search onchange="ST.leaveDayPart=this.value;startSheet()"><option value="FULL" ${ST.leaveDayPart !== 'FIRST' && ST.leaveDayPart !== 'SECOND' ? 'selected' : ''}>Full day</option>${cur.allowHalfDay ? `<option value="FIRST" ${ST.leaveDayPart === 'FIRST' ? 'selected' : ''}>First half</option><option value="SECOND" ${ST.leaveDayPart === 'SECOND' ? 'selected' : ''}>Second half</option>` : ''}</select>`;
+    const half = ST.leaveDayPart === 'FIRST' || ST.leaveDayPart === 'SECOND';
+    return field('Leave type', typeSel) + field('Day', part, 'col-6') + (half ? '' : field('Till date (for more days)', `<input type="date" class="form-control" min="${ST.dcrDate}" value="${esc(ST.leaveToDate || '')}" onchange="ST.leaveToDate=this.value">`, 'col-6'))
+      + '<div class="col-12"><div class="alert alert-info py-2 small mb-0"><i class="bi bi-info-circle"></i> Leave is checked against the leave policy (balance, notice, limits) and goes to your manager for approval.</div></div>';
   }
   // tour plan rule (TP_VALIDATE_FILTER): only the planned areas / clients, and no start without an approved plan
   const tpOn = () => !!(TPF && TPF.enabled);
@@ -420,7 +433,7 @@
   }
   async function dcrStart() {
     try {
-      const d = await Api.post(EP.start, { dcrDate: ST.dcrDate, workType: ST.workType, startAreaId: n(ST.startAreaId), travelMode: s(ST.travelMode), meterStart: n(ST.meterStart), remarks: s(ST.remarks), timeIn: s(ST.timeIn) });
+      const d = await Api.post(EP.start, { dcrDate: ST.dcrDate, workType: ST.workType, startAreaId: n(ST.startAreaId), travelMode: s(ST.travelMode), meterStart: n(ST.meterStart), remarks: s(ST.remarks), timeIn: s(ST.timeIn), leaveTypeId: ST.workType === 'LEAVE' ? n(ST.leaveTypeId) : null, leaveToDate: ST.workType === 'LEAVE' ? s(ST.leaveToDate) : null, leaveDayPart: ST.workType === 'LEAVE' ? (ST.leaveDayPart || 'FULL') : null });
       ST = fromDto(d); CUR = 'day'; sheetClose(); render();
       SFA.toast('Day started at ' + ST.timeIn, true);
     } catch (e) { SFA.toast(e.message, false); }
