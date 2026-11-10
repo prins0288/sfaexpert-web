@@ -100,6 +100,7 @@ public class PayrollService {
                     new SalaryCalc.Params(p.pfCeiling(), p.pfEeRate(), p.pfErEpfRate(), p.pfErEpsRate(), p.pfEdliRate(), p.pfAdminRate(), b(e.get("disabled")) ? limitDisabled : p.esiLimit(), p.esiEeRate(), p.esiErRate(), p.rounding()), null)) held++;
             made++;
         }
+        if (made == 0) throw new IllegalStateException("No payslip could be made: " + noSalary + " employee(s) have no salary set. Set the salary in Employee Salary first, then generate again");
         audit.log("PAYROLL", runId, null, "CREATE", "run", null, ym + ": " + made + " slips, " + held + " held, " + noSalary + " without salary", null);
         return Map.of("runId", runId, "slips", made, "held", held, "withoutSalary", noSalary);
     }
