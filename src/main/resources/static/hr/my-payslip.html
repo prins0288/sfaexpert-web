@@ -60,6 +60,7 @@
 <script>
 
 const S = API.master.hr.salary, P = API.master.hr.payroll;
+const SLOT = (location.pathname.match(/^(.*?\/u\/\d+)(\/|$)/) || [null, ''])[1];   // keep the signed-in account slot (/u/0) in the slip link
 const esc = (v) => SFA.esc(v == null ? '' : v);
 const val = (id) => document.getElementById(id).value;
 const chk = (id) => document.getElementById(id).checked;
@@ -73,7 +74,7 @@ const stBadge = (s) => `<span class="ap-badge ${s === 'GENERATED' || s === 'RELE
 window.pageInit = async function () {
   try { const rows = await Api.get(P.mine);
     document.getElementById('body').innerHTML = rows.map(r => `<div class="ap-card"><div class="d-flex align-items-center gap-2"><div class="flex-fill"><b>${MON[r.month]} ${r.year}</b> ${r.status === 'HELD' ? '<span class="ap-badge bad">On hold</span>' : r.runStatus === 'PAID' ? '<span class="ap-badge ok">Paid</span>' : '<span class="ap-badge wait">Approved</span>'}</div>
-      ${r.status === 'HELD' ? '<span class="small text-muted">Contact HR</span>' : `<b>Rs ${money(r.net)}</b><a class="ap-btn go" target="_blank" href="hr/payslip.html?id=${r.id}">View / Print</a>`}</div></div>`).join('') || '<div class="ap-card ap-empty"><i class="bi bi-receipt fs-1"></i><div>No payslip yet</div><div class="small mt-1">A slip shows here only after HR generates the month <b>and a Payroll Approver approves it</b>, and only if your salary is set in Employee Salary.</div></div>';
+      ${r.status === 'HELD' ? '<span class="small text-muted">Contact HR</span>' : `<b>Rs ${money(r.net)}</b><a class="ap-btn go" target="_blank" href="${SLOT}/hr/payslip.html?id=${r.id}">View / Print</a>`}</div></div>`).join('') || '<div class="ap-card ap-empty"><i class="bi bi-receipt fs-1"></i><div>No payslip yet</div><div class="small mt-1">A slip shows here only after HR generates the month <b>and a Payroll Approver approves it</b>, and only if your salary is set in Employee Salary.</div></div>';
   } catch (e) { document.getElementById('body').innerHTML = '<div class="ap-card ap-empty">' + esc(e.message) + '</div>'; }
 };
 

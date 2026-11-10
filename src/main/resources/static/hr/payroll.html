@@ -62,6 +62,7 @@
 <script>
 
 const S = API.master.hr.salary, P = API.master.hr.payroll;
+const SLOT = (location.pathname.match(/^(.*?\/u\/\d+)(\/|$)/) || [null, ''])[1];   // keep the signed-in account slot (/u/0) in the slip link
 const esc = (v) => SFA.esc(v == null ? '' : v);
 const val = (id) => document.getElementById(id).value;
 const chk = (id) => document.getElementById(id).checked;
@@ -94,7 +95,7 @@ async function openRun(id) {
     <span class="ms-auto d-flex gap-2">${draft ? '<button class="ap-btn go" onclick="approve()">Approve</button><button class="ap-btn danger" onclick="delRun()">Delete month</button>' : ''}${RUN.status === 'APPROVED' ? '<button class="ap-btn go" onclick="paid()">Mark paid</button>' : ''}</span></div>`
    + RUN.slips.map(s => `<div class="ap-card"><div class="d-flex align-items-center gap-2"><div class="flex-fill" style="min-width:0"><b>${esc(s.name)}</b> <span class="text-muted">${esc(s.empCode)}</span> ${stBadge(s.status)}
       <div class="small text-muted">${[s.designation, s.hq, s.state].filter(Boolean).map(esc).join(' · ')}</div><div class="small">Paid ${Number(s.paidDays)}/${s.daysInMonth} days${Number(s.lopDays) ? ' · <span class="text-danger">LOP ' + Number(s.lopDays) + '</span>' : ''} · Gross ${money(s.gross)} · Ded ${money(s.deductions)}</div>${s.holdReason ? '<div class="small text-danger"><i class="bi bi-pause-circle"></i> ' + esc(s.holdReason) + '</div>' : ''}</div>
-      <div class="text-end"><div class="fw-bold">Rs ${money(s.net)}</div><div class="d-flex gap-1 mt-1 justify-content-end flex-wrap"><a class="ap-btn light" target="_blank" href="hr/payslip.html?id=${s.id}">Slip</a>
+      <div class="text-end"><div class="fw-bold">Rs ${money(s.net)}</div><div class="d-flex gap-1 mt-1 justify-content-end flex-wrap"><a class="ap-btn light" target="_blank" href="${SLOT}/hr/payslip.html?id=${s.id}">Slip</a>
       ${draft ? `<button class="ap-btn light" onclick="lop(${s.id}, ${Number(s.lopDays)})">LOP</button>` : ''}${RUN.status !== 'PAID' ? (s.status === 'HELD' ? `<button class="ap-btn go" onclick="rel(${s.id})">Release</button>` : `<button class="ap-btn danger" onclick="hold(${s.id})">Hold</button>`) : ''}</div></div></div></div>`).join('');
 }
 async function lop(id, cur) { const v = prompt('Loss-of-pay days for this month', cur); if (v == null) return; const r = ask('Reason (kept in the audit log)'); if (!r) return; try { await Api.post(P.lop(id), { lopDays: v, reason: r }); await openRun(RUN.id); SFA.toast('Recalculated'); } catch (e) { SFA.toast(e.message, false); } }

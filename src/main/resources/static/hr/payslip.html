@@ -35,6 +35,8 @@
 <script src="js/core/endpoints.js"></script>
 <script src="js/core/http.js"></script>
 <script>
+  // opened without the account slot (/u/0): go to the same page under it, so the sign-in is found
+  if (!/\/u\/\d+\//.test(location.pathname)) { location.replace(location.pathname.replace(/\/hr\/payslip\.html$/, '/u/0/hr/payslip.html') + location.search); }
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const money = (v) => Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const MON = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
