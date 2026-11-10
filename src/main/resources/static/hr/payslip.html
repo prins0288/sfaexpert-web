@@ -9,23 +9,31 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
   <style>
-    body { background: #eef0f4; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #1f2937; }
-    .slip { max-width: 820px; margin: 1rem auto; background: #fff; padding: 1.5rem; border-radius: .6rem; box-shadow: 0 2px 10px rgba(0,0,0,.08); border-top: 6px solid var(--ac, #d9441a); }
-    .slip h1 { font-size: 1.15rem; margin: 0; } .brand { display: flex; align-items: center; gap: 1rem; }
-    .brand img { max-height: 64px; max-width: 160px; object-fit: contain; }
-    .ttl { text-align: center; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ac); margin: 1rem 0 .25rem; }
-    .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: .25rem 1.5rem; font-size: .88rem; margin: .75rem 0; }
-    .grid div span { color: #6b7280; display: inline-block; min-width: 7.5rem; }
-    table.t { width: 100%; border-collapse: collapse; font-size: .9rem; } table.t th { background: var(--ac); color: #fff; padding: .4rem .6rem; text-align: left; }
-    table.t td { padding: .35rem .6rem; border-bottom: 1px solid #e5e7eb; } .r { text-align: right !important; }
-    .two { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; } .tot td { font-weight: 700; background: #f3f4f6; }
-    .net { margin-top: 1rem; padding: .8rem 1rem; border: 2px solid var(--ac); border-radius: .5rem; display: flex; justify-content: space-between; font-weight: 700; font-size: 1.1rem; }
-    .words { font-size: .85rem; color: #4b5563; margin-top: .4rem; } .foot { font-size: .75rem; color: #6b7280; margin-top: 1.2rem; display: flex; justify-content: space-between; align-items: flex-end; }
-    .sign { border-top: 1px solid #9ca3af; padding-top: .2rem; min-width: 11rem; text-align: center; }
-    .bar { max-width: 820px; margin: 1rem auto 0; display: flex; gap: .5rem; justify-content: flex-end; }
-    .hold { background: #fef2f2; color: #991b1b; padding: .6rem 1rem; border-radius: .4rem; }
-    @media (max-width: 640px) { .two, .grid { grid-template-columns: 1fr; } .slip { margin: .5rem; padding: 1rem; } }
-    @media print { body { background: #fff; } .slip { box-shadow: none; margin: 0; max-width: none; } .bar { display: none; } }
+    :root { --ac: #d9441a; --ink: #1f2937; --mut: #6b7280; --line: #cfd4dc; }
+    * { box-sizing: border-box; }
+    body { background: #e9ecf1; font-family: "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif; color: var(--ink); font-size: 12px; margin: 0; }
+    .bar { max-width: 794px; margin: .75rem auto 0; display: flex; gap: .5rem; justify-content: flex-end; padding: 0 .5rem; }
+    .slip { width: 794px; max-width: 100%; margin: .6rem auto 1.5rem; background: #fff; padding: 22px 26px 18px; border: 1px solid var(--line); box-shadow: 0 2px 8px rgba(0,0,0,.08); position: relative; }
+    .hd { display: flex; align-items: center; gap: 14px; border-bottom: 3px solid var(--ac); padding-bottom: 10px; }
+    .hd img { max-height: 56px; max-width: 140px; object-fit: contain; }
+    .hd .co { flex: 1; } .hd .co b { font-size: 16px; letter-spacing: .01em; display: block; } .hd .co span { color: var(--mut); font-size: 10.5px; display: block; line-height: 1.35; }
+    .hd .pt { text-align: right; } .hd .pt b { display: block; font-size: 14px; color: var(--ac); text-transform: uppercase; letter-spacing: .06em; } .hd .pt span { color: var(--mut); font-size: 10.5px; }
+    .note { text-align: center; color: var(--mut); font-size: 10.5px; margin-top: 5px; }
+    table { width: 100%; border-collapse: collapse; }
+    .info { margin-top: 10px; border: 1px solid var(--line); } .info td { padding: 3px 7px; border: 1px solid var(--line); vertical-align: top; width: 25%; }
+    .info td.k { background: #f4f5f8; color: var(--mut); width: 14%; font-size: 10.5px; } .info td.v { width: 19%; font-weight: 600; }
+    .sal { margin-top: 10px; border: 1px solid var(--line); } .sal th { background: var(--ac); color: #fff; text-align: left; padding: 4px 7px; font-size: 10.5px; white-space: nowrap; text-transform: uppercase; letter-spacing: .04em; }
+    .sal td { padding: 3px 7px; border-left: 1px solid var(--line); border-right: 1px solid var(--line); } .sal tr.sp td { height: 0; padding: 0; }
+    .sal .r { text-align: right; font-variant-numeric: tabular-nums; } .sal .ytd { color: var(--mut); }
+    .sal tr.tot td { background: #f4f5f8; font-weight: 700; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .net { margin-top: 10px; border: 2px solid var(--ac); padding: 7px 12px; display: flex; justify-content: space-between; align-items: center; font-size: 14px; font-weight: 700; }
+    .net small { font-weight: 500; font-size: 10.5px; color: var(--mut); display: block; }
+    .er { margin-top: 8px; font-size: 10.5px; color: var(--mut); border-top: 1px dashed var(--line); padding-top: 5px; } .er b { color: var(--ink); font-weight: 600; }
+    .ft { margin-top: 14px; display: flex; justify-content: space-between; align-items: flex-end; font-size: 10px; color: var(--mut); gap: 12px; }
+    .sign { border-top: 1px solid #9ca3af; padding-top: 3px; min-width: 150px; text-align: center; color: var(--ink); }
+    .hold { background: #fef2f2; color: #991b1b; padding: 5px 9px; margin-top: 8px; font-weight: 600; }
+    @page { size: A4; margin: 10mm; }
+    @media print { body { background: #fff; } .bar { display: none; } .slip { zoom: 1 !important; width: auto !important; max-width: none !important; margin: 0; border: 0; box-shadow: none; padding: 0; } * { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
   </style>
 </head>
 <body>
@@ -39,6 +47,7 @@
   if (!/\/u\/\d+\//.test(location.pathname)) { location.replace(location.pathname.replace(/\/hr\/payslip\.html$/, '/u/0/hr/payslip.html') + location.search); }
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const money = (v) => Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const MON3 = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const MON = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   const fmtD = (d) => d ? new Date(String(d).slice(0, 10) + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
   function words(n) {   // Indian numbering, rupees and paise
@@ -62,19 +71,32 @@
       const by = (t) => d.lines.filter(l => l.type === t);
       const earn = by('EARNING'), ded = by('DEDUCTION'), emp = by('EMPLOYER');
       const n = Math.max(earn.length, ded.length), rows = [];
-      const acct = e.accountNo ? 'XXXX' + String(e.accountNo).slice(-4) : '';
-      const kv = (k, v) => v ? `<div><span>${k}</span>${esc(v)}</div>` : '';
-      el.innerHTML = `<div class="brand">${on('showLogo') && logo ? `<img src="${esc(logo)}" alt="">` : ''}<div><h1>${esc(co.legalName || co.tradeName || '')}</h1>${on('showAddress') && co.address ? `<div class="small text-muted">${esc(co.address)}</div>` : ''}</div></div>
-        <div class="ttl">${esc(c.title)} - ${MON[d.month]} ${d.year}</div>${c.headerNote ? `<div class="text-center small text-muted">${esc(c.headerNote)}</div>` : ''}
-        ${d.status === 'HELD' ? `<div class="hold mt-2">Salary on hold: ${esc(d.holdReason)}</div>` : ''}
-        <div class="grid">${kv('Employee', e.name)}${kv('Employee code', e.empCode)}${kv('Designation', e.designation)}${kv('Department', e.department)}${kv('Branch / HQ', e.branch || e.hq)}${kv('Date of joining', fmtD(e.doj))}
-          ${on('showStatutoryIds') ? kv('PAN', e.pan) + kv('UAN', e.uan) + kv('PF no.', e.pfNo) + kv('ESI no.', e.esiNo) : ''}${on('showBank') ? kv('Bank', e.bank) + kv('Account', acct) : ''}
-          ${on('showAttendance') ? kv('Days in month', d.daysInMonth) + kv('Days paid', Number(d.paidDays)) + (Number(d.lopDays) ? kv('Loss of pay days', Number(d.lopDays)) : '') : ''}</div>
-        <div class="two"><table class="t"><thead><tr><th>Earnings</th><th class="r">Amount (Rs)</th></tr></thead><tbody>${earn.map(l => `<tr><td>${esc(l.name)}</td><td class="r">${money(l.amount)}</td></tr>`).join('')}<tr class="tot"><td>Gross earnings</td><td class="r">${money(d.gross)}</td></tr></tbody></table>
-        <table class="t"><thead><tr><th>Deductions</th><th class="r">Amount (Rs)</th></tr></thead><tbody>${ded.map(l => `<tr><td>${esc(l.name)}</td><td class="r">${money(l.amount)}</td></tr>`).join('') || '<tr><td colspan="2" class="text-muted">None</td></tr>'}<tr class="tot"><td>Total deductions</td><td class="r">${money(d.deductions)}</td></tr></tbody></table></div>
-        <div class="net"><span>Net pay</span><span>Rs ${money(d.net)}</span></div>${on('showNetInWords') ? `<div class="words">${words(Number(d.net))}</div>` : ''}
-        ${on('showEmployerContrib') && emp.length ? `<table class="t mt-3"><thead><tr><th>Employer contributions (not part of your pay)</th><th class="r">Amount (Rs)</th></tr></thead><tbody>${emp.map(l => `<tr><td>${esc(l.name)}</td><td class="r">${money(l.amount)}</td></tr>`).join('')}</tbody></table>` : ''}
-        <div class="foot"><div>${esc(c.footerNote)}</div>${c.signatoryLabel ? `<div class="sign">${esc(c.signatoryLabel)}</div>` : ''}</div>`;
+      for (let i = 0; i < n; i++) {
+        const a = earn[i], b = ded[i];
+        rows.push(`<tr><td>${a ? esc(a.name) : '&nbsp;'}</td><td class="r">${a ? money(a.amount) : ''}</td><td class="r ytd">${a ? money(a.ytd) : ''}</td><td>${b ? esc(b.name) : ''}</td><td class="r">${b ? money(b.amount) : ''}</td><td class="r ytd">${b ? money(b.ytd) : ''}</td></tr>`);
+      }
+      const acct = e.accountNo ? 'XXXXXX' + String(e.accountNo).slice(-4) : '';
+      const lastDay = new Date(d.year, d.month, 0).getDate();
+      const row = (...kv) => '<tr>' + kv.map((x, i) => i % 2 === 0 ? `<td class="k">${x}</td>` : `<td class="v">${esc(x == null || x === '' ? '-' : x)}</td>`).join('') + '</tr>';
+      el.innerHTML = `<div class="hd">${on('showLogo') && logo ? `<img src="${esc(logo)}" alt="">` : ''}<div class="co"><b>${esc(co.legalName || co.tradeName || '')}</b>${on('showAddress') && co.address ? `<span>${esc(co.address)}</span>` : ''}${co.pan || co.tan || co.pfCode || co.esiCode ? `<span>${[co.pan && 'PAN: ' + co.pan, co.tan && 'TAN: ' + co.tan, co.pfCode && 'PF Code: ' + co.pfCode, co.esiCode && 'ESI Code: ' + co.esiCode].filter(Boolean).map(esc).join(' &nbsp;|&nbsp; ')}</span>` : ''}</div>
+        <div class="pt"><b>${esc(c.title)}</b><span>${MON[d.month]} ${d.year}</span><br><span>Slip no. PS-${d.year}${String(d.month).padStart(2, '0')}-${String(d.id).padStart(5, '0')}</span></div></div>
+        ${c.headerNote ? `<div class="note">${esc(c.headerNote)}</div>` : ''}${d.status === 'HELD' ? `<div class="hold">Salary on hold: ${esc(d.holdReason)}</div>` : ''}
+        <table class="info"><tbody>
+          ${row('Employee name', e.name, 'Employee code', e.empCode)}
+          ${row('Designation', e.designation, 'Department', e.department)}
+          ${row('Location / HQ', e.branch || e.hq, 'Grade', e.grade)}
+          ${row('Date of joining', fmtD(e.doj), 'Pay period', '01-' + MON3[d.month] + '-' + d.year + ' to ' + lastDay + '-' + MON3[d.month] + '-' + d.year)}
+          ${on('showStatutoryIds') ? row('PAN', e.pan, 'UAN', e.uan) + row('PF number', e.pfNo, 'ESI number', e.esiNo) : ''}
+          ${on('showBank') ? row('Bank / branch', e.bank, 'Account no.', acct) : ''}
+          ${on('showAttendance') ? row('Days in month', d.daysInMonth, 'Days paid', Number(d.paidDays)) + row('Loss of pay days', Number(d.lopDays), 'Payment mode', e.accountNo ? 'Bank transfer' : '') : ''}
+        </tbody></table>
+        <table class="sal"><thead><tr><th style="width:27%">Earnings</th><th style="width:11%;text-align:right">Amount (Rs)</th><th style="width:11%;text-align:right">YTD ${esc(d.fyLabel)}</th><th style="width:25%">Deductions</th><th style="width:12%;text-align:right">Amount (Rs)</th><th style="width:12%;text-align:right">YTD ${esc(d.fyLabel)}</th></tr></thead>
+          <tbody>${rows.join('')}<tr class="tot"><td>Gross earnings</td><td class="r">${money(d.gross)}</td><td class="r ytd">${money(d.ytdGross)}</td><td>Total deductions</td><td class="r">${money(d.deductions)}</td><td class="r ytd">${money(d.ytdDeductions)}</td></tr></tbody></table>
+        <div class="net"><div>Net pay (Rs)<small>Gross earnings - Total deductions</small></div><div>${money(d.net)}</div></div>
+        ${on('showNetInWords') ? `<div style="margin-top:4px;font-size:11px"><b>In words:</b> ${words(Number(d.net))}</div>` : ''}
+        ${on('showEmployerContrib') && emp.length ? `<div class="er"><b>Employer contributions (not part of your pay):</b> ${emp.map(l => esc(l.name) + ' Rs ' + money(l.amount)).join(' &nbsp;|&nbsp; ')}</div>` : ''}
+        <div class="ft"><div>${esc(c.footerNote)}<br>Generated on ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</div>${c.signatoryLabel ? `<div class="sign">${esc(c.signatoryLabel)}</div>` : ''}</div>`;
+      if (window.innerWidth < 820) { el.style.width = '794px'; el.style.maxWidth = 'none'; el.style.zoom = (window.innerWidth - 8) / 794; el.style.margin = '4px 0'; }   // phone: the same page, scaled to fit
       document.title = 'Salary Slip - ' + e.name + ' - ' + MON[d.month] + ' ' + d.year;
     } catch (err) { el.innerHTML = '<div class="alert alert-danger mb-0">' + esc(err.message || 'Could not load the payslip') + '</div>'; }
   })();

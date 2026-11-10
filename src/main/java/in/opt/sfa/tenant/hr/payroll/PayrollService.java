@@ -161,7 +161,21 @@ public class PayrollService {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("id", id); out.put("year", s.get("py")); out.put("month", s.get("pm")); out.put("runStatus", s.get("runStatus")); out.put("status", s.get("status")); out.put("holdReason", s.get("hold_reason"));
         out.put("daysInMonth", s.get("days_in_month")); out.put("lopDays", s.get("lop_days")); out.put("paidDays", s.get("paid_days")); out.put("gross", s.get("gross_earnings")); out.put("deductions", s.get("total_deductions")); out.put("net", s.get("net_pay")); out.put("employerCost", s.get("employer_cost"));
-        out.put("lines", jdbc.queryForList("SELECT head_code AS code, head_name AS name, line_type AS type, amount FROM hr_payslip_line WHERE payslip_id = ? ORDER BY CASE line_type WHEN 'EARNING' THEN 0 WHEN 'DEDUCTION' THEN 1 ELSE 2 END, sort_order", id));
+        List<Map<String, Object>> lines = jdbc.queryForList("SELECT head_code AS code, head_name AS name, line_type AS type, amount FROM hr_payslip_line WHERE payslip_id = ? ORDER BY CASE line_type WHEN 'EARNING' THEN 0 WHEN 'DEDUCTION' THEN 1 ELSE 2 END, sort_order", id);
+        // year-to-date (financial year up to this month, approved slips of the employee) per head
+        int py = ((Number) s.get("py")).intValue(), pm = ((Number) s.get("pm")).intValue();
+        int fyMonth = jdbc.queryForList("SELECT fy_start_month FROM hr_company WHERE id = 1", Integer.class).stream().findFirst().orElse(4);
+        int fyStartYear = pm >= fyMonth ? py : py - 1;
+        Map<String, BigDecimal> ytd = new HashMap<>();
+        jdbc.query("""
+                SELECT l.head_code, SUM(l.amount) FROM hr_payslip_line l JOIN hr_payslip x ON x.id = l.payslip_id JOIN hr_payroll_run r ON r.id = x.run_id
+                WHERE x.emp_id = ? AND (x.approved_at IS NOT NULL OR x.id = ?) AND r.period_year * 12 + r.period_month BETWEEN ? AND ? GROUP BY l.head_code""",
+                rs -> { ytd.put(rs.getString(1), rs.getBigDecimal(2)); }, s.get("emp_id"), id, fyStartYear * 12 + fyMonth, py * 12 + pm);
+        for (Map<String, Object> l : lines) l.put("ytd", ytd.getOrDefault(l.get("code"), (BigDecimal) l.get("amount")));
+        out.put("lines", lines);
+        out.put("ytdGross", jdbc.queryForObject("SELECT COALESCE(SUM(x.gross_earnings), 0) FROM hr_payslip x JOIN hr_payroll_run r ON r.id = x.run_id WHERE x.emp_id = ? AND (x.approved_at IS NOT NULL OR x.id = ?) AND r.period_year * 12 + r.period_month BETWEEN ? AND ?", BigDecimal.class, s.get("emp_id"), id, fyStartYear * 12 + fyMonth, py * 12 + pm));
+        out.put("ytdDeductions", jdbc.queryForObject("SELECT COALESCE(SUM(x.total_deductions), 0) FROM hr_payslip x JOIN hr_payroll_run r ON r.id = x.run_id WHERE x.emp_id = ? AND (x.approved_at IS NOT NULL OR x.id = ?) AND r.period_year * 12 + r.period_month BETWEEN ? AND ?", BigDecimal.class, s.get("emp_id"), id, fyStartYear * 12 + fyMonth, py * 12 + pm));
+        out.put("fyLabel", fyStartYear + "-" + String.valueOf(fyStartYear + 1).substring(2));
         out.put("emp", jdbc.queryForList("""
                 SELECT e.emp_code AS empCode, e.emp_name AS name, d.designation, e.date_of_joining AS doj, hq.hq_name AS hq, st.state_name AS state, dp.name AS department, br.name AS branch, gr.name AS grade,
                        sx.pan_no AS pan, sx.uan_no AS uan, sx.pf_no AS pfNo, sx.esi_no AS esiNo, bk.branch_name AS bank, bk.account_no AS accountNo, bk.ifsc_code AS ifsc
