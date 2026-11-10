@@ -220,13 +220,18 @@ public class PayrollService {
     }
 
     @Transactional(transactionManager = "tenantTransactionManager")
-    public void approve(long runId) {
+    public void approve(long runId, String overrideReason) {
         access.require("PAYROLL_APPROVE");
         Map<String, Object> r = jdbc.queryForList("SELECT status, generated_by FROM hr_payroll_run WHERE id = ?", runId).stream().findFirst().orElseThrow(() -> new IllegalArgumentException("Run not found"));
         if (!"DRAFT".equals(r.get("status"))) throw new IllegalStateException("Already " + r.get("status").toString().toLowerCase());
-        if (settings.bool("MAKER_CHECKER_ON", LocalDate.now(), true) && !RoleResolver.canApprove((String) r.get("generated_by"), me())) throw new ForbiddenException("The person who generated the payroll cannot approve it - another Payroll Approver must");
+        boolean same = settings.bool("MAKER_CHECKER_ON", LocalDate.now(), true) && !RoleResolver.canApprove((String) r.get("generated_by"), me());
+        if (same) {
+            // only a Super Admin may approve what they generated themselves, and only with a reason that stays in the audit log
+            if (!access.myRoles().contains("SUPER_ADMIN")) throw new ForbiddenException("The person who generated the payroll cannot approve it - another Payroll Approver must");
+            if (overrideReason == null || overrideReason.isBlank()) throw new ForbiddenException("SAME_PERSON: you generated this payroll yourself. As Super Admin you can still approve it - give a reason");
+        }
         jdbc.update("UPDATE hr_payroll_run SET status = 'APPROVED', approved_by = ?, approved_at = NOW() WHERE id = ?", me(), runId);
-        audit.log("PAYROLL", runId, null, "UPDATE", "status", "DRAFT", "APPROVED", null);
+        audit.log("PAYROLL", runId, null, "UPDATE", "status", "DRAFT", same ? "APPROVED (Super Admin, same person as the maker)" : "APPROVED", same ? overrideReason : null);
     }
 
     @Transactional(transactionManager = "tenantTransactionManager")

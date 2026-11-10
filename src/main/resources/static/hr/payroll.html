@@ -102,7 +102,16 @@ async function lop(id, cur) { const v = prompt('Loss-of-pay days for this month'
 async function delSlip(id) { if (!confirm('Delete this payslip from the draft month? (Generating the month again will make it again.)')) return; const r = ask('Reason for deleting (kept in the audit log)'); if (!r) return; try { await Api.post(P.removeSlip(id), { reason: r }); await openRun(RUN.id); SFA.toast('Payslip deleted'); } catch (e) { SFA.toast(e.message, false); } }
 async function hold(id) { const r = ask('Reason for holding this salary'); if (!r) return; try { await Api.post(P.hold(id), { reason: r }); await openRun(RUN.id); SFA.toast('On hold'); } catch (e) { SFA.toast(e.message, false); } }
 async function rel(id) { const r = ask('Reason for releasing'); if (!r) return; try { await Api.post(P.release(id), { reason: r }); await openRun(RUN.id); SFA.toast('Released'); } catch (e) { SFA.toast(e.message, false); } }
-async function approve() { if (!confirm('Approve this month? Employees can then see their slips (held ones stay hidden).')) return; try { await Api.post(P.approve(RUN.id), {}); await openRun(RUN.id); SFA.toast('Approved'); } catch (e) { SFA.toast(e.message, false); } }
+async function approve() {
+  if (!confirm('Approve this month? Employees can then see their slips (held ones stay hidden).')) return;
+  try { await Api.post(P.approve(RUN.id), {}); }
+  catch (e) {
+    if (!String(e.message).startsWith('SAME_PERSON')) { SFA.toast(e.message, false); return; }
+    const r = ask('You generated this month yourself. As Super Admin you may still approve it - reason (kept in the audit log)'); if (!r) return;
+    try { await Api.post(P.approve(RUN.id), { reason: r }); } catch (e2) { SFA.toast(e2.message, false); return; }
+  }
+  await openRun(RUN.id); SFA.toast('Approved');
+}
 async function paid() { if (!confirm('Mark this month as paid?')) return; try { await Api.post(P.paid(RUN.id), {}); await openRun(RUN.id); SFA.toast('Marked paid'); } catch (e) { SFA.toast(e.message, false); } }
 async function delRun() { if (!confirm('Delete this draft month?')) return; try { await Api.post(P.removeRun(RUN.id), {}); await list(); SFA.toast('Deleted'); } catch (e) { SFA.toast(e.message, false); } }
 
