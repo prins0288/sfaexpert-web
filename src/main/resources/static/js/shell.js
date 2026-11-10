@@ -859,6 +859,8 @@
     return doc.body.innerHTML;
   }
 
+  window.sanitizeMarquee = sanitizeMarquee;   // the Marquee Message page previews with the same filter
+
   async function loadMarquee() {
     const box = document.getElementById("sfaMarquee"), strip = document.getElementById("sfaMarqueeStrip");
     if (!box || !strip) return;

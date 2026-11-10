@@ -163,7 +163,7 @@ FROM emp_detail e JOIN app_validations v ON v.emp_id IS NULL AND v.config_code =
 SET @dcr_parent := COALESCE((SELECT parent_id FROM company_menu_self WHERE page = 'dcrsubmit' LIMIT 1), (SELECT parent_id FROM company_menu_self WHERE page = 'dcrreport' LIMIT 1),
                             (SELECT id FROM company_menu_self WHERE label = 'Sales' AND parent_id IS NULL LIMIT 1));
 INSERT INTO company_menu_self (id, parent_id, emp_id, menu_type, label, title, icon, page, href, target, sort_order, is_visible, is_active)
-SELECT nx.next_id, @dcr_parent, p.emp_id, 'WEB', 'Tour Plan', 'Tour Plan (month calendar, submit, approval)', 'calendar3', 'tourplan', 'tp/tour-plan.html', '_SELF', 6, 1, 1
+SELECT nx.next_id, @dcr_parent, p.emp_id, 'WEB', 'Tour Plan', 'Tour Plan', 'calendar3', 'tourplan', 'tp/tour-plan.html', '_SELF', 6, 1, 1
 FROM (SELECT emp_id FROM company_menu_self WHERE id = @dcr_parent LIMIT 1) p CROSS JOIN (SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM company_menu_self) nx
 WHERE @dcr_parent IS NOT NULL AND NOT EXISTS (SELECT 1 FROM company_menu_self WHERE page = 'tourplan');
 SET @dcr_entry := COALESCE((SELECT parent_id FROM company_menu_self WHERE page = 'dcrworktype' LIMIT 1), (SELECT parent_id FROM company_menu_self WHERE page IN ('passwordreset', 'teamhierarchy') LIMIT 1));
@@ -328,7 +328,7 @@ FROM emp_detail e JOIN app_validations v ON v.emp_id IS NULL AND v.config_code =
 SET @dcr_parent := COALESCE((SELECT parent_id FROM company_menu_self WHERE page = 'dcrsubmit' LIMIT 1), (SELECT parent_id FROM company_menu_self WHERE page = 'dcrreport' LIMIT 1),
                             (SELECT id FROM company_menu_self WHERE label = 'Sales' AND parent_id IS NULL LIMIT 1));
 INSERT INTO company_menu_self (id, parent_id, emp_id, menu_type, label, title, icon, page, href, target, sort_order, is_visible, is_active)
-SELECT nx.next_id, @dcr_parent, p.emp_id, 'WEB', 'Tour Plan', 'Tour Plan (month calendar, submit, approval)', 'calendar3', 'tourplan', 'tp/tour-plan.html', '_SELF', 6, 1, 1
+SELECT nx.next_id, @dcr_parent, p.emp_id, 'WEB', 'Tour Plan', 'Tour Plan', 'calendar3', 'tourplan', 'tp/tour-plan.html', '_SELF', 6, 1, 1
 FROM (SELECT emp_id FROM company_menu_self WHERE id = @dcr_parent LIMIT 1) p CROSS JOIN (SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM company_menu_self) nx
 WHERE @dcr_parent IS NOT NULL AND NOT EXISTS (SELECT 1 FROM company_menu_self WHERE page = 'tourplan');
 SET @dcr_entry := COALESCE((SELECT parent_id FROM company_menu_self WHERE page = 'dcrworktype' LIMIT 1), (SELECT parent_id FROM company_menu_self WHERE page IN ('passwordreset', 'teamhierarchy') LIMIT 1));
@@ -493,7 +493,7 @@ FROM emp_detail e JOIN app_validations v ON v.emp_id IS NULL AND v.config_code =
 SET @dcr_parent := COALESCE((SELECT parent_id FROM company_menu_self WHERE page = 'dcrsubmit' LIMIT 1), (SELECT parent_id FROM company_menu_self WHERE page = 'dcrreport' LIMIT 1),
                             (SELECT id FROM company_menu_self WHERE label = 'Sales' AND parent_id IS NULL LIMIT 1));
 INSERT INTO company_menu_self (id, parent_id, emp_id, menu_type, label, title, icon, page, href, target, sort_order, is_visible, is_active)
-SELECT nx.next_id, @dcr_parent, p.emp_id, 'WEB', 'Tour Plan', 'Tour Plan (month calendar, submit, approval)', 'calendar3', 'tourplan', 'tp/tour-plan.html', '_SELF', 6, 1, 1
+SELECT nx.next_id, @dcr_parent, p.emp_id, 'WEB', 'Tour Plan', 'Tour Plan', 'calendar3', 'tourplan', 'tp/tour-plan.html', '_SELF', 6, 1, 1
 FROM (SELECT emp_id FROM company_menu_self WHERE id = @dcr_parent LIMIT 1) p CROSS JOIN (SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM company_menu_self) nx
 WHERE @dcr_parent IS NOT NULL AND NOT EXISTS (SELECT 1 FROM company_menu_self WHERE page = 'tourplan');
 SET @dcr_entry := COALESCE((SELECT parent_id FROM company_menu_self WHERE page = 'dcrworktype' LIMIT 1), (SELECT parent_id FROM company_menu_self WHERE page IN ('passwordreset', 'teamhierarchy') LIMIT 1));
@@ -658,7 +658,7 @@ FROM emp_detail e JOIN app_validations v ON v.emp_id IS NULL AND v.config_code =
 SET @dcr_parent := COALESCE((SELECT parent_id FROM company_menu_self WHERE page = 'dcrsubmit' LIMIT 1), (SELECT parent_id FROM company_menu_self WHERE page = 'dcrreport' LIMIT 1),
                             (SELECT id FROM company_menu_self WHERE label = 'Sales' AND parent_id IS NULL LIMIT 1));
 INSERT INTO company_menu_self (id, parent_id, emp_id, menu_type, label, title, icon, page, href, target, sort_order, is_visible, is_active)
-SELECT nx.next_id, @dcr_parent, p.emp_id, 'WEB', 'Tour Plan', 'Tour Plan (month calendar, submit, approval)', 'calendar3', 'tourplan', 'tp/tour-plan.html', '_SELF', 6, 1, 1
+SELECT nx.next_id, @dcr_parent, p.emp_id, 'WEB', 'Tour Plan', 'Tour Plan', 'calendar3', 'tourplan', 'tp/tour-plan.html', '_SELF', 6, 1, 1
 FROM (SELECT emp_id FROM company_menu_self WHERE id = @dcr_parent LIMIT 1) p CROSS JOIN (SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM company_menu_self) nx
 WHERE @dcr_parent IS NOT NULL AND NOT EXISTS (SELECT 1 FROM company_menu_self WHERE page = 'tourplan');
 SET @dcr_entry := COALESCE((SELECT parent_id FROM company_menu_self WHERE page = 'dcrworktype' LIMIT 1), (SELECT parent_id FROM company_menu_self WHERE page IN ('passwordreset', 'teamhierarchy') LIMIT 1));

@@ -23,7 +23,7 @@ WHERE @dcr_parent IS NOT NULL AND NOT EXISTS (SELECT 1 FROM company_menu_self WH
 SET @dcr_entry := COALESCE((SELECT parent_id FROM company_menu_self WHERE page IN ('passwordreset', 'teamhierarchy') LIMIT 1),
                            (SELECT parent_id FROM company_menu_self WHERE page = 'designationmaster' LIMIT 1));
 INSERT INTO company_menu_self (id, parent_id, emp_id, menu_type, label, title, icon, page, href, target, sort_order, is_visible, is_active)
-SELECT nx.next_id, @dcr_entry, p.emp_id, 'WEB', 'DCR Tabs', 'DCR Tabs (who gets which tab)', 'ui-checks-grid', 'dcrworktype', 'master/dcr-worktype.html', '_SELF', 23, 1, 1
+SELECT nx.next_id, @dcr_entry, p.emp_id, 'WEB', 'DCR Tabs', 'DCR Tabs', 'ui-checks-grid', 'dcrworktype', 'master/dcr-worktype.html', '_SELF', 23, 1, 1
 FROM (SELECT emp_id FROM company_menu_self WHERE id = @dcr_entry LIMIT 1) p
 CROSS JOIN (SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM company_menu_self) nx
 WHERE @dcr_entry IS NOT NULL AND NOT EXISTS (SELECT 1 FROM company_menu_self WHERE page = 'dcrworktype');
@@ -44,7 +44,7 @@ WHERE @dcr_parent IS NOT NULL AND NOT EXISTS (SELECT 1 FROM company_menu_self WH
 SET @dcr_entry := COALESCE((SELECT parent_id FROM company_menu_self WHERE page IN ('passwordreset', 'teamhierarchy') LIMIT 1),
                            (SELECT parent_id FROM company_menu_self WHERE page = 'designationmaster' LIMIT 1));
 INSERT INTO company_menu_self (id, parent_id, emp_id, menu_type, label, title, icon, page, href, target, sort_order, is_visible, is_active)
-SELECT nx.next_id, @dcr_entry, p.emp_id, 'WEB', 'DCR Tabs', 'DCR Tabs (who gets which tab)', 'ui-checks-grid', 'dcrworktype', 'master/dcr-worktype.html', '_SELF', 23, 1, 1
+SELECT nx.next_id, @dcr_entry, p.emp_id, 'WEB', 'DCR Tabs', 'DCR Tabs', 'ui-checks-grid', 'dcrworktype', 'master/dcr-worktype.html', '_SELF', 23, 1, 1
 FROM (SELECT emp_id FROM company_menu_self WHERE id = @dcr_entry LIMIT 1) p
 CROSS JOIN (SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM company_menu_self) nx
 WHERE @dcr_entry IS NOT NULL AND NOT EXISTS (SELECT 1 FROM company_menu_self WHERE page = 'dcrworktype');
@@ -65,7 +65,7 @@ WHERE @dcr_parent IS NOT NULL AND NOT EXISTS (SELECT 1 FROM company_menu_self WH
 SET @dcr_entry := COALESCE((SELECT parent_id FROM company_menu_self WHERE page IN ('passwordreset', 'teamhierarchy') LIMIT 1),
                            (SELECT parent_id FROM company_menu_self WHERE page = 'designationmaster' LIMIT 1));
 INSERT INTO company_menu_self (id, parent_id, emp_id, menu_type, label, title, icon, page, href, target, sort_order, is_visible, is_active)
-SELECT nx.next_id, @dcr_entry, p.emp_id, 'WEB', 'DCR Tabs', 'DCR Tabs (who gets which tab)', 'ui-checks-grid', 'dcrworktype', 'master/dcr-worktype.html', '_SELF', 23, 1, 1
+SELECT nx.next_id, @dcr_entry, p.emp_id, 'WEB', 'DCR Tabs', 'DCR Tabs', 'ui-checks-grid', 'dcrworktype', 'master/dcr-worktype.html', '_SELF', 23, 1, 1
 FROM (SELECT emp_id FROM company_menu_self WHERE id = @dcr_entry LIMIT 1) p
 CROSS JOIN (SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM company_menu_self) nx
 WHERE @dcr_entry IS NOT NULL AND NOT EXISTS (SELECT 1 FROM company_menu_self WHERE page = 'dcrworktype');
@@ -86,7 +86,7 @@ WHERE @dcr_parent IS NOT NULL AND NOT EXISTS (SELECT 1 FROM company_menu_self WH
 SET @dcr_entry := COALESCE((SELECT parent_id FROM company_menu_self WHERE page IN ('passwordreset', 'teamhierarchy') LIMIT 1),
                            (SELECT parent_id FROM company_menu_self WHERE page = 'designationmaster' LIMIT 1));
 INSERT INTO company_menu_self (id, parent_id, emp_id, menu_type, label, title, icon, page, href, target, sort_order, is_visible, is_active)
-SELECT nx.next_id, @dcr_entry, p.emp_id, 'WEB', 'DCR Tabs', 'DCR Tabs (who gets which tab)', 'ui-checks-grid', 'dcrworktype', 'master/dcr-worktype.html', '_SELF', 23, 1, 1
+SELECT nx.next_id, @dcr_entry, p.emp_id, 'WEB', 'DCR Tabs', 'DCR Tabs', 'ui-checks-grid', 'dcrworktype', 'master/dcr-worktype.html', '_SELF', 23, 1, 1
 FROM (SELECT emp_id FROM company_menu_self WHERE id = @dcr_entry LIMIT 1) p
 CROSS JOIN (SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM company_menu_self) nx
 WHERE @dcr_entry IS NOT NULL AND NOT EXISTS (SELECT 1 FROM company_menu_self WHERE page = 'dcrworktype');
