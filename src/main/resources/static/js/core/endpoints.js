@@ -264,6 +264,22 @@
         unapprove: (id) => `/api/tp/${id}/unapprove`,                  // body { reason }  take it back to the employee
         reject: (id) => `/api/tp/${id}/reject`,                        // body { reason }
       },
+      hr: {
+        me: "/api/hr/me",                                              // my HR roles + permissions
+        company: "/api/hr/company",                                    // GET / POST legal details, FY start, leave-year mode, payroll cycle
+        states: "/api/hr/states",
+        master: (kind) => `/api/hr/${kind}`,                           // kind = branches | departments | grades | cost-centers | employee-types  (GET list / POST save)
+        masterDelete: (kind) => `/api/hr/${kind}/delete`,              // POST {ids, reason}
+        settings: "/api/hr/settings",                                  // GET catalogue with today's value / POST {key, value, effectiveFrom, reason}
+        settingHistory: "/api/hr/settings/history",                    // ?key=
+        matrix: "/api/hr/roles/matrix",
+        rolePerms: (id) => `/api/hr/roles/${id}/permissions`,          // POST {permissions, reason}
+        assignments: "/api/hr/roles/assignments",
+        empRoles: (empId) => `/api/hr/employees/${empId}/roles`,       // POST {roles, reason}
+        employees: "/api/hr/employees",                                // ?q=
+        employee: (empId) => `/api/hr/employees/${empId}`,             // GET / POST employment facts
+        audit: "/api/hr/audit",                                        // ?entity=&empId=&by=&from=&to=
+      },
       marquee: {
         mine: "/api/marquee/mine",                                   // the header messages for me, placeholders filled
         config: "/api/marquee/config",                               // admin: placeholders + states / HQs / designations / employees
