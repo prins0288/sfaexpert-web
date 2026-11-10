@@ -115,7 +115,7 @@
       LK = await Api.get(API.lookups, { query: { keys: 'employees,clientTypes' } });
       SFA.fillSelect(document.getElementById('w_ct'), LK.clientTypes || []);
       document.getElementById('w_scope').innerHTML = '<option value="">Master (default for everyone)</option>' +
-        (LK.employees || []).map(e => `<option value="${esc(e.id)}">${esc(e.name)}</option>`).join('');
+        (LK.employees || []).map(e => `<option value="${esc(e.oid)}">${esc(e.label)}</option>`).join('');
       await reload();
     } catch (e) { SFA.toast(e.message, false); }
   };

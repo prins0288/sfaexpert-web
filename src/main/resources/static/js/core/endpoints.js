@@ -263,6 +263,12 @@
         unapprove: (id) => `/api/tp/${id}/unapprove`,                  // body { reason }  take it back to the employee
         reject: (id) => `/api/tp/${id}/reject`,                        // body { reason }
       },
+      marquee: {
+        mine: "/api/marquee/mine",                                   // the header messages for me, placeholders filled
+        config: "/api/marquee/config",                               // admin: placeholders + states / HQs / designations / employees
+        list: "/api/marquee",                                        // admin GET / POST (save)
+        remove: "/api/marquee/delete",                               // admin POST {ids}
+      },
       holiday: {
         config: "/api/holiday/config",                                 // weekly off + states / HQs / employees
         list: "/api/holiday",                                          // ?year=  GET / POST (save)
@@ -292,6 +298,7 @@
         worktype: (id) => `/api/dcr/worktypes/${id}`,                 // DELETE
         rules: "/api/dcr/rules",                                      // GET ?empId= (blank = master)
         rulesSummary: "/api/dcr/rules/summary",                       // GET who has which value
+        ruleFor: (emp, code) => `/api/dcr/rules/employee/${encodeURIComponent(emp)}/${encodeURIComponent(code)}`,   // POST {value, enabled}: upsert for one employee
         rule: (id) => `/api/dcr/rules/${id}`,                         // POST {value, enabled}
         rulesApplyAll: "/api/dcr/rules/apply-all",                    // POST {code, value}
       },

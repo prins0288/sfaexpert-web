@@ -469,7 +469,8 @@
     if (layout === "horizontal") {
       app.innerHTML = `
         <div class="sfa-main sfa-main-h">
-          <header class="sfa-topbar">${brand}<div class="sfa-title">${esc(title)}</div>${headerActions(color)}</header>
+          <header class="sfa-topbar">${brand}<div class="sfa-title">${esc(title)}</div><div class="sfa-marquee" id="sfaMarquee" hidden></div>${headerActions(color)}</header>
+          <div class="sfa-marquee-strip" id="sfaMarqueeStrip" hidden></div>
           <nav class="sfa-menubar" id="sfaNav">${horizontalNavHtml()}</nav>
           ${crumb}${content}${footer}
         </div>`;
@@ -479,8 +480,9 @@
         <div class="sfa-main">
           <header class="sfa-topbar">
             <button class="sfa-icon-btn sfa-toggle" id="sfaToggle" title="Toggle sidebar"><i class="bi bi-list"></i></button>
-            <div class="sfa-title">${esc(title)}</div>${headerActions(color)}
+            <div class="sfa-title">${esc(title)}</div><div class="sfa-marquee" id="sfaMarquee" hidden></div>${headerActions(color)}
           </header>
+          <div class="sfa-marquee-strip" id="sfaMarqueeStrip" hidden></div>
           ${crumb}${content}${footer}
         </div>
         <div class="sfa-backdrop" id="sfaBackdrop"></div>`;
@@ -491,6 +493,7 @@
     rewriteLinks();
     wireShell();
     wireHelpTooltip();
+    loadMarquee();
     if (window.sfaFlatpickr) sfaFlatpickr(document);
   }
 
@@ -830,6 +833,60 @@
     wireLanguage();
     wireNav();
     wireSearch();
+  }
+
+  // ============================================================== marquee (header message)
+  /** Keep only harmless tags / attributes of an HTML message: b i u s em strong span mark small sub sup br a (+ safe colour styles). */
+  function sanitizeMarquee(html) {
+    const ALLOWED = { B: 1, STRONG: 1, I: 1, EM: 1, U: 1, S: 1, SPAN: 1, MARK: 1, SMALL: 1, SUB: 1, SUP: 1, BR: 1, A: 1, DEL: 1, INS: 1 };
+    const STYLE_OK = /^(color|background-color|font-weight|font-style|text-decoration|font-size|letter-spacing)$/i;
+    const doc = new DOMParser().parseFromString("<body>" + html + "</body>", "text/html");
+    (function walk(node) {
+      Array.from(node.childNodes).forEach(ch => {
+        if (ch.nodeType === 3) return;
+        if (ch.nodeType !== 1 || !ALLOWED[ch.tagName]) { if (ch.nodeType === 1 && /^(SCRIPT|STYLE|IFRAME|OBJECT|EMBED)$/.test(ch.tagName)) { ch.remove(); return; } while (ch.firstChild) node.insertBefore(ch.firstChild, ch); ch.remove(); return; }
+        Array.from(ch.attributes).forEach(a => {
+          const n = a.name.toLowerCase();
+          if (n === "style") { const keep = a.value.split(";").map(x => x.trim()).filter(x => x && STYLE_OK.test(x.split(":")[0].trim()) && !/url\(|expression|javascript/i.test(x)); keep.length ? ch.setAttribute("style", keep.join(";")) : ch.removeAttribute("style"); }
+          else if (n === "href" && ch.tagName === "A" && /^(https?:|mailto:|tel:)/i.test(a.value.trim())) { /* keep */ }
+          else if (n === "title") { /* keep */ }
+          else ch.removeAttribute(a.name);
+        });
+        if (ch.tagName === "A") { ch.setAttribute("target", "_blank"); ch.setAttribute("rel", "noopener noreferrer"); }
+        walk(ch);
+      });
+    })(doc.body);
+    return doc.body.innerHTML;
+  }
+
+  async function loadMarquee() {
+    const box = document.getElementById("sfaMarquee"), strip = document.getElementById("sfaMarqueeStrip");
+    if (!box || !strip) return;
+    let msgs = null;
+    const key = "sfa_mq_u" + (Session.index ? Session.index() : "0");
+    try { const c = JSON.parse(sessionStorage.getItem(key) || "null"); if (c && Date.now() - c.t < 300000) msgs = c.m; } catch (e) { /* no cache */ }
+    if (!msgs) {
+      try { msgs = (await Api.get(API.master.marquee.mine, { noLoader: true })) || []; sessionStorage.setItem(key, JSON.stringify({ t: Date.now(), m: msgs })); } catch (e) { msgs = []; }
+    }
+    renderMarquee(msgs);
+    window.addEventListener("resize", () => { clearTimeout(loadMarquee.t); loadMarquee.t = setTimeout(() => renderMarquee(msgs), 250); });
+  }
+
+  /** One smooth, seamless loop: the messages are laid out twice side by side and the track slides left by exactly one set. */
+  function renderMarquee(msgs) {
+    [document.getElementById("sfaMarquee"), document.getElementById("sfaMarqueeStrip")].forEach(box => {
+      if (!box) return;
+      if (!msgs || !msgs.length) { box.hidden = true; box.innerHTML = ""; return; }
+      const set = '<span class="sfa-mq-set">' + msgs.map(m => '<span class="sfa-mq-item">' + sanitizeMarquee(m.html) + "</span>").join("") + "</span>";
+      box.innerHTML = '<div class="sfa-marquee-track">' + set + set + "</div>";
+      box.hidden = false;
+      const track = box.firstChild, first = track.firstChild;
+      if (!box.offsetWidth) return;   // hidden by CSS at this width (the other box shows)
+      first.style.minWidth = Math.max(first.scrollWidth, box.clientWidth) + "px";
+      track.lastChild.style.minWidth = first.style.minWidth;
+      const speed = Math.max(10, Math.min(300, Number(msgs[0].speed) || 60));
+      track.style.setProperty("--mq-dur", (first.offsetWidth / speed).toFixed(1) + "s");
+    });
   }
 
   /** Populate the topbar language dropdown from I18n.available and switch on click. */

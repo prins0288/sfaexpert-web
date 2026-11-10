@@ -81,7 +81,7 @@
     try {
       LK = await Api.get(API.lookups, { query: { keys: 'employees' } });
       document.getElementById('r_scope').innerHTML = '<option value="">Master (default)</option><option value="__sum">Summary - all employees</option>' +
-        (LK.employees || []).map(e => `<option value="${esc(e.id)}">${esc(e.name)}</option>`).join('');
+        (LK.employees || []).map(e => `<option value="${esc(e.oid)}">${esc(e.label)}</option>`).join('');
       await reload();
     } catch (e) { SFA.toast(e.message, false); }
   };
@@ -98,23 +98,27 @@
       ROWS = await Api.get(EP.rules, { query: { empId: sc } });
       document.getElementById('r_hint').textContent = sc ? (ROWS.length ? "This employee's own rules." : 'No own rules yet - the master rules apply.') : 'Master rules (default).';
       hd.innerHTML = '<tr><th>Screen</th><th>Rule</th><th>Value</th><th>On</th><th class="no-export">Actions</th></tr>';
-      tb.innerHTML = ROWS.map(r => `<tr><td>${esc(r.screen)}</td><td><b>${esc(r.name)}</b> <small class="text-muted d-block">${esc(r.description)}</small></td>
-        <td style="min-width:9rem">${r.dataType === 'BOOLEAN' ? `<select class="form-select form-select-sm" data-no-search id="v${r.id}"><option ${/^true$/i.test(r.value) ? 'selected' : ''}>TRUE</option><option ${/^true$/i.test(r.value) ? '' : 'selected'}>FALSE</option></select>`
-          : `<input class="form-control form-control-sm" id="v${r.id}" value="${esc(r.value)}" />`}</td>
-        <td><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="e${r.id}" ${r.enabled ? 'checked' : ''}></div></td>
-        <td class="no-export"><button class="btn btn-sm btn-primary" onclick="ruleSave(${r.id})"><i class="bi bi-check2"></i> Save</button>
-          ${sc ? '' : `<button class="btn btn-sm btn-outline-secondary" title="Apply this value to every employee" onclick="ruleAll(${r.id})">All employees</button>`}</td></tr>`).join('');
+      tb.innerHTML = ROWS.map(r => `<tr><td>${esc(r.screen)}</td><td><b>${esc(r.name)}</b> <small class="text-muted d-block">${esc(r.description)}</small>${r.inherited ? '<span class="badge bg-light text-dark border">Same as master - saving makes it this employee\'s own</span>' : ''}</td>
+        <td style="min-width:9rem">${r.dataType === 'BOOLEAN' ? `<select class="form-select form-select-sm" data-no-search id="v${r.code}"><option ${/^true$/i.test(r.value) ? 'selected' : ''}>TRUE</option><option ${/^true$/i.test(r.value) ? '' : 'selected'}>FALSE</option></select>`
+          : `<input class="form-control form-control-sm" id="v${r.code}" value="${esc(r.value)}" />`}</td>
+        <td><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="e${r.code}" ${r.enabled ? 'checked' : ''}></div></td>
+        <td class="no-export"><button class="btn btn-sm btn-primary" onclick="ruleSave('${esc(r.code)}')"><i class="bi bi-check2"></i> Save</button>
+          ${sc ? '' : `<button class="btn btn-sm btn-outline-secondary" title="Apply this value to every employee" onclick="ruleAll('${esc(r.code)}')">All employees</button>`}</td></tr>`).join('');
     }
     DT = sfaDataTable('#rTable');
   }
-  async function ruleSave(id) {
-    try { await Api.post(EP.rule(id), { value: document.getElementById('v' + id).value, enabled: document.getElementById('e' + id).checked }); SFA.toast('Saved'); }
-    catch (e) { SFA.toast(e.message, false); }
+  async function ruleSave(code) {
+    const val = document.getElementById('v' + code).value, on = document.getElementById('e' + code).checked, sc = scope();
+    try {
+      if (sc) await Api.post(EP.ruleFor(sc, code), { value: val, enabled: on });          // an employee: updates his row, or creates it
+      else { const r = ROWS.find(x => x.code === code); await Api.post(EP.rule(r.id), { value: val, enabled: on }); }
+      SFA.toast('Saved'); if (sc) await reload();
+    } catch (e) { SFA.toast(e.message, false); }
   }
-  async function ruleAll(id) {
-    const r = ROWS.find(x => x.id === id), v = document.getElementById('v' + id).value;
+  async function ruleAll(code) {
+    const r = ROWS.find(x => x.code === code), v = document.getElementById('v' + code).value;
     if (!confirm('Set ' + r.name + ' = ' + v + ' for every employee?')) return;
-    try { await ruleSave(id); const d = await Api.post(EP.rulesApplyAll, { code: r.code, value: v }); SFA.toast('Updated ' + (d && d.updated != null ? d.updated : '') + ' rows'); await reload(); }
+    try { await ruleSave(code); const d = await Api.post(EP.rulesApplyAll, { code: r.code, value: v }); SFA.toast('Updated ' + (d && d.updated != null ? d.updated : '') + ' rows'); await reload(); }
     catch (e) { SFA.toast(e.message, false); }
   }
 </script>

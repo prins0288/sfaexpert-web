@@ -70,16 +70,52 @@ public class DcrRuleService {
 
     // ---- admin ----------------------------------------------------------------------
 
-    /** Rules of one employee (own rows) or the master rows when {@code empId} is blank. */
+    /**
+     * The rules shown for a scope: the master rows, or - for an employee - EVERY master rule with the employee's own value when he has one,
+     * else the master value marked {@code inherited} (saving it then creates his own row).
+     */
     @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
     public List<Map<String, Object>> list(String empId) {
         Authz.requireRole("ADMIN");
         boolean master = Strings.isBlank(empId);
-        return jdbc.queryForList("""
-                SELECT id, emp_id AS empId, config_code AS code, display_name AS name, screen_name AS screen, config_type AS type, data_type AS dataType,
-                       config_value AS value, default_value AS defaultValue, description, is_enabled AS enabled
-                FROM app_validations WHERE module_name = 'DCR' AND %s ORDER BY display_order, id""".formatted(master ? "emp_id IS NULL" : "emp_id = ?"),
-                master ? new Object[0] : new Object[]{empId});
+        String cols = "id, emp_id AS empId, config_code AS code, display_name AS name, screen_name AS screen, config_type AS type, data_type AS dataType, config_value AS value, default_value AS defaultValue, description, is_enabled AS enabled, display_order AS ord";
+        List<Map<String, Object>> masters = jdbc.queryForList("SELECT " + cols + " FROM app_validations WHERE module_name = 'DCR' AND emp_id IS NULL ORDER BY display_order, id");
+        if (master) { masters.forEach(r -> r.put("inherited", false)); return masters; }
+        Map<String, Map<String, Object>> own = new HashMap<>();
+        jdbc.queryForList("SELECT " + cols + " FROM app_validations WHERE module_name = 'DCR' AND emp_id = ?", empId).forEach(r -> own.put((String) r.get("code"), r));
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> m : masters) {
+            Map<String, Object> mine = own.get(m.get("code"));
+            if (mine != null) { mine.put("inherited", false); out.add(mine); }
+            else { Map<String, Object> x = new LinkedHashMap<>(m); x.put("id", null); x.put("empId", empId); x.put("inherited", true); out.add(x); }
+        }
+        return out;
+    }
+
+    /** Set one rule for one employee: updates his own row, or creates it (copied from the master rule) when he has none yet. */
+    @Transactional(transactionManager = "tenantTransactionManager")
+    public void saveFor(String empId, String code, String value, Boolean enabled) {
+        Authz.requireRole("ADMIN");
+        if (jdbc.queryForObject("SELECT COUNT(*) FROM emp_detail WHERE emp_id = ?", Integer.class, empId) == 0) throw new IllegalStateException("Employee not found");
+        List<Map<String, Object>> m = jdbc.queryForList("SELECT data_type, is_enabled FROM app_validations WHERE module_name = 'DCR' AND emp_id IS NULL AND config_code = ?", code);
+        if (m.isEmpty()) throw new IllegalStateException("Rule not found");
+        String v = check((String) m.get(0).get("data_type"), value);
+        int en = enabled == null ? (flag(m.get(0).get("is_enabled")) ? 1 : 0) : (enabled ? 1 : 0);
+        jdbc.update("""
+                INSERT INTO app_validations (emp_id, config_code, display_name, module_name, screen_name, platform, config_type, data_type, config_value, default_value, description, is_enabled, display_order)
+                SELECT ?, config_code, display_name, module_name, screen_name, platform, config_type, data_type, ?, default_value, description, ?, display_order
+                FROM app_validations WHERE emp_id IS NULL AND module_name = 'DCR' AND config_code = ?
+                ON DUPLICATE KEY UPDATE config_value = VALUES(config_value), is_enabled = VALUES(is_enabled)""", empId, v, en, code);
+    }
+
+    private static boolean flag(Object o) { return o instanceof Boolean b ? b : o instanceof Number n && n.intValue() == 1; }
+
+    private static String check(String type, String value) {
+        String v = value == null ? "" : value.trim();
+        if ("BOOLEAN".equals(type) && !v.equalsIgnoreCase("TRUE") && !v.equalsIgnoreCase("FALSE")) throw new IllegalStateException("Value must be TRUE or FALSE");
+        if ("INTEGER".equals(type) && !v.matches("\\d{1,6}")) throw new IllegalStateException("Value must be a whole number");
+        if ("TIME".equals(type)) { try { LocalTime.parse(v); } catch (Exception e) { throw new IllegalStateException("Time must be HH:mm"); } }
+        return "BOOLEAN".equals(type) ? v.toUpperCase() : v;
     }
 
     /** Who runs a rule with which value: code -> [{value, count}] over the employees' own rows. */

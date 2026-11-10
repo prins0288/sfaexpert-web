@@ -149,6 +149,12 @@ public class DcrController {
         return rules.summary();
     }
 
+    @PostMapping("/rules/employee/{empId}/{code}")
+    @Operation(summary = "Set one DCR rule for one employee (creates his own row when he has none)")
+    public void saveRuleFor(@PathVariable String empId, @PathVariable String code, @RequestBody Map<String, Object> body) {
+        rules.saveFor(empId, code, body.get("value") == null ? null : body.get("value").toString(), body.get("enabled") == null ? null : Boolean.valueOf(body.get("enabled").toString()));
+    }
+
     @PostMapping("/rules/{id}")
     public void saveRule(@PathVariable Long id, @RequestBody Map<String, Object> body) {
         rules.save(id, body.get("value") == null ? null : body.get("value").toString(), body.get("enabled") == null ? null : Boolean.valueOf(body.get("enabled").toString()));

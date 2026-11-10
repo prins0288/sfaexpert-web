@@ -262,7 +262,7 @@ body {
 }
 .sfa-main-h .sfa-topbar .sfa-brand { background: transparent; color: var(--sfa-header-title-fg); padding-left: 0; }
 .sfa-main-h .sfa-topbar .sfa-brand i { color: var(--sfa-accent); }
-.sfa-title { font-weight: 600; font-size: 16px; color: var(--sfa-header-title-fg); white-space: nowrap; }
+.sfa-title { font-weight: 600; font-size: 16px; color: var(--sfa-header-title-fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; max-width: 34%; }
 
 /* header actions */
 .sfa-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
@@ -901,3 +901,18 @@ table.dataTable tbody tr.sfa-row-selected > * {
 .sfa-qa-overlay { position: fixed; inset: 0; z-index: 1900; background: rgba(0,0,0,.35); display: flex; align-items: flex-start;
   justify-content: center; padding: 10vh 1rem 1rem; }
 .sfa-qa-card { width: min(460px, 100%); }
+
+/* ===== marquee: a smooth scrolling message between the page title and the search box (a strip under the header on a phone) ===== */
+.sfa-marquee { flex: 1 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; position: relative; font-size: 13px; color: var(--sfa-text);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 28px, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(90deg, transparent, #000 28px, #000 calc(100% - 28px), transparent); }
+.sfa-marquee[hidden], .sfa-marquee-strip[hidden] { display: none !important; }
+.sfa-marquee-track { display: inline-flex; will-change: transform; animation: sfa-mq var(--mq-dur, 30s) linear infinite; }
+.sfa-marquee:hover .sfa-marquee-track, .sfa-marquee-strip:hover .sfa-marquee-track { animation-play-state: paused; }
+.sfa-mq-set { display: inline-flex; flex: 0 0 auto; }
+.sfa-mq-item { display: inline-block; padding-right: 3.5rem; }
+.sfa-mq-item::after { content: "\2022"; margin-left: 3.5rem; opacity: .35; }
+.sfa-mq-item a { color: var(--sfa-primary); }
+@keyframes sfa-mq { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.sfa-marquee-strip { display: none; overflow: hidden; white-space: nowrap; font-size: 12.5px; padding: 5px 0; background: var(--sfa-surface-2); border-bottom: 1px solid var(--sfa-border); color: var(--sfa-text); }
+@media (max-width: 767.98px) { .sfa-marquee { display: none !important; } .sfa-marquee-strip { display: block; } }
+@media (prefers-reduced-motion: reduce) { .sfa-marquee-track { animation: none; } .sfa-marquee, .sfa-marquee-strip { overflow-x: auto; } }
