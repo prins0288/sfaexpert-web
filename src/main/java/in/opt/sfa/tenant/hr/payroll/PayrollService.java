@@ -238,6 +238,17 @@ public class PayrollService {
         audit.log("PAYROLL", runId, null, "UPDATE", "status", "APPROVED", "PAID", null);
     }
 
+    /** Removes one employee's slip from a month that is still a draft (kept in the audit log). Generating the month again would make it again. */
+    @Transactional(transactionManager = "tenantTransactionManager")
+    public void deleteSlip(long slipId, String reason) {
+        access.require("PAYROLL_PROCESS");
+        if (reason == null || reason.isBlank()) throw new IllegalArgumentException("Please give a reason");
+        Map<String, Object> s = jdbc.queryForList("SELECT s.emp_id, s.net_pay, s.run_id, r.status FROM hr_payslip s JOIN hr_payroll_run r ON r.id = s.run_id WHERE s.id = ?", slipId).stream().findFirst().orElseThrow(() -> new IllegalArgumentException("Payslip not found"));
+        if (!"DRAFT".equals(s.get("status"))) throw new IllegalStateException("Only a slip of a draft month can be deleted");
+        jdbc.update("DELETE FROM hr_payslip WHERE id = ?", slipId);
+        audit.log("PAYROLL", s.get("run_id"), (String) s.get("emp_id"), "DELETE", "payslip", String.valueOf(s.get("net_pay")), null, reason);
+    }
+
     @Transactional(transactionManager = "tenantTransactionManager")
     public void deleteRun(long runId) {
         access.require("PAYROLL_PROCESS");

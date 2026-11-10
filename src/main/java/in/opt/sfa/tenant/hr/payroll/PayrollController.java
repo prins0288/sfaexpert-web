@@ -48,6 +48,7 @@ public class PayrollController {
     @GetMapping("/payroll/slips/{id}") public Map<String, Object> slip(@PathVariable long id) { return payroll.slip(id); }
     @GetMapping("/payroll/mine") public List<Map<String, Object>> mine() { return payroll.mySlips(); }
     @PostMapping("/payroll/slips/{id}/lop") public Map<String, Object> lop(@PathVariable long id, @RequestBody Map<String, Object> b) { return payroll.setLop(id, new BigDecimal(s(b, "lopDays")), s(b, "reason")); }
+    @PostMapping("/payroll/slips/{id}/delete") public Map<String, Object> delSlip(@PathVariable long id, @RequestBody Map<String, Object> b) { payroll.deleteSlip(id, s(b, "reason")); return Map.of("ok", true); }
     @PostMapping("/payroll/slips/{id}/hold") public Map<String, Object> hold(@PathVariable long id, @RequestBody Map<String, Object> b) { payroll.holdSlip(id, s(b, "reason")); return Map.of("ok", true); }
     @PostMapping("/payroll/slips/{id}/release") public Map<String, Object> release(@PathVariable long id, @RequestBody Map<String, Object> b) { payroll.releaseSlip(id, s(b, "reason")); return Map.of("ok", true); }
     // hold rules

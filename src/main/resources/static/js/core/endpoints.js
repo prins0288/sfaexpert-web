@@ -297,7 +297,7 @@
           runs: "/api/hr/payroll/runs", run: (id) => `/api/hr/payroll/runs/${id}`, generate: "/api/hr/payroll/generate",   // POST {year, month}
           approve: (id) => `/api/hr/payroll/runs/${id}/approve`, paid: (id) => `/api/hr/payroll/runs/${id}/paid`, removeRun: (id) => `/api/hr/payroll/runs/${id}/delete`,
           slip: (id) => `/api/hr/payroll/slips/${id}`, mine: "/api/hr/payroll/mine",
-          lop: (id) => `/api/hr/payroll/slips/${id}/lop`, hold: (id) => `/api/hr/payroll/slips/${id}/hold`, release: (id) => `/api/hr/payroll/slips/${id}/release`,
+          lop: (id) => `/api/hr/payroll/slips/${id}/lop`, removeSlip: (id) => `/api/hr/payroll/slips/${id}/delete`, hold: (id) => `/api/hr/payroll/slips/${id}/hold`, release: (id) => `/api/hr/payroll/slips/${id}/release`,
           holdConfig: "/api/hr/payroll/holds/config", holds: "/api/hr/payroll/holds", holdRelease: (id) => `/api/hr/payroll/holds/${id}/release`,
           design: "/api/hr/payroll/slip-design",
         },
