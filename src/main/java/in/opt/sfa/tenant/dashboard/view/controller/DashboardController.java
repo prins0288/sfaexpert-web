@@ -16,14 +16,22 @@ import java.util.Map;
 public class DashboardController {
 
     private final DashboardService service;
+    private final in.opt.sfa.tenant.dashboard.view.service.DashboardOverviewService overview;
 
-    public DashboardController(DashboardService service) {
+    public DashboardController(DashboardService service, in.opt.sfa.tenant.dashboard.view.service.DashboardOverviewService overview) {
         this.service = service;
+        this.overview = overview;
     }
 
     @GetMapping("/counts")
     @Operation(summary = "Route/Area/Client/Product row counts")
     public Map<String, Long> counts() {
         return service.counts();
+    }
+
+    @GetMapping("/overview")
+    @Operation(summary = "The dashboard of the signed-in user: himself, his team with himself (manager), or everyone with names (admin)")
+    public Map<String, Object> overview() {
+        return overview.overview();
     }
 }

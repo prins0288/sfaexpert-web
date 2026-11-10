@@ -22,6 +22,7 @@
     ping: "/api/public/ping",
     dashboard: {
       counts: "/api/dashboard/counts",
+      overview: "/api/dashboard/overview",                               // scoped to the signed-in user (self / team / all)
     },
     settings: {
       get: "/api/settings",
