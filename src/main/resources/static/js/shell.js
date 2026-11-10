@@ -874,20 +874,23 @@
     window.addEventListener("resize", () => { clearTimeout(loadMarquee.t); loadMarquee.t = setTimeout(() => renderMarquee(msgs), 250); });
   }
 
-  /** One smooth, seamless loop: the messages are laid out twice side by side and the track slides left by exactly one set. */
+  /**
+   * One smooth, seamless loop: a "set" is the messages repeated just often enough to fill the box, two sets sit side by side and the track
+   * slides left by exactly one set - so a short message never leaves a big empty gap, it simply repeats after a small separator.
+   */
   function renderMarquee(msgs) {
     [document.getElementById("sfaMarquee"), document.getElementById("sfaMarqueeStrip")].forEach(box => {
       if (!box) return;
       if (!msgs || !msgs.length) { box.hidden = true; box.innerHTML = ""; return; }
-      const set = '<span class="sfa-mq-set">' + msgs.map(m => '<span class="sfa-mq-item">' + sanitizeMarquee(m.html) + "</span>").join("") + "</span>";
-      box.innerHTML = '<div class="sfa-marquee-track">' + set + set + "</div>";
+      const unit = msgs.map(m => '<span class="sfa-mq-item">' + sanitizeMarquee(m.html) + "</span>").join("");
       box.hidden = false;
-      const track = box.firstChild, first = track.firstChild;
+      const build = (k) => { const set = '<span class="sfa-mq-set">' + unit.repeat(k) + "</span>"; box.innerHTML = '<div class="sfa-marquee-track">' + set + set + "</div>"; return box.firstChild; };
+      let track = build(1);
       if (!box.offsetWidth) return;   // hidden by CSS at this width (the other box shows)
-      first.style.minWidth = Math.max(first.scrollWidth, box.clientWidth) + "px";
-      track.lastChild.style.minWidth = first.style.minWidth;
+      const one = track.firstChild.offsetWidth || 1, k = Math.max(1, Math.ceil(box.clientWidth / one));
+      if (k > 1) track = build(k);
       const speed = Math.max(10, Math.min(300, Number(msgs[0].speed) || 60));
-      track.style.setProperty("--mq-dur", (first.offsetWidth / speed).toFixed(1) + "s");
+      track.style.setProperty("--mq-dur", (track.firstChild.offsetWidth / speed).toFixed(1) + "s");
     });
   }
 
