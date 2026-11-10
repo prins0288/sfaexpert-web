@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>/* sub-path support: make relative css/js resolve under the deploy prefix */
+  (function(){try{var p=location.pathname,m=p.match(/^(.*?)\/u\/\d+(\/|$)/),c=m?m[1]:p.replace(/\/[^\/]*$/,'');document.write('<base href="'+(c||'')+'/">');}catch(e){}})();</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Salary Slip</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <style>
+    body { background: #eef0f4; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #1f2937; }
+    .slip { max-width: 820px; margin: 1rem auto; background: #fff; padding: 1.5rem; border-radius: .6rem; box-shadow: 0 2px 10px rgba(0,0,0,.08); border-top: 6px solid var(--ac, #d9441a); }
+    .slip h1 { font-size: 1.15rem; margin: 0; } .brand { display: flex; align-items: center; gap: 1rem; }
+    .brand img { max-height: 64px; max-width: 160px; object-fit: contain; }
+    .ttl { text-align: center; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ac); margin: 1rem 0 .25rem; }
+    .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: .25rem 1.5rem; font-size: .88rem; margin: .75rem 0; }
+    .grid div span { color: #6b7280; display: inline-block; min-width: 7.5rem; }
+    table.t { width: 100%; border-collapse: collapse; font-size: .9rem; } table.t th { background: var(--ac); color: #fff; padding: .4rem .6rem; text-align: left; }
+    table.t td { padding: .35rem .6rem; border-bottom: 1px solid #e5e7eb; } .r { text-align: right !important; }
+    .two { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; } .tot td { font-weight: 700; background: #f3f4f6; }
+    .net { margin-top: 1rem; padding: .8rem 1rem; border: 2px solid var(--ac); border-radius: .5rem; display: flex; justify-content: space-between; font-weight: 700; font-size: 1.1rem; }
+    .words { font-size: .85rem; color: #4b5563; margin-top: .4rem; } .foot { font-size: .75rem; color: #6b7280; margin-top: 1.2rem; display: flex; justify-content: space-between; align-items: flex-end; }
+    .sign { border-top: 1px solid #9ca3af; padding-top: .2rem; min-width: 11rem; text-align: center; }
+    .bar { max-width: 820px; margin: 1rem auto 0; display: flex; gap: .5rem; justify-content: flex-end; }
+    .hold { background: #fef2f2; color: #991b1b; padding: .6rem 1rem; border-radius: .4rem; }
+    @media (max-width: 640px) { .two, .grid { grid-template-columns: 1fr; } .slip { margin: .5rem; padding: 1rem; } }
+    @media print { body { background: #fff; } .slip { box-shadow: none; margin: 0; max-width: none; } .bar { display: none; } }
+  </style>
+</head>
+<body>
+<div class="bar"><button class="btn btn-dark btn-sm" onclick="window.print()">Print / Save as PDF</button></div>
+<div class="slip" id="slip"><div class="text-muted">Loading…</div></div>
+<script src="js/core/session.js"></script>
+<script src="js/core/endpoints.js"></script>
+<script src="js/core/http.js"></script>
+<script>
+  const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const money = (v) => Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const MON = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const fmtD = (d) => d ? new Date(String(d).slice(0, 10) + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+  function words(n) {   // Indian numbering, rupees and paise
+    const a = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'], b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+    const two = (x) => x < 20 ? a[x] : b[Math.floor(x / 10)] + (x % 10 ? ' ' + a[x % 10] : '');
+    const three = (x) => (x >= 100 ? a[Math.floor(x / 100)] + ' Hundred' + (x % 100 ? ' ' : '') : '') + (x % 100 ? two(x % 100) : '');
+    const r = Math.floor(n), p = Math.round((n - r) * 100);
+    const parts = [[10000000, 'Crore'], [100000, 'Lakh'], [1000, 'Thousand']]; let rest = r, out = [];
+    parts.forEach(([v, name]) => { if (rest >= v) { out.push(three(Math.floor(rest / v)) + ' ' + name); rest %= v; } });
+    if (rest) out.push(three(rest));
+    return 'Rupees ' + (out.join(' ') || 'Zero') + (p ? ' and ' + two(p) + ' Paise' : '') + ' only';
+  }
+  (async function () {
+    const id = new URLSearchParams(location.search).get('id'), el = document.getElementById('slip');
+    try {
+      const d = await Api.get(API.master.hr.payroll.slip(id));
+      let logo = '';
+      try { const c = await Api.get(API.company.get); logo = c && c.logo ? c.logo : ''; } catch (e) { }
+      const c = d.config, e = d.emp, co = d.company, on = (k) => !!c[k];
+      document.documentElement.style.setProperty('--ac', c.accentColor || '#d9441a');
+      const by = (t) => d.lines.filter(l => l.type === t);
+      const earn = by('EARNING'), ded = by('DEDUCTION'), emp = by('EMPLOYER');
+      const n = Math.max(earn.length, ded.length), rows = [];
+      const acct = e.accountNo ? 'XXXX' + String(e.accountNo).slice(-4) : '';
+      const kv = (k, v) => v ? `<div><span>${k}</span>${esc(v)}</div>` : '';
+      el.innerHTML = `<div class="brand">${on('showLogo') && logo ? `<img src="${esc(logo)}" alt="">` : ''}<div><h1>${esc(co.legalName || co.tradeName || '')}</h1>${on('showAddress') && co.address ? `<div class="small text-muted">${esc(co.address)}</div>` : ''}</div></div>
+        <div class="ttl">${esc(c.title)} - ${MON[d.month]} ${d.year}</div>${c.headerNote ? `<div class="text-center small text-muted">${esc(c.headerNote)}</div>` : ''}
+        ${d.status === 'HELD' ? `<div class="hold mt-2">Salary on hold: ${esc(d.holdReason)}</div>` : ''}
+        <div class="grid">${kv('Employee', e.name)}${kv('Employee code', e.empCode)}${kv('Designation', e.designation)}${kv('Department', e.department)}${kv('Branch / HQ', e.branch || e.hq)}${kv('Date of joining', fmtD(e.doj))}
+          ${on('showStatutoryIds') ? kv('PAN', e.pan) + kv('UAN', e.uan) + kv('PF no.', e.pfNo) + kv('ESI no.', e.esiNo) : ''}${on('showBank') ? kv('Bank', e.bank) + kv('Account', acct) : ''}
+          ${on('showAttendance') ? kv('Days in month', d.daysInMonth) + kv('Days paid', Number(d.paidDays)) + (Number(d.lopDays) ? kv('Loss of pay days', Number(d.lopDays)) : '') : ''}</div>
+        <div class="two"><table class="t"><thead><tr><th>Earnings</th><th class="r">Amount (Rs)</th></tr></thead><tbody>${earn.map(l => `<tr><td>${esc(l.name)}</td><td class="r">${money(l.amount)}</td></tr>`).join('')}<tr class="tot"><td>Gross earnings</td><td class="r">${money(d.gross)}</td></tr></tbody></table>
+        <table class="t"><thead><tr><th>Deductions</th><th class="r">Amount (Rs)</th></tr></thead><tbody>${ded.map(l => `<tr><td>${esc(l.name)}</td><td class="r">${money(l.amount)}</td></tr>`).join('') || '<tr><td colspan="2" class="text-muted">None</td></tr>'}<tr class="tot"><td>Total deductions</td><td class="r">${money(d.deductions)}</td></tr></tbody></table></div>
+        <div class="net"><span>Net pay</span><span>Rs ${money(d.net)}</span></div>${on('showNetInWords') ? `<div class="words">${words(Number(d.net))}</div>` : ''}
+        ${on('showEmployerContrib') && emp.length ? `<table class="t mt-3"><thead><tr><th>Employer contributions (not part of your pay)</th><th class="r">Amount (Rs)</th></tr></thead><tbody>${emp.map(l => `<tr><td>${esc(l.name)}</td><td class="r">${money(l.amount)}</td></tr>`).join('')}</tbody></table>` : ''}
+        <div class="foot"><div>${esc(c.footerNote)}</div>${c.signatoryLabel ? `<div class="sign">${esc(c.signatoryLabel)}</div>` : ''}</div>`;
+      document.title = 'Salary Slip - ' + e.name + ' - ' + MON[d.month] + ' ' + d.year;
+    } catch (err) { el.innerHTML = '<div class="alert alert-danger mb-0">' + esc(err.message || 'Could not load the payslip') + '</div>'; }
+  })();
+</script>
+</body>
+</html>

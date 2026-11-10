@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>/* reverse-proxy sub-path support: make relative css/js resolve under the deploy prefix (e.g. /sfaexpert), "" locally */
+  (function(){try{var p=location.pathname,m=p.match(/^(.*?)\/u\/\d+(\/|$)/),c=m?m[1]:p.replace(/\/[^\/]*$/,'');document.write('<base href="'+(c||'')+'/">');}catch(e){}})();</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StarSFA &middot; Salary Head Master</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css" rel="stylesheet" />
+  <link href="css/app.css" rel="stylesheet" />
+  <link href="css/app-ui.css" rel="stylesheet" />
+  <script>
+    /* Apply the saved theme (mode / layout / density / colours) BEFORE first
+       paint so there is no flash. theme.js re-applies from the server after. */
+    (function () {
+      try {
+        var d = document.documentElement, s = localStorage;
+        // theme is PER TENANT and several tenants can be signed in at once
+        // (/u/0, /u/1...), so these caches are scoped to the account slot —
+        // a shared key would paint the last-customised tenant's colours here.
+        var m = location.pathname.match(/\/u\/(\d+)(\/|$)/), q = '_u' + (m ? m[1] : '0');
+        d.setAttribute('data-theme', s.getItem('sfa_mode' + q) || 'light');
+        d.setAttribute('data-nav', s.getItem('sfa_nav' + q) || 'vertical');
+        d.setAttribute('data-density', s.getItem('sfa_density' + q) || 'comfortable');
+        var f = s.getItem('sfa_font' + q); if (f) d.style.setProperty('--sfa-font-scale', f);
+        var c = s.getItem('sfa_theme' + q);
+        if (c) { c = JSON.parse(c); var t = (c.resolved && c.resolved[c.mode]) || {};
+          for (var k in t) d.style.setProperty('--sfa-' + k, t[k]); }
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+<div id="app" data-page="salaryhead" data-title="Salary Head Master"></div>
+<template id="pageContent">
+<div class="ap-app"><div class="ap-top"><div><h1 class="ap-title">Salary Head Master</h1><div class="text-muted small">Earnings and deductions. PF and ESI are worked out by the engine from HR Settings (a head only says whether it counts in the PF / ESI wage)</div></div><button class="ap-btn go" onclick="add()"><i class="bi bi-plus-circle"></i> Add head</button></div><div id="body"></div><div class="offcanvas offcanvas-bottom ap-sheet" tabindex="-1" id="sh" data-bs-backdrop="true"><div class="offcanvas-header"><h5 class="offcanvas-title" id="shT"></h5><button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button></div><div class="offcanvas-body" id="shB"></div><div class="ap-sheet-foot" id="shF"></div></div></div>
+</template>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.colVis.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="js/core/session.js"></script>
+<script src="js/core/endpoints.js"></script>
+<script src="js/core/http.js"></script>
+<script src="js/core/theme.js"></script>
+<script src="js/core/settings.js"></script>
+<script src="js/core/i18n.js"></script>
+<script src="js/app.js"></script>
+<script src="js/core/uikit.js"></script>
+<script src="js/shell.js"></script>
+<script>
+
+const S = API.master.hr.salary, P = API.master.hr.payroll;
+const esc = (v) => SFA.esc(v == null ? '' : v);
+const val = (id) => document.getElementById(id).value;
+const chk = (id) => document.getElementById(id).checked;
+let SHEET = null; const sheet = () => SHEET || (SHEET = new bootstrap.Offcanvas('#sh'));
+const money = (v) => Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const MON = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const fmtD = (d) => d ? new Date(String(d).slice(0, 10) + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+const ask = (t) => { const r = prompt(t); if (r == null) return null; if (!r.trim()) { SFA.toast('A reason is required', false); return null; } return r.trim(); };
+const stBadge = (s) => `<span class="ap-badge ${s === 'GENERATED' || s === 'RELEASED' || s === 'APPROVED' || s === 'PAID' ? 'ok' : s === 'HELD' ? 'bad' : 'wait'}">${s}</span>`;
+
+let ROWS = [], SEL = new Set(), CUR = null;
+window.pageInit = async function () { await load(); };
+async function load() {
+  try { ROWS = await Api.get(S.heads); } catch (e) { document.getElementById('body').innerHTML = '<div class="ap-card ap-empty">' + esc(e.message) + '</div>'; return; }
+  const row = (r) => `<div class="ap-card" style="cursor:pointer" onclick="edit(${r.id})"><div class="d-flex align-items-center gap-2"><input type="checkbox" class="form-check-input" ${SEL.has(r.id) ? 'checked' : ''} onclick="event.stopPropagation()" onchange="this.checked ? SEL.add(${r.id}) : SEL.delete(${r.id}); bar()">
+    <div class="flex-fill" style="min-width:0"><b>${esc(r.name)}</b> <span class="text-muted">${esc(r.code)}</span> ${r.active ? '' : '<span class="ap-badge bad">Off</span>'}
+    <div class="small text-muted">${r.calcType === 'FIXED' ? 'Fixed amount' : r.calcType === 'PERCENT' ? 'Percent of ' + esc(r.calcBase) : 'Balance of the gross'}${r.prorata ? ' · reduced for LOP' : ''}${r.pfWage ? ' · PF wage' : ''}${r.esiWage && r.headType === 'EARNING' ? ' · ESI wage' : ''}${r.taxable ? '' : ' · not taxable'}</div></div><i class="bi bi-chevron-right text-muted"></i></div></div>`;
+  document.getElementById('body').innerHTML = ['EARNING', 'DEDUCTION'].map(t => `<div class="ap-sec">${t === 'EARNING' ? 'Earnings' : 'Deductions'}</div>` + (ROWS.filter(r => r.headType === t).map(row).join('') || '<div class="text-muted">None</div>')).join('')
+    + '<div class="ap-bar" id="bar"><div class="info" id="barInfo"></div><button class="ap-btn danger" onclick="del()"><i class="bi bi-trash"></i> Delete</button></div>'; bar();
+}
+function bar() { const b = document.getElementById('bar'); if (!b) return; b.classList.toggle('show', SEL.size > 0); document.getElementById('barInfo').textContent = SEL.size + ' selected'; }
+async function del() { if (!confirm('Delete ' + SEL.size + ' head(s)? Heads used in a salary must be switched off instead.')) return; try { await Api.post(S.headsDelete, { ids: [...SEL] }); SEL = new Set(); await load(); SFA.toast('Deleted'); } catch (e) { SFA.toast(e.message, false); } }
+function add() { form({ headType: 'EARNING', calcType: 'FIXED', defaultValue: 0, prorata: true, pfWage: false, esiWage: true, taxable: true, showInSlip: true, sortOrder: 0, active: true }); }
+function edit(id) { form(ROWS.find(r => r.id === id)); }
+function form(r) {
+  CUR = r; document.getElementById('shT').textContent = r.id ? 'Edit ' + r.name : 'Add salary head';
+  const t = (id, l, v, ty) => `<div class="col-6 col-md-4"><label class="form-label">${l}</label><input class="form-control" id="f_${id}" type="${ty || 'text'}" value="${esc(v)}"></div>`;
+  const sw = (id, l, v) => `<div class="col-6 col-md-4"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="f_${id}" ${v ? 'checked' : ''}><label class="form-check-label" for="f_${id}">${l}</label></div></div>`;
+  const bases = ['GROSS'].concat(ROWS.filter(x => x.headType === 'EARNING' && x.code !== r.code).map(x => x.code));
+  document.getElementById('shB').innerHTML = `<div class="row g-3">${t('code', 'Code', r.code)}${t('name', 'Name', r.name)}
+    <div class="col-6 col-md-4"><label class="form-label">Type</label><select class="form-select" id="f_headType"><option value="EARNING" ${r.headType === 'EARNING' ? 'selected' : ''}>Earning</option><option value="DEDUCTION" ${r.headType === 'DEDUCTION' ? 'selected' : ''}>Deduction</option></select></div>
+    <div class="col-6 col-md-4"><label class="form-label">How it is calculated</label><select class="form-select" id="f_calcType"><option value="FIXED" ${r.calcType === 'FIXED' ? 'selected' : ''}>Fixed amount a month</option><option value="PERCENT" ${r.calcType === 'PERCENT' ? 'selected' : ''}>Percent of another head / gross</option><option value="BALANCE" ${r.calcType === 'BALANCE' ? 'selected' : ''}>Balance (fills the rest of the gross)</option></select></div>
+    <div class="col-6 col-md-4"><label class="form-label">Percent of</label><select class="form-select" id="f_calcBase">${bases.map(b => `<option ${b === (r.calcBase || 'GROSS') ? 'selected' : ''}>${esc(b)}</option>`).join('')}</select></div>
+    ${t('defaultValue', 'Suggested value (Rs or %)', r.defaultValue, 'number')}${t('sortOrder', 'Order (a percent base must come earlier)', r.sortOrder, 'number')}
+    ${sw('prorata', 'Reduced for loss of pay', r.prorata)}${sw('pfWage', 'Counts in PF wage', r.pfWage)}${sw('esiWage', 'Counts in ESI wage', r.esiWage)}${sw('taxable', 'Taxable', r.taxable)}${sw('showInSlip', 'Show in slip', r.showInSlip)}${sw('active', 'Active', r.active)}
+    <div class="col-12"><label class="form-label">Reason for this change</label><input class="form-control" id="f_reason"></div></div>`;
+  document.getElementById('shF').innerHTML = '<button class="ap-btn light" data-bs-dismiss="offcanvas">Cancel</button><button class="ap-btn go" onclick="save()"><i class="bi bi-check2"></i> Save</button>';
+  sheet().show();
+}
+async function save() {
+  const b = { id: CUR.id || null, reason: val('f_reason') };
+  ['code', 'name', 'headType', 'calcType', 'calcBase', 'defaultValue', 'sortOrder'].forEach(k => b[k] = val('f_' + k));
+  ['prorata', 'pfWage', 'esiWage', 'taxable', 'showInSlip', 'active'].forEach(k => b[k] = chk('f_' + k));
+  try { await Api.post(S.heads, b); sheet().hide(); await load(); SFA.toast('Saved'); } catch (e) { SFA.toast(e.message, false); }
+}
+
+</script>
+</body>
+</html>
