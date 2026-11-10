@@ -139,7 +139,10 @@ public class LeaveService {
                 intOf(t.get("minNoticeDays")), intOf(t.get("backdateDays")), intOf(t.get("futureDays")), b(t.get("requiresReason")), b(t.get("sandwich")), b(t.get("allowNegative")), intOf(t.get("minServiceMonths")));
     }
 
-    private LeaveRules.Result evaluate(String empId, long typeId, LocalDate from, LocalDate to, String part, String reason, Long ownDcrId) {
+    private LeaveRules.Result evaluate(String empId, long typeId, LocalDate from, LocalDate to, String part, String reason, Long ownDcrId) { return evaluate(empId, typeId, from, to, part, reason, ownDcrId, false, false); }
+
+    /** {@code admin}: HR marks the leave for the employee - the notice / back-date / per-month / min-service / reason rules do not apply; {@code shortfallAsLwp}: days over the balance become loss of pay. */
+    private LeaveRules.Result evaluate(String empId, long typeId, LocalDate from, LocalDate to, String part, String reason, Long ownDcrId, boolean admin, boolean shortfallAsLwp) {
         Map<String, Object> t = type(typeId);
         if (!"1".equals(String.valueOf(jdbc.queryForList("SELECT COALESCE((SELECT et.leave_applicable FROM hr_emp_employment h JOIN hr_employee_type et ON et.id = h.employee_type_id WHERE h.emp_id = ?), 1)", Integer.class, empId).get(0))))
             throw new IllegalStateException("Your employee type is not eligible for leave");
@@ -152,7 +155,9 @@ public class LeaveService {
         BigDecimal usedMonth = from == null ? BigDecimal.ZERO : jdbc.queryForObject("SELECT COALESCE(SUM(days), 0) FROM hr_leave_application WHERE emp_id = ? AND leave_type_id = ? AND status IN ('PENDING','APPROVED') AND YEAR(from_date) = ? AND MONTH(from_date) = ?",
                 BigDecimal.class, empId, typeId, ref.getYear(), ref.getMonthValue());
         BigDecimal bal = (BigDecimal) balance(empId, t, ref).get("balance");
-        return LeaveRules.check(policy(t), new LeaveRules.Request(from, to, part == null ? "FULL" : part, reason, LocalDate.now(), joined(empId), bal, usedMonth, off, overlap));
+        LeaveRules.Policy pol = policy(t);
+        if (admin) pol = new LeaveRules.Policy(pol.code(), pol.paid(), pol.quota(), pol.accrual(), pol.carryMax(), true, 0, BigDecimal.ZERO, 0, 36500, 0, false, pol.sandwich(), shortfallAsLwp || pol.allowNegative(), 0);
+        return LeaveRules.check(pol, new LeaveRules.Request(from, to, part == null ? "FULL" : part, reason, LocalDate.now(), joined(empId), bal, usedMonth, off, overlap));
     }
 
     /** Throws with the policy messages when the request is not allowed; used by the DCR screen before it starts a leave day. */
@@ -188,6 +193,25 @@ public class LeaveService {
                 f.get("dayPart") == null ? "FULL" : f.get("dayPart").toString(), f.get("reason") == null ? null : f.get("reason").toString(), "WEB", null);
     }
 
+
+
+    /** HR / admin marks a leave for an employee who did not apply (approved at once; LEAVE DCR of every working day is made). Advance dates are blocked. */
+    @Transactional(transactionManager = "tenantTransactionManager")
+    public Map<String, Object> applyByAdmin(String empId, long typeId, LocalDate from, LocalDate to, String part, String reason, boolean shortfallAsLwp) {
+        access.require("LEAVE_ADMIN");
+        if (reason == null || reason.isBlank()) throw new IllegalArgumentException("Please give a reason");
+        if (to.isAfter(LocalDate.now())) throw new IllegalStateException("Advance dates are blocked - leave can be marked only up to today");
+        if (empId.equals(me())) throw new ForbiddenException("You cannot mark your own leave");
+        LeaveRules.Result r = evaluate(empId, typeId, from, to, part, reason, null, true, shortfallAsLwp);
+        if (!r.ok()) throw new IllegalStateException(String.join(". ", r.errors()));
+        Map<String, Object> t = type(typeId);
+        jdbc.update("INSERT INTO hr_leave_application (emp_id, leave_type_id, from_date, to_date, day_part, days, lwp_days, reason, status, source, decided_by, decided_at, decision_remarks) VALUES (?,?,?,?,?,?,?,?, 'APPROVED', 'ADMIN', ?, NOW(), ?)",
+                empId, typeId, from, to, part == null ? "FULL" : part, r.days(), r.lwpDays(), reason.trim(), me(), "Marked by HR");
+        Long id = jdbc.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+        int made = createDcrDays(id);
+        audit.log("LEAVE", id, empId, "CREATE", "application", null, t.get("code") + " " + from + (to.equals(from) ? "" : " to " + to) + " (" + r.days() + " d, marked by HR, " + made + " DCR day(s))", reason);
+        return Map.of("id", id, "days", r.days(), "lwpDays", r.lwpDays());
+    }
 
     // ---- DCR rows of an approved leave ---------------------------------------------------------------------------
     private static String tag(long appId) { return "LEAVE-APP-" + appId; }

@@ -61,6 +61,19 @@ public class DcrController {
         return service.getMine(date);
     }
 
+    @GetMapping("/day-kind")
+    @Operation(summary = "Is the date a holiday / weekly off for me (as set in Holiday Master), is its DCR already there, the back-date limit")
+    public java.util.Map<String, Object> dayKind(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        return service.dayKind(date);
+    }
+
+    @RequiresPermission("DCR_SAVE")
+    @PostMapping("/holiday-submit")
+    @Operation(summary = "Submit the holiday / weekly-off DCR of a date (back-dated too); beyond the back-date limit needs confirmOld = true")
+    public java.util.Map<String, Object> holidaySubmit(@RequestBody java.util.Map<String, Object> body) {
+        return service.submitHoliday(LocalDate.parse(String.valueOf(body.get("date"))), Boolean.parseBoolean(String.valueOf(body.get("confirmOld"))));
+    }
+
     @RequiresPermission("DCR_SAVE")
     @PostMapping("/start")
     @Operation(summary = "Start MY day: creates the DCR draft with time in = now. Nothing else can be filled before this")

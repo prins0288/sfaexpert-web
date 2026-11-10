@@ -301,6 +301,7 @@
           holdConfig: "/api/hr/payroll/holds/config", holds: "/api/hr/payroll/holds", holdRelease: (id) => `/api/hr/payroll/holds/${id}/release`,
           design: "/api/hr/payroll/slip-design",
         },
+        mark: { employees: "/api/hr/mark/employees", submit: "/api/hr/mark" },   // admin marks attendance / leave: POST {mode, from, to, empIds, reason, leaveTypeId, dayPart, shortfallAsLwp}
         audit: "/api/hr/audit",                                        // ?entity=&empId=&by=&from=&to=
       },
       marquee: {
@@ -328,6 +329,8 @@
         del: (id) => `/api/dcr/${id}`,                                // DELETE: owner's draft / rejected DCR (admin: any)
         tp: "/api/dcr/tp",                                           // ?date= what the approved tour plan lets the DCR offer
         analysis: (clientId) => `/api/dcr/client-analysis/${clientId}`,  // Pre-Call Analysis of one of my clients
+        dayKind: "/api/dcr/day-kind",                                  // ?date=  holiday / weekly off for me, already submitted?, back-date limit
+        holidaySubmit: "/api/dcr/holiday-submit",                      // POST {date, confirmOld}
         mine: "/api/dcr/mine",                                        // ?date=
         start: "/api/dcr/start",                                      // POST: start my day (time in = now)
         save: "/api/dcr",                                             // POST: create / replace my DCR (submit true|false)

@@ -87,7 +87,7 @@ public final class LeaveRules {
         if (p.minNoticeDays() > 0 && r.from().isBefore(r.today().plusDays(p.minNoticeDays()))) e.add(p.code() + " needs " + p.minNoticeDays() + " day(s) notice");
         if (p.futureDays() > 0 && r.from().isAfter(r.today().plusDays(p.futureDays()))) e.add("Leave can be applied only " + p.futureDays() + " day(s) ahead");
         if (p.minServiceMonths() > 0 && (r.joined() == null || r.joined().plusMonths(p.minServiceMonths()).isAfter(r.from()))) e.add(p.code() + " is available after " + p.minServiceMonths() + " month(s) of service");
-        if (r.overlapsOther()) e.add("You already have leave or a worked day in these dates");
+        if (r.overlapsOther()) e.add("Leave or a worked day already exists in these dates");
         BigDecimal days = e.isEmpty() || r.to().isAfter(r.from().minusDays(1)) ? countDays(r.from(), r.to(), r.part(), r.nonWorking(), p.sandwich()) : BigDecimal.ZERO;
         if (days.signum() == 0 && e.isEmpty()) e.add("These dates are weekly off / holiday - no leave is needed");
         if (p.maxPerMonth().signum() > 0 && r.usedThisMonth().add(days).compareTo(p.maxPerMonth()) > 0)

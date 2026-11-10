@@ -43,13 +43,14 @@ public class DcrService {
     private final JdbcTemplate jdbc;
     private final TeamScope scope;
     private final in.opt.sfa.tenant.hr.leave.LeaveService leaves;
+    private final in.opt.sfa.tenant.tp.service.HolidayService holidays;
     private final DcrWorktypeService worktypes;
     private final DcrRuleService rules;
     private final in.opt.sfa.tenant.tp.service.TourPlanLookup tourPlans;
     private final CompanySettingStore settings;
 
-    public DcrService(JdbcTemplate jdbc, TeamScope scope, DcrWorktypeService worktypes, DcrRuleService rules, in.opt.sfa.tenant.tp.service.TourPlanLookup tourPlans, CompanySettingStore settings, in.opt.sfa.tenant.hr.leave.LeaveService leaves) {
-        this.leaves = leaves;
+    public DcrService(JdbcTemplate jdbc, TeamScope scope, DcrWorktypeService worktypes, DcrRuleService rules, in.opt.sfa.tenant.tp.service.TourPlanLookup tourPlans, CompanySettingStore settings, in.opt.sfa.tenant.hr.leave.LeaveService leaves, in.opt.sfa.tenant.tp.service.HolidayService holidays) {
+        this.leaves = leaves; this.holidays = holidays;
         this.rules = rules;
         this.tourPlans = tourPlans;
         this.jdbc = jdbc;
@@ -247,7 +248,7 @@ public class DcrService {
     /** My DCR of a date (null when none yet). */
     @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
     public DcrDto getMine(LocalDate date) {
-        List<Map<String, Object>> rows = jdbc.queryForList("SELECT * FROM dcr_parent_summary WHERE emp_id = ? AND dcr_date = ?", me(), date);
+        List<Map<String, Object>> rows = jdbc.queryForList("SELECT * FROM dcr_parent_summary WHERE emp_id = ? AND dcr_date = ? AND work_type NOT IN ('HOLIDAY', 'WEEKLY_OFF')", me(), date);   // the automatic holiday / weekly-off row is not "a day started"
         return rows.isEmpty() ? null : load(rows.get(0));
     }
 
@@ -393,6 +394,7 @@ public class DcrService {
         if (date.isBefore(today.minusDays(backDays()))) throw new IllegalStateException("A DCR can be filled only up to " + backDays() + " days back");
         String workType = f.getWorkType() == null ? "" : f.getWorkType().toUpperCase();
         if (!worktypes.isDayType(me, workType)) throw new IllegalStateException("Please choose a valid work type");
+        jdbc.update("DELETE FROM dcr_parent_summary WHERE emp_id = ? AND dcr_date = ? AND work_type IN ('HOLIDAY', 'WEEKLY_OFF')", me, date);   // working on a holiday / weekly off: the automatic row makes way
         if (jdbc.queryForObject("SELECT COUNT(*) FROM dcr_parent_summary WHERE emp_id = ? AND dcr_date = ?", Integer.class, me, date) > 0) {
             throw new IllegalStateException("Your day is already started");
         }
@@ -976,5 +978,51 @@ public class DcrService {
     /** "Name (code)" of an employee for a message - never the internal employee id. */
     private String empLabel(String empId) {
         return jdbc.queryForList("SELECT CONCAT(emp_name, ' (', emp_code, ')') AS n FROM emp_detail WHERE emp_id = ?", empId).stream().findFirst().map(r -> String.valueOf(r.get("n"))).orElse("this employee");
+    }
+
+    // =========================================================================================
+    // holiday / weekly-off DCR (automatic at 8 PM; here: the employee submits a day the job missed or that was assigned later)
+    // =========================================================================================
+
+    /** What the date is for the employee: a holiday / weekly off as set in Holiday Master (or null), whether a holiday DCR is already there, and the back-date limit. */
+    @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
+    public Map<String, Object> dayKind(LocalDate date) {
+        String me = me();
+        Map<String, Object> m = new LinkedHashMap<>();
+        List<Map<String, Object>> o = holidays.forEmployee(me, date, date).get(date.toString());
+        String kind = null, name = null;
+        if (o != null && !o.isEmpty()) {
+            Map<String, Object> pick = o.stream().filter(x -> "HOLIDAY".equals(x.get("kind"))).findFirst().orElse(o.get(0));
+            kind = (String) pick.get("kind"); name = "HOLIDAY".equals(kind) ? String.valueOf(pick.get("name")) : "Weekly off";
+        }
+        List<Map<String, Object>> rows = jdbc.queryForList("SELECT work_type, remarks FROM dcr_parent_summary WHERE emp_id = ? AND dcr_date = ?", me, date);
+        boolean autoRow = rows.stream().anyMatch(r -> "HOLIDAY".equals(r.get("work_type")) || "WEEKLY_OFF".equals(r.get("work_type")));
+        m.put("kind", kind); m.put("name", name); m.put("submitted", autoRow);
+        m.put("canSubmit", kind != null && rows.isEmpty() && !date.isAfter(LocalDate.now()));
+        m.put("backDays", backDays()); m.put("beyondLimit", date.isBefore(LocalDate.now().minusDays(backDays())));
+        return m;
+    }
+
+    /** Submit the holiday / weekly-off DCR of a past (or today's) date. A date beyond the back-date limit needs {@code confirmOld} - the screen asks first. */
+    @Transactional(transactionManager = "tenantTransactionManager")
+    public Map<String, Object> submitHoliday(LocalDate date, boolean confirmOld) {
+        String me = me();
+        LocalDate today = LocalDate.now();
+        if (date == null) throw new IllegalStateException("Choose the date");
+        if (date.isAfter(today)) throw new IllegalStateException("A holiday DCR cannot be submitted for a future date - it is made on the day itself");
+        Map<String, Object> emp = jdbc.queryForList("SELECT designation, manager_id, date_of_joining, last_working_date FROM emp_detail WHERE emp_id = ?", me).stream().findFirst().orElseThrow(() -> new IllegalStateException("Employee not found"));
+        if (emp.get("date_of_joining") != null && ((java.sql.Date) emp.get("date_of_joining")).toLocalDate().isAfter(date)) throw new IllegalStateException("You had not joined on " + date);
+        if (emp.get("last_working_date") != null && ((java.sql.Date) emp.get("last_working_date")).toLocalDate().isBefore(date)) throw new IllegalStateException("This date is after your last working day");
+        Map<String, Object> k = dayKind(date);
+        if (k.get("kind") == null) throw new IllegalStateException(date + " is not a holiday or weekly off for you as per Holiday Master. If it should be, ask your admin to assign it to you, then submit again");
+        if (Boolean.TRUE.equals(k.get("submitted"))) throw new IllegalStateException("The " + k.get("name") + " DCR of " + date + " is already submitted");
+        if (jdbc.queryForObject("SELECT COUNT(*) FROM dcr_parent_summary WHERE emp_id = ? AND dcr_date = ?", Integer.class, me, date) > 0) throw new IllegalStateException("A DCR already exists for " + date);
+        boolean late = Boolean.TRUE.equals(k.get("beyondLimit"));
+        if (late && !confirmOld) throw new IllegalStateException("DATE_EXCEEDED: " + date + " is older than " + backDays() + " day(s), the back-date limit. Submit the " + k.get("name") + " DCR anyway?");
+        String type = "Weekly off".equals(k.get("name")) ? "WEEKLY_OFF" : "HOLIDAY";
+        String remarks = (String.valueOf(k.get("name"))) + (late ? " (submitted late)" : date.isBefore(today) ? " (submitted back-dated)" : "");
+        jdbc.update("INSERT INTO dcr_parent_summary (emp_id, dcr_date, work_type, designation_id, manager_id, remarks, status, submitted_at, submitted_through) VALUES (?,?,?,?,?,?,1,NOW(),2)",
+                me, date, type, emp.get("designation"), emp.get("manager_id"), remarks.length() > 190 ? remarks.substring(0, 190) : remarks);
+        return Map.of("date", date.toString(), "type", type, "name", k.get("name"), "late", late);
     }
 }

@@ -247,7 +247,7 @@
   const STATUS = [['Draft', 'secondary'], ['Submitted', 'info'], ['Approved', 'success'], ['Rejected', 'danger']];
   const stBadge = (s) => s == null ? '<span class="badge bg-light text-dark border">New</span>' : `<span class="badge bg-${STATUS[s][1]}${s === 1 ? ' text-dark' : ''}">${STATUS[s][0]}</span>`;
 
-  let TPF = null, OPT = null, ST = null, CUR = 'day', VIEW = 'form', SHEET = null, EDIT = null, ROWS = [], KEYSEQ = 0, SHEET_ON_CLOSE = null;
+  let DK = null, TPF = null, OPT = null, ST = null, CUR = 'day', VIEW = 'form', SHEET = null, EDIT = null, ROWS = [], KEYSEQ = 0, SHEET_ON_CLOSE = null;
 
   const blank = (date) => ({ dcrId: null, dcrDate: date, workType: defaultWork(), startAreaId: '', workingAreaId: '', timeIn: '', timeOut: '', travelMode: '', meterStart: '', meterEnd: '',
     remarks: '', dayEndAreaId: '', dayEndAt: '', dayEndRemarks: '', stayAreaId: '', stayHotel: '', jointWith: [], visits: [], unlisted: [], expenses: [], status: null, canEdit: true });
@@ -272,6 +272,7 @@
     const date = document.getElementById('dcrDate').value || todayStr();
     const d = await Api.get(EP.mine, { query: { date } });
     ST = d && d.dcrId ? fromDto(d) : blank(date);   // no DCR yet: the API answers with an empty envelope
+    DK = null; if (!(d && d.dcrId)) { try { DK = await Api.get(EP.dayKind, { query: { date }, noLoader: true }); } catch (e) { DK = null; } }   // holiday / weekly off as set in Holiday Master
     try { TPF = await Api.get(EP.tp, { query: { date }, noLoader: true }); } catch (e) { TPF = null; }   // what the approved tour plan lets this date offer
     if (!tabList().some(t => t.code === CUR)) CUR = 'day';
     render();
@@ -364,6 +365,7 @@
   const wtName = (c) => { const w = (OPT.workTypes || []).find(x => x.code === c); return w ? w.name : c; };
   function paneDay() {
     const working = isField(ST.workType), today = ST.dcrDate === todayStr();
+    if (!started() && DK && DK.kind && (DK.submitted || DK.canSubmit)) return holidayCard();
     if (!started()) {
       const when = today ? 'Today: ' : 'Date: ', dt = new Date(ST.dcrDate + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
       return `<div class="card-lite d-flex align-items-center gap-3"><div class="flex-fill"><div class="fs-5 fw-bold">Day not started</div>
@@ -384,6 +386,25 @@
       : (ST.canEdit ? `<div class="pt-2">${field('Remarks' + (RULE('DCR_Remarks', false) ? ' *' : ''), `<textarea class="form-control" rows="2" oninput="ST.remarks=this.value"></textarea>`)}</div>` : '');
     return `<div class="dcr-sec mt-0">Day start summary</div><div class="card-lite">
       ${row('Day type', wtName(ST.workType))}${row('Started at', ST.timeIn)}${isField(ST.workType) ? row('Started from', area) + row('Area type', areaTypeOf(ST.startAreaId)) + row('Travel mode', tm) + (ST.meterStart ? row('Meter start', ST.meterStart + ' km') : '') : ''}${rem}</div>`;
+  }
+  // a holiday / weekly off (as set in Holiday Master): submitted automatically at 8 PM; here it can be submitted back-dated (e.g. assigned later)
+  function holidayCard() {
+    const dt = new Date(ST.dcrDate + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' }), hol = DK.name !== 'Weekly off';
+    if (DK.submitted) return `<div class="card-lite d-flex align-items-center gap-3"><i class="bi bi-check-circle-fill text-success fs-1"></i><div class="flex-fill"><div class="fs-5 fw-bold">${esc(DK.name)} - DCR submitted</div><div class="text-muted">${esc(dt)}</div>
+      <div class="small text-muted">Submitted automatically, nothing more to do. If you worked this day, tap Start Day.</div></div><button class="btn btn-outline-primary btn-sm" onclick="startSheet()">Start Day</button></div>`;
+    return `<div class="card-lite"><div class="d-flex align-items-center gap-3"><i class="bi ${hol ? 'bi-balloon-heart-fill' : 'bi-cup-hot-fill'} text-warning fs-1"></i><div class="flex-fill"><div class="fs-5 fw-bold">${esc(DK.name)}</div><div class="text-muted">${esc(dt)}</div>
+      <div class="small text-muted">${hol ? 'This is a holiday' : 'This is your weekly off'} as per Holiday Master. No DCR work is needed - submit it so your attendance is complete.</div></div></div>
+      <button class="btn btn-success w-100 mt-3" onclick="holidaySubmit()"><i class="bi bi-send-check"></i> Submit ${hol ? 'Holiday' : 'Weekly Off'} DCR</button>
+      <button class="btn btn-link w-100 mt-1" onclick="startSheet()">I worked this day - Start Day</button></div>`;
+  }
+  async function holidaySubmit(confirmOld) {
+    try {
+      const r = await Api.post(EP.holidaySubmit, { date: ST.dcrDate, confirmOld: !!confirmOld });
+      SFA.toast(r.name + ' DCR submitted for ' + Settings.formatDate(r.date) + (r.late ? ' (late)' : ''), true); await loadDay();
+    } catch (e) {
+      if (String(e.message).startsWith('DATE_EXCEEDED:')) { if (confirm(String(e.message).slice(14).trim())) return holidaySubmit(true); return; }   // beyond the back-date limit: ask first
+      SFA.toast(e.message, false);
+    }
   }
   async function dcrDelete(id) {
     if (!confirm('Delete this DCR with all its visits and expenses? This cannot be undone.')) return;

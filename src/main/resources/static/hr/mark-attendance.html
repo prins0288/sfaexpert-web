@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>/* reverse-proxy sub-path support: make relative css/js resolve under the deploy prefix (e.g. /sfaexpert), "" locally */
+  (function(){try{var p=location.pathname,m=p.match(/^(.*?)\/u\/\d+(\/|$)/),c=m?m[1]:p.replace(/\/[^\/]*$/,'');document.write('<base href="'+(c||'')+'/">');}catch(e){}})();</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StarSFA &middot; Mark Attendance / Leave</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css" rel="stylesheet" />
+  <link href="css/app.css" rel="stylesheet" />
+  <link href="css/app-ui.css" rel="stylesheet" />
+  <script>
+    /* Apply the saved theme (mode / layout / density / colours) BEFORE first
+       paint so there is no flash. theme.js re-applies from the server after. */
+    (function () {
+      try {
+        var d = document.documentElement, s = localStorage;
+        // theme is PER TENANT and several tenants can be signed in at once
+        // (/u/0, /u/1...), so these caches are scoped to the account slot —
+        // a shared key would paint the last-customised tenant's colours here.
+        var m = location.pathname.match(/\/u\/(\d+)(\/|$)/), q = '_u' + (m ? m[1] : '0');
+        d.setAttribute('data-theme', s.getItem('sfa_mode' + q) || 'light');
+        d.setAttribute('data-nav', s.getItem('sfa_nav' + q) || 'vertical');
+        d.setAttribute('data-density', s.getItem('sfa_density' + q) || 'comfortable');
+        var f = s.getItem('sfa_font' + q); if (f) d.style.setProperty('--sfa-font-scale', f);
+        var c = s.getItem('sfa_theme' + q);
+        if (c) { c = JSON.parse(c); var t = (c.resolved && c.resolved[c.mode]) || {};
+          for (var k in t) d.style.setProperty('--sfa-' + k, t[k]); }
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+<div id="app" data-page="markattendance" data-title="Mark Attendance / Leave"></div>
+<template id="pageContent">
+<div class="ap-app"><div class="ap-top"><div><h1 class="ap-title">Mark Attendance / Leave</h1><div class="text-muted small">For employees who do not submit their own: mark attendance (present) or leave for several employees and dates at once, with a reason. Advance dates are blocked</div></div></div>
+<div class="ap-seg" id="seg"><button data-k="ATTENDANCE" class="active" onclick="setMode('ATTENDANCE')">Attendance</button><button data-k="LEAVE" onclick="setMode('LEAVE')">Leave</button></div>
+<div class="ap-card"><div class="row g-3">
+ <div class="col-6"><label class="form-label">From date</label><input type="date" class="form-control" id="m_from" oninput="clampTo()"></div>
+ <div class="col-6"><label class="form-label">To date</label><input type="date" class="form-control" id="m_to"></div>
+ <div id="leaveBox" class="col-12 d-none"><div class="row g-3"><div class="col-12 col-md-6"><label class="form-label">Leave type</label><select class="form-select" id="m_type"></select></div>
+   <div class="col-6 col-md-3"><label class="form-label">Day</label><select class="form-select" id="m_part"><option value="FULL">Full day</option><option value="FIRST">First half</option><option value="SECOND">Second half</option></select></div>
+   <div class="col-12"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="m_lwp" checked><label class="form-check-label" for="m_lwp">If the leave balance is short, the extra days become loss of pay</label></div></div></div></div>
+ <div class="col-12"><label class="form-label">Reason</label><input class="form-control" id="m_reason" maxlength="190" placeholder="e.g. Employee did not submit DCR / on field without network"></div></div></div>
+<div class="ap-card"><div class="d-flex align-items-center gap-2 flex-wrap"><b>Employees</b> <span class="text-muted" id="selCount"></span><label class="d-flex align-items-center gap-2 ms-auto"><input type="checkbox" class="form-check-input" id="selAll" onchange="selAllVisible(this.checked)"> Select all shown</label></div>
+ <input class="form-control my-2" placeholder="Search name or code" oninput="loadEmps(this.value)"><div class="ap-pick" id="emps" style="max-height:340px"></div></div>
+<div class="text-end mb-3"><button class="ap-btn go" onclick="submitMark()"><i class="bi bi-check2-circle"></i> <span id="goLbl">Mark attendance</span></button></div>
+<div id="result"></div></div>
+</template>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.colVis.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="js/core/session.js"></script>
+<script src="js/core/endpoints.js"></script>
+<script src="js/core/http.js"></script>
+<script src="js/core/theme.js"></script>
+<script src="js/core/settings.js"></script>
+<script src="js/core/i18n.js"></script>
+<script src="js/app.js"></script>
+<script src="js/core/uikit.js"></script>
+<script src="js/shell.js"></script>
+<script>
+
+const M = API.master.hr.mark, LV = API.master.hr.leave;
+const esc = (v) => SFA.esc(v == null ? '' : v);
+const val = (id) => document.getElementById(id).value;
+let MODE = 'ATTENDANCE', EMPS = [], SEL = new Set();
+const today = () => new Date().toISOString().slice(0, 10);
+window.pageInit = async function () {
+  ['m_from', 'm_to'].forEach(id => { const e = document.getElementById(id); e.max = today(); e.value = today(); });   // advance dates are blocked
+  try { const t = await Api.get(LV.types); document.getElementById('m_type').innerHTML = t.filter(x => x.active).map(x => `<option value="${x.id}">${esc(x.name)}${x.paid ? '' : ' (unpaid)'}</option>`).join(''); } catch (e) { }
+  await loadEmps('');
+};
+function clampTo() { const f = val('m_from'), t = document.getElementById('m_to'); if (!t.value || t.value < f) t.value = f; t.min = f; }
+function setMode(m) { MODE = m; document.querySelectorAll('#seg button').forEach(b => b.classList.toggle('active', b.dataset.k === m)); document.getElementById('leaveBox').classList.toggle('d-none', m !== 'LEAVE'); document.getElementById('goLbl').textContent = m === 'LEAVE' ? 'Mark leave' : 'Mark attendance'; }
+async function loadEmps(q) {
+  try { EMPS = await Api.get(M.employees, { query: { q } }); } catch (e) { document.getElementById('emps').innerHTML = '<div class="ap-empty">' + esc(e.message) + '</div>'; return; }
+  renderEmps();
+}
+function renderEmps() {
+  document.getElementById('emps').innerHTML = EMPS.map(e => `<label class="ap-row"><input type="checkbox" class="form-check-input" ${SEL.has(e.empId) ? 'checked' : ''} onchange="tog('${esc(e.empId)}', this.checked)"><div class="grow"><b>${esc(e.name)}</b> <span class="text-muted">${esc(e.empCode)}</span><div class="small text-muted">${[e.designation, e.hq, e.state].filter(Boolean).map(esc).join(' · ')}</div></div></label>`).join('') || '<div class="ap-empty">No employee found</div>';
+  document.getElementById('selCount').textContent = SEL.size ? '(' + SEL.size + ' selected)' : '';
+  document.getElementById('selAll').checked = EMPS.length > 0 && EMPS.every(e => SEL.has(e.empId));
+}
+function tog(id, on) { on ? SEL.add(id) : SEL.delete(id); renderEmps(); }
+function selAllVisible(on) { EMPS.forEach(e => on ? SEL.add(e.empId) : SEL.delete(e.empId)); renderEmps(); }
+async function submitMark() {
+  const from = val('m_from'), to = val('m_to') || from, reason = val('m_reason').trim();
+  if (!from) { SFA.toast('Choose the date', false); return; }
+  if (to > today() || from > today()) { SFA.toast('Advance dates are blocked - choose up to today', false); return; }
+  if (!SEL.size) { SFA.toast('Choose at least one employee', false); return; }
+  if (!reason) { SFA.toast('Please give the reason', false); return; }
+  if (!confirm('Mark ' + (MODE === 'LEAVE' ? 'LEAVE' : 'ATTENDANCE') + ' for ' + SEL.size + ' employee(s), ' + from + (to !== from ? ' to ' + to : '') + '?')) return;
+  try {
+    const r = await Api.post(M.submit, { mode: MODE, from, to, empIds: [...SEL], reason, leaveTypeId: MODE === 'LEAVE' ? val('m_type') : null, dayPart: val('m_part'), shortfallAsLwp: document.getElementById('m_lwp').checked });
+    document.getElementById('result').innerHTML = `<div class="ap-card"><b>${r.done} done</b>${r.skipped ? ' · <span class="text-danger"><b>' + r.skipped + ' skipped</b></span>' : ''}</div>` + r.rows.map(x => `<div class="ap-card"><div class="d-flex gap-2 align-items-center"><span class="ap-badge ${x.status === 'DONE' ? 'ok' : 'bad'}">${x.status}</span><div class="flex-fill"><b>${esc(x.employee)}</b> <span class="text-muted">${esc(x.date)}</span><div class="small text-muted">${esc(x.message)}</div></div></div></div>`).join('');
+    SFA.toast(r.done + ' done' + (r.skipped ? ', ' + r.skipped + ' skipped - see the list' : ''), r.skipped === 0);
+    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+  } catch (e) { SFA.toast(e.message, false); }
+}
+
+</script>
+</body>
+</html>
