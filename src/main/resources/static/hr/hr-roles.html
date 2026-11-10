@@ -78,7 +78,7 @@ let MX = null, TABK = 'm', ASG = [], EMPS = [];
 window.pageInit = async function () { await go('m'); };
 async function go(k) {
   TABK = k; document.querySelectorAll('#seg button').forEach(b => b.classList.toggle('active', b.dataset.k === k));
-  try { if (k === 'm') { MX = await Api.get(H.matrix); renderM(); } else { MX = await Api.get(H.matrix); ASG = await Api.get(H.assignments); renderA(); } }
+  try { if (k === 'm') { MX = await Api.get(H.matrix); renderM(); } else { MX = await Api.get(H.matrix); ASG = await Api.get(H.assignments); renderA(); find(''); } }
   catch (e) { document.getElementById('body').innerHTML = '<div class="ap-card ap-empty">' + esc(e.message) + '</div>'; }
 }
 function renderM() {
@@ -96,13 +96,12 @@ async function tog(roleId, code, on) {
   try { await Api.post(H.rolePerms(roleId), { permissions: next, reason }); role.permissions = next; SFA.toast('Saved'); } catch (e) { SFA.toast(e.message, false); renderM(); }
 }
 function renderA() {
-  document.getElementById('body').innerHTML = '<div class="ap-card"><div class="d-flex gap-2"><input class="form-control" id="q" placeholder="Search employee to give a role" oninput="find(this.value)"></div><div id="found" class="mt-2"></div></div>'
+  document.getElementById('body').innerHTML = '<div class="ap-card"><div class="d-flex gap-2"><input class="form-control" id="q" placeholder="Search employee to give a role (name or code)" oninput="find(this.value)"></div><div id="found" class="mt-2"></div></div>'
    + (ASG.map(a => `<div class="ap-card" style="cursor:pointer" onclick="editRoles('${esc(a.empId)}','${esc(a.name)}','${esc(a.roles)}')"><b>${esc(a.name)}</b> <span class="text-muted">${esc(a.empCode)}</span><div class="ap-chips mt-1">${a.roles.split(',').map(r => `<span class="ap-badge ok">${esc(r)}</span>`).join('')}</div></div>`).join('') || '<div class="ap-card ap-empty">Nobody has an extra role yet</div>');
 }
 async function find(q) {
-  if (q.trim().length < 2) { document.getElementById('found').innerHTML = ''; return; }
   EMPS = await Api.get(H.employees, { query: { q } });
-  document.getElementById('found').innerHTML = EMPS.slice(0, 8).map(e => `<div class="ap-row" style="cursor:pointer" onclick="editRoles('${esc(e.empId)}','${esc(e.name)}','')"><div class="grow">${esc(e.name)} <span class="text-muted">${esc(e.empCode)}</span></div></div>`).join('') || '<div class="text-muted">None</div>';
+  document.getElementById('found').innerHTML = EMPS.slice(0, 15).map(e => `<div class="ap-row" style="cursor:pointer" onclick="editRoles('${esc(e.empId)}','${esc(e.name)}','')"><div class="grow">${esc(e.name)} <span class="text-muted">${esc(e.empCode)}</span></div></div>`).join('') || '<div class="text-muted">None</div>';
 }
 let CURE = null;
 function editRoles(empId, name, roles) {
