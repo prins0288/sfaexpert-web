@@ -84,22 +84,22 @@ async function list() {
       <div class="text-end"><b>Rs ${money(r.net)}</b>${Number(r.heldNet) ? '<div class="small text-danger">hold Rs ' + money(r.heldNet) + '</div>' : ''}</div><i class="bi bi-chevron-right text-muted"></i></div></div>`).join('') || '<div class="ap-card ap-empty"><i class="bi bi-wallet2 fs-1"></i><div>No payroll yet - choose a month and tap Generate</div></div>';
   } catch (e) { document.getElementById('body').innerHTML = '<div class="ap-card ap-empty">' + esc(e.message) + '</div>'; }
 }
-async function gen() {
+async function gen() {   // on an approved month this adds only the employees who have no slip yet
   const [y, m] = val('gm').split('-').map(Number); if (!y) { SFA.toast('Choose the month', false); return; }
   try { const r = await Api.post(P.generate, { year: y, month: m }); SFA.toast(r.slips + ' payslips generated' + (r.held ? ', ' + r.held + ' on hold' : '') + (r.withoutSalary ? ', ' + r.withoutSalary + ' employee(s) have no salary set' : '')); await openRun(r.runId); } catch (e) { SFA.toast(e.message, false); }
 }
 async function openRun(id) {
   try { RUN = await Api.get(P.run(id)); } catch (e) { SFA.toast(e.message, false); return; }
-  const draft = RUN.status === 'DRAFT', tot = RUN.slips.reduce((a, s) => a + Number(s.net), 0);
-  document.getElementById('body').innerHTML = `<div class="ap-card d-flex flex-wrap align-items-center gap-2"><button class="ap-btn light" onclick="list()"><i class="bi bi-arrow-left"></i> Back</button><b>${MON[RUN.month]} ${RUN.year}</b> ${stBadge(RUN.status)}<span class="text-muted">${RUN.slips.length} slips · Rs ${money(tot)}</span>
-    <span class="ms-auto d-flex gap-2">${draft ? '<button class="ap-btn go" onclick="approve()">Approve</button><button class="ap-btn danger" onclick="delRun()">Delete month</button>' : ''}${RUN.status === 'APPROVED' ? '<button class="ap-btn go" onclick="paid()">Mark paid</button>' : ''}</span></div>`
-   + RUN.slips.map(s => `<div class="ap-card"><div class="d-flex align-items-center gap-2"><div class="flex-fill" style="min-width:0"><b>${esc(s.name)}</b> <span class="text-muted">${esc(s.empCode)}</span> ${stBadge(s.status)}
+  const pend = RUN.slips.filter(x => !x.approved).length, draft = RUN.status !== 'PAID', tot = RUN.slips.reduce((a, s) => a + Number(s.net), 0);
+  document.getElementById('body').innerHTML = `<div class="ap-card d-flex flex-wrap align-items-center gap-2"><button class="ap-btn light" onclick="list()"><i class="bi bi-arrow-left"></i> Back</button><b>${MON[RUN.month]} ${RUN.year}</b> ${stBadge(RUN.status)}<span class="text-muted">${RUN.slips.length} slips · Rs ${money(tot)}${RUN.status === 'APPROVED' && pend ? ' · <b class="text-danger">' + pend + ' waiting approval</b>' : ''}</span>
+    <span class="ms-auto d-flex gap-2">${pend ? `<button class="ap-btn go" onclick="approve()">Approve${RUN.status === 'APPROVED' ? ' ' + pend + ' new' : ''}</button>` : ''}${RUN.status !== 'PAID' ? '<button class="ap-btn danger" onclick="delRun()">Delete month</button>' : ''}${RUN.status === 'APPROVED' && !pend ? '<button class="ap-btn go" onclick="paid()">Mark paid</button>' : ''}</span></div>`
+   + RUN.slips.map(s => `<div class="ap-card"><div class="d-flex align-items-center gap-2"><div class="flex-fill" style="min-width:0"><b>${esc(s.name)}</b> <span class="text-muted">${esc(s.empCode)}</span> ${stBadge(s.status)} ${s.approved ? '' : (RUN.status === 'APPROVED' ? '<span class="ap-badge wait">Waiting approval</span>' : '')}
       <div class="small text-muted">${[s.designation, s.hq, s.state].filter(Boolean).map(esc).join(' · ')}</div><div class="small">Paid ${Number(s.paidDays)}/${s.daysInMonth} days${Number(s.lopDays) ? ' · <span class="text-danger">LOP ' + Number(s.lopDays) + '</span>' : ''} · Gross ${money(s.gross)} · Ded ${money(s.deductions)}</div>${s.holdReason ? '<div class="small text-danger"><i class="bi bi-pause-circle"></i> ' + esc(s.holdReason) + '</div>' : ''}</div>
       <div class="text-end"><div class="fw-bold">Rs ${money(s.net)}</div><div class="d-flex gap-1 mt-1 justify-content-end flex-wrap"><a class="ap-btn light" target="_blank" href="${SLOT}/hr/payslip.html?id=${s.id}">Slip</a>
-      ${draft ? `<button class="ap-btn light" onclick="lop(${s.id}, ${Number(s.lopDays)})">LOP</button><button class="ap-btn danger" onclick="delSlip(${s.id})"><i class="bi bi-trash"></i></button>` : ''}${RUN.status !== 'PAID' ? (s.status === 'HELD' ? `<button class="ap-btn go" onclick="rel(${s.id})">Release</button>` : `<button class="ap-btn danger" onclick="hold(${s.id})">Hold</button>`) : ''}</div></div></div></div>`).join('');
+      ${!s.approved && draft ? `<button class="ap-btn light" onclick="lop(${s.id}, ${Number(s.lopDays)})">LOP</button>` : ''}${draft ? `<button class="ap-btn danger" onclick="delSlip(${s.id})"><i class="bi bi-trash"></i></button>` : ''}${RUN.status !== 'PAID' ? (s.status === 'HELD' ? `<button class="ap-btn go" onclick="rel(${s.id})">Release</button>` : `<button class="ap-btn danger" onclick="hold(${s.id})">Hold</button>`) : ''}</div></div></div></div>`).join('');
 }
 async function lop(id, cur) { const v = prompt('Loss-of-pay days for this month', cur); if (v == null) return; const r = ask('Reason (kept in the audit log)'); if (!r) return; try { await Api.post(P.lop(id), { lopDays: v, reason: r }); await openRun(RUN.id); SFA.toast('Recalculated'); } catch (e) { SFA.toast(e.message, false); } }
-async function delSlip(id) { if (!confirm('Delete this payslip from the draft month? (Generating the month again will make it again.)')) return; const r = ask('Reason for deleting (kept in the audit log)'); if (!r) return; try { await Api.post(P.removeSlip(id), { reason: r }); await openRun(RUN.id); SFA.toast('Payslip deleted'); } catch (e) { SFA.toast(e.message, false); } }
+async function delSlip(id) { if (!confirm('Delete this payslip? (Generating the month again will make it again.) A paid month cannot be changed.')) return; const r = ask('Reason for deleting (kept in the audit log)'); if (!r) return; try { await Api.post(P.removeSlip(id), { reason: r }); await openRun(RUN.id); SFA.toast('Payslip deleted'); } catch (e) { SFA.toast(e.message, false); } }
 async function hold(id) { const r = ask('Reason for holding this salary'); if (!r) return; try { await Api.post(P.hold(id), { reason: r }); await openRun(RUN.id); SFA.toast('On hold'); } catch (e) { SFA.toast(e.message, false); } }
 async function rel(id) { const r = ask('Reason for releasing'); if (!r) return; try { await Api.post(P.release(id), { reason: r }); await openRun(RUN.id); SFA.toast('Released'); } catch (e) { SFA.toast(e.message, false); } }
 async function approve() {
@@ -113,7 +113,7 @@ async function approve() {
   await openRun(RUN.id); SFA.toast('Approved');
 }
 async function paid() { if (!confirm('Mark this month as paid?')) return; try { await Api.post(P.paid(RUN.id), {}); await openRun(RUN.id); SFA.toast('Marked paid'); } catch (e) { SFA.toast(e.message, false); } }
-async function delRun() { if (!confirm('Delete this draft month?')) return; try { await Api.post(P.removeRun(RUN.id), {}); await list(); SFA.toast('Deleted'); } catch (e) { SFA.toast(e.message, false); } }
+async function delRun() { if (!confirm('Delete this ' + RUN.status.toLowerCase() + ' month with all its slips? A paid month cannot be deleted.')) return; let reason = null; if (RUN.status !== 'DRAFT') { reason = ask('Reason for deleting an approved month (kept in the audit log)'); if (!reason) return; } try { await Api.post(P.removeRun(RUN.id), { reason }); await list(); SFA.toast('Deleted'); } catch (e) { SFA.toast(e.message, false); } }
 
 </script>
 </body>

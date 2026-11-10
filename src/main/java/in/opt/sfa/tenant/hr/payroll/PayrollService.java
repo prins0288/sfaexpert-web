@@ -69,7 +69,7 @@ public class PayrollService {
 
     // ---- generate ----------------------------------------------------------------------------------------------------
     @Transactional(transactionManager = "tenantTransactionManager")
-    public Map<String, Object> generate(int year, int month) {
+    public Map<String, Object> generate(int year, int month, boolean onlyMissing) {
         access.require("PAYROLL_PROCESS");
         YearMonth ym = YearMonth.of(year, month);
         if (ym.isAfter(YearMonth.now())) throw new IllegalArgumentException("Salary of a future month cannot be generated");
@@ -79,10 +79,12 @@ public class PayrollService {
             jdbc.update("INSERT INTO hr_payroll_run (period_year, period_month, status, generated_by, generated_at) VALUES (?,?, 'DRAFT', ?, NOW())", year, month, me());
             runId = jdbc.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
         } else {
-            if (!"DRAFT".equals(run.get("status"))) throw new IllegalStateException("This month is already " + run.get("status").toString().toLowerCase() + " - it cannot be generated again");
+            if ("PAID".equals(run.get("status"))) throw new IllegalStateException("This month is already paid - it cannot be generated again");
             runId = ((Number) run.get("id")).longValue();
-            jdbc.update("DELETE FROM hr_payslip WHERE run_id = ?", runId);
-            jdbc.update("UPDATE hr_payroll_run SET generated_by = ?, generated_at = NOW() WHERE id = ?", me(), runId);
+            if ("DRAFT".equals(run.get("status")) && !onlyMissing) {   // a draft month is made again from scratch
+                jdbc.update("DELETE FROM hr_payslip WHERE run_id = ?", runId);
+                jdbc.update("UPDATE hr_payroll_run SET generated_by = ?, generated_at = NOW() WHERE id = ?", me(), runId);
+            } else onlyMissing = true;   // an approved month: only the employees who have no slip yet are added; approved slips stay as they are
         }
         LocalDate first = ym.atDay(1), last = ym.atEndOfMonth();
         SalaryCalc.Params p = params(settings, last);
@@ -95,11 +97,13 @@ public class PayrollService {
         for (Map<String, Object> e : emps) {
             String empId = (String) e.get("emp_id");
             Map<String, Object> sal = jdbc.queryForList("SELECT id, gross_monthly FROM hr_emp_salary WHERE emp_id = ? AND effective_from <= ? AND (effective_to IS NULL OR effective_to >= ?) ORDER BY effective_from DESC LIMIT 1", empId, last, first).stream().findFirst().orElse(null);
+            if (onlyMissing && jdbc.queryForObject("SELECT COUNT(*) FROM hr_payslip WHERE run_id = ? AND emp_id = ?", Integer.class, runId, empId) > 0) continue;
             if (sal == null) { noSalary++; continue; }
             if (insertSlip(runId, empId, ((Number) sal.get("id")).longValue(), bd(sal.get("gross_monthly")), ym, lopFor(empId, ym, e), b(e.get("pf")), b(e.get("esi")),
                     new SalaryCalc.Params(p.pfCeiling(), p.pfEeRate(), p.pfErEpfRate(), p.pfErEpsRate(), p.pfEdliRate(), p.pfAdminRate(), b(e.get("disabled")) ? limitDisabled : p.esiLimit(), p.esiEeRate(), p.esiErRate(), p.rounding()), null)) held++;
             made++;
         }
+        if (made == 0 && onlyMissing) throw new IllegalStateException("Nothing to add: every employee who has a salary already has a slip in this month" + (noSalary > 0 ? " (" + noSalary + " employee(s) have no salary set)" : ""));
         if (made == 0) throw new IllegalStateException("No payslip could be made: " + noSalary + " employee(s) have no salary set. Set the salary in Employee Salary first, then generate again");
         audit.log("PAYROLL", runId, null, "CREATE", "run", null, ym + ": " + made + " slips, " + held + " held, " + noSalary + " without salary", null);
         return Map.of("runId", runId, "slips", made, "held", held, "withoutSalary", noSalary);
@@ -112,8 +116,8 @@ public class PayrollService {
             values.add(new SalaryCalc.Value(head(r), bd(r.get("hv"))));
         SalaryCalc.Output o = SalaryCalc.compute(new SalaryCalc.Input(gross, values, ym.lengthOfMonth(), lop, pf, esi, p));
         String hold = keepHold != null ? keepHold : holds.reasonFor(empId, ym.getYear() * 100 + ym.getMonthValue());
-        jdbc.update("INSERT INTO hr_payslip (run_id, emp_id, salary_id, days_in_month, lop_days, paid_days, gross_earnings, total_deductions, net_pay, employer_cost, pf_wage, esi_wage, status, hold_reason) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                runId, empId, salaryId, ym.lengthOfMonth(), lop, o.paidDays(), o.grossEarnings(), o.totalDeductions(), o.net(), o.employerCost(), o.pfWage(), o.esiWage(), hold == null ? "GENERATED" : "HELD", hold);
+        jdbc.update("INSERT INTO hr_payslip (run_id, generated_by, emp_id, salary_id, days_in_month, lop_days, paid_days, gross_earnings, total_deductions, net_pay, employer_cost, pf_wage, esi_wage, status, hold_reason) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                runId, me(), empId, salaryId, ym.lengthOfMonth(), lop, o.paidDays(), o.grossEarnings(), o.totalDeductions(), o.net(), o.employerCost(), o.pfWage(), o.esiWage(), hold == null ? "GENERATED" : "HELD", hold);
         long slipId = jdbc.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
         for (SalaryCalc.Line l : o.lines()) jdbc.update("INSERT INTO hr_payslip_line (payslip_id, head_code, head_name, line_type, amount, sort_order) VALUES (?,?,?,?,?,?)", slipId, l.code(), l.name(), l.type(), l.amount(), l.sort());
         return hold != null;
@@ -125,7 +129,7 @@ public class PayrollService {
         access.require("PAYROLL_REPORTS");
         return jdbc.queryForList("""
                 SELECT r.id, r.period_year AS year, r.period_month AS month, r.status, r.generated_at AS generatedAt, g.emp_name AS generatedBy, r.approved_at AS approvedAt, a.emp_name AS approvedBy,
-                       (SELECT COUNT(*) FROM hr_payslip s WHERE s.run_id = r.id) AS slips, (SELECT COUNT(*) FROM hr_payslip s WHERE s.run_id = r.id AND s.status = 'HELD') AS held,
+                       (SELECT COUNT(*) FROM hr_payslip s WHERE s.run_id = r.id) AS slips, (SELECT COUNT(*) FROM hr_payslip s WHERE s.run_id = r.id AND s.status = 'HELD') AS held, (SELECT COUNT(*) FROM hr_payslip s WHERE s.run_id = r.id AND s.approved_at IS NULL) AS pending,
                        (SELECT COALESCE(SUM(net_pay), 0) FROM hr_payslip s WHERE s.run_id = r.id) AS net, (SELECT COALESCE(SUM(net_pay), 0) FROM hr_payslip s WHERE s.run_id = r.id AND s.status = 'HELD') AS heldNet
                 FROM hr_payroll_run r LEFT JOIN emp_detail g ON g.emp_id = r.generated_by LEFT JOIN emp_detail a ON a.emp_id = r.approved_by ORDER BY r.period_year DESC, r.period_month DESC""");
     }
@@ -136,7 +140,7 @@ public class PayrollService {
         Map<String, Object> run = jdbc.queryForList("SELECT id, period_year AS year, period_month AS month, status FROM hr_payroll_run WHERE id = ?", id).stream().findFirst().orElseThrow(() -> new IllegalArgumentException("Run not found"));
         run.put("slips", jdbc.queryForList("""
                 SELECT s.id, s.emp_id AS empId, e.emp_code AS empCode, e.emp_name AS name, d.designation, st.state_name AS state, h.hq_name AS hq, s.days_in_month AS daysInMonth, s.lop_days AS lopDays, s.paid_days AS paidDays,
-                       s.gross_earnings AS gross, s.total_deductions AS deductions, s.net_pay AS net, s.status, s.hold_reason AS holdReason
+                       s.gross_earnings AS gross, s.total_deductions AS deductions, s.net_pay AS net, s.status, s.hold_reason AS holdReason, (s.approved_at IS NOT NULL) AS approved
                 FROM hr_payslip s JOIN emp_detail e ON e.emp_id = s.emp_id LEFT JOIN designation_master d ON d.id = e.designation LEFT JOIN state_master st ON st.oid = e.state_id LEFT JOIN hq_master h ON h.oid = e.hq_id
                 WHERE s.run_id = ? ORDER BY e.emp_name""", id));
         return run;
@@ -151,7 +155,7 @@ public class PayrollService {
         boolean staff = access.has("PAYROLL_REPORTS") || access.has("SALARY_VIEW");
         if (!staff) {
             if (!mine) throw new ForbiddenException("This is not your payslip");
-            if (!"APPROVED".equals(s.get("runStatus")) && !"PAID".equals(s.get("runStatus"))) throw new IllegalStateException("This month's salary is not approved yet");
+            if (s.get("approved_at") == null) throw new IllegalStateException("This month's salary is not approved yet");
             if ("HELD".equals(s.get("status"))) throw new IllegalStateException("Your salary of this month is on hold. Please contact HR");
         }
         Map<String, Object> out = new LinkedHashMap<>();
@@ -173,14 +177,14 @@ public class PayrollService {
     public List<Map<String, Object>> mySlips() {
         return jdbc.queryForList("""
                 SELECT s.id, r.period_year AS year, r.period_month AS month, s.net_pay AS net, s.status, r.status AS runStatus FROM hr_payslip s JOIN hr_payroll_run r ON r.id = s.run_id
-                WHERE s.emp_id = ? AND r.status IN ('APPROVED', 'PAID') ORDER BY r.period_year DESC, r.period_month DESC LIMIT 36""", me());
+                WHERE s.emp_id = ? AND s.approved_at IS NOT NULL ORDER BY r.period_year DESC, r.period_month DESC LIMIT 36""", me());
     }
 
     @Transactional(transactionManager = "tenantTransactionManager")
     public Map<String, Object> setLop(long slipId, BigDecimal lop, String note) {
         access.require("PAYROLL_PROCESS");
-        Map<String, Object> s = jdbc.queryForList("SELECT s.run_id, s.emp_id, s.salary_id, s.hold_reason, s.status, r.status AS rs, r.period_year, r.period_month FROM hr_payslip s JOIN hr_payroll_run r ON r.id = s.run_id WHERE s.id = ?", slipId).stream().findFirst().orElseThrow(() -> new IllegalArgumentException("Payslip not found"));
-        if (!"DRAFT".equals(s.get("rs"))) throw new IllegalStateException("Only a draft month can be changed");
+        Map<String, Object> s = jdbc.queryForList("SELECT s.run_id, s.emp_id, s.salary_id, s.hold_reason, s.status, s.approved_at, r.status AS rs, r.period_year, r.period_month FROM hr_payslip s JOIN hr_payroll_run r ON r.id = s.run_id WHERE s.id = ?", slipId).stream().findFirst().orElseThrow(() -> new IllegalArgumentException("Payslip not found"));
+        if (s.get("approved_at") != null || "PAID".equals(s.get("rs"))) throw new IllegalStateException("An approved slip cannot be changed");
         if (lop == null || lop.signum() < 0) throw new IllegalArgumentException("Loss-of-pay days cannot be negative");
         if (note == null || note.isBlank()) throw new IllegalArgumentException("Please give a reason");
         YearMonth ym = YearMonth.of(((Number) s.get("period_year")).intValue(), ((Number) s.get("period_month")).intValue());
@@ -219,19 +223,25 @@ public class PayrollService {
         audit.log("PAYROLL", slipId, (String) s.get("emp_id"), "UPDATE", "status", "HELD", "RELEASED", reason);
     }
 
+    /** Approves every slip of the month that is not approved yet (slips made later in an approved month need their own approval). */
     @Transactional(transactionManager = "tenantTransactionManager")
-    public void approve(long runId, String overrideReason) {
+    public Map<String, Object> approve(long runId, String overrideReason) {
         access.require("PAYROLL_APPROVE");
-        Map<String, Object> r = jdbc.queryForList("SELECT status, generated_by FROM hr_payroll_run WHERE id = ?", runId).stream().findFirst().orElseThrow(() -> new IllegalArgumentException("Run not found"));
-        if (!"DRAFT".equals(r.get("status"))) throw new IllegalStateException("Already " + r.get("status").toString().toLowerCase());
-        boolean same = settings.bool("MAKER_CHECKER_ON", LocalDate.now(), true) && !RoleResolver.canApprove((String) r.get("generated_by"), me());
+        Map<String, Object> r = jdbc.queryForList("SELECT status FROM hr_payroll_run WHERE id = ?", runId).stream().findFirst().orElseThrow(() -> new IllegalArgumentException("Run not found"));
+        if ("PAID".equals(r.get("status"))) throw new IllegalStateException("This month is already paid");
+        int pending = jdbc.queryForObject("SELECT COUNT(*) FROM hr_payslip WHERE run_id = ? AND approved_at IS NULL", Integer.class, runId);
+        if (pending == 0) throw new IllegalStateException("Nothing to approve - every slip of this month is already approved");
+        boolean same = settings.bool("MAKER_CHECKER_ON", LocalDate.now(), true)
+                && jdbc.queryForObject("SELECT COUNT(*) FROM hr_payslip WHERE run_id = ? AND approved_at IS NULL AND generated_by = ?", Integer.class, runId, me()) > 0;
         if (same) {
             // only a Super Admin may approve what they generated themselves, and only with a reason that stays in the audit log
             if (!access.myRoles().contains("SUPER_ADMIN")) throw new ForbiddenException("The person who generated the payroll cannot approve it - another Payroll Approver must");
             if (overrideReason == null || overrideReason.isBlank()) throw new ForbiddenException("SAME_PERSON: you generated this payroll yourself. As Super Admin you can still approve it - give a reason");
         }
+        jdbc.update("UPDATE hr_payslip SET approved_by = ?, approved_at = NOW() WHERE run_id = ? AND approved_at IS NULL", me(), runId);
         jdbc.update("UPDATE hr_payroll_run SET status = 'APPROVED', approved_by = ?, approved_at = NOW() WHERE id = ?", me(), runId);
-        audit.log("PAYROLL", runId, null, "UPDATE", "status", "DRAFT", same ? "APPROVED (Super Admin, same person as the maker)" : "APPROVED", same ? overrideReason : null);
+        audit.log("PAYROLL", runId, null, "UPDATE", "status", String.valueOf(r.get("status")), (same ? "APPROVED (Super Admin, same person as the maker)" : "APPROVED") + ", " + pending + " slip(s)", same ? overrideReason : null);
+        return Map.of("approved", pending);
     }
 
     @Transactional(transactionManager = "tenantTransactionManager")
@@ -239,28 +249,30 @@ public class PayrollService {
         access.require("PAYROLL_APPROVE");
         Map<String, Object> r = jdbc.queryForList("SELECT status FROM hr_payroll_run WHERE id = ?", runId).stream().findFirst().orElseThrow(() -> new IllegalArgumentException("Run not found"));
         if (!"APPROVED".equals(r.get("status"))) throw new IllegalStateException("Approve the month first");
+        if (jdbc.queryForObject("SELECT COUNT(*) FROM hr_payslip WHERE run_id = ? AND approved_at IS NULL", Integer.class, runId) > 0) throw new IllegalStateException("Some slips of this month are not approved yet - approve them first");
         jdbc.update("UPDATE hr_payroll_run SET status = 'PAID', paid_at = NOW() WHERE id = ?", runId);
         audit.log("PAYROLL", runId, null, "UPDATE", "status", "APPROVED", "PAID", null);
     }
 
-    /** Removes one employee's slip from a month that is still a draft (kept in the audit log). Generating the month again would make it again. */
+    /** Removes one employee's slip from a month that is not paid yet (approved or not; kept in the audit log). Generating the month again would make it again. */
     @Transactional(transactionManager = "tenantTransactionManager")
     public void deleteSlip(long slipId, String reason) {
         access.require("PAYROLL_PROCESS");
         if (reason == null || reason.isBlank()) throw new IllegalArgumentException("Please give a reason");
-        Map<String, Object> s = jdbc.queryForList("SELECT s.emp_id, s.net_pay, s.run_id, r.status FROM hr_payslip s JOIN hr_payroll_run r ON r.id = s.run_id WHERE s.id = ?", slipId).stream().findFirst().orElseThrow(() -> new IllegalArgumentException("Payslip not found"));
-        if (!"DRAFT".equals(s.get("status"))) throw new IllegalStateException("Only a slip of a draft month can be deleted");
+        Map<String, Object> s = jdbc.queryForList("SELECT s.emp_id, s.net_pay, s.run_id, s.approved_at, r.status FROM hr_payslip s JOIN hr_payroll_run r ON r.id = s.run_id WHERE s.id = ?", slipId).stream().findFirst().orElseThrow(() -> new IllegalArgumentException("Payslip not found"));
+        if ("PAID".equals(s.get("status"))) throw new IllegalStateException("This month is already paid - its slips cannot be deleted");
         jdbc.update("DELETE FROM hr_payslip WHERE id = ?", slipId);
         audit.log("PAYROLL", s.get("run_id"), (String) s.get("emp_id"), "DELETE", "payslip", String.valueOf(s.get("net_pay")), null, reason);
     }
 
     @Transactional(transactionManager = "tenantTransactionManager")
-    public void deleteRun(long runId) {
+    public void deleteRun(long runId, String reason) {
         access.require("PAYROLL_PROCESS");
         String st = jdbc.queryForList("SELECT status FROM hr_payroll_run WHERE id = ?", String.class, runId).stream().findFirst().orElseThrow(() -> new IllegalArgumentException("Run not found"));
-        if (!"DRAFT".equals(st)) throw new IllegalStateException("Only a draft month can be deleted");
+        if ("PAID".equals(st)) throw new IllegalStateException("This month is already paid - it cannot be deleted");
+        if (!"DRAFT".equals(st) && (reason == null || reason.isBlank())) throw new IllegalArgumentException("Please give a reason for deleting an approved month");
         jdbc.update("DELETE FROM hr_payroll_run WHERE id = ?", runId);
-        audit.log("PAYROLL", runId, null, "DELETE", "run", "DRAFT", null, null);
+        audit.log("PAYROLL", runId, null, "DELETE", "run", st, null, reason);
     }
 
     // ---- slip design --------------------------------------------------------------------------------------------------

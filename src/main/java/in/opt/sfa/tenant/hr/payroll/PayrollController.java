@@ -41,10 +41,10 @@ public class PayrollController {
     // payroll
     @GetMapping("/payroll/runs") public List<Map<String, Object>> runs() { return payroll.runs(); }
     @GetMapping("/payroll/runs/{id}") public Map<String, Object> run(@PathVariable long id) { return payroll.run(id); }
-    @PostMapping("/payroll/generate") public Map<String, Object> generate(@RequestBody Map<String, Object> b) { return payroll.generate(Integer.parseInt(s(b, "year")), Integer.parseInt(s(b, "month"))); }
-    @PostMapping("/payroll/runs/{id}/approve") public Map<String, Object> approve(@PathVariable long id, @RequestBody(required = false) Map<String, Object> b) { payroll.approve(id, s(b, "reason")); return Map.of("ok", true); }
+    @PostMapping("/payroll/generate") public Map<String, Object> generate(@RequestBody Map<String, Object> b) { return payroll.generate(Integer.parseInt(s(b, "year")), Integer.parseInt(s(b, "month")), "MISSING".equals(s(b, "mode"))); }
+    @PostMapping("/payroll/runs/{id}/approve") public Map<String, Object> approve(@PathVariable long id, @RequestBody(required = false) Map<String, Object> b) { return payroll.approve(id, s(b, "reason")); }
     @PostMapping("/payroll/runs/{id}/paid") public Map<String, Object> paid(@PathVariable long id) { payroll.markPaid(id); return Map.of("ok", true); }
-    @PostMapping("/payroll/runs/{id}/delete") public Map<String, Object> deleteRun(@PathVariable long id) { payroll.deleteRun(id); return Map.of("ok", true); }
+    @PostMapping("/payroll/runs/{id}/delete") public Map<String, Object> deleteRun(@PathVariable long id, @RequestBody(required = false) Map<String, Object> b) { payroll.deleteRun(id, s(b, "reason")); return Map.of("ok", true); }
     @GetMapping("/payroll/slips/{id}") public Map<String, Object> slip(@PathVariable long id) { return payroll.slip(id); }
     @GetMapping("/payroll/mine") public List<Map<String, Object>> mine() { return payroll.mySlips(); }
     @PostMapping("/payroll/slips/{id}/lop") public Map<String, Object> lop(@PathVariable long id, @RequestBody Map<String, Object> b) { return payroll.setLop(id, new BigDecimal(s(b, "lopDays")), s(b, "reason")); }
