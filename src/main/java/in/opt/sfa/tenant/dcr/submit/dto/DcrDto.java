@@ -34,6 +34,10 @@ public class DcrDto {
     private Long stayAreaId;
     private String stayHotel;
     /** LEAVE day: the leave type, optional last day (to take several days) and day part (FULL / FIRST / SECOND). The reason is the remarks. */
+    /** Where the day was started (captured on the device; the address is looked up by the server). */
+    private BigDecimal startLat;
+    private BigDecimal startLng;
+    private String startAddress;
     private Long leaveTypeId;
     private String leaveToDate;
     private String leaveDayPart;
@@ -75,6 +79,9 @@ public class DcrDto {
         private String checkinAt;
         private BigDecimal checkinLat;
         private BigDecimal checkinLng;
+        /** read-only: the address of the check-in position and its distance (m) from the client tag */
+        private String checkinAddress;
+        private Integer checkinDistanceM;
         private BigDecimal pobValue;
         private String remarks;
         private boolean refused;

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>/* reverse-proxy sub-path support: make relative css/js resolve under the deploy prefix (e.g. /sfaexpert), "" locally */
+  (function(){try{var p=location.pathname,m=p.match(/^(.*?)\/u\/\d+(\/|$)/),c=m?m[1]:p.replace(/\/[^\/]*$/,'');document.write('<base href="'+(c||'')+'/">');}catch(e){}})();</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StarSFA &middot; Client Retag Approval</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css" rel="stylesheet" />
+  <link href="css/app.css" rel="stylesheet" />
+  <link href="css/app-ui.css" rel="stylesheet" />
+  <script>
+    /* Apply the saved theme (mode / layout / density / colours) BEFORE first
+       paint so there is no flash. theme.js re-applies from the server after. */
+    (function () {
+      try {
+        var d = document.documentElement, s = localStorage;
+        // theme is PER TENANT and several tenants can be signed in at once
+        // (/u/0, /u/1...), so these caches are scoped to the account slot —
+        // a shared key would paint the last-customised tenant's colours here.
+        var m = location.pathname.match(/\/u\/(\d+)(\/|$)/), q = '_u' + (m ? m[1] : '0');
+        d.setAttribute('data-theme', s.getItem('sfa_mode' + q) || 'light');
+        d.setAttribute('data-nav', s.getItem('sfa_nav' + q) || 'vertical');
+        d.setAttribute('data-density', s.getItem('sfa_density' + q) || 'comfortable');
+        var f = s.getItem('sfa_font' + q); if (f) d.style.setProperty('--sfa-font-scale', f);
+        var c = s.getItem('sfa_theme' + q);
+        if (c) { c = JSON.parse(c); var t = (c.resolved && c.resolved[c.mode]) || {};
+          for (var k in t) d.style.setProperty('--sfa-' + k, t[k]); }
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+<div id="app" data-page="clientretag" data-title="Client Retag Approval"></div>
+<template id="pageContent">
+<div class="ap-app"><div class="ap-top"><div><h1 class="ap-title">Client Retag Approval</h1><div class="text-muted small">Requests to correct the tagged location of a client. After approval the client's tag changes, and the user can check in when at that place</div></div></div>
+<div class="ap-seg" id="seg"><button data-k="0" class="active" onclick="go(0)">Waiting</button><button data-k="1" onclick="go(1)">All</button></div>
+<div id="body"></div></div>
+</template>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.colVis.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="js/core/session.js"></script>
+<script src="js/core/endpoints.js"></script>
+<script src="js/core/http.js"></script>
+<script src="js/core/theme.js"></script>
+<script src="js/core/settings.js"></script>
+<script src="js/core/i18n.js"></script>
+<script src="js/app.js"></script>
+<script src="js/core/uikit.js"></script>
+<script src="js/shell.js"></script>
+<script>
+
+const R = API.master.dcrSubmit;
+const esc = (v) => SFA.esc(v == null ? '' : v);
+const fmtDt = (d) => d ? String(d).replace('T', ' ').slice(0, 16) : '';
+const map = (lat, lng) => 'https://www.google.com/maps/search/?api=1&query=' + lat + ',' + lng;
+const dist = (m) => m == null ? '' : (m < 1000 ? m + ' m' : (m / 1000).toFixed(1) + ' km');
+let ALL = 0;
+window.pageInit = async function () { await go(0); };
+async function go(all) {
+  ALL = all; document.querySelectorAll('#seg button').forEach(b => b.classList.toggle('active', Number(b.dataset.k) === all));
+  try {
+    const rows = await Api.get(R.geoRetag, { query: { all: !!all } });
+    document.getElementById('body').innerHTML = rows.map(r => `<div class="ap-card"><div class="d-flex align-items-start gap-2"><div class="flex-fill" style="min-width:0">
+      <b>${esc(r.clientName)}</b> <span class="text-muted">${esc(r.clientCode)}</span> <span class="ap-badge ${r.status === 'APPROVED' ? 'ok' : r.status === 'PENDING' ? 'wait' : 'bad'}">${r.status}</span>
+      <div class="small text-muted">By ${esc(r.requestedByName)} (${esc(r.requestedByCode)}) · ${esc(fmtDt(r.requestedAt))}${r.reason ? ' · ' + esc(r.reason) : ''}</div>
+      <div class="small mt-1"><b>New:</b> ${esc(r.newAddress || (Number(r.newLat).toFixed(6) + ', ' + Number(r.newLng).toFixed(6)))} <a target="_blank" rel="noopener" href="${map(r.newLat, r.newLng)}">view on map</a></div>
+      <div class="small"><b>Old:</b> ${r.oldLat == null ? 'not tagged before' : esc(r.oldAddress || (Number(r.oldLat).toFixed(6) + ', ' + Number(r.oldLng).toFixed(6))) + ' <a target="_blank" rel="noopener" href="' + map(r.oldLat, r.oldLng) + '">view on map</a>'}${r.movedM != null ? ' · moved <b>' + dist(r.movedM) + '</b>' : ''}</div>
+      ${r.status !== 'PENDING' ? `<div class="small text-muted">${esc(r.decidedByName)} · ${esc(fmtDt(r.decidedAt))}${r.remarks ? ' · ' + esc(r.remarks) : ''}</div>` : ''}</div>
+      ${r.status === 'PENDING' ? `<div class="d-flex gap-1 flex-column"><button class="ap-btn go" onclick="decide(${r.id}, true)">Approve</button><button class="ap-btn danger" onclick="decide(${r.id}, false)">Reject</button></div>` : ''}</div></div>`).join('')
+      || '<div class="ap-card ap-empty"><i class="bi bi-geo-alt fs-1"></i><div>Nothing waiting</div></div>';
+  } catch (e) { document.getElementById('body').innerHTML = '<div class="ap-card ap-empty">' + esc(e.message) + '</div>'; }
+}
+async function decide(id, ok) {
+  let remarks = null; if (!ok) { remarks = prompt('Reason for rejecting'); if (!remarks) return; }
+  try { await Api.post(ok ? R.geoRetagApprove(id) : R.geoRetagReject(id), { remarks }); await go(ALL); SFA.toast(ok ? 'Approved - the client tag is updated' : 'Rejected'); } catch (e) { SFA.toast(e.message, false); }
+}
+
+</script>
+</body>
+</html>

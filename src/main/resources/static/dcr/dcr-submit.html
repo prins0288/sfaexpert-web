@@ -453,11 +453,14 @@
     const t = areaTypeOf(ST.startAreaId); el.innerHTML = t ? `<span class="badge bg-primary-subtle text-primary-emphasis">Area type: ${esc(t)}</span>` : '';
   }
   async function dcrStart() {
+    let sp = null;
+    if (geoOn() && isField(ST.workType)) { sp = await getPos(); if (!sp) return geoLocHelp(dcrStart); }   // location check ON: the day starts only with a position
+    else if (isField(ST.workType)) sp = await getPos();   // otherwise the position is kept when it can be had
     try {
-      const d = await Api.post(EP.start, { dcrDate: ST.dcrDate, workType: ST.workType, startAreaId: n(ST.startAreaId), travelMode: s(ST.travelMode), meterStart: n(ST.meterStart), remarks: s(ST.remarks), timeIn: s(ST.timeIn), leaveTypeId: ST.workType === 'LEAVE' ? n(ST.leaveTypeId) : null, leaveToDate: ST.workType === 'LEAVE' ? s(ST.leaveToDate) : null, leaveDayPart: ST.workType === 'LEAVE' ? (ST.leaveDayPart || 'FULL') : null });
+      const d = await Api.post(EP.start, { startLat: sp ? sp.lat : null, startLng: sp ? sp.lng : null, dcrDate: ST.dcrDate, workType: ST.workType, startAreaId: n(ST.startAreaId), travelMode: s(ST.travelMode), meterStart: n(ST.meterStart), remarks: s(ST.remarks), timeIn: s(ST.timeIn), leaveTypeId: ST.workType === 'LEAVE' ? n(ST.leaveTypeId) : null, leaveToDate: ST.workType === 'LEAVE' ? s(ST.leaveToDate) : null, leaveDayPart: ST.workType === 'LEAVE' ? (ST.leaveDayPart || 'FULL') : null });
       ST = fromDto(d); CUR = 'day'; sheetClose(); render();
       SFA.toast('Day started at ' + ST.timeIn, true);
-    } catch (e) { SFA.toast(e.message, false); }
+    } catch (e) { if (String(e.message).startsWith('NO_LOCATION')) return geoLocHelp(dcrStart); SFA.toast(e.message, false); }
   }
   function setWork(w) { if (!ST.canEdit || started()) return; ST.workType = w; render(); }
 
@@ -574,7 +577,7 @@
         <div class="cl-sub">${esc([c.speciality, c.areaName].filter(Boolean).join(' · ') || c.clientTypeName || '')}</div>
         <div class="small text-muted">Code ${esc(c.code)}${c.category ? ' · Cat ' + esc(c.category) : ''} · Visits ${Number(c.visits || 0)}</div>
         <div class="small cl-sub"><i class="bi bi-clock-history"></i> Last visit: ${esc(fmtDay(c.lastVisit))}</div>
-        <button type="button" class="pca-btn" onclick="event.stopPropagation();preCall(${c.id})"><i class="bi bi-graph-up-arrow"></i> Pre-Call Analysis</button></div><i class="bi bi-person cl-ico"></i></div>`; }).join('')
+        <button type="button" class="pca-btn" onclick="event.stopPropagation();preCall(${c.id})"><i class="bi bi-graph-up-arrow"></i> Pre-Call Analysis</button></div>${c.tagged && c.lat != null ? `<button type="button" class="btn btn-outline-primary btn-sm rounded-circle me-1" title="Directions to the client" style="width:2.2rem;height:2.2rem;padding:0" onclick="event.stopPropagation();openDir(${c.id})"><i class="bi bi-sign-turn-right-fill"></i></button>` : ''}<i class="bi bi-person cl-ico"></i></div>`; }).join('')
       || '<div class="dcr-empty">No client found</div>';
   }
   // Pre-Call Analysis (phone-app style): client facts, month-wise visits with samples / inputs
@@ -788,8 +791,78 @@
   }
   function addItem() { EDIT.o.items.push({ itemId: '', itemType: '', qty: 0, pobQty: 0, rate: '', detailed: false, remarks: '' }); renderCall(); }
   function toggleIn(arr, v) { const k = arr.indexOf(v); k < 0 ? arr.push(v) : arr.splice(k, 1); }
+  // ---------------- geo fencing (rule GEO_FENCING_ALLOW): current location at Start Day and at every check-in ----------------
+  const geoOn = () => /^true$/i.test(((OPT && OPT.rules) || {}).GEO_FENCING_ALLOW || '');
   const getPos = () => new Promise(res => { if (!navigator.geolocation) return res(null);
-    navigator.geolocation.getCurrentPosition(p => res({ lat: +p.coords.latitude.toFixed(7), lng: +p.coords.longitude.toFixed(7) }), () => res(null), { timeout: 6000, maximumAge: 60000 }); });
+    navigator.geolocation.getCurrentPosition(p => res({ lat: +p.coords.latitude.toFixed(7), lng: +p.coords.longitude.toFixed(7), acc: p.coords.accuracy }), () => res(null), { timeout: 15000, maximumAge: 0, enableHighAccuracy: true }); });
+  // a small dialog above any open sheet (so the call / start sheet stays as it is)
+  function geoModal(html) {
+    geoModalClose();
+    const d = document.createElement('div'); d.id = 'geoModal';
+    d.style.cssText = 'position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:1rem';
+    d.innerHTML = `<div style="background:var(--bs-body-bg,#fff);color:var(--bs-body-color,#111);border-radius:14px;max-width:440px;width:100%;max-height:92vh;overflow:auto;padding:1.1rem 1.1rem 1rem;box-shadow:0 10px 40px rgba(0,0,0,.35)">${html}</div>`;
+    document.body.appendChild(d); return d;
+  }
+  function geoModalClose() { const d = document.getElementById('geoModal'); if (d) d.remove(); }
+  // the location could not be fetched: tell the user what to do (open the map so the phone gets a fix), and retry
+  function geoLocHelp(retry) {
+    window.__geoRetry = retry;
+    geoModal(`<div class="text-center"><i class="bi bi-geo-alt-fill text-danger" style="font-size:2.6rem"></i><div class="fs-5 fw-bold mt-1">Location not available</div></div>
+      <p class="mt-2 mb-2">We could not get your current location, and the location check is ON.</p>
+      <ol class="small ps-3 mb-3"><li>Turn on the <b>location (GPS)</b> of your phone / computer.</li><li>Allow <b>location access</b> for this site (tap the lock icon near the address).</li><li><b>Open Google Maps</b> once so the device gets a fix on where you are, then come back.</li></ol>
+      <div class="d-grid gap-2"><a class="btn btn-outline-primary" href="https://www.google.com/maps" target="_blank" rel="noopener"><i class="bi bi-map"></i> Open Google Maps</a>
+      <button class="btn btn-primary" onclick="geoModalClose();window.__geoRetry && window.__geoRetry()"><i class="bi bi-arrow-repeat"></i> Try again</button><button class="btn btn-light" onclick="geoModalClose()">Close</button></div>`);
+  }
+  const gmapDir = (lat, lng) => 'https://www.google.com/maps/dir/?api=1&destination=' + lat + ',' + lng + '&travelmode=driving';
+  function openDir(id) { const c = OPT.clients.find(x => x.id === id); if (c && c.tagged && c.lat != null) window.open(gmapDir(c.lat, c.lng), '_blank', 'noopener'); }
+  // far from the client: how far, which clients are near, directions to the tagged location, and a retag request
+  function geoFar(r, pos, client) {
+    window.__geoCtx = { r, pos, client };
+    geoModal(`<div class="text-center"><i class="bi bi-exclamation-triangle-fill text-warning" style="font-size:2.6rem"></i><div class="fs-5 fw-bold mt-1">You are far from the client</div></div>
+      <div class="alert alert-warning mt-3 mb-2 py-2"><b>${esc(r.clientName || '')}</b><div class="fs-4 fw-bold">${esc(r.prettyDistance)} <small class="fs-6 fw-normal">away</small></div><div class="small">Check-in is allowed only within <b>${esc(String(r.fenceM))} m</b> of the client's tagged location.</div></div>
+      ${r.clientAddress ? `<div class="small text-muted mb-2"><i class="bi bi-pin-map"></i> Tagged at: ${esc(r.clientAddress)}</div>` : ''}
+      ${(r.nearby || []).length ? `<div class="small fw-semibold mb-1">Clients near you now</div><div class="mb-2">${r.nearby.map(n => `<div class="d-flex justify-content-between small py-1 border-bottom"><span>${esc(n.name)}</span><b class="${n.within ? 'text-success' : 'text-muted'}">${esc(n.prettyDistance)}${n.within ? ' · within range' : ''}</b></div>`).join('')}</div>` : ''}
+      <div class="d-grid gap-2">${r.clientLat != null ? `<a class="btn btn-outline-primary" target="_blank" rel="noopener" href="${gmapDir(r.clientLat, r.clientLng)}"><i class="bi bi-sign-turn-right"></i> Directions to the client</a>` : ''}
+        ${r.retagPending ? '<div class="alert alert-info py-2 small mb-0"><i class="bi bi-hourglass-split"></i> Your retag request is waiting for your manager / admin to approve.</div>'
+          : `<button class="btn btn-warning" onclick="geoRetagOpen()"><i class="bi bi-pin-map-fill"></i> The client's tag is wrong - Retag location</button>`}
+        <button class="btn btn-light" onclick="geoModalClose()">Close</button></div>`);
+  }
+  // retag: pick the correct place on the map (Google Maps; without a key the current position is sent), then it goes to the manager / admin
+  let GMAPS = null;
+  function loadGoogleMaps(key) {
+    if (window.google && window.google.maps) return Promise.resolve();
+    if (GMAPS) return GMAPS;
+    return GMAPS = new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(key); s.async = true; s.onload = () => (window.google && window.google.maps ? ok() : no()); s.onerror = no; setTimeout(no, 8000); document.head.appendChild(s); });
+  }
+  async function geoRetagOpen() {
+    const ctx = window.__geoCtx; if (!ctx) return;
+    let cfg = {}; try { cfg = await Api.get(EP.geoMapConfig, { noLoader: true }); } catch (e) { }
+    const start = ctx.pos, name = ctx.client.clientName || 'the client';
+    window.__retagPick = { lat: start.lat, lng: start.lng };
+    geoModal(`<div class="fs-5 fw-bold mb-1"><i class="bi bi-pin-map-fill text-warning"></i> Retag ${esc(name)}</div><div class="small text-muted mb-2" id="rtHelp">Move the pin to the client's correct place, then send it for approval.</div>
+      <div id="rtMap" style="height:300px;border-radius:10px;background:#e9ecef" class="mb-2"></div>
+      <div class="small mb-2" id="rtPos"></div><input class="form-control mb-2" id="rtReason" placeholder="Reason (optional) e.g. clinic shifted">
+      <div class="d-grid gap-2"><button class="btn btn-outline-secondary btn-sm" onclick="rtHere()"><i class="bi bi-crosshair"></i> Use my current location</button><button class="btn btn-success" onclick="rtSend()"><i class="bi bi-send"></i> Send for approval</button><button class="btn btn-light" onclick="geoModalClose()">Cancel</button></div>`);
+    const show = () => { const p = window.__retagPick; document.getElementById('rtPos').innerHTML = '<i class="bi bi-geo"></i> ' + p.lat.toFixed(6) + ', ' + p.lng.toFixed(6); };
+    show(); window.__rtShow = show;
+    if (cfg.enabled) {
+      try {
+        await loadGoogleMaps(cfg.apiKey);
+        const g = window.google.maps, map = new g.Map(document.getElementById('rtMap'), { center: { lat: start.lat, lng: start.lng }, zoom: 18, streetViewControl: false, mapTypeControl: true });
+        const mk = new g.Marker({ position: { lat: start.lat, lng: start.lng }, map, draggable: true });
+        const set = (ll) => { window.__retagPick = { lat: +ll.lat().toFixed(7), lng: +ll.lng().toFixed(7) }; show(); };
+        mk.addListener('dragend', () => set(mk.getPosition())); map.addListener('click', (e) => { mk.setPosition(e.latLng); set(e.latLng); });
+        window.__rtMove = (lat, lng) => { mk.setPosition({ lat, lng }); map.setCenter({ lat, lng }); };
+      } catch (e) { rtNoMap(); }
+    } else rtNoMap();
+  }
+  function rtNoMap() { const m = document.getElementById('rtMap'); if (m) m.innerHTML = '<div class="d-flex h-100 align-items-center justify-content-center text-muted small text-center p-3">The map is not available (no Google key / no internet). Stand at the client and tap "Use my current location".</div>'; window.__rtMove = null; }
+  async function rtHere() { const p = await getPos(); if (!p) return geoLocHelp(rtHere); window.__retagPick = { lat: p.lat, lng: p.lng }; window.__rtShow && window.__rtShow(); window.__rtMove && window.__rtMove(p.lat, p.lng); }
+  async function rtSend() {
+    const ctx = window.__geoCtx, p = window.__retagPick;
+    try { const r = await Api.post(EP.geoRetag, { clientId: ctx.client.clientId, lat: p.lat, lng: p.lng, reason: document.getElementById('rtReason').value }); geoModalClose(); SFA.toast(r.message, true); }
+    catch (e) { SFA.toast(e.message, false); }
+  }
   /** Commit the sheet's call into the DCR and save the draft, then re-open the call from what the server stored. */
   async function persistCall(reopen) {
     const kind = EDIT.kind, idx = EDIT.idx;
@@ -804,6 +877,14 @@
     if (o.items.some(i => !i.itemId) || o.leaflets.some(l => !l.itemId)) { SFA.toast('Choose the item in every item / leaflet row (or remove the row)', false); return; }
     if (ST.visits.concat(ST.unlisted).some(c => c !== o && isOpen(c))) { SFA.toast('Check out of the open client first', false); return; }
     const g = await getPos();
+    if (geoOn()) {   // location check ON: the position is a must, and a listed client must be within the allowed distance of its tag
+      if (!g) return geoLocHelp(doCheckIn);
+      if (EDIT.kind === 'v') {
+        let r; try { r = await Api.post(EP.geoCheck, { clientId: o.clientId, lat: g.lat, lng: g.lng }); } catch (e) { SFA.toast(e.message, false); return; }
+        if (!r.ok) { if (r.code === 'NO_LOCATION') return geoLocHelp(doCheckIn); return geoFar(r, g, { clientId: o.clientId, clientName: o.clientName }); }
+        if (r.code === 'NOT_TAGGED') SFA.toast(r.message, 'info');
+      }
+    }
     o.inTime = nowHm(); o.checkinAt = nowDt(); if (g) { o.checkinLat = g.lat; o.checkinLng = g.lng; }
     if (await persistCall(true)) SFA.toast('Checked in at ' + o.inTime + ' — saved in your draft', true);
   }
@@ -987,7 +1068,11 @@
       ST = fromDto(saved); render();
       if (!silent) SFA.toast(submit ? 'DCR submitted' : 'Draft saved', true);
       return true;
-    } catch (e) { SFA.toast(e.message, false); return false; }
+    } catch (e) {
+      const m = String(e.message || '');
+      if (m.startsWith('NO_LOCATION')) { geoLocHelp(() => { }); return false; }   // the location check is ON and no position came with the check-in
+      SFA.toast(m.replace(/^GEO_BLOCKED:\s*/, ''), false); return false;
+    }
   }
 
   // ============================================================== history / approval
