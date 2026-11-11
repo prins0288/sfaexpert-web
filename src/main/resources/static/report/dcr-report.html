@@ -59,7 +59,7 @@
 <div class="card mb-2">
   <div class="card-header d-flex align-items-center flex-wrap gap-2"><span><i class="bi bi-journal-check"></i> DCR Report</span><small class="text-muted" id="rpSub"></small>
     <div class="card-tools ms-auto d-flex gap-2 flex-wrap">
-      <button class="btn btn-sm sfa-btn-outline" onclick="rpFToggle()"><i class="bi bi-sliders"></i> Filters</button>
+      <button class="btn btn-sm sfa-btn-outline" id="rpFBtn" onclick="rpFToggle()"><i class="bi bi-sliders"></i> Filters</button>
       <button class="btn btn-sm sfa-btn-outline" data-bs-toggle="modal" data-bs-target="#activityModal"><i class="bi bi-clock-history"></i> Recent</button>
       <button class="btn btn-sm btn-accent" onclick="rpExport()" title="Full report with every column, from the server"><i class="bi bi-file-earmark-excel"></i> Full Excel</button></div></div>
   <div class="card-body rp-filters" id="rpFBody">
@@ -167,11 +167,22 @@
       DATA = await Api.get(EP + '/summary', { query: query() }); CHIP = 'all';
       document.getElementById('rpSub').textContent = fmt(DATA.from) + ' to ' + fmt(DATA.to);
       kpis(); rpRender();
-      if (window.innerWidth < 992) rpFToggle(true);   // phone: fold the filters so the result is on screen
+      rpFToggle(true); rpScrollTop();   // report loaded: the filter card folds away and the page goes to the top so the report is what is seen; the Filters button brings it back
       Activity.record(REPORT_KEY, REPORT_LABEL, filterState(), summaryText());
     } catch (e) { SFA.toast(e.message, false); }
   }
-  function rpFToggle(close) { const b = document.getElementById('rpFBody'), hide = close === true ? true : !b.classList.contains('d-none'); b.classList.toggle('d-none', hide); }
+  function rpFToggle(close) {
+    const b = document.getElementById('rpFBody'), hide = close === true ? true : !b.classList.contains('d-none');
+    b.classList.toggle('d-none', hide);
+    const btn = document.getElementById('rpFBtn'); if (btn) btn.classList.toggle('active', !hide);
+    if (!hide) rpScrollTop();
+  }
+  // the page scrolls inside the shell's content area, not the window: find that scroller and send it to the top
+  function rpScrollTop() {
+    let n = document.getElementById('rpFBody');
+    while (n && n !== document.body) { const o = getComputedStyle(n).overflowY; if ((o === 'auto' || o === 'scroll') && n.scrollHeight > n.clientHeight) n.scrollTop = 0; n = n.parentElement; }
+    window.scrollTo(0, 0);
+  }
   function rpReset() { ['f_state', 'f_hq', 'f_des', 'f_emp', 'f_status', 'f_source'].forEach(i => document.getElementById(i).value = ''); document.getElementById('f_absent').checked = true; rpCascade(); rpSearch(); }
   function filterState() { const g = (i) => document.getElementById(i).value; return { mode: MODE, month: g('f_month'), from: g('f_from'), to: g('f_to'), state: g('f_state'), hq: g('f_hq'), des: g('f_des'), emp: g('f_emp'), status: g('f_status'), source: g('f_source'), absent: document.getElementById('f_absent').checked }; }
   function summaryText() { const t = DATA.totals; return fmt(DATA.from) + ' to ' + fmt(DATA.to) + ' · ' + t.employees + ' employees · ' + t.dcrs + ' DCR · ' + t.absent + ' absent'; }
