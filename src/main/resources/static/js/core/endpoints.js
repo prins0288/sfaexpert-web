@@ -512,6 +512,7 @@
 
     report: {
       dcr: "/api/report/dcr",
+      attendance: "/api/report/attendance",                          // /filters  /sheet?month= | from & to ...  /rules (GET / POST) /rules/delete
     },
 
     reportActivity: {

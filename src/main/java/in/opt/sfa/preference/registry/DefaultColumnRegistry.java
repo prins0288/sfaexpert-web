@@ -49,6 +49,13 @@ public final class DefaultColumnRegistry {
                 col("client", "entity.client"), col("kind", null), col("code", null), col("type", "entity.clientType"), col("category", "entity.category"), col("speciality", "entity.speciality"), col("area", "entity.area"),
                 col("in", null), col("out", null), col("duration", null), col("visit", null), col("activity", null), col("pob", null), col("joint", null), col("location", null), col("distance", null));
 
+        // report/attendance-report.html (the sheet itself has one column per date, so only these two grids are configurable)
+        register("ATTENDANCE_SUMMARY",
+                col("code", "common.code"), col("employee", "entity.employee"), col("designation", "entity.designation"), col("hq", "entity.hq"), col("state", "entity.state"), col("doj", null), col("status", "common.status"),
+                col("present", null), col("half", null), col("leave", null), col("off", null), col("absent", null), col("calls", null), col("hours", null), col("pct", null));
+        register("ATTENDANCE_NOTSUB",
+                col("employee", "entity.employee"), col("code", "common.code"), col("designation", "entity.designation"), col("hq", "entity.hq"), col("mobile", "common.mobile"));
+
         register("MENU_AUDIT_REPORT",
                 col("menuItem", "report.menuAudit.menuItem"),
                 col("type", "common.type"),
