@@ -34,52 +34,44 @@
     })();
   </script>
 <style>
-  .rp-kpis { display: grid; grid-template-columns: repeat(2, 1fr); gap: .6rem; margin-bottom: .75rem; }
-  @media (min-width: 768px) { .rp-kpis { grid-template-columns: repeat(6, 1fr); } }
-  .rp-kpi { background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: 1rem; padding: .65rem .8rem; }
-  .rp-kpi small { color: var(--bs-secondary-color); display: block; font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; }
-  .rp-kpi b { font-size: 1.35rem; line-height: 1.15; }
-  .rp-kpi.bad { background: var(--bs-danger-bg-subtle); border-color: var(--bs-danger-border-subtle); } .rp-kpi.bad b { color: var(--bs-danger-text-emphasis); }
-  /* soft, easy-on-the-eye colours for days without a DCR */
-  .rp-absent { background: var(--bs-danger-bg-subtle) !important; color: var(--bs-danger-text-emphasis); }
-  .rp-off { background: var(--bs-tertiary-bg) !important; color: var(--bs-secondary-color); }
-  .rp-tag { display: inline-block; font-size: .72rem; font-weight: 700; border-radius: .45rem; padding: .1rem .5rem; }
-  .rp-tag.absent { background: rgba(220, 53, 69, .13); color: var(--bs-danger-text-emphasis); } .rp-tag.off { background: var(--bs-secondary-bg); color: var(--bs-secondary-color); }
-  .rp-tag.web { background: var(--bs-info-bg-subtle); color: var(--bs-info-text-emphasis); } .rp-tag.app { background: var(--bs-success-bg-subtle); color: var(--bs-success-text-emphasis); }
-  .rp-card { border: 1px solid var(--bs-border-color); border-radius: 1rem; padding: .7rem .9rem; margin-bottom: .55rem; background: var(--bs-body-bg); }
-  .rp-card.clk { cursor: pointer; } .rp-card.clk:active { background: var(--bs-tertiary-bg); }
-  .rp-card .l2 { font-size: .82rem; color: var(--bs-secondary-color); }
-  .rp-table { width: 100%; font-size: .88rem; } .rp-table th { position: sticky; top: 0; background: var(--bs-tertiary-bg); font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; padding: .5rem .6rem; white-space: nowrap; }
-  .rp-table td { padding: .45rem .6rem; border-top: 1px solid var(--bs-border-color); vertical-align: middle; } .rp-table tr.clk { cursor: pointer; } .rp-table tr.clk:hover td { background: var(--bs-tertiary-bg); }
-  .rp-wrap { max-height: 70vh; overflow: auto; border: 1px solid var(--bs-border-color); border-radius: .5rem; }
-  @media (max-width: 991.98px) { .rp-desk { display: none; } }
-  @media (min-width: 992px) { .rp-mob { display: none; } }
-  .rp-filters .form-label { font-size: .75rem; font-weight: 600; color: var(--bs-secondary-color); margin-bottom: .15rem; }
-</style>
-<style>
-  .dd-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: .5rem; }
-  @media (min-width: 768px) { .dd-grid { grid-template-columns: repeat(4, 1fr); } }
-  .dd-grid > div { background: var(--bs-tertiary-bg); border-radius: .8rem; padding: .5rem .7rem; }
-  .dd-grid small { display: block; color: var(--bs-secondary-color); font-size: .7rem; text-transform: uppercase; letter-spacing: .04em; } .dd-grid b { word-break: break-word; }
-  .dd-tag { display: inline-block; font-size: .72rem; font-weight: 700; border-radius: .45rem; padding: .1rem .5rem; background: var(--bs-secondary-bg); color: var(--bs-secondary-color); }
-  .dd-tag.ok { background: var(--bs-success-bg-subtle); color: var(--bs-success-text-emphasis); } .dd-tag.bad { background: var(--bs-danger-bg-subtle); color: var(--bs-danger-text-emphasis); } .dd-tag.web { background: var(--bs-info-bg-subtle); color: var(--bs-info-text-emphasis); }
-  .dd-call { border: 1px solid var(--bs-border-color); border-radius: 1rem; padding: .8rem 1rem; margin-bottom: .75rem; background: var(--bs-body-bg); break-inside: avoid; }
-  .dd-tbl { width: 100%; font-size: .85rem; } .dd-tbl th { font-size: .7rem; text-transform: uppercase; color: var(--bs-secondary-color); padding: .25rem .4rem; } .dd-tbl td { padding: .25rem .4rem; border-top: 1px solid var(--bs-border-color); }
-  .dd-sub { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; font-weight: 700; color: var(--bs-secondary-color); margin: .6rem 0 .2rem; }
+  /* DCR of the day - enterprise look (same family as the DCR report): cards, bordered key / value tables, KPI strip, standard DataTable for the calls */
+  .rp-kpis { display: flex; flex-wrap: wrap; gap: .5rem; margin: 0 0 .6rem; }
+  .rp-kpi { background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-left: 3px solid var(--bs-primary); border-radius: .4rem; padding: .35rem .8rem; min-width: 7.5rem; flex: 1 1 7.5rem; }
+  .rp-kpi small { color: var(--bs-secondary-color); display: block; font-size: .68rem; text-transform: uppercase; letter-spacing: .04em; } .rp-kpi b { font-size: 1.1rem; line-height: 1.2; }
+  .dd-tag { display: inline-block; font-size: .7rem; font-weight: 600; border-radius: .3rem; padding: .08rem .5rem; background: var(--bs-secondary-bg); color: var(--bs-secondary-color); white-space: nowrap; }
+  .dd-tag.ok { background: var(--bs-success-bg-subtle); color: var(--bs-success-text-emphasis); } .dd-tag.bad { background: var(--bs-danger-bg-subtle); color: var(--bs-danger-text-emphasis); }
+  .dd-tag.web { background: var(--bs-info-bg-subtle); color: var(--bs-info-text-emphasis); } .dd-tag.warn { background: var(--bs-warning-bg-subtle); color: var(--bs-warning-text-emphasis); }
+  table.dd-kv { width: 100%; border-collapse: collapse; font-size: .83rem; } table.dd-kv td { border: 1px solid var(--bs-border-color); padding: .3rem .6rem; vertical-align: top; width: 25%; }
+  table.dd-kv td.k { background: var(--bs-tertiary-bg); color: var(--bs-secondary-color); width: 15%; font-size: .75rem; } table.dd-kv td.v { font-weight: 600; width: 35%; word-break: break-word; }
+  @media (max-width: 767.98px) { table.dd-kv td { display: block; width: 100% !important; border-bottom: 0; } table.dd-kv td.v { border-top: 0; } }
+  #ddCalls table.dataTable td, #ddCalls table.dataTable th { font-size: .82rem; padding: .32rem .55rem; vertical-align: middle; } #ddCalls tbody tr { cursor: pointer; } #ddCalls td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .dd-tbl { width: 100%; font-size: .82rem; } .dd-tbl th { font-size: .7rem; text-transform: uppercase; color: var(--bs-secondary-color); padding: .25rem .4rem; border-bottom: 1px solid var(--bs-border-color); } .dd-tbl td { padding: .25rem .4rem; border-top: 1px solid var(--bs-border-color); }
+  .dd-sub { font-size: .7rem; text-transform: uppercase; letter-spacing: .04em; font-weight: 700; color: var(--bs-secondary-color); margin: .7rem 0 .2rem; }
   @media print {
-    body * { visibility: hidden !important; } .ap-app, .ap-app * { visibility: visible !important; } .ap-app { position: absolute; left: 0; top: 0; width: 100%; max-width: none; padding: 0; } .no-print { display: none !important; }
-    .ap-card, .dd-call { box-shadow: none; }
+    body * { visibility: hidden !important; } #ddPrint, #ddPrint * { visibility: visible !important; } #ddPrint { position: absolute; left: 0; top: 0; width: 100%; } .no-print { display: none !important; }
+    .dataTables_wrapper .dt-buttons, .dataTables_wrapper .dataTables_filter, .dataTables_wrapper .dataTables_length, .dataTables_wrapper .dataTables_paginate, .dataTables_wrapper .dataTables_info, tr.sfa-filter-row { display: none !important; }
+    .dataTables_scrollBody { max-height: none !important; overflow: visible !important; }
   }
 </style>
 </head>
 <body>
 <div id="app" data-page="dcrreport" data-title="DCR Day"></div>
 <template id="pageContent">
-<div class="ap-app">
-  <div class="ap-top no-print"><div><a href="report/dcr-report.html" class="text-decoration-none"><i class="bi bi-chevron-left"></i> DCR Report</a><h1 class="ap-title mt-1">DCR of the day</h1></div>
-    <div class="d-flex gap-2"><button class="ap-btn light sm" onclick="window.print()"><i class="bi bi-printer"></i> Print</button><button class="ap-btn go sm" onclick="ddExcel()"><i class="bi bi-file-earmark-excel"></i> Excel</button></div></div>
-  <div id="ddBody"><div class="ap-empty">Loading…</div></div>
+<div id="ddPrint">
+<div class="card mb-2">
+  <div class="card-header d-flex align-items-center flex-wrap gap-2"><span><i class="bi bi-journal-text"></i> <span data-i18n="rep.d.title">DCR of the day</span></span><small class="text-muted" id="ddSub"></small>
+    <div class="card-tools ms-auto d-flex gap-2 flex-wrap no-print">
+      <a class="btn btn-sm sfa-btn-outline" id="ddBack" href="report/dcr-report.html"><i class="bi bi-chevron-left"></i> <span data-i18n="rep.d.back">DCR Report</span></a>
+      <button class="btn btn-sm sfa-btn-outline" onclick="window.print()"><i class="bi bi-printer"></i> <span data-i18n="rep.print">Print</span></button>
+      <button class="btn btn-sm btn-accent" onclick="ddExcel()"><i class="bi bi-file-earmark-excel"></i> <span data-i18n="common.excel">Excel</span></button></div></div>
+  <div class="card-body" id="ddHead"><div class="text-muted"><span data-i18n="common.loading">Loading...</span></div></div>
 </div>
+<div id="ddBody"></div>
+</div>
+
+<div class="modal fade" id="callModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-sm-down"><div class="modal-content">
+  <div class="modal-header sfa-modal"><h5 class="modal-title" id="callTitle"></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body" id="callBody"></div><div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal" data-i18n="common.close">Close</button></div></div></div></div>
 </template>
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -102,50 +94,90 @@
 <script src="js/shell.js"></script>
 <script>
   const EP = API.report.dcr;
+  const T = (k, en) => (window.I18n ? I18n.t(k, en) : en);   // text of the chosen language (lang_*.properties + the tenant's label_master); the English given here shows when a key has no translation
   const esc = (v) => SFA.esc(v == null ? '' : v);
   const money = (v) => Number(v || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 });
   const hm = (t) => t ? String(t).slice(0, 5) : '';
-  const fmtD = (d) => d ? new Date(String(d).slice(0, 10) + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : '';
+  const loc = () => (window.I18n && I18n.lang === 'hi' ? 'hi-IN' : 'en-GB');
+  const fmtD = (d) => d ? new Date(String(d).slice(0, 10) + 'T00:00:00').toLocaleDateString(loc(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : '';
+  const fmtS = (d) => d ? new Date(String(d).slice(0, 10) + 'T00:00:00').toLocaleDateString('en-GB') : '';
   const fmtT = (d) => d ? String(d).replace('T', ' ').slice(0, 16) : '';
-  let D = null;
+  const mapUrl = (lat, lng) => 'https://www.google.com/maps?q=' + lat + ',' + lng;
+  const dist = (m) => m == null ? '' : (m < 1000 ? m + ' m' : (m / 1000).toFixed(1) + ' km');
+  let D = null, LASTLANG = window.I18n ? I18n.lang : 'en';
+  if (window.I18n) I18n.onChange(() => { if (I18n.lang !== LASTLANG) { LASTLANG = I18n.lang; if (D) render(); } });
   window.pageInit = async function () {
     const id = new URLSearchParams(location.search).get('id');
-    if (!id) { document.getElementById('ddBody').innerHTML = '<div class="ap-empty">No DCR chosen</div>'; return; }
-    try { D = await Api.get(EP + '/day/' + id); render(); } catch (e) { SFA.toast(e.message, false); document.getElementById('ddBody').innerHTML = '<div class="ap-empty">' + esc(e.message) + '</div>'; }
+    document.getElementById('ddBack').setAttribute('href', Session.pageUrl('report/dcr-report.html'));
+    if (!id) { document.getElementById('ddHead').innerHTML = '<div class="text-muted">' + T('rep.d.none', 'No DCR chosen') + '</div>'; return; }
+    try { D = await Api.get(EP + '/day/' + id); render(); } catch (e) { SFA.toast(e.message, false); document.getElementById('ddHead').innerHTML = '<div class="text-danger">' + esc(e.message) + '</div>'; }
   };
-  const cell = (l, v) => v == null || v === '' ? '' : `<div><small>${l}</small><b>${esc(v)}</b></div>`;
   const mins = (a, b) => { if (!a || !b) return ''; const [h1, m1] = String(a).split(':'), [h2, m2] = String(b).split(':'); const m = (h2 * 60 + +m2) - (h1 * 60 + +m1); return m > 0 ? Math.floor(m / 60) + 'h ' + (m % 60) + 'm' : ''; };
-  const itemRows = (list) => list.map(i => `<tr><td>${esc(i.name)}${i.detailed ? ' <span class="dd-tag">detailed</span>' : ''}</td><td class="text-end">${i.qty || 0}</td><td class="text-end">${i.pobQty || 0}</td><td class="text-end">${i.rate ? money(i.rate) : ''}</td><td class="text-end">${i.amount ? money(i.amount) : ''}</td></tr>`).join('');
+  const STNAME = () => [T('rep.draft', 'Draft'), T('rep.submitted', 'Submitted'), T('rep.approved', 'Approved'), T('rep.rejected', 'Rejected')];
+  const kv = (...p) => { const rows = []; for (let i = 0; i < p.length; i += 2) { const a = p[i], b = p[i + 1]; if ((a[1] == null || a[1] === '') && (!b || b[1] == null || b[1] === '')) continue; rows.push([a, b]); }
+    return '<table class="dd-kv"><tbody>' + rows.map(([a, b]) => `<tr><td class="k">${a[0]}</td><td class="v">${a[1] == null || a[1] === '' ? '-' : a[1]}</td>${b ? `<td class="k">${b[0]}</td><td class="v">${b[1] == null || b[1] === '' ? '-' : b[1]}</td>` : '<td class="k"></td><td class="v"></td>'}</tr>`).join('') + '</tbody></table>'; };
+  const k = (l, v) => `<div class="rp-kpi"><small>${l}</small><b>${v}</b></div>`;
+  const callKind = (c) => c.kind === 'Unlisted' ? T('rep.d.unlistedKind', 'Unlisted') : T('rep.d.listedKind', 'Listed');
+
   function render() {
-    const d = D.day, st = d.status === 2 ? 'ok' : d.status === 3 ? 'bad' : '';
-    let h = `<div class="ap-card"><div class="d-flex justify-content-between align-items-start flex-wrap gap-2"><div><div class="fs-5 fw-bold">${esc(d.empName)} <small class="text-muted">${esc(d.empCode)}</small></div>
-        <div class="text-muted">${esc(d.designation || '')}${d.hq ? ' · ' + esc(d.hq) : ''}${d.state ? ' · ' + esc(d.state) : ''}${d.manager ? ' · Manager: ' + esc(d.manager) : ''}</div><div class="fw-semibold mt-1">${esc(fmtD(d.date))}</div></div>
-        <div class="text-end"><span class="dd-tag ${st}">${esc(d.statusName)}</span> <span class="dd-tag ${d.source === 'Web' ? 'web' : 'ok'}">Submitted from ${esc(d.source)}</span>
-        <div class="small text-muted mt-1">${d.submittedAt ? 'Submitted ' + esc(fmtT(d.submittedAt)) : 'Not submitted'}${d.approvedBy ? '<br>Approved by ' + esc(d.approvedBy) + ' · ' + esc(fmtT(d.approvedAt)) : ''}</div></div></div>
-      ${d.approvalRemarks ? `<div class="alert alert-secondary py-2 small mt-2 mb-0">Approver: ${esc(d.approvalRemarks)}</div>` : ''}</div>
-      <div class="ap-card"><div class="ap-sec mt-0">Day</div><div class="dd-grid">${cell('Work type', d.workType)}${cell('Time in', hm(d.timeIn))}${cell('Time out', hm(d.timeOut))}${cell('Duration', mins(hm(d.timeIn), hm(d.timeOut)))}
-        ${cell('Start area', d.startArea)}${cell('Area type', d.areaType)}${cell('Working area', d.workingArea)}${cell('Travel mode', d.travelMode)}${cell('Meter start', d.meterStart)}${cell('Meter end', d.meterEnd)}
-        ${cell('Calls', (d.listedCalls || 0) + (d.unlistedCalls || 0) + ' (' + (d.listedCalls || 0) + ' listed, ' + (d.unlistedCalls || 0) + ' unlisted)')}${cell('POB', '₹' + money(d.pob))}${cell('Expense', '₹' + money(d.expense))}
-        ${cell('Day end area', d.dayEndArea)}${cell('Day end time', fmtT(d.dayEndAt))}${cell('Night stay', d.stayArea)}${cell('Hotel', d.stayHotel)}</div>
-        ${d.remarks ? `<div class="mt-2 small"><b>Remarks:</b> ${esc(d.remarks)}</div>` : ''}${d.dayEndRemarks ? `<div class="small"><b>Day end remarks:</b> ${esc(d.dayEndRemarks)}</div>` : ''}
-        ${D.dayJoint.length ? `<div class="mt-2 small"><b>Joint working (whole day):</b> ${D.dayJoint.map(j => esc(j.name)).join(', ')}</div>` : ''}</div>`;
-    h += `<div class="ap-sec">Calls (${D.calls.length})</div>` + (D.calls.map((c, n) => {
-      const smp = c.items.filter(i => /sample/i.test(i.type) && i.qty > 0), inp = c.items.filter(i => /input/i.test(i.type) && i.qty > 0), pob = c.items.filter(i => i.pobQty > 0), det = c.items.filter(i => i.detailed);
-      return `<div class="dd-call"><div class="d-flex justify-content-between align-items-start gap-2"><div><b>${n + 1}. ${esc(c.name)}</b> <span class="dd-tag">${esc(c.kind)}</span> ${c.refused ? '<span class="dd-tag bad">Refused</span>' : ''}
-          <div class="small text-muted">${esc([c.code || c.mobile, c.clientType, c.category, c.speciality, c.area].filter(Boolean).join(' · '))}</div></div>
-          <div class="text-end small"><b>${hm(c.inTime)} - ${hm(c.outTime)}</b><br>${esc(mins(hm(c.inTime), hm(c.outTime)))}${c.lat ? `<br><a class="no-print" target="_blank" href="https://www.google.com/maps?q=${c.lat},${c.lng}"><i class="bi bi-geo-alt"></i> Location</a>` : ''}</div></div>
-        <div class="small mt-1">${esc([c.visitType, c.activityType].filter(Boolean).join(' · '))}${c.pob ? ' · POB ₹' + money(c.pob) : ''}${(c.jointWith || []).length ? ' · With ' + c.jointWith.map(j => esc(j.name)).join(', ') : ''}</div>
-        ${smp.length ? `<div class="dd-sub">Sample</div><table class="dd-tbl"><tbody>${smp.map(i => `<tr><td>${esc(i.name)}</td><td class="text-end">${i.qty}</td></tr>`).join('')}</tbody></table>` : ''}
-        ${inp.length ? `<div class="dd-sub">Input</div><table class="dd-tbl"><tbody>${inp.map(i => `<tr><td>${esc(i.name)}</td><td class="text-end">${i.qty}</td></tr>`).join('')}</tbody></table>` : ''}
-        ${pob.length ? `<div class="dd-sub">POB / Order</div><table class="dd-tbl"><thead><tr><th>Item</th><th class="text-end">Qty</th><th class="text-end">Rate</th><th class="text-end">Amount</th></tr></thead><tbody>${pob.map(i => `<tr><td>${esc(i.name)}</td><td class="text-end">${i.pobQty}</td><td class="text-end">${money(i.rate)}</td><td class="text-end">${money(i.amount)}</td></tr>`).join('')}</tbody></table>` : ''}
-        ${det.length ? `<div class="dd-sub">Detailed</div><div class="small">${det.map(i => esc(i.name)).join(', ')}</div>` : ''}
-        ${c.leaflets.length ? `<div class="dd-sub">Leaflets</div><div class="small">${c.leaflets.map(l => esc(l.name) + ' x' + l.qty).join(', ')}</div>` : ''}
-        ${c.treatments.length ? `<div class="dd-sub">Treatment</div><div class="small">${c.treatments.map(esc).join(', ')}</div>` : ''}
-        ${c.remarks ? `<div class="dd-sub">Remarks</div><div class="small">${esc(c.remarks)}</div>` : ''}
-        ${c.nextVisit ? `<div class="dd-sub">Next visit</div><div class="small">${esc(fmtD(c.nextVisit))}${c.priority ? ' · ' + esc(c.priority) : ''}${c.nextRemarks ? ' · ' + esc(c.nextRemarks) : ''}</div>` : ''}</div>`; }).join('') || '<div class="ap-card ap-empty">No call on this day</div>');
-    if (D.expenses.length) h += `<div class="ap-sec">Expenses</div><div class="ap-card"><table class="dd-tbl"><thead><tr><th>Expense</th><th>Details</th><th class="text-end">Amount</th></tr></thead><tbody>${D.expenses.map(e => `<tr><td>${esc(e.type)}</td><td>${esc([e.description, e.fromArea && e.toArea ? e.fromArea + ' → ' + e.toArea : '', e.totalKm ? e.totalKm + ' km' : '', e.client].filter(Boolean).join(' · '))}</td><td class="text-end">${money(e.amount)}</td></tr>`).join('')}
-      <tr><td colspan="2" class="text-end fw-bold">Total</td><td class="text-end fw-bold">₹${money(D.expenses.reduce((s, e) => s + Number(e.amount || 0), 0))}</td></tr></tbody></table></div>`;
+    const d = D.day, st = d.status === 2 ? 'ok' : d.status === 3 ? 'bad' : d.status === 1 ? 'web' : '';
+    const calls = (d.listedCalls || 0) + (d.unlistedCalls || 0);
+    document.getElementById('ddSub').textContent = fmtS(d.date) + ' · ' + d.empName;
+    document.getElementById('ddHead').innerHTML = `<div class="d-flex justify-content-between align-items-start flex-wrap gap-2"><div><div class="fs-5 fw-bold">${esc(d.empName)} <small class="text-muted">${esc(d.empCode)}</small></div>
+        <div class="text-muted">${esc(d.designation || '')}${d.hq ? ' · ' + esc(d.hq) : ''}${d.state ? ' · ' + esc(d.state) : ''}${d.manager ? ' · ' + T('rep.d.manager', 'Manager') + ': ' + esc(d.manager) : ''}</div><div class="fw-semibold mt-1">${esc(fmtD(d.date))}</div></div>
+        <div class="text-end"><span class="dd-tag ${st}">${esc(STNAME()[Math.max(0, Math.min(3, d.status))])}</span> <span class="dd-tag ${d.source === 'Web' ? 'web' : 'ok'}">${T('rep.d.submittedFrom', 'Submitted from')} ${esc(d.source === 'Web' ? T('rep.web', 'Web') : T('rep.app', 'App'))}</span>
+        <div class="small text-muted mt-1">${d.submittedAt ? T('rep.d.submittedAt', 'Submitted') + ' ' + esc(fmtT(d.submittedAt)) : T('rep.d.notSubmitted', 'Not submitted')}${d.approvedBy ? '<br>' + T('rep.d.approvedBy', 'Approved by') + ' ' + esc(d.approvedBy) + ' · ' + esc(fmtT(d.approvedAt)) : ''}</div></div></div>
+      ${d.approvalRemarks ? `<div class="alert alert-secondary py-2 small mt-2 mb-0">${T('rep.d.approver', 'Approver')}: ${esc(d.approvalRemarks)}</div>` : ''}`;
+    const start = d.startLat != null ? `<a class="no-print" target="_blank" rel="noopener" href="${mapUrl(d.startLat, d.startLng)}"><i class="bi bi-geo-alt"></i> ${esc(d.startAddress || (Number(d.startLat).toFixed(5) + ', ' + Number(d.startLng).toFixed(5)))}</a>` : '';
+    let h = `<div class="rp-kpis">${k(T('rep.calls', 'Calls'), calls + ' <small class="text-muted fs-6">(' + (d.listedCalls || 0) + ' ' + T('rep.d.listed', 'listed') + ', ' + (d.unlistedCalls || 0) + ' ' + T('rep.d.unlisted', 'unlisted') + ')</small>')}${k(T('rep.pob', 'POB'), '₹' + money(d.pob))}${k(T('rep.expense', 'Expense'), '₹' + money(d.expense))}${k(T('rep.d.duration', 'Duration'), mins(hm(d.timeIn), hm(d.timeOut)) || '-')}</div>
+      <div class="card mb-2"><div class="card-header"><i class="bi bi-sun"></i> ${T('rep.d.section', 'Day details')}</div><div class="card-body">
+        ${kv([T('report.dcr.workType', 'Work type'), esc(d.workType)], [T('report.dcr.timeIn', 'Time in'), esc(hm(d.timeIn))],
+             [T('report.dcr.timeOut', 'Time out'), esc(hm(d.timeOut))], [T('rep.d.dayStart', 'Day start location'), start],
+             [T('rep.startArea', 'Start area'), esc(d.startArea)], [T('rep.areaType', 'Area type'), esc(d.areaType)],
+             [T('rep.d.workingArea', 'Working area'), esc(d.workingArea)], [T('rep.d.travelMode', 'Travel mode'), esc(d.travelMode)],
+             [T('rep.d.meterStart', 'Meter start'), esc(d.meterStart)], [T('rep.d.meterEnd', 'Meter end'), esc(d.meterEnd)],
+             [T('rep.d.dayEndArea', 'Day end area'), esc(d.dayEndArea)], [T('rep.d.dayEndTime', 'Day end time'), esc(fmtT(d.dayEndAt))],
+             [T('rep.d.nightStay', 'Night stay'), esc(d.stayArea)], [T('rep.d.hotel', 'Hotel'), esc(d.stayHotel)],
+             [T('common.remarks', 'Remarks'), esc(d.remarks)], [T('rep.d.dayEndRemarks', 'Day end remarks'), esc(d.dayEndRemarks)])}
+        ${D.dayJoint.length ? `<div class="mt-2 small"><b>${T('rep.d.joint', 'Joint working (whole day)')}:</b> ${D.dayJoint.map(j => esc(j.name)).join(', ')}</div>` : ''}</div></div>
+      <div class="card mb-2" id="ddCalls"><div class="card-header"><i class="bi bi-telephone"></i> ${T('rep.d.callsTitle', 'Calls')} (${D.calls.length})</div><div class="card-body">`;
+    if (!D.calls.length) h += `<div class="text-muted text-center py-3">${T('rep.d.noCalls', 'No call on this day')}</div>`;
+    else h += `<table id="ddT" data-screen-key="DCR_DAY_CALLS" class="table table-striped table-bordered nowrap" style="width:100%"><thead><tr>
+        <th data-i18n="common.sno">S.No</th><th data-field="client" data-i18n="entity.client">Client</th><th data-field="kind" data-i18n="rep.d.kind">Kind</th><th data-field="code" data-i18n="rep.d.codeMobile">Code / Mobile</th><th data-field="type" data-i18n="entity.clientType">Client Type</th>
+        <th data-field="category" data-i18n="entity.category">Category</th><th data-field="speciality" data-i18n="entity.speciality">Speciality</th><th data-field="area" data-i18n="entity.area">Area</th><th data-field="in" data-i18n="rep.in">In</th><th data-field="out" data-i18n="rep.out">Out</th>
+        <th data-field="duration" data-i18n="rep.d.duration2">Duration</th><th data-field="visit" data-i18n="rep.d.visitType">Visit type</th><th data-field="activity" data-i18n="rep.d.activity">Activity</th><th data-field="pob" class="text-end" data-i18n="rep.pob">POB</th>
+        <th data-field="joint" data-i18n="rep.d.jointWith">With</th><th data-field="location" data-i18n="rep.d.location">Location</th><th data-field="distance" data-i18n="rep.d.distance">Distance</th></tr></thead><tbody>
+        ${D.calls.map((c, n) => `<tr onclick="callOpen(${n})"><td>${n + 1}</td><td><b>${esc(c.name)}</b>${c.refused ? ` <span class="dd-tag bad">${T('rep.d.refused', 'Refused')}</span>` : ''}</td><td>${callKind(c)}</td><td>${esc(c.code || c.mobile)}</td><td>${esc(c.clientType)}</td><td>${esc(c.category)}</td><td>${esc(c.speciality)}</td><td>${esc(c.area)}</td>
+          <td>${hm(c.inTime)}</td><td>${hm(c.outTime)}</td><td>${esc(mins(hm(c.inTime), hm(c.outTime)))}</td><td>${esc(c.visitType)}</td><td>${esc(c.activityType)}</td><td class="num">${c.pob ? money(c.pob) : ''}</td><td>${esc((c.jointWith || []).map(j => j.name).join(', '))}</td>
+          <td>${c.lat ? `<a class="no-print" target="_blank" rel="noopener" href="${mapUrl(c.lat, c.lng)}" onclick="event.stopPropagation()" title="${esc(c.address || '')}"><i class="bi bi-geo-alt"></i> ${T('rep.d.openMap', 'Open in map')}</a>` : ''}</td><td data-order="${c.distanceM == null ? -1 : c.distanceM}">${esc(dist(c.distanceM))}</td></tr>`).join('')}
+        </tbody></table>`;
+    h += '</div></div>';
+    if (D.expenses.length) h += `<div class="card mb-2"><div class="card-header"><i class="bi bi-wallet2"></i> ${T('rep.d.expenses', 'Expenses')}</div><div class="card-body"><table class="dd-tbl"><thead><tr><th>${T('rep.d.expenseType', 'Expense')}</th><th>${T('rep.details', 'Details')}</th><th class="text-end">${T('rep.d.amount', 'Amount')}</th></tr></thead><tbody>${D.expenses.map(e => `<tr><td>${esc(e.type)}</td><td>${esc([e.description, e.fromArea && e.toArea ? e.fromArea + ' → ' + e.toArea : '', e.totalKm ? e.totalKm + ' km' : '', e.client].filter(Boolean).join(' · '))}</td><td class="text-end">${money(e.amount)}</td></tr>`).join('')}
+      <tr><td colspan="2" class="text-end fw-bold">${T('rep.d.total', 'Total')}</td><td class="text-end fw-bold">₹${money(D.expenses.reduce((s, e) => s + Number(e.amount || 0), 0))}</td></tr></tbody></table></div></div>`;
     document.getElementById('ddBody').innerHTML = h;
+    if (D.calls.length && window.sfaDataTable) {
+      if ($.fn.DataTable.isDataTable('#ddT')) $('#ddT').DataTable().destroy();
+      sfaDataTable('#ddT', { order: [[8, 'asc']], scrollY: false, scrollCollapse: false });
+    }
+  }
+  // click a call: everything about it
+  function callOpen(n) {
+    const c = D.calls[n]; if (!c) return;
+    const smp = c.items.filter(i => /sample/i.test(i.type) && i.qty > 0), inp = c.items.filter(i => /input/i.test(i.type) && i.qty > 0), pob = c.items.filter(i => i.pobQty > 0), det = c.items.filter(i => i.detailed);
+    document.getElementById('callTitle').innerHTML = `<i class="bi bi-person-lines-fill"></i> ${n + 1}. ${esc(c.name)} <span class="dd-tag">${callKind(c)}</span> ${c.refused ? `<span class="dd-tag bad">${T('rep.d.refused', 'Refused')}</span>` : ''}`;
+    document.getElementById('callBody').innerHTML = `${kv([T('rep.d.codeMobile', 'Code / Mobile'), esc(c.code || c.mobile)], [T('entity.clientType', 'Client Type'), esc(c.clientType)], [T('entity.category', 'Category'), esc(c.category)], [T('entity.speciality', 'Speciality'), esc(c.speciality)],
+        [T('entity.area', 'Area'), esc(c.area)], [T('rep.d.visitType', 'Visit type'), esc([c.visitType, c.activityType].filter(Boolean).join(' · '))], [T('rep.in', 'In') + ' - ' + T('rep.out', 'Out'), esc(hm(c.inTime) + ' - ' + hm(c.outTime) + (mins(hm(c.inTime), hm(c.outTime)) ? '  (' + mins(hm(c.inTime), hm(c.outTime)) + ')' : ''))],
+        [T('rep.d.location', 'Location'), c.lat ? `<a target="_blank" rel="noopener" href="${mapUrl(c.lat, c.lng)}"><i class="bi bi-geo-alt"></i> ${esc(c.address || (Number(c.lat).toFixed(5) + ', ' + Number(c.lng).toFixed(5)))}</a>` : ''], [T('rep.d.distance', 'Distance'), esc(dist(c.distanceM))],
+        [T('rep.pob', 'POB'), c.pob ? '₹' + money(c.pob) : ''], [T('rep.d.jointWith', 'With'), esc((c.jointWith || []).map(j => j.name).join(', '))])}
+      ${smp.length ? `<div class="dd-sub">${T('rep.d.sample', 'Sample')}</div><table class="dd-tbl"><tbody>${smp.map(i => `<tr><td>${esc(i.name)}</td><td class="text-end">${i.qty}</td></tr>`).join('')}</tbody></table>` : ''}
+      ${inp.length ? `<div class="dd-sub">${T('rep.d.input', 'Input')}</div><table class="dd-tbl"><tbody>${inp.map(i => `<tr><td>${esc(i.name)}</td><td class="text-end">${i.qty}</td></tr>`).join('')}</tbody></table>` : ''}
+      ${pob.length ? `<div class="dd-sub">${T('rep.d.pobOrder', 'POB / Order')}</div><table class="dd-tbl"><thead><tr><th>${T('rep.d.item', 'Item')}</th><th class="text-end">${T('rep.d.qty', 'Qty')}</th><th class="text-end">${T('rep.d.rate', 'Rate')}</th><th class="text-end">${T('rep.d.amount', 'Amount')}</th></tr></thead><tbody>${pob.map(i => `<tr><td>${esc(i.name)}</td><td class="text-end">${i.pobQty}</td><td class="text-end">${money(i.rate)}</td><td class="text-end">${money(i.amount)}</td></tr>`).join('')}</tbody></table>` : ''}
+      ${det.length ? `<div class="dd-sub">${T('rep.d.detailed', 'Detailed')}</div><div class="small">${det.map(i => esc(i.name)).join(', ')}</div>` : ''}
+      ${(c.leaflets || []).length ? `<div class="dd-sub">${T('rep.d.leaflets', 'Leaflets')}</div><div class="small">${c.leaflets.map(l => esc(l.name) + ' x' + l.qty).join(', ')}</div>` : ''}
+      ${(c.treatments || []).length ? `<div class="dd-sub">${T('rep.d.treatment', 'Treatment')}</div><div class="small">${c.treatments.map(esc).join(', ')}</div>` : ''}
+      ${c.remarks ? `<div class="dd-sub">${T('common.remarks', 'Remarks')}</div><div class="small">${esc(c.remarks)}</div>` : ''}
+      ${c.nextVisit ? `<div class="dd-sub">${T('rep.d.nextVisit', 'Next visit')}</div><div class="small">${esc(fmtD(c.nextVisit))}${c.priority ? ' · ' + esc(c.priority) : ''}${c.nextRemarks ? ' · ' + esc(c.nextRemarks) : ''}</div>` : ''}`;
+    bootstrap.Modal.getOrCreateInstance('#callModal').show();
   }
   function ddExcel() { Api.download(EP + '/export?from=' + D.day.date + '&to=' + D.day.date + '&empId=' + encodeURIComponent(D.day.empId) + '&absent=false', 'DCR-' + D.day.empCode + '-' + D.day.date + '.xlsx').catch(e => SFA.toast(e.message, false)); }
 </script>

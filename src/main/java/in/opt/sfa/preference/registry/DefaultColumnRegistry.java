@@ -45,6 +45,10 @@ public final class DefaultColumnRegistry {
                 col("status", "common.status"), col("workType", "report.dcr.workType"), col("in", "report.dcr.timeIn"), col("out", "report.dcr.timeOut"), col("startArea", null), col("areaType", null),
                 col("calls", null), col("pob", null), col("expense", null), col("dcrStatus", null), col("source", null));
 
+        register("DCR_DAY_CALLS",
+                col("client", "entity.client"), col("kind", null), col("code", null), col("type", "entity.clientType"), col("category", "entity.category"), col("speciality", "entity.speciality"), col("area", "entity.area"),
+                col("in", null), col("out", null), col("duration", null), col("visit", null), col("activity", null), col("pob", null), col("joint", null), col("location", null), col("distance", null));
+
         register("MENU_AUDIT_REPORT",
                 col("menuItem", "report.menuAudit.menuItem"),
                 col("type", "common.type"),

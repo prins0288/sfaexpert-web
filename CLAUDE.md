@@ -12,6 +12,13 @@ A link written as `dcr/dcr-submit.html` or `/dashboard.html` loses the slot, the
 * After adding a page or a link, open it through `/u/0/...` in the browser test and click it.
 * New pages: the usual shell (`<template id="pageContent">`, scripts session.js, endpoints.js, http.js, theme.js, settings.js, i18n.js, app.js, uikit.js, shell.js), API paths only from `js/core/endpoints.js`.
 
+## Language (i18n) - every screen text is translatable
+Texts come from `src/main/resources/i18n/lang_en.properties` and `lang_hi.properties` (base languages, loaded by `I18nService`) and a company can override any label in the tenant table `label_master`. The page never hard-codes a language:
+* static HTML: put `data-i18n="key"` on the element (`data-i18n-ph` placeholder, `data-i18n-title` tooltip); keep the English text inside as the fallback.
+* JS-built HTML: `const T = (k, en) => (window.I18n ? I18n.t(k, en) : en)` and write `T('rep.present', 'Present')`; dates use `I18n.lang` for the locale; re-draw on `I18n.onChange(...)` only when `I18n.lang` really changed (a redraw that calls `I18n.apply` would loop).
+* add every new key to BOTH properties files (English and Hindi) - check that no key used in the page is missing; reuse existing keys (`common.*`, `entity.*`) where they exist.
+* Pages built before this rule (HR, leave, payroll, geo screens ...) still have English-only text and should be converted when touched.
+
 ## Reports - one standard design (every report is built like this)
 Reference pages: `report/dcr-report.html` (summary + date-wise report) and `master/client-master.html` (the table look). A new or redesigned report MUST have:
 * **Layout:** a `.card` with header (icon + title + period + tools), a compact collapsible filter strip, a one-line KPI strip, then the data card.

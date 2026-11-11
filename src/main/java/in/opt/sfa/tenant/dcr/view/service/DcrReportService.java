@@ -212,6 +212,8 @@ public class DcrReportService {
         d.put("status", st); d.put("statusName", STATUS[Math.max(0, Math.min(3, st))]); d.put("source", ((Number) p.get("submitted_through")).intValue() == 1 ? "App" : "Web");
         d.put("submittedAt", s(p.get("submitted_at"))); d.put("approvedBy", p.get("approvedByName")); d.put("approvedAt", s(p.get("approved_at"))); d.put("approvalRemarks", p.get("approval_remarks"));
         d.put("pob", p.get("pob_total")); d.put("expense", p.get("expense_total")); d.put("listedCalls", p.get("listed_calls")); d.put("unlistedCalls", p.get("unlisted_calls"));
+        d.put("startLat", p.get("start_lat")); d.put("startLng", p.get("start_lng")); d.put("startAddress", p.get("start_address"));   // where the day started (null before migration 111 / when not captured)
+        boolean geoCols = !jdbc.queryForList("SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'dcr_client_summary' AND column_name = 'checkin_address'").isEmpty();
         out.put("day", d);
 
         // items / leaflets / treatment / joint, grouped by (kind, ref)
@@ -227,18 +229,18 @@ public class DcrReportService {
                 SELECT s.id, s.client_id AS clientId, CONCAT(COALESCE(CONCAT(c.salutation, ' '), ''), c.client_name) AS name, c.client_code AS code, ct.type_name AS clientType, cat.category_name AS category, sp.speciality_name AS speciality,
                        ar.area_name AS area, c.mobile_number_1 AS mobile, s.worktype_code AS tab, s.visit_type AS visitType, s.activity_type AS activityType, s.in_time AS inTime, s.out_time AS outTime,
                        s.is_refused AS refused, s.pob_value AS pob, s.remarks, s.next_visit AS nextVisit, s.next_visit_priority AS priority, s.next_visit_remarks AS nextRemarks,
-                       s.checkin_lat AS lat, s.checkin_lng AS lng
+                       s.checkin_lat AS lat, s.checkin_lng AS lng%GEO%
                 FROM dcr_client_summary s JOIN client_master c ON c.id = s.client_id LEFT JOIN client_type ct ON ct.oid = c.client_type_id LEFT JOIN category_master cat ON cat.oid = c.category_id
                 LEFT JOIN speciality_master sp ON sp.oid = c.speciality_id LEFT JOIN area_master ar ON ar.oid = COALESCE(s.area_id, c.city_id)
-                WHERE s.dcr_id = ? ORDER BY s.in_time, s.id""", dcrId)) {
+                WHERE s.dcr_id = ? ORDER BY s.in_time, s.id""".replace("%GEO%", geoCols ? ", s.checkin_address AS address, s.checkin_distance_m AS distanceM" : ""), dcrId)) {
             c.put("kind", "Listed"); attach(c, "1|" + c.get("clientId"), items, leaflets, treat, joint); c.remove("clientId"); calls.add(c);
         }
         for (Map<String, Object> c : jdbc.queryForList("""
                 SELECT u.id, u.client_name AS name, ct.type_name AS clientType, cat.category_name AS category, sp.speciality_name AS speciality, ar.area_name AS area, u.mobile, u.qualification, u.contact_person AS contact, u.address,
                        u.worktype_code AS tab, u.visit_type AS visitType, u.activity_type AS activityType, u.in_time AS inTime, u.out_time AS outTime, u.is_refused AS refused, u.pob_value AS pob, u.remarks,
-                       u.next_visit AS nextVisit, u.next_visit_priority AS priority, u.next_visit_remarks AS nextRemarks, u.checkin_lat AS lat, u.checkin_lng AS lng
+                       u.next_visit AS nextVisit, u.next_visit_priority AS priority, u.next_visit_remarks AS nextRemarks, u.checkin_lat AS lat, u.checkin_lng AS lng%GEO%
                 FROM dcr_unlisted_client_summary u LEFT JOIN client_type ct ON ct.oid = u.client_type_id LEFT JOIN category_master cat ON cat.oid = u.category_id
-                LEFT JOIN speciality_master sp ON sp.oid = u.speciality_id LEFT JOIN area_master ar ON ar.oid = u.area_id WHERE u.dcr_id = ? ORDER BY u.in_time, u.id""", dcrId)) {
+                LEFT JOIN speciality_master sp ON sp.oid = u.speciality_id LEFT JOIN area_master ar ON ar.oid = u.area_id WHERE u.dcr_id = ? ORDER BY u.in_time, u.id""".replace("%GEO%", geoCols ? ", u.checkin_address AS address" : ""), dcrId)) {
             c.put("kind", "Unlisted"); attach(c, "2|" + c.get("id"), items, leaflets, treat, joint); calls.add(c);
         }
         calls.sort(Comparator.comparing(c -> String.valueOf(c.get("inTime"))));

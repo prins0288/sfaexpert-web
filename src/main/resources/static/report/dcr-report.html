@@ -57,25 +57,25 @@
 <div id="app" data-page="dcrreport" data-title="DCR Report"></div>
 <template id="pageContent">
 <div class="card mb-2">
-  <div class="card-header d-flex align-items-center flex-wrap gap-2"><span><i class="bi bi-journal-check"></i> DCR Report</span><small class="text-muted" id="rpSub"></small>
+  <div class="card-header d-flex align-items-center flex-wrap gap-2"><span><i class="bi bi-journal-check"></i> <span data-i18n="report.dcr.title">DCR Report</span></span><small class="text-muted" id="rpSub"></small>
     <div class="card-tools ms-auto d-flex gap-2 flex-wrap">
-      <button class="btn btn-sm sfa-btn-outline" id="rpFBtn" onclick="rpFToggle()"><i class="bi bi-sliders"></i> Filters</button>
-      <button class="btn btn-sm sfa-btn-outline" data-bs-toggle="modal" data-bs-target="#activityModal"><i class="bi bi-clock-history"></i> Recent</button>
-      <button class="btn btn-sm btn-accent" onclick="rpExport()" title="Full report with every column, from the server"><i class="bi bi-file-earmark-excel"></i> Full Excel</button></div></div>
+      <button class="btn btn-sm sfa-btn-outline" id="rpFBtn" onclick="rpFToggle()"><i class="bi bi-sliders"></i> <span data-i18n="rep.filters">Filters</span></button>
+      <button class="btn btn-sm sfa-btn-outline" data-bs-toggle="modal" data-bs-target="#activityModal"><i class="bi bi-clock-history"></i> <span data-i18n="rep.recent">Recent</span></button>
+      <button class="btn btn-sm btn-accent" onclick="rpExport()" title="Full report with every column, from the server"><i class="bi bi-file-earmark-excel"></i> <span data-i18n="rep.fullExcel">Full Excel</span></button></div></div>
   <div class="card-body rp-filters" id="rpFBody">
     <div class="row g-2 align-items-end">
-      <div class="col-auto"><div class="btn-group btn-group-sm" id="rpMode"><button type="button" class="btn btn-primary" data-m="month" onclick="rpMode('month')">Month</button><button type="button" class="btn btn-outline-primary" data-m="range" onclick="rpMode('range')">From - To</button></div></div>
-      <div class="col-6 col-md-2" id="rpMonthWrap"><label class="form-label">Month</label><input type="month" class="form-control form-control-sm" id="f_month"></div>
-      <div class="col-6 col-md-2 d-none rp-rng"><label class="form-label">From</label><input type="date" class="form-control form-control-sm" id="f_from"></div>
-      <div class="col-6 col-md-2 d-none rp-rng"><label class="form-label">To</label><input type="date" class="form-control form-control-sm" id="f_to"></div>
-      <div class="col-6 col-md-2"><label class="form-label">State</label><select class="form-select form-select-sm" id="f_state" onchange="rpCascade()"><option value="">All</option></select></div>
-      <div class="col-6 col-md-2"><label class="form-label">HQ</label><select class="form-select form-select-sm" id="f_hq" onchange="rpCascade()"><option value="">All</option></select></div>
-      <div class="col-6 col-md-2"><label class="form-label">Designation</label><select class="form-select form-select-sm" id="f_des" onchange="rpCascade()"><option value="">All</option></select></div>
-      <div class="col-6 col-md-2"><label class="form-label">Employee</label><select class="form-select form-select-sm" id="f_emp"><option value="">All</option></select></div>
-      <div class="col-6 col-md-2"><label class="form-label">DCR status</label><select class="form-select form-select-sm" id="f_status"><option value="">All</option><option value="0">Draft</option><option value="1">Submitted</option><option value="2">Approved</option><option value="3">Rejected</option></select></div>
-      <div class="col-6 col-md-2"><label class="form-label">Submitted from</label><select class="form-select form-select-sm" id="f_source"><option value="">Web + App</option><option value="2">Web</option><option value="1">App</option></select></div>
-      <div class="col-auto"><div class="form-check form-switch mb-1"><input class="form-check-input" type="checkbox" id="f_absent" checked><label class="form-check-label small" for="f_absent">Show absent days</label></div></div>
-      <div class="col-auto ms-md-auto d-flex gap-2"><button class="btn btn-sm btn-light" onclick="rpReset()">Reset</button><button class="btn btn-sm btn-primary" onclick="rpSearch()"><i class="bi bi-search"></i> Show</button></div>
+      <div class="col-auto"><div class="btn-group btn-group-sm" id="rpMode"><button type="button" class="btn btn-primary" data-m="month" onclick="rpMode('month')" data-i18n="rep.month">Month</button><button type="button" class="btn btn-outline-primary" data-m="range" onclick="rpMode('range')" data-i18n="rep.fromTo">From - To</button></div></div>
+      <div class="col-6 col-md-2" id="rpMonthWrap"><label class="form-label" data-i18n="rep.month">Month</label><input type="month" class="form-control form-control-sm" id="f_month"></div>
+      <div class="col-6 col-md-2 d-none rp-rng"><label class="form-label" data-i18n="common.from">From</label><input type="date" class="form-control form-control-sm" id="f_from"></div>
+      <div class="col-6 col-md-2 d-none rp-rng"><label class="form-label" data-i18n="common.to">To</label><input type="date" class="form-control form-control-sm" id="f_to"></div>
+      <div class="col-6 col-md-2"><label class="form-label" data-i18n="entity.state">State</label><select class="form-select form-select-sm" id="f_state" onchange="rpCascade()"><option value="">All</option></select></div>
+      <div class="col-6 col-md-2"><label class="form-label" data-i18n="entity.hq">HQ</label><select class="form-select form-select-sm" id="f_hq" onchange="rpCascade()"><option value="">All</option></select></div>
+      <div class="col-6 col-md-2"><label class="form-label" data-i18n="entity.designation">Designation</label><select class="form-select form-select-sm" id="f_des" onchange="rpCascade()"><option value="">All</option></select></div>
+      <div class="col-6 col-md-2"><label class="form-label" data-i18n="entity.employee">Employee</label><select class="form-select form-select-sm" id="f_emp"><option value="">All</option></select></div>
+      <div class="col-6 col-md-2"><label class="form-label" data-i18n="rep.dcrStatus">DCR status</label><select class="form-select form-select-sm" id="f_status"><option value="" data-i18n="common.all">All</option><option value="0" data-i18n="rep.draft">Draft</option><option value="1" data-i18n="rep.submitted">Submitted</option><option value="2" data-i18n="rep.approved">Approved</option><option value="3" data-i18n="rep.rejected">Rejected</option></select></div>
+      <div class="col-6 col-md-2"><label class="form-label" data-i18n="rep.submittedFrom">Submitted from</label><select class="form-select form-select-sm" id="f_source"><option value="" data-i18n="rep.webApp">Web + App</option><option value="2" data-i18n="rep.web">Web</option><option value="1" data-i18n="rep.app">App</option></select></div>
+      <div class="col-auto"><div class="form-check form-switch mb-1"><input class="form-check-input" type="checkbox" id="f_absent" checked><label class="form-check-label small" for="f_absent" data-i18n="rep.showAbsent">Show absent days</label></div></div>
+      <div class="col-auto ms-md-auto d-flex gap-2"><button class="btn btn-sm btn-light" onclick="rpReset()" data-i18n="common.reset">Reset</button><button class="btn btn-sm btn-primary" onclick="rpSearch()"><i class="bi bi-search"></i> <span data-i18n="rep.show">Show</span></button></div>
     </div>
   </div>
 </div>
@@ -84,7 +84,7 @@
 
 <div class="card">
   <div class="card-header d-flex align-items-center flex-wrap gap-2">
-    <ul class="nav nav-pills rp-tabs" id="rpTabs"><li class="nav-item"><button class="nav-link active" data-v="emp" onclick="rpView('emp')"><i class="bi bi-people"></i> Employee summary</button></li><li class="nav-item"><button class="nav-link" data-v="day" onclick="rpView('day')"><i class="bi bi-calendar3"></i> Date wise</button></li></ul>
+    <ul class="nav nav-pills rp-tabs" id="rpTabs"><li class="nav-item"><button class="nav-link active" data-v="emp" onclick="rpView('emp')"><i class="bi bi-people"></i> <span data-i18n="rep.empSummary">Employee summary</span></button></li><li class="nav-item"><button class="nav-link" data-v="day" onclick="rpView('day')"><i class="bi bi-calendar3"></i> <span data-i18n="rep.dateWise">Date wise</span></button></li></ul>
     <div class="d-flex gap-1 flex-wrap ms-2 d-none" id="rpChips"></div>
     <span class="small text-muted ms-auto" id="rpHint"></span>
   </div>
@@ -95,11 +95,11 @@
 <div class="modal fade" id="empModal" tabindex="-1"><div class="modal-dialog modal-xl modal-dialog-scrollable modal-fullscreen-lg-down"><div class="modal-content">
   <div class="modal-header sfa-modal"><h5 class="modal-title" id="empModalTitle"></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
   <div class="modal-body" id="empModalBody"></div>
-  <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button></div></div></div></div>
+  <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal" data-i18n="common.close">Close</button></div></div></div></div>
 
 <div class="modal fade" id="activityModal" tabindex="-1"><div class="modal-dialog modal-dialog-scrollable modal-fullscreen-sm-down"><div class="modal-content">
-  <div class="modal-header sfa-modal"><h5 class="modal-title"><i class="bi bi-clock-history"></i> Recent searches</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-  <div class="modal-body"><div id="activityList"></div></div><div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button></div></div></div></div>
+  <div class="modal-header sfa-modal"><h5 class="modal-title"><i class="bi bi-clock-history"></i> <span data-i18n="rep.recentSearches">Recent searches</span></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body"><div id="activityList"></div></div><div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal" data-i18n="common.close">Close</button></div></div></div></div>
 </template>
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -121,15 +121,19 @@
 <script src="js/core/activity.js"></script>
 <script src="js/shell.js"></script>
 <script>
+  const T = (k, en) => (window.I18n ? I18n.t(k, en) : en);   // text of the chosen language (lang_*.properties + the tenant's label_master); the English given here shows when a key has no translation
   const REPORT_KEY = 'dcrreport', REPORT_LABEL = 'DCR Report', EP = API.report.dcr;
   const esc = (v) => SFA.esc(v == null ? '' : v);
   const pad = (n) => String(n).padStart(2, '0');
   const money = (v) => Number(v || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 });
   const hm = (t) => t ? String(t).slice(0, 5) : '';
-  const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const dowName = (d) => new Date(d + 'T00:00:00').toLocaleDateString(window.I18n && I18n.lang === 'hi' ? 'hi-IN' : 'en-GB', { weekday: 'short' });
+  let LASTLANG = window.I18n ? I18n.lang : 'en';
   const fmt = (d) => { const x = new Date(d + 'T00:00:00'); return pad(x.getDate()) + '-' + pad(x.getMonth() + 1) + '-' + x.getFullYear(); };
   let FIL = null, DATA = null, MODE = 'month', CHIP = 'all', VIEW = 'emp', ACT = null;
 
+  // language switch: redraw the JS-built parts (only when the language really changed - the table calls I18n.apply itself)
+  if (window.I18n) I18n.onChange(() => { if (I18n.lang !== LASTLANG) { LASTLANG = I18n.lang; if (DATA) { kpis(); rpRender(); } } });
   window.pageInit = async function () {
     ACT = new bootstrap.Modal('#activityModal');
     document.getElementById('activityModal').addEventListener('shown.bs.modal', () => Activity.renderInto('activityList', REPORT_KEY, applyActivity));
@@ -197,8 +201,8 @@
     const t = DATA.totals, k = (l, v, cls) => `<div class="rp-kpi ${cls || ''}"><small>${l}</small><b>${v}</b></div>`;
     const off = DATA.rows.filter(r => r.kind === 'HOLIDAY' || r.kind === 'WEEKLY_OFF' || (r.kind === 'DCR' && (r.workType === 'HOLIDAY' || r.workType === 'WEEKLY_OFF'))).length;
     const leave = DATA.rows.filter(r => r.kind === 'DCR' && r.workType === 'LEAVE').length;
-    document.getElementById('rpKpis').innerHTML = k('Employees', t.employees) + k('DCR days', t.dcrs, 'ok') + k('Absent days', t.absent, t.absent ? 'bad' : '') + k('Leave days', leave, 'warn') + k('Holiday / off', off, 'mut') + k('Calls', t.calls) + k('POB', '\u20b9' + money(t.pob)) + k('Expense', '\u20b9' + money(t.expense))
-      + k('Web / App', t.web + ' / ' + t.app) + k('Draft / Submitted / Approved', t.draft + ' / ' + t.submitted + ' / ' + t.approved);
+    document.getElementById('rpKpis').innerHTML = k(T('entity.employees', 'Employees'), t.employees) + k(T('rep.dcrDays', 'DCR days'), t.dcrs, 'ok') + k(T('rep.absentDays', 'Absent days'), t.absent, t.absent ? 'bad' : '') + k(T('rep.leaveDays', 'Leave days'), leave, 'warn') + k(T('rep.holidayOff', 'Holiday / off'), off, 'mut') + k(T('rep.calls', 'Calls'), t.calls) + k(T('rep.pob', 'POB'), '\u20b9' + money(t.pob)) + k(T('rep.expense', 'Expense'), '\u20b9' + money(t.expense))
+      + k(T('rep.webAppKpi', 'Web / App'), t.web + ' / ' + t.app) + k(T('rep.dsa', 'Draft / Submitted / Approved'), t.draft + ' / ' + t.submitted + ' / ' + t.approved);
   }
 
   // ---------------------------------------------------------------- the two views
@@ -211,11 +215,12 @@
     if (WORKOFF.includes(r.workType)) return 'OFF';
     return r.workType === 'LEAVE' ? 'LEAVE' : 'PRESENT';
   }
-  const tag = (c, r) => ({ PRESENT: '<span class="rp-tag present">Present</span>', ABSENT: '<span class="rp-tag absent">Absent</span>', LEAVE: '<span class="rp-tag leave">Leave</span>',
-    OFF: `<span class="rp-tag off">${r.kind === 'HOLIDAY' || r.workType === 'HOLIDAY' ? 'Holiday' : 'Weekly off'}</span>`, PENDING: '<span class="rp-tag warn">Not started</span>' })[c];
-  const dcrTag = (r) => r.kind === 'DCR' ? `<span class="rp-tag ${r.status === 2 ? 'present' : r.status === 3 ? 'absent' : r.status === 1 ? 'leave' : 'off'}">${esc(r.statusName)}</span>` : '';
+  const tag = (c, r) => ({ PRESENT: `<span class="rp-tag present">${T('rep.present', 'Present')}</span>`, ABSENT: `<span class="rp-tag absent">${T('rep.absent', 'Absent')}</span>`, LEAVE: `<span class="rp-tag leave">${T('rep.leave', 'Leave')}</span>`,
+    OFF: `<span class="rp-tag off">${r.kind === 'HOLIDAY' || r.workType === 'HOLIDAY' ? T('rep.holiday', 'Holiday') : T('rep.weeklyOff', 'Weekly off')}</span>`, PENDING: `<span class="rp-tag warn">${T('rep.notStarted', 'Not started')}</span>` })[c];
+  const STNAME = () => [T('rep.draft', 'Draft'), T('rep.submitted', 'Submitted'), T('rep.approved', 'Approved'), T('rep.rejected', 'Rejected')];
+  const dcrTag = (r) => r.kind === 'DCR' ? `<span class="rp-tag ${r.status === 2 ? 'present' : r.status === 3 ? 'absent' : r.status === 1 ? 'leave' : 'off'}">${esc(STNAME()[Math.max(0, Math.min(3, r.status))])}</span>` : '';
   const num = (v) => Number(v) ? money(v) : '<span class="rp-zero">0</span>';
-  const dayOf = (d) => DOW[new Date(d + 'T00:00:00').getDay()];
+  const dayOf = (d) => dowName(d);
   const open_ = (r) => Session.pageUrl('report/dcr-day.html?id=' + r.dcrId);
   const hasDetail = (r) => r.kind === 'DCR' && r.dcrId && cls(r) !== 'OFF';
 
@@ -241,13 +246,13 @@
     if (!DATA) return;
     const wrap = document.getElementById('rpTableWrap');
     if (wrap.querySelector('table') && window.jQuery && $.fn.DataTable.isDataTable('#rpT')) $('#rpT').DataTable().destroy();
-    if (!DATA.rows.length) { wrap.innerHTML = '<div class="text-center text-muted py-5"><i class="bi bi-inbox fs-1"></i><div>Nothing found for these filters</div></div>'; return; }
+    if (!DATA.rows.length) { wrap.innerHTML = `<div class="text-center text-muted py-5"><i class="bi bi-inbox fs-1"></i><div>${T('rep.nothing', 'Nothing found for these filters')}</div></div>`; return; }
     if (VIEW === 'emp') {
       EMPS = employees();
-      document.getElementById('rpHint').textContent = 'Click an employee to see every day';
+      document.getElementById('rpHint').textContent = T('rep.hintEmp', 'Click an employee to see every day');
       wrap.innerHTML = `<table id="rpT" data-screen-key="DCR_REPORT_EMP" class="table table-striped table-bordered nowrap" style="width:100%"><thead><tr>
-        <th>S.No</th><th data-field="code">Code</th><th data-field="employee">Employee</th><th data-field="designation">Designation</th><th data-field="hq">HQ</th><th data-field="state">State</th><th data-field="present" class="text-end">Present</th><th data-field="absent" class="text-end">Absent</th><th data-field="leave" class="text-end">Leave</th><th data-field="off" class="text-end">Holiday / off</th>
-        <th data-field="calls" class="text-end">Calls</th><th data-field="pob" class="text-end">POB</th><th data-field="expense" class="text-end">Expense</th><th data-field="submitted" class="text-end">Submitted</th><th data-field="draft" class="text-end">Draft</th><th data-field="last">Last DCR</th><th class="no-export">Details</th></tr></thead><tbody>
+        <th data-i18n="common.sno">S.No</th><th data-field="code" data-i18n="common.code">Code</th><th data-field="employee" data-i18n="entity.employee">Employee</th><th data-field="designation" data-i18n="entity.designation">Designation</th><th data-field="hq" data-i18n="entity.hq">HQ</th><th data-field="state" data-i18n="entity.state">State</th><th data-field="present" class="text-end" data-i18n="rep.present">Present</th><th data-field="absent" class="text-end" data-i18n="rep.absent">Absent</th><th data-field="leave" class="text-end" data-i18n="rep.leave">Leave</th><th data-field="off" class="text-end" data-i18n="rep.holidayOff">Holiday / off</th>
+        <th data-field="calls" class="text-end" data-i18n="rep.calls">Calls</th><th data-field="pob" class="text-end" data-i18n="rep.pob">POB</th><th data-field="expense" class="text-end" data-i18n="rep.expense">Expense</th><th data-field="submitted" class="text-end" data-i18n="rep.submitted">Submitted</th><th data-field="draft" class="text-end" data-i18n="rep.draft">Draft</th><th data-field="last" data-i18n="rep.lastDcr">Last DCR</th><th class="no-export" data-i18n="rep.details">Details</th></tr></thead><tbody>
         ${EMPS.map((e, i) => `<tr class="rp-click" onclick="empOpen(${i})"><td>${i + 1}</td><td>${esc(e.code)}</td><td><b>${esc(e.name)}</b></td><td>${esc(e.designation)}</td><td>${esc(e.hq)}</td><td>${esc(e.state)}</td>
           <td class="num">${num(e.present)}</td><td class="num ${e.absent ? 'rp-bad' : ''}">${num(e.absent)}</td><td class="num">${num(e.leave)}</td><td class="num">${num(e.off)}</td><td class="num">${num(e.calls)}</td><td class="num">${num(e.pob)}</td><td class="num">${num(e.expense)}</td>
           <td class="num">${num(e.submitted)}</td><td class="num">${num(e.draft)}</td><td data-order="${esc(e.last)}">${e.last ? fmt(e.last) : ''}</td><td class="no-export text-center"><button class="btn btn-sm btn-outline-primary" title="Every day of ${esc(e.name)}" onclick="event.stopPropagation();empOpen(${i})"><i class="bi bi-eye"></i></button></td></tr>`).join('')}
@@ -255,21 +260,21 @@
       sfaDataTable('#rpT', { order: [[2, 'asc']] });
     } else {
       const rows = shownDays();
-      document.getElementById('rpChips').innerHTML = CHIPS.map(([k, n]) => `<button type="button" class="rp-chip ${CHIP === k ? 'on' : ''}" onclick="chip('${k}')">${n}</button>`).join('');
-      document.getElementById('rpHint').textContent = 'Click a DCR row for the complete details';
+      document.getElementById('rpChips').innerHTML = CHIPS().map(([k, n]) => `<button type="button" class="rp-chip ${CHIP === k ? 'on' : ''}" onclick="chip('${k}')">${n}</button>`).join('');
+      document.getElementById('rpHint').textContent = T('rep.hintDay', 'Click a DCR row for the complete details');
       wrap.innerHTML = `<table id="rpT" data-screen-key="DCR_REPORT_DAY" class="table table-striped table-bordered nowrap" style="width:100%"><thead><tr>
-        <th>S.No</th><th data-field="date">Date</th><th data-field="day">Day</th><th data-field="code">Code</th><th data-field="employee">Employee</th><th data-field="designation">Designation</th><th data-field="hq">HQ</th><th data-field="status">Status</th><th data-field="workType">Work type</th><th data-field="in">In</th><th data-field="out">Out</th><th data-field="startArea">Start area</th><th data-field="areaType">Area type</th>
-        <th data-field="calls" class="text-end">Calls</th><th data-field="pob" class="text-end">POB</th><th data-field="expense" class="text-end">Expense</th><th data-field="dcrStatus">DCR status</th><th data-field="source">Source</th><th class="no-export">Details</th></tr></thead><tbody>
+        <th data-i18n="common.sno">S.No</th><th data-field="date" data-i18n="common.date">Date</th><th data-field="day" data-i18n="rep.day">Day</th><th data-field="code" data-i18n="common.code">Code</th><th data-field="employee" data-i18n="entity.employee">Employee</th><th data-field="designation" data-i18n="entity.designation">Designation</th><th data-field="hq" data-i18n="entity.hq">HQ</th><th data-field="status" data-i18n="common.status">Status</th><th data-field="workType" data-i18n="report.dcr.workType">Work type</th><th data-field="in" data-i18n="rep.in">In</th><th data-field="out" data-i18n="rep.out">Out</th><th data-field="startArea" data-i18n="rep.startArea">Start area</th><th data-field="areaType" data-i18n="rep.areaType">Area type</th>
+        <th data-field="calls" class="text-end" data-i18n="rep.calls">Calls</th><th data-field="pob" class="text-end" data-i18n="rep.pob">POB</th><th data-field="expense" class="text-end" data-i18n="rep.expense">Expense</th><th data-field="dcrStatus" data-i18n="rep.dcrStatus">DCR status</th><th data-field="source" data-i18n="rep.source">Source</th><th class="no-export" data-i18n="rep.details">Details</th></tr></thead><tbody>
         ${rows.map((r, i) => { const c = cls(r), d = r.kind === 'DCR';
           return `<tr class="${hasDetail(r) ? 'rp-click' : ''}" ${hasDetail(r) ? `onclick="location.href='${open_(r)}'"` : ''}><td>${i + 1}</td><td data-order="${esc(r.date)}">${fmt(r.date)}</td><td>${dayOf(r.date)}</td><td>${esc(r.empCode)}</td><td><b>${esc(r.empName)}</b></td><td>${esc(r.designation)}</td><td>${esc(r.hq)}</td>
-          <td>${tag(c, r)}</td><td>${d ? esc(r.workTypeName) : esc(c === 'OFF' || c === 'PENDING' ? '' : r.note)}</td><td>${d ? hm(r.timeIn) : ''}</td><td>${d ? hm(r.timeOut) : ''}</td><td>${d ? esc(r.startArea) : ''}</td><td>${d ? esc(r.areaType) : ''}</td>
+          <td>${tag(c, r)}</td><td>${d ? esc(r.workTypeName) : esc(c === 'OFF' || c === 'PENDING' ? '' : T('rep.noDcr', 'No DCR'))}</td><td>${d ? hm(r.timeIn) : ''}</td><td>${d ? hm(r.timeOut) : ''}</td><td>${d ? esc(r.startArea) : ''}</td><td>${d ? esc(r.areaType) : ''}</td>
           <td class="num">${c === 'PRESENT' ? num(r.calls) : ''}</td><td class="num">${c === 'PRESENT' ? num(r.pob) : ''}</td><td class="num">${c === 'PRESENT' ? num(r.expense) : ''}</td><td>${dcrTag(r)}</td><td>${d ? esc(r.sourceName) : ''}</td>
           <td class="no-export text-center">${hasDetail(r) ? `<a class="btn btn-sm btn-outline-primary" title="Complete details" href="${open_(r)}" onclick="event.stopPropagation()"><i class="bi bi-box-arrow-up-right"></i></a>` : ''}</td></tr>`; }).join('')}
         </tbody></table>`;
       sfaDataTable('#rpT', { order: [[1, 'desc'], [4, 'asc']] });
     }
   }
-  const CHIPS = [['all', 'All'], ['PRESENT', 'Present'], ['ABSENT', 'Absent'], ['LEAVE', 'Leave'], ['OFF', 'Holiday / off']];
+  const CHIPS = () => [['all', T('common.all', 'All')], ['PRESENT', T('rep.present', 'Present')], ['ABSENT', T('rep.absent', 'Absent')], ['LEAVE', T('rep.leave', 'Leave')], ['OFF', T('rep.holidayOff', 'Holiday / off')]];
   function shownDays() { return DATA.rows.filter(r => CHIP === 'all' || cls(r) === CHIP); }
   function chip(k) { CHIP = k; rpRender(); }
 
@@ -279,11 +284,11 @@
     document.getElementById('empModalTitle').innerHTML = `<i class="bi bi-person-badge"></i> ${esc(e.name)} <small class="text-muted">${esc(e.code)}</small>`;
     const k = (l, v, c) => `<div class="rp-kpi ${c || ''}"><small>${l}</small><b>${v}</b></div>`;
     const rows = e.rows.slice().sort((a, b) => a.date < b.date ? -1 : 1);
-    document.getElementById('empModalBody').innerHTML = `<div class="small text-muted mb-2">${[e.designation, e.hq, e.state].filter(Boolean).map(esc).join(' · ')} · ${fmt(DATA.from)} to ${fmt(DATA.to)}</div>
-      <div class="rp-kpis">${k('Present', e.present, 'ok')}${k('Absent', e.absent, e.absent ? 'bad' : '')}${k('Leave', e.leave, 'warn')}${k('Holiday / off', e.off, 'mut')}${k('Calls', e.calls)}${k('POB', '\u20b9' + money(e.pob))}${k('Expense', '\u20b9' + money(e.expense))}</div>
-      <div class="table-responsive"><table class="table table-sm table-bordered rp-day mb-0"><thead><tr><th>Date</th><th>Day</th><th>Status</th><th>Work type</th><th>In - Out</th><th>Start area</th><th class="text-end">Calls</th><th class="text-end">POB</th><th class="text-end">Expense</th><th>DCR status</th><th></th></tr></thead><tbody>
+    document.getElementById('empModalBody').innerHTML = `<div class="small text-muted mb-2">${[e.designation, e.hq, e.state].filter(Boolean).map(esc).join(' · ')} · ${fmt(DATA.from)} ${T('rep.period', 'to')} ${fmt(DATA.to)}</div>
+      <div class="rp-kpis">${k(T('rep.present', 'Present'), e.present, 'ok')}${k(T('rep.absent', 'Absent'), e.absent, e.absent ? 'bad' : '')}${k(T('rep.leave', 'Leave'), e.leave, 'warn')}${k(T('rep.holidayOff', 'Holiday / off'), e.off, 'mut')}${k(T('rep.calls', 'Calls'), e.calls)}${k(T('rep.pob', 'POB'), '\u20b9' + money(e.pob))}${k(T('rep.expense', 'Expense'), '\u20b9' + money(e.expense))}</div>
+      <div class="table-responsive"><table class="table table-sm table-bordered rp-day mb-0"><thead><tr><th>${T('common.date', 'Date')}</th><th>${T('rep.day', 'Day')}</th><th>${T('common.status', 'Status')}</th><th>${T('report.dcr.workType', 'Work type')}</th><th>${T('rep.inOut', 'In - Out')}</th><th>${T('rep.startArea', 'Start area')}</th><th class="text-end">${T('rep.calls', 'Calls')}</th><th class="text-end">${T('rep.pob', 'POB')}</th><th class="text-end">${T('rep.expense', 'Expense')}</th><th>${T('rep.dcrStatus', 'DCR status')}</th><th></th></tr></thead><tbody>
       ${rows.map(r => { const c = cls(r), d = r.kind === 'DCR';
-        return `<tr class="${hasDetail(r) ? 'clk' : ''}" ${hasDetail(r) ? `onclick="location.href='${open_(r)}'"` : ''}><td class="text-nowrap">${fmt(r.date)}</td><td>${dayOf(r.date)}</td><td>${tag(c, r)}</td><td>${d ? esc(r.workTypeName) : esc(c === 'ABSENT' ? 'No DCR' : (c === 'OFF' ? (r.note || '') : ''))}</td>
+        return `<tr class="${hasDetail(r) ? 'clk' : ''}" ${hasDetail(r) ? `onclick="location.href='${open_(r)}'"` : ''}><td class="text-nowrap">${fmt(r.date)}</td><td>${dayOf(r.date)}</td><td>${tag(c, r)}</td><td>${d ? esc(r.workTypeName) : esc(c === 'ABSENT' ? T('rep.noDcr', 'No DCR') : (c === 'OFF' ? (r.note || '') : ''))}</td>
         <td class="text-nowrap">${d && r.timeIn ? hm(r.timeIn) + ' - ' + hm(r.timeOut) : ''}</td><td>${d ? esc(r.startArea) : ''}</td><td class="text-end">${c === 'PRESENT' ? r.calls : ''}</td><td class="text-end">${c === 'PRESENT' ? money(r.pob) : ''}</td><td class="text-end">${c === 'PRESENT' ? money(r.expense) : ''}</td><td>${dcrTag(r)}</td>
         <td class="text-end">${hasDetail(r) ? '<i class="bi bi-chevron-right text-muted"></i>' : ''}</td></tr>`; }).join('')}
       </tbody></table></div>`;
