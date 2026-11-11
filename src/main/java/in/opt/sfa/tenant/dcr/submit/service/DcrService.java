@@ -537,6 +537,11 @@ public class DcrService {
         Map<String, String> rl = rules.of(me);
         int maxUnlisted = DcrRuleService.integer(rl, "UNLISTED_CLIENT_MAXIMUM_VALIDATION", 0);
         if (maxUnlisted > 0 && f.getUnlisted().size() > maxUnlisted) throw new IllegalStateException("You can add at most " + maxUnlisted + " unlisted check-ins in a day");
+        if (f.isSubmit()) {
+            LocalTime endLatest = DcrRuleService.time(rl, "DAY_END_TIME");   // the day cannot be ended / submitted after this time (today only)
+            if (endLatest != null && date.equals(today) && LocalTime.now().isAfter(endLatest)) throw new IllegalStateException("Day end time is over (allowed till " + endLatest + "). The day cannot be submitted now - ask your manager / admin");
+            if (working) checkTourPlanBeforeSubmit(me, date, rl);
+        }
         if (f.isSubmit() && DcrRuleService.bool(rl, "DCR_Remarks", false) && Strings.isBlank(f.getRemarks())) throw new IllegalStateException("Remarks are required to submit the day");
         if (f.isSubmit() && working && f.getVisits().isEmpty() && f.getUnlisted().isEmpty()) {
             throw new IllegalStateException("Add at least one client call before submitting (or save it as a draft)");
@@ -1025,4 +1030,29 @@ public class DcrService {
                 me, date, type, emp.get("designation"), emp.get("manager_id"), remarks.length() > 190 ? remarks.substring(0, 190) : remarks);
         return Map.of("date", date.toString(), "type", type, "name", k.get("name"), "late", late);
     }
+
+    /**
+     * Tour plan rules at DCR submit. TP_SUBMIT_CHECK: the tour plan of the DCR's month must be submitted AND approved.
+     * TP_VALIDATION = a day of the month (e.g. 25): from that day the NEXT month's plan must be submitted (its approval is not checked; already submitted is fine).
+     */
+    private void checkTourPlanBeforeSubmit(String me, LocalDate date, Map<String, String> rl) {
+        boolean check = DcrRuleService.bool(rl, "TP_SUBMIT_CHECK", false);
+        int dueDay = DcrRuleService.integer(rl, "TP_VALIDATION", 0);
+        if (!check && dueDay <= 0) return;
+        if (check) {
+            String st = tourPlans.statusOf(me, date.getYear(), date.getMonthValue());
+            String label = monthLabel(date);
+            if (st == null || "DRAFT".equals(st)) throw new IllegalStateException("Your tour plan of " + label + " is not submitted. Submit it first (Tour Plan), and once it is approved you can submit the DCR");
+            if ("REJECTED".equals(st)) throw new IllegalStateException("Your tour plan of " + label + " was rejected. Correct and submit it again, and get it approved, before submitting the DCR");
+            if (!"APPROVED".equals(st)) throw new IllegalStateException("Your tour plan of " + label + " is submitted but not approved yet. Get it approved before submitting the DCR");
+        }
+        if (dueDay > 0 && date.getDayOfMonth() >= dueDay) {
+            LocalDate next = date.withDayOfMonth(1).plusMonths(1);
+            String st = tourPlans.statusOf(me, next.getYear(), next.getMonthValue());
+            if (st == null || "DRAFT".equals(st) || "REJECTED".equals(st))
+                throw new IllegalStateException("From day " + dueDay + " of the month your next month's tour plan (" + monthLabel(next) + ") must be submitted before the DCR can be submitted. Submit it from Tour Plan first");
+        }
+    }
+
+    private static String monthLabel(LocalDate d) { return d.getMonth().getDisplayName(java.time.format.TextStyle.FULL, Locale.ENGLISH) + " " + d.getYear(); }
 }

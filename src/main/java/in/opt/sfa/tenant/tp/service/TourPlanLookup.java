@@ -22,6 +22,13 @@ public class TourPlanLookup {
         return r.isEmpty() ? null : r.get(0);
     }
 
+    /** The approval status of the month's plan (DRAFT / PENDING_MANAGER / PENDING_ADMIN / APPROVED / REJECTED), or null when there is no plan. */
+    @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
+    public String statusOf(String empId, int year, int month) {
+        Map<String, Object> p = parentRow(empId, year, month);
+        return p == null ? null : (String) p.get("approval_status");
+    }
+
     /**
      * The approved plan of {@code empId} for {@code date}: planned areas and the clients the day may visit — per area, the clients picked
      * for it, or ALL the area's clients when none was picked. Null when there is no approved plan for that date.
