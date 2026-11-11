@@ -234,7 +234,7 @@
         if (c) {
           const lbl = { P: T('rep.present', 'Present'), HD: T('rep.att.halfDay', 'Half day'), A: c.lk ? T('rep.cal.locked', 'Locked') : T('rep.absent', 'Absent'), L: T('rep.leave', 'Leave'), HL: T('rep.holiday', 'Holiday'), WK: T('rep.weeklyOff', 'Weekly off') }[c.s];
           cls.push(c.s === 'P' ? 'me-p' : c.s === 'HD' ? 'me-hd' : c.s === 'A' && c.lk ? 'me-k' : c.s === 'A' ? 'me-a' : c.s === 'L' ? 'me-l' : 'me-o');
-          body = `<div><b>${esc(lbl)}${c.s === 'A' && c.id ? '*' : ''}</b></div>${c.n || c.t ? `<div>${esc(c.n || c.t)}</div>` : ''}${c.in ? `<div>${esc(c.in)} - ${esc(c.out || '')}${c.h ? ' (' + esc(c.h) + ')' : ''}</div>` : ''}${c.c != null && !DET ? `<div>${c.c} ${T('rep.calls', 'Calls').toLowerCase()}</div>` : ''}${detailLines(date)}`;
+          body = `<div><b>${esc(lbl)}${c.s === 'A' && c.id ? '*' : ''}</b></div>${c.n || c.t ? `<div>${esc(c.n || c.t)}</div>` : ''}${c.in ? `<div>${esc(c.in)} - ${esc(c.out || '')}${c.h ? ' (' + esc(c.h) + ')' : ''}</div>` : ''}${c.c != null && !DET ? `<div>${c.c} ${T('rep.calls', 'Calls').toLowerCase()}</div>` : ''}${c.why && (c.s === 'A' || c.s === 'HD') ? `<div class="fw-semibold" style="color:#b02a37"><i class="bi bi-info-circle"></i> ${esc(c.why)}</div>` : ''}${detailLines(date)}`;
         } else cls.push('blank');
       } else if (t.n) {
         const chip = (k, n, c) => n ? `<span class="chip ${c}">${k} ${n}</span>` : '';
