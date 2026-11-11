@@ -92,6 +92,18 @@ public final class SalaryCalc {
             lines.add(new Line("ESI_ER", "ESI employer", "EMPLOYER", er, 921));
             ded = ded.add(ee); employer = employer.add(er);
         }
+        // deductions can never be more than what was earned (e.g. no paid days in the month): cut them back from the last one, so net pay is not negative
+        if (ded.compareTo(grossPaid) > 0) {
+            BigDecimal over = ded.subtract(grossPaid);
+            for (int i = lines.size() - 1; i >= 0 && over.signum() > 0; i--) {
+                Line l = lines.get(i);
+                if (!"DEDUCTION".equals(l.type())) continue;
+                BigDecimal cut = l.amount().min(over);
+                lines.set(i, new Line(l.code(), l.name(), l.type(), l.amount().subtract(cut), l.sort()));
+                over = over.subtract(cut);
+            }
+            ded = grossPaid;
+        }
         BigDecimal net = grossPaid.subtract(ded);
         lines.sort(Comparator.comparing((Line l) -> "EARNING".equals(l.type()) ? 0 : "DEDUCTION".equals(l.type()) ? 1 : 2).thenComparingInt(Line::sort));
         return new Output(lines, paidDays, grossPaid, ded, net, grossPaid.add(employer), pfBase, esiWage);

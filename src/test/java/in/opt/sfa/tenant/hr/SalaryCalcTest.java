@@ -36,6 +36,8 @@ class SalaryCalcTest {
     @Test void netIsGrossMinusDeductions() { Output o = run("40000", 30, "0", true, false); assertEquals(n("40000.00").subtract(n("1800.00")).subtract(n("200.00")), o.net()); assertEquals(o.grossEarnings().subtract(o.totalDeductions()), o.net()); }
     @Test void employerCostAddsEmployerShare() { Output o = run("40000", 30, "0", true, false); assertEquals(n("40000.00").add(n("550.50")).add(n("1249.50")).add(n("75.00")).add(n("75.00")), o.employerCost()); }
     @Test void lopCannotExceedMonth() { Output o = run("30000", 30, "45", false, false); assertEquals(BigDecimal.ZERO, o.paidDays()); assertEquals(n("0.00"), o.grossEarnings()); }
+    @Test void netNeverNegative() { Output o = run("30000", 30, "30", true, false); assertEquals(n("0.00"), o.net()); assertEquals(n("0.00"), line(o, "PT")); assertEquals(n("0.00"), o.totalDeductions()); }
+    @Test void deductionsCutBackToEarnings() { Output o = run("30000", 30, "29.9", false, false); assertEquals(0, o.net().signum()); assertEquals(o.grossEarnings(), o.totalDeductions()); }
     @Test void headsOverGrossRejected() { assertThrows(IllegalArgumentException.class, () -> run("4000", 30, "0", false, false)); }
     @Test void percentOfMissingBaseRejected() {
         assertThrows(IllegalArgumentException.class, () -> SalaryCalc.compute(new Input(n("10000"), List.of(new Value(hra, n("40")), new Value(spl, n("0"))), 30, n("0"), false, false, P)));
