@@ -97,7 +97,7 @@ public class AttendanceReportService {
                         AttendanceEval.Outcome o = AttendanceEval.evaluate(new AttendanceEval.Day(((Number) r.get("status")).intValue(), wt, ((Number) r.get("listedCalls")).intValue(), ((Number) r.get("unlistedCalls")).intValue(),
                                 asInt(r.get("workMin")), time(blankNull(r.get("dayStart"))), time(blankNull(r.get("dayEnd")))), rule);
                         c.put("s", o.result() == AttendanceEval.Result.PRESENT ? "P" : o.result() == AttendanceEval.Result.HALF ? "HD" : "A");
-                        c.put("t", shortCodes.getOrDefault(wt, wt == null ? "" : wt.substring(0, Math.min(3, wt.length())).toUpperCase())); c.put("c", r.get("calls")); c.put("h", r.get("workHours")); c.put("id", r.get("dcrId"));
+                        c.put("t", shortCodes.getOrDefault(wt, wt == null ? "" : wt.substring(0, Math.min(3, wt.length())).toUpperCase())); c.put("c", r.get("calls")); c.put("h", r.get("workHours")); c.put("id", r.get("dcrId")); c.put("in", r.get("dayStart")); c.put("out", r.get("dayEnd")); c.put("n", r.get("workTypeName"));
                         if (!o.reasons().isEmpty()) c.put("why", String.join("; ", o.reasons()));
                         switch (o.result()) { case PRESENT -> present++; case HALF -> half++; default -> absent++; }
                         calls += ((Number) r.get("calls")).doubleValue(); if (r.get("workMin") != null) workMin += ((Number) r.get("workMin")).doubleValue();

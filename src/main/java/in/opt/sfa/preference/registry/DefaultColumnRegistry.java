@@ -56,6 +56,12 @@ public final class DefaultColumnRegistry {
         register("ATTENDANCE_NOTSUB",
                 col("employee", "entity.employee"), col("code", "common.code"), col("designation", "entity.designation"), col("hq", "entity.hq"), col("mobile", "common.mobile"));
 
+        // report/calendar-report.html
+        register("CALENDAR_SUMMARY",
+                col("group", null), col("employees", "entity.employees"), col("present", null), col("half", null), col("leave", null), col("off", null), col("absent", null), col("calls", null), col("hours", null), col("pct", null));
+        register("CALENDAR_DAY",
+                col("group", null), col("employees", "entity.employees"), col("present", null), col("half", null), col("leave", null), col("off", null), col("absent", null), col("calls", null));
+
         register("MENU_AUDIT_REPORT",
                 col("menuItem", "report.menuAudit.menuItem"),
                 col("type", "common.type"),
