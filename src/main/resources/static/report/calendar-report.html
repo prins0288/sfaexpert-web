@@ -64,10 +64,10 @@
   <div class="card-body rp-filters" id="rpFBody">
     <div class="row g-2 align-items-end">
       <div class="col-6 col-md-2"><label class="form-label" data-i18n="rep.month">Month</label><input type="month" class="form-control form-control-sm" id="f_month"></div>
-      <div class="col-6 col-md-2"><label class="form-label" data-i18n="entity.state">State</label><select class="form-select form-select-sm" id="f_state" onchange="rpCascade()"><option value="">All</option></select></div>
-      <div class="col-6 col-md-2"><label class="form-label" data-i18n="entity.hq">HQ</label><select class="form-select form-select-sm" id="f_hq" onchange="rpCascade()"><option value="">All</option></select></div>
-      <div class="col-6 col-md-2"><label class="form-label" data-i18n="entity.designation">Designation</label><select class="form-select form-select-sm" id="f_des" onchange="rpCascade()"><option value="">All</option></select></div>
-      <div class="col-6 col-md-2"><label class="form-label" data-i18n="entity.employee">Employee</label><select class="form-select form-select-sm" id="f_emp"><option value="">All</option></select></div>
+      <div class="col-6 col-md-2"><label class="form-label" data-i18n="entity.state">State</label><select class="form-select form-select-sm" id="f_state" onchange="rpFilterChange()"><option value="">All</option></select></div>
+      <div class="col-6 col-md-2"><label class="form-label" data-i18n="entity.hq">HQ</label><select class="form-select form-select-sm" id="f_hq" onchange="rpFilterChange()"><option value="">All</option></select></div>
+      <div class="col-6 col-md-2"><label class="form-label" data-i18n="entity.designation">Designation</label><select class="form-select form-select-sm" id="f_des" onchange="rpFilterChange()"><option value="">All</option></select></div>
+      <div class="col-6 col-md-2"><label class="form-label" data-i18n="entity.employee">Employee</label><select class="form-select form-select-sm" id="f_emp" onchange="rpSearch()"></select></div>
       <div class="col-auto ms-md-auto d-flex gap-2"><button class="btn btn-sm btn-light" onclick="rpReset()" data-i18n="common.reset">Reset</button><button class="btn btn-sm btn-primary" onclick="rpSearch()"><i class="bi bi-search"></i> <span data-i18n="rep.show">Show</span></button></div>
     </div>
   </div>
@@ -124,7 +124,7 @@
   const fmt = (d) => { const x = new Date(d + 'T00:00:00'); return pad(x.getDate()) + '-' + pad(x.getMonth() + 1) + '-' + x.getFullYear(); };
   const hrs = (m) => m ? Math.floor(m / 60) + 'h ' + (Math.round(m) % 60) + 'm' : '';
   const nz = (v) => v ? v : '<span class="rp-zero">0</span>';
-  let DET = null, FIL = null, DATA = null, VIEW = 'state', ACT = null, LASTLANG = window.I18n ? I18n.lang : 'en', DAYROWS = null, DAYSEL = null;
+  let GDATA = null, DET = null, FIL = null, DATA = null, VIEW = 'state', ACT = null, LASTLANG = window.I18n ? I18n.lang : 'en', DAYROWS = null, DAYSEL = null;
   if (window.I18n) I18n.onChange(() => { if (I18n.lang !== LASTLANG) { LASTLANG = I18n.lang; if (DATA) { kpis(); rpRender(); } } });
   const GROUPS = { state: ['rep.cal.stateWise', 'State wise', 'state', 'entity.state', 'State'], hq: ['rep.cal.hqWise', 'HQ wise', 'hq', 'entity.hq', 'HQ'], des: ['rep.cal.desWise', 'Designation wise', 'designation', 'entity.designation', 'Designation'], emp: ['rep.cal.empWise', 'Employee wise', 'name', 'entity.employee', 'Employee'] };
   const gOf = (e) => { const f = GROUPS[VIEW][2]; return (e[f] == null || e[f] === '') ? '-' : String(e[f]); };
@@ -146,14 +146,18 @@
   function rpCascade() {
     const v = (id) => document.getElementById(id).value, sel = v('f_emp');
     const list = FIL.employees.filter(e => (!v('f_state') || String(e.stateId) === v('f_state')) && (!v('f_hq') || String(e.hqId) === v('f_hq')) && (!v('f_des') || String(e.designationId) === v('f_des')));
-    document.getElementById('f_emp').innerHTML = opt(list, T('common.all', 'All'), sel);
+    const keep = list.some(e => String(e.id) === sel) ? sel : (list[0] ? String(list[0].id) : '');
+    document.getElementById('f_emp').innerHTML = list.map(x => `<option value="${esc(x.id)}" ${String(x.id) === keep ? 'selected' : ''}>${esc(x.name)}</option>`).join('');
   }
+  function rpFilterChange() { rpCascade(); document.getElementById('f_emp').value = (document.getElementById('f_emp').options[0] || {}).value || ''; rpSearch(); }
   function query() { const v = (id) => { const x = document.getElementById(id).value; return x === '' ? undefined : x; }; return { month: v('f_month'), stateId: v('f_state'), hqId: v('f_hq'), designationId: v('f_des'), empId: v('f_emp') }; }
   async function rpSearch() {
     try {
-      DATA = await Api.get(EP + '/sheet', { query: query() });
+      const q = query(), qg = Object.assign({}, q, { empId: undefined });
+      GDATA = await Api.get(EP + '/sheet', { query: qg });   // everyone of the State / HQ / Designation filter: KPIs and the summary table
+      DATA = q.empId ? await Api.get(EP + '/sheet', { query: q }) : GDATA;   // the chosen employee: the calendar
       document.getElementById('rpSub').textContent = new Date(DATA.from + 'T00:00:00').toLocaleDateString(loc(), { month: 'long', year: 'numeric' });
-      DET = null; const one = query().empId && DATA.employees.length === 1 ? query().empId : null;
+      DET = null; const one = query().empId && DATA.employees.length ? query().empId : null;
       if (one) { try { DET = (await Api.get(EP + '/calendar-detail', { query: { empId: one, month: query().month } })).days; } catch (e) { DET = null; } }
       kpis(); rpRender(); rpFToggle(true); rpScrollTop();   // loaded: the filter card folds away, the page goes to the top
       Activity.record(REPORT_KEY, REPORT_LABEL, filterState(), summaryText());
@@ -176,15 +180,15 @@
   // ------------------------------------------------------------------ counts
   const tally = (cells) => { const t = { p: 0, hd: 0, a: 0, k: 0, l: 0, o: 0, n: 0 }; cells.forEach(c => { if (!c) return; t.n++; if (c.s === 'P') t.p++; else if (c.s === 'HD') t.hd++; else if (c.s === 'A' && c.lk) t.k++; else if (c.s === 'A') t.a++; else if (c.s === 'L') t.l++; else t.o++; }); return t; };
   function kpis() {
-    const t = DATA.employees.reduce((a, e) => { const s = e.sum; a.p += s.present; a.h += s.half; a.l += s.leave; a.o += s.off; a.a += s.absent; a.c += s.calls; return a; }, { p: 0, h: 0, l: 0, o: 0, a: 0, c: 0 });
+    const t = GDATA.employees.reduce((a, e) => { const s = e.sum; a.p += s.present; a.h += s.half; a.l += s.leave; a.o += s.off; a.a += s.absent; a.c += s.calls; return a; }, { p: 0, h: 0, l: 0, o: 0, a: 0, c: 0 });
     const k = (l, v, c) => `<div class="rp-kpi ${c || ''}"><small>${l}</small><b>${v}</b></div>`;
-    document.getElementById('rpKpis').innerHTML = k(T('entity.employees', 'Employees'), DATA.employees.length) + k(T('rep.present', 'Present'), t.p, 'ok') + k(T('rep.att.half', 'Half days'), t.h, 'warn') + k(T('rep.leave', 'Leave'), t.l)
+    document.getElementById('rpKpis').innerHTML = k(T('entity.employees', 'Employees'), GDATA.employees.length) + k(T('rep.present', 'Present'), t.p, 'ok') + k(T('rep.att.half', 'Half days'), t.h, 'warn') + k(T('rep.leave', 'Leave'), t.l)
       + k(T('rep.holidayOff', 'Holiday / off'), t.o, 'mut') + k(T('rep.absent', 'Absent'), t.a, t.a ? 'bad' : '') + k(T('rep.calls', 'Calls'), t.c);
   }
 
   function rpRender() {
     if (!DATA) return;
-    const emps = DATA.employees, single = document.getElementById('f_emp').value && emps.length === 1 ? emps[0] : null;
+    const emps = DATA.employees, single = document.getElementById('f_emp').value && emps.length ? emps[0] : null;
     document.getElementById('rpHint').textContent = single ? single.name + ' (' + single.empCode + ')' : T('rep.cal.clickDay', 'Click a day to see the details');
     document.querySelector('.cal-wrap')?.classList.toggle('single', !!single); monthTotals(single); renderCalendar(single); renderGroup(); legend();
   }
@@ -250,7 +254,7 @@
   // ------------------------------------------------------------------ the summary of the month, grouped by State / HQ / Designation / Employee
   function groups() {
     const m = new Map();
-    DATA.employees.forEach(e => {
+    GDATA.employees.forEach(e => {
       const k = gOf(e); let g = m.get(k);
       if (!g) m.set(k, g = { key: k, emps: [], present: 0, half: 0, leave: 0, off: 0, absent: 0, absentFull: 0, calls: 0, workMin: 0 });
       g.emps.push(e); const s = e.sum; g.present += s.present; g.half += s.half; g.leave += s.leave; g.off += s.off; g.absent += s.absent; g.absentFull += s.absentFull; g.calls += s.calls; g.workMin += s.workMin;
@@ -289,7 +293,7 @@
     document.getElementById('dayTitle').innerHTML = `<i class="bi bi-calendar-event"></i> ${esc(title)}`;
     const meta = GROUPS[VIEW];
     const wrap = document.getElementById('dayBody');
-    if (VIEW === 'emp') {
+    if (true) {   // the calendar is of one employee: his day
       const lbl = { P: T('rep.present', 'Present'), HD: T('rep.att.halfDay', 'Half day'), A: T('rep.absent', 'Absent'), L: T('rep.leave', 'Leave'), HL: T('rep.holiday', 'Holiday'), WK: T('rep.weeklyOff', 'Weekly off') };
       const rows = DATA.employees.map(e => ({ e, c: e.cells[j] })).filter(x => x.c);
       wrap.innerHTML = `<table id="dayT" class="table table-striped table-bordered nowrap" style="width:100%"><thead><tr><th>${esc(T('entity.employee', 'Employee'))}</th><th>${esc(T('common.code', 'Code'))}</th><th>${esc(T('entity.hq', 'HQ'))}</th><th>${esc(T('common.status', 'Status'))}</th><th>${esc(T('rep.d.item', 'Type'))}</th><th>${esc(T('rep.dayStart', 'Day start'))}</th><th>${esc(T('rep.dayEnd', 'Day end'))}</th><th class="text-end">${esc(T('rep.calls', 'Calls'))}</th><th>${esc(T('rep.workHours', 'Working hours'))}</th></tr></thead><tbody>
