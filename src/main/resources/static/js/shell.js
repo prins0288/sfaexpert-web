@@ -1075,3 +1075,39 @@
     if (app && currentLayout() !== app.getAttribute("data-layout")) Shell.rebuild();
   });
 })(window);
+
+/* ---------------------------------------------------------------------------
+ * Page links keep the signed-in account slot (/u/N/).
+ * A link written as "dcr/dcr-submit.html" (dashboard tiles, "to approve" links, back links ...) resolves to /dcr/dcr-submit.html, without /u/N/, so
+ * the page opens with no sign-in and fails. The menu builds its URLs with Session.uUrl(); this does the same for every other in-app link: the href
+ * is rewritten when the page is built (so "open in new tab" / copy link are right too) and again for links added later.
+ * ------------------------------------------------------------------------- */
+(function (window) {
+  "use strict";
+  const S = window.Session;
+  if (!S || !S.uUrl) return;
+  function fix(a) {
+    try {
+      const raw = a.getAttribute("href");
+      if (!raw || raw.charAt(0) === "#" || /^(mailto:|tel:|javascript:)/i.test(raw) || a.hasAttribute("download") || a.dataset.noSlot != null) return;
+      const u = new URL(a.href, location.href);
+      if (u.origin !== location.origin || !/\.html$/i.test(u.pathname)) return;
+      const ctx = S.ctx();
+      if (u.pathname.indexOf(ctx + "/") !== 0 && ctx !== "") return;
+      const rest = u.pathname.slice(ctx.length).replace(/^\//, "");
+      if (/^u\/\d+\//.test(rest) || /^(index|login)\.html$/i.test(rest)) return;   // already has its slot / the sign-in page
+      a.setAttribute("href", S.uUrl(S.activeIndex(), rest) + u.search + u.hash);
+    } catch (e) { /* leave the link as it is */ }
+  }
+  function fixAll(root) { (root.querySelectorAll ? root.querySelectorAll("a[href]") : []).forEach(fix); }
+  function start() {
+    fixAll(document);
+    new MutationObserver(muts => muts.forEach(m => {
+      m.addedNodes.forEach(n => { if (n.nodeType === 1) { if (n.tagName === "A") fix(n); else fixAll(n); } });
+      if (m.type === "attributes" && m.target.tagName === "A") fix(m.target);
+    })).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["href"] });
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start); else start();
+  // a link clicked before the observer got to it (or built by script and clicked at once) is fixed at the click
+  document.addEventListener("click", e => { const a = e.target.closest && e.target.closest("a[href]"); if (a) fix(a); }, true);
+})(window);
