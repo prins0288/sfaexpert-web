@@ -23,7 +23,8 @@ public class AttendanceReportService {
     private final JdbcTemplate jdbc;
     private final DcrReportService dcr;
 
-    public AttendanceReportService(JdbcTemplate jdbc, DcrReportService dcr) { this.jdbc = jdbc; this.dcr = dcr; }
+    private final in.opt.sfa.tenant.dcr.submit.service.DcrPermissionService perms;
+    public AttendanceReportService(JdbcTemplate jdbc, DcrReportService dcr, in.opt.sfa.tenant.dcr.submit.service.DcrPermissionService perms) { this.jdbc = jdbc; this.dcr = dcr; this.perms = perms; }
 
     private static String s(Object o) { return o == null ? null : o.toString(); }
     private static LocalDate day(Object o) { return o == null ? null : LocalDate.parse(o.toString().substring(0, 10)); }
@@ -76,6 +77,7 @@ public class AttendanceReportService {
         Map<String, List<Map<String, Object>>> byEmp = new LinkedHashMap<>();
         for (Map<String, Object> r : rows) byEmp.computeIfAbsent(s(r.get("empId")), k -> new ArrayList<>()).add(r);
 
+        Set<String> locked = perms.lockedHelper(byEmp.keySet(), dates);   // no DCR and past date + lock_period (and no back-date permission): Locked
         List<Map<String, Object>> emps = new ArrayList<>(), notSubmitted = new ArrayList<>();
         for (Map.Entry<String, List<Map<String, Object>>> e : byEmp.entrySet()) {
             Map<String, Object> first = e.getValue().get(0), m = meta.getOrDefault(e.getKey(), Map.of());
@@ -102,7 +104,7 @@ public class AttendanceReportService {
                         switch (o.result()) { case PRESENT -> present++; case HALF -> half++; default -> absent++; }
                         calls += ((Number) r.get("calls")).doubleValue(); if (r.get("workMin") != null) workMin += ((Number) r.get("workMin")).doubleValue();
                     }
-                } else if ("ABSENT".equals(kind)) { c.put("s", "A"); absent++; }
+                } else if ("ABSENT".equals(kind)) { c.put("s", "A"); if (locked.contains(e.getKey() + "|" + date)) c.put("lk", true); absent++; }
                 else if ("HOLIDAY".equals(kind)) { c.put("s", "HL"); c.put("why", s(r.get("note"))); off++; }
                 else if ("WEEKLY_OFF".equals(kind)) { c.put("s", "WK"); off++; }
                 else continue;   // NOT_STARTED (today): blank

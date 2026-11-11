@@ -49,8 +49,10 @@ public class DcrService {
     private final DcrRuleService rules;
     private final in.opt.sfa.tenant.tp.service.TourPlanLookup tourPlans;
     private final CompanySettingStore settings;
+    private final DcrPermissionService perms;
 
-    public DcrService(JdbcTemplate jdbc, TeamScope scope, DcrWorktypeService worktypes, DcrRuleService rules, in.opt.sfa.tenant.tp.service.TourPlanLookup tourPlans, CompanySettingStore settings, in.opt.sfa.tenant.hr.leave.LeaveService leaves, in.opt.sfa.tenant.tp.service.HolidayService holidays, in.opt.sfa.tenant.dcr.geo.GeoService geo) {
+    public DcrService(JdbcTemplate jdbc, TeamScope scope, DcrWorktypeService worktypes, DcrRuleService rules, in.opt.sfa.tenant.tp.service.TourPlanLookup tourPlans, CompanySettingStore settings, in.opt.sfa.tenant.hr.leave.LeaveService leaves, in.opt.sfa.tenant.tp.service.HolidayService holidays, in.opt.sfa.tenant.dcr.geo.GeoService geo, DcrPermissionService perms) {
+        this.perms = perms;
         this.leaves = leaves; this.holidays = holidays; this.geo = geo;
         this.rules = rules;
         this.tourPlans = tourPlans;
@@ -80,7 +82,7 @@ public class DcrService {
         m.put("leaveTypes", leaves.balances(me, LocalDate.now()));
         m.put("rules", rules.of(me));
         m.put("isAdmin", TeamScope.isAdmin());
-        m.put("backDays", backDays());
+        m.put("backDays", perms.lockDays(me));
         m.put("tabs", worktypes.tabsFor(me));
         m.put("clients", myClients(me));
         m.put("areas", areasFor(me));
@@ -295,7 +297,7 @@ public class DcrService {
         d.setEmpName(name(owner));
         Map<String, Object> des = jdbc.queryForList("SELECT designation FROM designation_master WHERE id = ?", p.get("designation_id")).stream().findFirst().orElse(Map.of());
         d.setDesignation((String) des.get("designation"));
-        d.setCanEdit(owner.equals(me()) && (st == DRAFT || st == REJECTED));   // after Final Submit nothing can change (a rejected DCR opens again)
+        d.setCanEdit(owner.equals(me()) && (st == DRAFT || st == REJECTED || (st == SUBMITTED && p.get("dcr_date") != null && perms.canEdit(owner, ((java.sql.Date) p.get("dcr_date")).toLocalDate()))));   // after Final Submit nothing can change (a rejected DCR opens again)
         d.setCanApprove(st == SUBMITTED && canApprove(owner));
 
         Map<Long, List<DcrDto.Item>> items = new HashMap<>();   // key: kind*1e12 + ref
@@ -394,7 +396,7 @@ public class DcrService {
         LocalDate today = LocalDate.now();
         if (date == null) date = today;
         if (date.isAfter(today)) throw new IllegalStateException("A day cannot be started in the future");
-        if (date.isBefore(today.minusDays(backDays()))) throw new IllegalStateException("A DCR can be filled only up to " + backDays() + " days back");
+        perms.checkFill(me, date);
         String workType = f.getWorkType() == null ? "" : f.getWorkType().toUpperCase();
         if (!worktypes.isDayType(me, workType)) throw new IllegalStateException("Please choose a valid work type");
         jdbc.update("DELETE FROM dcr_parent_summary WHERE emp_id = ? AND dcr_date = ? AND work_type IN ('HOLIDAY', 'WEEKLY_OFF')", me, date);   // working on a holiday / weekly off: the automatic row makes way
@@ -471,7 +473,6 @@ public class DcrService {
         if (date == null) throw new IllegalStateException("DCR date is required");
         LocalDate today = LocalDate.now();
         if (date.isAfter(today)) throw new IllegalStateException("A DCR cannot be filled for a future date");
-        if (date.isBefore(today.minusDays(backDays()))) throw new IllegalStateException("A DCR can be filled only up to " + backDays() + " days back");
         String workType = f.getWorkType() == null ? "" : f.getWorkType().toUpperCase();
         if (!worktypes.isDayType(me, workType)) throw new IllegalStateException("Please choose a valid work type");
 
@@ -479,7 +480,9 @@ public class DcrService {
         if (existing.isEmpty()) throw new IllegalStateException("Start your day first");
         int curStatus = ((Number) existing.get(0).get("status")).intValue();
         if (curStatus == APPROVED) throw new IllegalStateException("This DCR is already approved and cannot be changed");
-        if (curStatus == SUBMITTED) throw new IllegalStateException("This DCR is already submitted - nothing can be added, changed or deleted now");
+        boolean editPerm = curStatus == SUBMITTED && perms.canEdit(me, date);
+        if (curStatus == SUBMITTED && !editPerm) throw new IllegalStateException("This DCR is already submitted - nothing can be added, changed or deleted now. Ask your admin for a DCR edit permission.");
+        if (!editPerm) perms.checkFill(me, date);
         boolean working = worktypes.isFieldWork(me, workType);
         Map<String, Map<String, Object>> tabs = new HashMap<>();
         worktypes.tabsFor(me).forEach(t -> tabs.put((String) t.get("code"), t));
@@ -578,7 +581,7 @@ public class DcrService {
 
         // ---- the parent row (snapshot of designation / immediate manager that day) ----
         Map<String, Object> emp = jdbc.queryForList("SELECT designation, manager_id FROM emp_detail WHERE emp_id = ?", me).get(0);
-        int status = f.isSubmit() ? SUBMITTED : DRAFT;
+        int status = f.isSubmit() || editPerm ? SUBMITTED : DRAFT;   // a DCR opened by an edit permission stays submitted
         // ---- geo fencing: the position of every check-in is kept with its address; a listed client must be within GEO_FENCING_DISTANCE of its tag ----
         boolean geoOn = geo.on(me), geoCols = !jdbc.queryForList("SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'dcr_client_summary' AND column_name = 'checkin_address'").isEmpty();
         Map<Long, Object[]> oldV = new HashMap<>(); Map<String, String> oldU = new HashMap<>();

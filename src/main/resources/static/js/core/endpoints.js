@@ -512,6 +512,7 @@
 
     report: {
       dcr: "/api/report/dcr",
+      dcrPermissions: "/api/dcr/permissions",                        // GET ?type=&empId=&expired= | POST {type, empIds, dcrFrom, dcrTo, allowFrom, allowTo, reason} | POST /delete {ids}
       attendance: "/api/report/attendance",                          // /filters  /sheet?month= | from & to ...  /rules (GET / POST) /rules/delete
     },
 
