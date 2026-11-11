@@ -34,67 +34,72 @@
     })();
   </script>
 <style>
-  .rp-kpis { display: grid; grid-template-columns: repeat(2, 1fr); gap: .6rem; margin-bottom: .75rem; }
-  @media (min-width: 768px) { .rp-kpis { grid-template-columns: repeat(6, 1fr); } }
-  .rp-kpi { background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: 1rem; padding: .65rem .8rem; }
-  .rp-kpi small { color: var(--bs-secondary-color); display: block; font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; }
-  .rp-kpi b { font-size: 1.35rem; line-height: 1.15; }
-  .rp-kpi.bad { background: rgba(220, 53, 69, .06); border-color: rgba(220, 53, 69, .25); } .rp-kpi.bad b { color: #a8505a; }
-  /* soft, easy-on-the-eye colours for days without a DCR */
-  .rp-absent { background: rgba(220, 53, 69, .06) !important; color: #a8505a; }   /* a faint rose, easy on the eyes */
-  .rp-off { background: var(--bs-tertiary-bg) !important; color: var(--bs-secondary-color); }
-  .rp-tag { display: inline-block; font-size: .72rem; font-weight: 700; border-radius: .45rem; padding: .1rem .5rem; }
-  .rp-tag.absent { background: rgba(220, 53, 69, .10); color: #a8505a; } .rp-tag.off { background: var(--bs-secondary-bg); color: var(--bs-secondary-color); }
-  .rp-tag.web { background: var(--bs-info-bg-subtle); color: var(--bs-info-text-emphasis); } .rp-tag.app { background: var(--bs-success-bg-subtle); color: var(--bs-success-text-emphasis); }
-  .rp-card { border: 1px solid var(--bs-border-color); border-radius: 1rem; padding: .7rem .9rem; margin-bottom: .55rem; background: var(--bs-body-bg); }
-  .rp-card.clk { cursor: pointer; } .rp-card.clk:active { background: var(--bs-tertiary-bg); }
-  .rp-card .l2 { font-size: .82rem; color: var(--bs-secondary-color); }
-  .rp-table { width: 100%; font-size: .88rem; } .rp-table th { position: sticky; top: 0; background: var(--bs-tertiary-bg); font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; padding: .5rem .6rem; white-space: nowrap; }
-  .rp-table td { padding: .45rem .6rem; border-top: 1px solid var(--bs-border-color); vertical-align: middle; } .rp-table tr.clk { cursor: pointer; } .rp-table tr.clk:hover td { background: var(--bs-tertiary-bg); }
-  .rp-wrap { max-height: 70vh; overflow: auto; border: 1px solid var(--bs-border-color); border-radius: .5rem; }
-  @media (max-width: 991.98px) { .rp-desk { display: none; } }
-  @media (min-width: 992px) { .rp-mob { display: none; } }
-  .rp-filters .form-label { font-size: .75rem; font-weight: 600; color: var(--bs-secondary-color); margin-bottom: .15rem; }
+  /* enterprise report look: a card, a compact filter strip, KPI strip, tabs, then the standard DataTable (Excel / Column Settings / Filter / entries / search) */
+  .rp-kpis { display: flex; flex-wrap: wrap; gap: .5rem; margin: 0 0 .6rem; }
+  .rp-kpi { background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-left: 3px solid var(--bs-primary); border-radius: .4rem; padding: .35rem .8rem; min-width: 7.5rem; flex: 1 1 7.5rem; }
+  .rp-kpi small { color: var(--bs-secondary-color); display: block; font-size: .68rem; text-transform: uppercase; letter-spacing: .04em; }
+  .rp-kpi b { font-size: 1.1rem; line-height: 1.2; }
+  .rp-kpi.bad { border-left-color: #dc3545; } .rp-kpi.bad b { color: #b02a37; } .rp-kpi.ok { border-left-color: #198754; } .rp-kpi.warn { border-left-color: #fd7e14; } .rp-kpi.mut { border-left-color: #6c757d; }
+  .rp-tag { display: inline-block; font-size: .7rem; font-weight: 600; border-radius: .3rem; padding: .08rem .45rem; white-space: nowrap; }
+  .rp-tag.present { background: var(--bs-success-bg-subtle); color: var(--bs-success-text-emphasis); } .rp-tag.absent { background: var(--bs-danger-bg-subtle); color: var(--bs-danger-text-emphasis); }
+  .rp-tag.leave { background: var(--bs-info-bg-subtle); color: var(--bs-info-text-emphasis); } .rp-tag.off { background: var(--bs-secondary-bg); color: var(--bs-secondary-color); }
+  .rp-tag.warn { background: var(--bs-warning-bg-subtle); color: var(--bs-warning-text-emphasis); }
+  .rp-filters .form-label { font-size: .72rem; font-weight: 600; color: var(--bs-secondary-color); margin-bottom: .1rem; }
+  #rpTableWrap table.dataTable td, #rpTableWrap table.dataTable th { font-size: .82rem; padding: .32rem .55rem; vertical-align: middle; }
+  #rpTableWrap tbody tr.rp-click { cursor: pointer; }
+  #rpTableWrap td.num { text-align: right; font-variant-numeric: tabular-nums; } .rp-zero { color: var(--bs-secondary-color); opacity: .55; } .rp-bad { color: #b02a37; font-weight: 700; }
+  .rp-tabs .nav-link { padding: .3rem .8rem; font-size: .85rem; } .rp-chip { border: 1px solid var(--bs-border-color); background: var(--bs-body-bg); border-radius: 999px; padding: .1rem .7rem; font-size: .78rem; } .rp-chip.on { background: var(--bs-primary); color: #fff; border-color: var(--bs-primary); }
+  .rp-day th { font-size: .7rem; text-transform: uppercase; letter-spacing: .03em; white-space: nowrap; background: var(--bs-tertiary-bg); } .rp-day td { font-size: .82rem; vertical-align: middle; }
+  .rp-day tr.clk { cursor: pointer; } .rp-day tr.clk:hover td { background: var(--bs-tertiary-bg); }
 </style>
 </head>
 <body>
 <div id="app" data-page="dcrreport" data-title="DCR Report"></div>
 <template id="pageContent">
-<div class="ap-app">
-  <div class="ap-top"><div><h1 class="ap-title">DCR Report</h1><div class="text-muted small" id="rpSub"></div></div>
-    <div class="d-flex gap-2 flex-wrap justify-content-end">
-      <button class="ap-btn light sm" data-bs-toggle="modal" data-bs-target="#activityModal"><i class="bi bi-clock-history"></i> Recent</button>
-      <button class="ap-btn go sm" onclick="rpExport()"><i class="bi bi-file-earmark-excel"></i> Excel</button></div></div>
-
-  <div class="ap-card rp-filters">
-    <div class="d-flex align-items-center d-lg-none" id="rpFHead" onclick="rpFToggle()" style="cursor:pointer"><b class="flex-fill"><i class="bi bi-funnel"></i> Filters</b><span class="small text-muted me-2" id="rpFSum"></span><i class="bi bi-chevron-down" id="rpFIcon"></i></div>
-    <div id="rpFBody"><div class="ap-seg mb-2 mt-2 mt-lg-0" id="rpMode"><button class="active" data-m="month" onclick="rpMode('month')">Month</button><button data-m="range" onclick="rpMode('range')">From - To</button></div>
-    <div class="row g-2">
-      <div class="col-12 col-md-4" id="rpMonthWrap"><label class="form-label">Month</label><input type="month" class="form-control" id="f_month"></div>
-      <div class="col-6 col-md-2 d-none rp-rng"><label class="form-label">From</label><input type="date" class="form-control" id="f_from"></div>
-      <div class="col-6 col-md-2 d-none rp-rng"><label class="form-label">To</label><input type="date" class="form-control" id="f_to"></div>
-      <div class="col-6 col-md-2"><label class="form-label">State</label><select class="form-select" id="f_state" onchange="rpCascade()"><option value="">All</option></select></div>
-      <div class="col-6 col-md-2"><label class="form-label">HQ</label><select class="form-select" id="f_hq" onchange="rpCascade()"><option value="">All</option></select></div>
-      <div class="col-6 col-md-2"><label class="form-label">Designation</label><select class="form-select" id="f_des" onchange="rpCascade()"><option value="">All</option></select></div>
-      <div class="col-6 col-md-3"><label class="form-label">Employee</label><select class="form-select" id="f_emp"><option value="">All</option></select></div>
-      <div class="col-6 col-md-2"><label class="form-label">Status</label><select class="form-select" id="f_status"><option value="">All</option><option value="0">Draft</option><option value="1">Submitted</option><option value="2">Approved</option><option value="3">Rejected</option></select></div>
-      <div class="col-6 col-md-2"><label class="form-label">Submitted from</label><select class="form-select" id="f_source"><option value="">Web + App</option><option value="2">Web</option><option value="1">App</option></select></div>
-      <div class="col-12 col-md-3 d-flex align-items-end gap-2"><div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" id="f_absent" checked><label class="form-check-label" for="f_absent">Show absent days</label></div></div>
-      <div class="col-12 col-md-auto d-flex align-items-end gap-2 ms-md-auto"><button class="ap-btn light" onclick="rpReset()">Reset</button><button class="ap-btn" onclick="rpSearch()"><i class="bi bi-search"></i> Show</button></div>
-    </div></div>
+<div class="card mb-2">
+  <div class="card-header d-flex align-items-center flex-wrap gap-2"><span><i class="bi bi-journal-check"></i> DCR Report</span><small class="text-muted" id="rpSub"></small>
+    <div class="card-tools ms-auto d-flex gap-2 flex-wrap">
+      <button class="btn btn-sm sfa-btn-outline" onclick="rpFToggle()"><i class="bi bi-sliders"></i> Filters</button>
+      <button class="btn btn-sm sfa-btn-outline" data-bs-toggle="modal" data-bs-target="#activityModal"><i class="bi bi-clock-history"></i> Recent</button>
+      <button class="btn btn-sm btn-accent" onclick="rpExport()" title="Full report with every column, from the server"><i class="bi bi-file-earmark-excel"></i> Full Excel</button></div></div>
+  <div class="card-body rp-filters" id="rpFBody">
+    <div class="row g-2 align-items-end">
+      <div class="col-auto"><div class="btn-group btn-group-sm" id="rpMode"><button type="button" class="btn btn-primary" data-m="month" onclick="rpMode('month')">Month</button><button type="button" class="btn btn-outline-primary" data-m="range" onclick="rpMode('range')">From - To</button></div></div>
+      <div class="col-6 col-md-2" id="rpMonthWrap"><label class="form-label">Month</label><input type="month" class="form-control form-control-sm" id="f_month"></div>
+      <div class="col-6 col-md-2 d-none rp-rng"><label class="form-label">From</label><input type="date" class="form-control form-control-sm" id="f_from"></div>
+      <div class="col-6 col-md-2 d-none rp-rng"><label class="form-label">To</label><input type="date" class="form-control form-control-sm" id="f_to"></div>
+      <div class="col-6 col-md-2"><label class="form-label">State</label><select class="form-select form-select-sm" id="f_state" onchange="rpCascade()"><option value="">All</option></select></div>
+      <div class="col-6 col-md-2"><label class="form-label">HQ</label><select class="form-select form-select-sm" id="f_hq" onchange="rpCascade()"><option value="">All</option></select></div>
+      <div class="col-6 col-md-2"><label class="form-label">Designation</label><select class="form-select form-select-sm" id="f_des" onchange="rpCascade()"><option value="">All</option></select></div>
+      <div class="col-6 col-md-2"><label class="form-label">Employee</label><select class="form-select form-select-sm" id="f_emp"><option value="">All</option></select></div>
+      <div class="col-6 col-md-2"><label class="form-label">DCR status</label><select class="form-select form-select-sm" id="f_status"><option value="">All</option><option value="0">Draft</option><option value="1">Submitted</option><option value="2">Approved</option><option value="3">Rejected</option></select></div>
+      <div class="col-6 col-md-2"><label class="form-label">Submitted from</label><select class="form-select form-select-sm" id="f_source"><option value="">Web + App</option><option value="2">Web</option><option value="1">App</option></select></div>
+      <div class="col-auto"><div class="form-check form-switch mb-1"><input class="form-check-input" type="checkbox" id="f_absent" checked><label class="form-check-label small" for="f_absent">Show absent days</label></div></div>
+      <div class="col-auto ms-md-auto d-flex gap-2"><button class="btn btn-sm btn-light" onclick="rpReset()">Reset</button><button class="btn btn-sm btn-primary" onclick="rpSearch()"><i class="bi bi-search"></i> Show</button></div>
+    </div>
   </div>
-
-  <div class="rp-kpis" id="rpKpis"></div>
-  <div class="ap-card d-flex gap-2 flex-wrap align-items-center">
-    <div class="ap-chips" id="rpChips"></div>
-    <input class="form-control ms-md-auto" style="max-width:16rem" id="rpQ" placeholder="Search employee / code / HQ…" oninput="rpRender()">
-  </div>
-  <div id="rpBody"></div>
-
-  <div class="modal fade" id="activityModal" tabindex="-1"><div class="modal-dialog modal-dialog-scrollable modal-fullscreen-sm-down"><div class="modal-content">
-    <div class="modal-header sfa-modal"><h5 class="modal-title"><i class="bi bi-clock-history"></i> Recent searches</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-    <div class="modal-body"><div id="activityList"></div></div><div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button></div></div></div></div>
 </div>
+
+<div class="rp-kpis" id="rpKpis"></div>
+
+<div class="card">
+  <div class="card-header d-flex align-items-center flex-wrap gap-2">
+    <ul class="nav nav-pills rp-tabs" id="rpTabs"><li class="nav-item"><button class="nav-link active" data-v="emp" onclick="rpView('emp')"><i class="bi bi-people"></i> Employee summary</button></li><li class="nav-item"><button class="nav-link" data-v="day" onclick="rpView('day')"><i class="bi bi-calendar3"></i> Date wise</button></li></ul>
+    <div class="d-flex gap-1 flex-wrap ms-2 d-none" id="rpChips"></div>
+    <span class="small text-muted ms-auto" id="rpHint"></span>
+  </div>
+  <div class="card-body"><div id="rpTableWrap"></div></div>
+</div>
+
+<!-- employee details: every day of the period -->
+<div class="modal fade" id="empModal" tabindex="-1"><div class="modal-dialog modal-xl modal-dialog-scrollable modal-fullscreen-lg-down"><div class="modal-content">
+  <div class="modal-header sfa-modal"><h5 class="modal-title" id="empModalTitle"></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body" id="empModalBody"></div>
+  <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button></div></div></div></div>
+
+<div class="modal fade" id="activityModal" tabindex="-1"><div class="modal-dialog modal-dialog-scrollable modal-fullscreen-sm-down"><div class="modal-content">
+  <div class="modal-header sfa-modal"><h5 class="modal-title"><i class="bi bi-clock-history"></i> Recent searches</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body"><div id="activityList"></div></div><div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button></div></div></div></div>
 </template>
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -123,8 +128,7 @@
   const hm = (t) => t ? String(t).slice(0, 5) : '';
   const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const fmt = (d) => { const x = new Date(d + 'T00:00:00'); return pad(x.getDate()) + '-' + pad(x.getMonth() + 1) + '-' + x.getFullYear(); };
-  let FIL = null, DATA = null, MODE = 'month', CHIP = 'all', PAGE = 1, ACT = null;
-  const PER = 60;
+  let FIL = null, DATA = null, MODE = 'month', CHIP = 'all', VIEW = 'emp', ACT = null;
 
   window.pageInit = async function () {
     ACT = new bootstrap.Modal('#activityModal');
@@ -148,7 +152,7 @@
   }
   function rpMode(m) {
     MODE = m;
-    document.querySelectorAll('#rpMode button').forEach(b => b.classList.toggle('active', b.dataset.m === m));
+    document.querySelectorAll('#rpMode button').forEach(b => { const on = b.dataset.m === m; b.classList.toggle('btn-primary', on); b.classList.toggle('btn-outline-primary', !on); });
     document.getElementById('rpMonthWrap').classList.toggle('d-none', m !== 'month');
     document.querySelectorAll('.rp-rng').forEach(e => e.classList.toggle('d-none', m !== 'range'));
   }
@@ -160,15 +164,14 @@
   }
   async function rpSearch() {
     try {
-      DATA = await Api.get(EP + '/summary', { query: query() }); PAGE = 1; CHIP = 'all';
+      DATA = await Api.get(EP + '/summary', { query: query() }); CHIP = 'all';
       document.getElementById('rpSub').textContent = fmt(DATA.from) + ' to ' + fmt(DATA.to);
       kpis(); rpRender();
       if (window.innerWidth < 992) rpFToggle(true);   // phone: fold the filters so the result is on screen
-      document.getElementById('rpFSum').textContent = DATA.totals.dcrs + ' DCR · ' + DATA.totals.absent + ' absent';
       Activity.record(REPORT_KEY, REPORT_LABEL, filterState(), summaryText());
     } catch (e) { SFA.toast(e.message, false); }
   }
-  function rpFToggle(close) { const b = document.getElementById('rpFBody'), hide = close === true ? true : !b.classList.contains('d-none'); b.classList.toggle('d-none', hide); document.getElementById('rpFIcon').className = 'bi bi-chevron-' + (hide ? 'down' : 'up'); }
+  function rpFToggle(close) { const b = document.getElementById('rpFBody'), hide = close === true ? true : !b.classList.contains('d-none'); b.classList.toggle('d-none', hide); }
   function rpReset() { ['f_state', 'f_hq', 'f_des', 'f_emp', 'f_status', 'f_source'].forEach(i => document.getElementById(i).value = ''); document.getElementById('f_absent').checked = true; rpCascade(); rpSearch(); }
   function filterState() { const g = (i) => document.getElementById(i).value; return { mode: MODE, month: g('f_month'), from: g('f_from'), to: g('f_to'), state: g('f_state'), hq: g('f_hq'), des: g('f_des'), emp: g('f_emp'), status: g('f_status'), source: g('f_source'), absent: document.getElementById('f_absent').checked }; }
   function summaryText() { const t = DATA.totals; return fmt(DATA.from) + ' to ' + fmt(DATA.to) + ' · ' + t.employees + ' employees · ' + t.dcrs + ' DCR · ' + t.absent + ' absent'; }
@@ -181,35 +184,99 @@
 
   function kpis() {
     const t = DATA.totals, k = (l, v, cls) => `<div class="rp-kpi ${cls || ''}"><small>${l}</small><b>${v}</b></div>`;
-    document.getElementById('rpKpis').innerHTML = k('Employees', t.employees) + k('DCR days', t.dcrs) + k('Absent days', t.absent, t.absent ? 'bad' : '') + k('Calls', t.calls) + k('POB', '₹' + money(t.pob)) + k('Expense', '₹' + money(t.expense))
-      + `<div class="col-12" style="grid-column:1/-1"><span class="rp-tag web">Web ${t.web}</span> <span class="rp-tag app">App ${t.app}</span> <span class="rp-tag off">Draft ${t.draft}</span> <span class="rp-tag off">Submitted ${t.submitted}</span> <span class="rp-tag off">Approved ${t.approved}</span> <span class="rp-tag off">Rejected ${t.rejected}</span> <span class="rp-tag off">Holidays ${t.holidays}</span> <span class="rp-tag off">Weekly off ${t.weeklyOff}</span></div>`;
+    const off = DATA.rows.filter(r => r.kind === 'HOLIDAY' || r.kind === 'WEEKLY_OFF' || (r.kind === 'DCR' && (r.workType === 'HOLIDAY' || r.workType === 'WEEKLY_OFF'))).length;
+    const leave = DATA.rows.filter(r => r.kind === 'DCR' && r.workType === 'LEAVE').length;
+    document.getElementById('rpKpis').innerHTML = k('Employees', t.employees) + k('DCR days', t.dcrs, 'ok') + k('Absent days', t.absent, t.absent ? 'bad' : '') + k('Leave days', leave, 'warn') + k('Holiday / off', off, 'mut') + k('Calls', t.calls) + k('POB', '\u20b9' + money(t.pob)) + k('Expense', '\u20b9' + money(t.expense))
+      + k('Web / App', t.web + ' / ' + t.app) + k('Draft / Submitted / Approved', t.draft + ' / ' + t.submitted + ' / ' + t.approved);
   }
-  const CHIPS = [['all', 'All'], ['dcr', 'DCR'], ['absent', 'Absent'], ['off', 'Holiday / off']];
-  function shown() {
-    const q = document.getElementById('rpQ').value.trim().toLowerCase();
-    return DATA.rows.filter(r => (CHIP === 'all' || (CHIP === 'dcr' && r.kind === 'DCR') || (CHIP === 'absent' && r.kind === 'ABSENT') || (CHIP === 'off' && (r.kind === 'HOLIDAY' || r.kind === 'WEEKLY_OFF' || r.kind === 'NOT_STARTED')))
-      && (!q || ((r.empName || '') + ' ' + (r.empCode || '') + ' ' + (r.hq || '') + ' ' + (r.designation || '')).toLowerCase().includes(q)));
+
+  // ---------------------------------------------------------------- the two views
+  const WORKOFF = ['HOLIDAY', 'WEEKLY_OFF'];
+  // what a row of the API means for the report: PRESENT (a DCR with work) / LEAVE / OFF (holiday, weekly off) / ABSENT / PENDING (today, not started)
+  function cls(r) {
+    if (r.kind === 'ABSENT') return 'ABSENT';
+    if (r.kind === 'HOLIDAY' || r.kind === 'WEEKLY_OFF') return 'OFF';
+    if (r.kind === 'NOT_STARTED') return 'PENDING';
+    if (WORKOFF.includes(r.workType)) return 'OFF';
+    return r.workType === 'LEAVE' ? 'LEAVE' : 'PRESENT';
   }
-  function chip(k) { CHIP = k; PAGE = 1; rpRender(); }
+  const tag = (c, r) => ({ PRESENT: '<span class="rp-tag present">Present</span>', ABSENT: '<span class="rp-tag absent">Absent</span>', LEAVE: '<span class="rp-tag leave">Leave</span>',
+    OFF: `<span class="rp-tag off">${r.kind === 'HOLIDAY' || r.workType === 'HOLIDAY' ? 'Holiday' : 'Weekly off'}</span>`, PENDING: '<span class="rp-tag warn">Not started</span>' })[c];
+  const dcrTag = (r) => r.kind === 'DCR' ? `<span class="rp-tag ${r.status === 2 ? 'present' : r.status === 3 ? 'absent' : r.status === 1 ? 'leave' : 'off'}">${esc(r.statusName)}</span>` : '';
+  const num = (v) => Number(v) ? money(v) : '<span class="rp-zero">0</span>';
   const dayOf = (d) => DOW[new Date(d + 'T00:00:00').getDay()];
-  function statusTag(r) { return `<span class="rp-tag ${r.status === 2 ? 'app' : r.status === 3 ? 'absent' : 'off'}">${esc(r.statusName)}</span>`; }
+  const open_ = (r) => Session.pageUrl('report/dcr-day.html?id=' + r.dcrId);
+  const hasDetail = (r) => r.kind === 'DCR' && r.dcrId && cls(r) !== 'OFF';
+
+  function employees() {
+    const m = new Map();
+    DATA.rows.forEach(r => {
+      const k = r.empCode || r.empName; let e = m.get(k);
+      if (!e) m.set(k, e = { code: r.empCode, name: r.empName, designation: r.designation, hq: r.hq, state: r.state, present: 0, absent: 0, leave: 0, off: 0, calls: 0, pob: 0, expense: 0, draft: 0, submitted: 0, last: '', rows: [] });
+      e.rows.push(r); const c = cls(r);
+      if (c === 'ABSENT') e.absent++; else if (c === 'LEAVE') e.leave++; else if (c === 'OFF') e.off++;
+      if (c === 'PRESENT') { e.present++; e.calls += Number(r.calls || 0); e.pob += Number(r.pob || 0); e.expense += Number(r.expense || 0); if (r.status === 0) e.draft++; else e.submitted++; if (r.date > e.last) e.last = r.date; }
+    });
+    return [...m.values()].sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  }
+  let EMPS = [];
+  function rpView(v) {
+    VIEW = v;
+    document.querySelectorAll('#rpTabs .nav-link').forEach(b => b.classList.toggle('active', b.dataset.v === v));
+    document.getElementById('rpChips').classList.toggle('d-none', v !== 'day');
+    rpRender();
+  }
   function rpRender() {
     if (!DATA) return;
-    document.getElementById('rpChips').innerHTML = CHIPS.map(([k, n]) => `<button type="button" class="ap-chip ${CHIP === k ? 'on' : ''}" onclick="chip('${k}')">${n}</button>`).join('');
-    const all = shown(), rows = all.slice(0, PER * PAGE);
-    const more = all.length > rows.length ? `<div class="text-center my-3"><button class="ap-btn light" onclick="PAGE++;rpRender()">Show more (${all.length - rows.length} left)</button></div>` : '';
-    if (!all.length) { document.getElementById('rpBody').innerHTML = '<div class="ap-card ap-empty"><i class="bi bi-inbox fs-1"></i><div>Nothing found for these filters</div></div>'; return; }
-    const link = (r) => r.kind === 'DCR' ? `onclick="location.href='report/dcr-day.html?id=${r.dcrId}'"` : '';
-    const note = (r) => r.kind === 'DCR' ? esc(r.workTypeName) : r.kind === 'ABSENT' ? '<span class="rp-tag absent">Absent</span>' : `<span class="rp-tag off">${esc(r.note)}</span>`;
-    const cls = (r) => r.kind === 'ABSENT' ? 'rp-absent' : r.kind === 'DCR' ? '' : 'rp-off';
-    document.getElementById('rpBody').innerHTML = `
-      <div class="rp-desk"><div class="rp-wrap"><table class="rp-table"><thead><tr><th>Date</th><th>Employee</th><th>Designation</th><th>HQ</th><th>Day</th><th>In - Out</th><th>Start area</th><th class="text-end">Calls</th><th class="text-end">POB</th><th class="text-end">Expense</th><th>Status</th><th>From</th><th></th></tr></thead><tbody>
-        ${rows.map(r => `<tr class="${cls(r)} ${r.kind === 'DCR' ? 'clk' : ''}" ${link(r)}><td class="text-nowrap">${fmt(r.date)} <small class="text-muted">${dayOf(r.date)}</small></td><td><b>${esc(r.empName)}</b> <small class="text-muted">${esc(r.empCode)}</small></td><td>${esc(r.designation)}</td><td>${esc(r.hq)}</td>
-          <td>${note(r)}</td><td class="text-nowrap">${r.kind === 'DCR' ? hm(r.timeIn) + ' - ' + hm(r.timeOut) : ''}</td><td>${r.kind === 'DCR' ? esc(r.startArea) + (r.areaType ? ' <span class="rp-tag off">' + esc(r.areaType) + '</span>' : '') : ''}</td>
-          <td class="text-end">${r.kind === 'DCR' ? r.calls : ''}</td><td class="text-end">${r.kind === 'DCR' ? money(r.pob) : ''}</td><td class="text-end">${r.kind === 'DCR' ? money(r.expense) : ''}</td>
-          <td>${r.kind === 'DCR' ? statusTag(r) : ''}</td><td>${r.kind === 'DCR' ? `<span class="rp-tag ${r.sourceName === 'App' ? 'app' : 'web'}">${r.sourceName}</span>` : ''}</td><td>${r.kind === 'DCR' ? '<i class="bi bi-chevron-right text-muted"></i>' : ''}</td></tr>`).join('')}</tbody></table></div></div>
-      <div class="rp-mob">${rows.map(r => `<div class="rp-card ${cls(r)} ${r.kind === 'DCR' ? 'clk' : ''}" ${link(r)}><div class="d-flex justify-content-between align-items-start gap-2"><div><b>${esc(r.empName)}</b> <small>${esc(r.empCode)}</small><div class="l2">${fmt(r.date)} · ${dayOf(r.date)} · ${esc(r.designation || '')}${r.hq ? ' · ' + esc(r.hq) : ''}</div></div><div class="text-end">${r.kind === 'DCR' ? statusTag(r) + ' <span class="rp-tag ' + (r.sourceName === 'App' ? 'app' : 'web') + '">' + r.sourceName + '</span>' : note(r)}</div></div>
-        ${r.kind === 'DCR' ? `<div class="l2 mt-1">${note(r)} · ${hm(r.timeIn)} - ${hm(r.timeOut)}${r.startArea ? ' · ' + esc(r.startArea) + (r.areaType ? ' (' + esc(r.areaType) + ')' : '') : ''}</div><div class="mt-1 small"><b>${r.calls}</b> calls · POB <b>₹${money(r.pob)}</b> · Expense <b>₹${money(r.expense)}</b></div>` : ''}</div>`).join('')}</div>${more}`;
+    const wrap = document.getElementById('rpTableWrap');
+    if (wrap.querySelector('table') && window.jQuery && $.fn.DataTable.isDataTable('#rpT')) $('#rpT').DataTable().destroy();
+    if (!DATA.rows.length) { wrap.innerHTML = '<div class="text-center text-muted py-5"><i class="bi bi-inbox fs-1"></i><div>Nothing found for these filters</div></div>'; return; }
+    if (VIEW === 'emp') {
+      EMPS = employees();
+      document.getElementById('rpHint').textContent = 'Click an employee to see every day';
+      wrap.innerHTML = `<table id="rpT" data-screen-key="DCR_REPORT_EMP" class="table table-striped table-bordered nowrap" style="width:100%"><thead><tr>
+        <th>S.No</th><th>Code</th><th>Employee</th><th>Designation</th><th>HQ</th><th>State</th><th class="text-end">Present</th><th class="text-end">Absent</th><th class="text-end">Leave</th><th class="text-end">Holiday / off</th>
+        <th class="text-end">Calls</th><th class="text-end">POB</th><th class="text-end">Expense</th><th class="text-end">Submitted</th><th class="text-end">Draft</th><th>Last DCR</th><th class="no-export">Details</th></tr></thead><tbody>
+        ${EMPS.map((e, i) => `<tr class="rp-click" onclick="empOpen(${i})"><td>${i + 1}</td><td>${esc(e.code)}</td><td><b>${esc(e.name)}</b></td><td>${esc(e.designation)}</td><td>${esc(e.hq)}</td><td>${esc(e.state)}</td>
+          <td class="num">${num(e.present)}</td><td class="num ${e.absent ? 'rp-bad' : ''}">${num(e.absent)}</td><td class="num">${num(e.leave)}</td><td class="num">${num(e.off)}</td><td class="num">${num(e.calls)}</td><td class="num">${num(e.pob)}</td><td class="num">${num(e.expense)}</td>
+          <td class="num">${num(e.submitted)}</td><td class="num">${num(e.draft)}</td><td data-order="${esc(e.last)}">${e.last ? fmt(e.last) : ''}</td><td class="no-export text-center"><button class="btn btn-sm btn-outline-primary" title="Every day of ${esc(e.name)}" onclick="event.stopPropagation();empOpen(${i})"><i class="bi bi-eye"></i></button></td></tr>`).join('')}
+        </tbody></table>`;
+      sfaDataTable('#rpT', { order: [[2, 'asc']] });
+    } else {
+      const rows = shownDays();
+      document.getElementById('rpChips').innerHTML = CHIPS.map(([k, n]) => `<button type="button" class="rp-chip ${CHIP === k ? 'on' : ''}" onclick="chip('${k}')">${n}</button>`).join('');
+      document.getElementById('rpHint').textContent = 'Click a DCR row for the complete details';
+      wrap.innerHTML = `<table id="rpT" data-screen-key="DCR_REPORT_DAY" class="table table-striped table-bordered nowrap" style="width:100%"><thead><tr>
+        <th>S.No</th><th>Date</th><th>Day</th><th>Code</th><th>Employee</th><th>Designation</th><th>HQ</th><th>Status</th><th>Work type</th><th>In</th><th>Out</th><th>Start area</th><th>Area type</th>
+        <th class="text-end">Calls</th><th class="text-end">POB</th><th class="text-end">Expense</th><th>DCR status</th><th>Source</th><th class="no-export">Details</th></tr></thead><tbody>
+        ${rows.map((r, i) => { const c = cls(r), d = r.kind === 'DCR';
+          return `<tr class="${hasDetail(r) ? 'rp-click' : ''}" ${hasDetail(r) ? `onclick="location.href='${open_(r)}'"` : ''}><td>${i + 1}</td><td data-order="${esc(r.date)}">${fmt(r.date)}</td><td>${dayOf(r.date)}</td><td>${esc(r.empCode)}</td><td><b>${esc(r.empName)}</b></td><td>${esc(r.designation)}</td><td>${esc(r.hq)}</td>
+          <td>${tag(c, r)}</td><td>${d ? esc(r.workTypeName) : esc(c === 'OFF' || c === 'PENDING' ? '' : r.note)}</td><td>${d ? hm(r.timeIn) : ''}</td><td>${d ? hm(r.timeOut) : ''}</td><td>${d ? esc(r.startArea) : ''}</td><td>${d ? esc(r.areaType) : ''}</td>
+          <td class="num">${c === 'PRESENT' ? num(r.calls) : ''}</td><td class="num">${c === 'PRESENT' ? num(r.pob) : ''}</td><td class="num">${c === 'PRESENT' ? num(r.expense) : ''}</td><td>${dcrTag(r)}</td><td>${d ? esc(r.sourceName) : ''}</td>
+          <td class="no-export text-center">${hasDetail(r) ? `<a class="btn btn-sm btn-outline-primary" title="Complete details" href="${open_(r)}" onclick="event.stopPropagation()"><i class="bi bi-box-arrow-up-right"></i></a>` : ''}</td></tr>`; }).join('')}
+        </tbody></table>`;
+      sfaDataTable('#rpT', { order: [[1, 'desc'], [4, 'asc']] });
+    }
+  }
+  const CHIPS = [['all', 'All'], ['PRESENT', 'Present'], ['ABSENT', 'Absent'], ['LEAVE', 'Leave'], ['OFF', 'Holiday / off']];
+  function shownDays() { return DATA.rows.filter(r => CHIP === 'all' || cls(r) === CHIP); }
+  function chip(k) { CHIP = k; rpRender(); }
+
+  // employee -> every day of the period; a DCR day opens the complete details
+  function empOpen(i) {
+    const e = EMPS[i]; if (!e) return;
+    document.getElementById('empModalTitle').innerHTML = `<i class="bi bi-person-badge"></i> ${esc(e.name)} <small class="text-muted">${esc(e.code)}</small>`;
+    const k = (l, v, c) => `<div class="rp-kpi ${c || ''}"><small>${l}</small><b>${v}</b></div>`;
+    const rows = e.rows.slice().sort((a, b) => a.date < b.date ? -1 : 1);
+    document.getElementById('empModalBody').innerHTML = `<div class="small text-muted mb-2">${[e.designation, e.hq, e.state].filter(Boolean).map(esc).join(' · ')} · ${fmt(DATA.from)} to ${fmt(DATA.to)}</div>
+      <div class="rp-kpis">${k('Present', e.present, 'ok')}${k('Absent', e.absent, e.absent ? 'bad' : '')}${k('Leave', e.leave, 'warn')}${k('Holiday / off', e.off, 'mut')}${k('Calls', e.calls)}${k('POB', '\u20b9' + money(e.pob))}${k('Expense', '\u20b9' + money(e.expense))}</div>
+      <div class="table-responsive"><table class="table table-sm table-bordered rp-day mb-0"><thead><tr><th>Date</th><th>Day</th><th>Status</th><th>Work type</th><th>In - Out</th><th>Start area</th><th class="text-end">Calls</th><th class="text-end">POB</th><th class="text-end">Expense</th><th>DCR status</th><th></th></tr></thead><tbody>
+      ${rows.map(r => { const c = cls(r), d = r.kind === 'DCR';
+        return `<tr class="${hasDetail(r) ? 'clk' : ''}" ${hasDetail(r) ? `onclick="location.href='${open_(r)}'"` : ''}><td class="text-nowrap">${fmt(r.date)}</td><td>${dayOf(r.date)}</td><td>${tag(c, r)}</td><td>${d ? esc(r.workTypeName) : esc(c === 'ABSENT' ? 'No DCR' : (c === 'OFF' ? (r.note || '') : ''))}</td>
+        <td class="text-nowrap">${d && r.timeIn ? hm(r.timeIn) + ' - ' + hm(r.timeOut) : ''}</td><td>${d ? esc(r.startArea) : ''}</td><td class="text-end">${c === 'PRESENT' ? r.calls : ''}</td><td class="text-end">${c === 'PRESENT' ? money(r.pob) : ''}</td><td class="text-end">${c === 'PRESENT' ? money(r.expense) : ''}</td><td>${dcrTag(r)}</td>
+        <td class="text-end">${hasDetail(r) ? '<i class="bi bi-chevron-right text-muted"></i>' : ''}</td></tr>`; }).join('')}
+      </tbody></table></div>`;
+    bootstrap.Modal.getOrCreateInstance('#empModal').show();
   }
 </script>
 </body>

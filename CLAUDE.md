@@ -12,6 +12,15 @@ A link written as `dcr/dcr-submit.html` or `/dashboard.html` loses the slot, the
 * After adding a page or a link, open it through `/u/0/...` in the browser test and click it.
 * New pages: the usual shell (`<template id="pageContent">`, scripts session.js, endpoints.js, http.js, theme.js, settings.js, i18n.js, app.js, uikit.js, shell.js), API paths only from `js/core/endpoints.js`.
 
+## Reports - one standard design (every report is built like this)
+Reference pages: `report/dcr-report.html` (summary + date-wise report) and `master/client-master.html` (the table look). A new or redesigned report MUST have:
+* **Layout:** a `.card` with header (icon + title + period + tools), a compact collapsible filter strip, a one-line KPI strip, then the data card.
+* **Enterprise table:** `<table class="table table-striped table-bordered nowrap" data-screen-key="REPORT_KEY">` turned into a grid with `sfaDataTable('#id', opts)` (js/app.js) - this gives Excel export, Column Settings (company-wide column layout), the per-column Filter row, "Show N entries", search, sorting and paging. Do not hand-roll tables or paging.
+* **Summary first, details on click:** a summary view (e.g. per employee) and a date-wise view; click a row for the complete details (a modal for an employee's days, the detail page for a single day). Row actions are small outline icon buttons in a `no-export` column. Numbers right-aligned, dates with `data-order` so sorting works, status as small coloured tags.
+* **Recent searches (every report):** `js/core/activity.js` - `Activity.record(REPORT_KEY, REPORT_LABEL, filterState(), summaryText())` after every search, a **Recent** button opening a modal that calls `Activity.renderInto('activityList', REPORT_KEY, applyActivity)`, and an `applyActivity(filters)` that restores the filters and searches again.
+* **Filters** follow the login level (self / team / all via `TeamScope`), cascading state > HQ > designation > employee, Reset + Show buttons; a server-side "Full Excel" export where the report has more columns than the screen.
+* Never show `empId`; employee code or name only. Everything checked at phone and desktop width.
+
 ## Database / migrations
 * Numbered idempotent SQL in `src/main/resources/sql/NN_name.sql`, one block per tenant DB (`USE acme_db; ...`), guarded with `information_schema` + prepared statements; safe to re-run. Next number: check the highest existing file.
 * `ddl-auto: validate`: every entity column needs a migration. New code mostly uses `JdbcTemplate`.
