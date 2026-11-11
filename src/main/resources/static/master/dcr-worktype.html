@@ -129,7 +129,7 @@
     document.querySelector('#wtTable tbody').innerHTML = ROWS.map(r => `<tr>
       <td><b>${esc(r.displayName)}</b></td><td><code>${esc(r.worktypeCode)}</code></td><td>${esc(TYPE_NAME[r.rowType] || r.rowType)}</td><td>${esc(FORM_NAME[r.formOpen] || r.formOpen)}</td>
       <td>${esc(r.clientTypeName)}</td><td>${esc((r.subForms || '').replace(/,/g, ', '))}</td><td>${r.sortOrder}</td>
-      <td>${r.needsApproval === 0 ? '<span class="badge bg-info">Auto</span>' : '<span class="badge bg-secondary">Approval</span>'}</td>
+      <td>${(r.needsApproval === false || r.needsApproval === 0) ? '<span class="badge bg-info">Auto</span>' : '<span class="badge bg-secondary">Approval</span>'}</td>
       <td>${r.enabled ? '<span class="badge badge-active">On</span>' : '<span class="badge badge-inactive">Off</span>'}</td>
       <td class="no-export"><button class="btn btn-sm btn-outline-primary" title="Edit" onclick="wtEdit(${r.id})"><i class="bi bi-pencil"></i></button>
         <button class="btn btn-sm btn-outline-${r.enabled ? 'danger' : 'success'}" title="${r.enabled ? 'Switch off' : 'Switch on'}" onclick="wtToggle(${r.id})"><i class="bi bi-${r.enabled ? 'toggle-on' : 'toggle-off'}"></i></button>
@@ -160,7 +160,7 @@
   function wtEdit(id) { setForm(ROWS.find(r => r.id === id)); document.getElementById('wtTitle').textContent = 'Edit'; MODAL.show(); }
   async function post(r, enabled) {
     await Api.post(EP.worktypes, { empId: scope() || null, worktypeCode: r.worktypeCode, displayName: r.displayName, rowType: r.rowType, formOpen: r.formOpen,
-      clientTypeId: r.clientTypeId, subForms: r.subForms ? r.subForms.split(',') : [], sortOrder: r.sortOrder, icon: r.icon, fieldWork: r.formOpen === 'WORK', needsApproval: r.needsApproval !== 0, enabled });
+      clientTypeId: r.clientTypeId, subForms: r.subForms ? r.subForms.split(',') : [], sortOrder: r.sortOrder, icon: r.icon, fieldWork: r.formOpen === 'WORK', needsApproval: !(r.needsApproval === false || r.needsApproval === 0), enabled });
   }
   async function wtToggle(id) {
     const r = ROWS.find(x => x.id === id);
