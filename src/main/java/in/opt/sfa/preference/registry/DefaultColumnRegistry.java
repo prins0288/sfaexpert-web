@@ -35,6 +35,16 @@ public final class DefaultColumnRegistry {
                 col("timeOut", "report.dcr.timeOut"),
                 col("remarks", "common.remarks"));
 
+        // report/dcr-report.html - the two grids of the redesigned report (summary per employee, and date wise)
+        register("DCR_REPORT_EMP",
+                col("code", null), col("employee", "entity.employee"), col("designation", "entity.designation"), col("hq", null), col("state", null),
+                col("present", null), col("absent", null), col("leave", null), col("off", null), col("calls", null), col("pob", null), col("expense", null),
+                col("submitted", null), col("draft", null), col("last", null));
+        register("DCR_REPORT_DAY",
+                col("date", "common.date"), col("day", null), col("code", null), col("employee", "entity.employee"), col("designation", "entity.designation"), col("hq", null),
+                col("status", "common.status"), col("workType", "report.dcr.workType"), col("in", "report.dcr.timeIn"), col("out", "report.dcr.timeOut"), col("startArea", null), col("areaType", null),
+                col("calls", null), col("pob", null), col("expense", null), col("dcrStatus", null), col("source", null));
+
         register("MENU_AUDIT_REPORT",
                 col("menuItem", "report.menuAudit.menuItem"),
                 col("type", "common.type"),
