@@ -18,8 +18,12 @@ public class AttendanceReportController {
 
     private final AttendanceReportService service;
     private final DcrReportService dcr;
+    private final in.opt.sfa.tenant.dcr.view.service.CalendarDetailService detail;
 
-    public AttendanceReportController(AttendanceReportService service, DcrReportService dcr) { this.service = service; this.dcr = dcr; }
+    public AttendanceReportController(AttendanceReportService service, DcrReportService dcr, in.opt.sfa.tenant.dcr.view.service.CalendarDetailService detail) { this.service = service; this.dcr = dcr; this.detail = detail; }
+
+    @GetMapping("/calendar-detail")
+    public Map<String, Object> calendarDetail(@RequestParam String empId, @RequestParam String month) { YearMonth ym = YearMonth.parse(month.trim()); return detail.month(empId, ym.atDay(1), ym.atEndOfMonth()); }
 
     @GetMapping("/filters") public Map<String, Object> filters() { return dcr.filters(); }
 

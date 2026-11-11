@@ -49,7 +49,8 @@
   .cal .c.me-p { background: #cfeed8; } .cal .c.me-hd { background: #fff0c9; } .cal .c.me-a { background: #ffdde1; } .cal .c.me-l { background: #e3ebfb; } .cal .c.me-o { background: #eceff2; }
   #calGroup table.dataTable td, #calGroup table.dataTable th, #dayBody table.dataTable td, #dayBody table.dataTable th { font-size: .8rem; padding: .3rem .5rem; vertical-align: middle; }
   td.num { text-align: right; font-variant-numeric: tabular-nums; } .rp-zero { color: var(--bs-secondary-color); opacity: .55; } .rp-bad { color: #b02a37; font-weight: 700; } tr.rp-click { cursor: pointer; }
-  @media (max-width: 767.98px) { .cal .c { min-height: 4.2rem; padding: .2rem; } .cal .chip { padding: 0 .2rem; } }
+  .cal-wrap.single .cal .c { min-height: 9rem; font-size: .7rem; line-height: 1.35; } .cal-wrap.single .cal .c > div { overflow-wrap: anywhere; }
+  @media (max-width: 767.98px) { .cal-wrap.single .cal { grid-template-columns: 1fr; } .cal-wrap.single .cal .h, .cal-wrap.single .cal .c.out, .cal-wrap.single .cal .c.blank { display: none; } .cal-wrap.single .cal .c { min-height: 0; } .cal .c { min-height: 4.2rem; padding: .2rem; } .cal .chip { padding: 0 .2rem; } }
 </style>
 </head>
 <body>
@@ -83,7 +84,7 @@
       <li class="nav-item"><button class="nav-link" data-v="emp" onclick="rpView('emp')"><i class="bi bi-person"></i> <span data-i18n="rep.cal.empWise">Employee wise</span></button></li></ul>
     <span class="small text-muted ms-auto" id="rpHint"></span>
   </div>
-  <div class="card-body"><div class="d-flex justify-content-center gap-3 small mb-2"><a href="#" class="text-decoration-none" onclick="monthGo(-1);return false"><i class="bi bi-caret-left-fill"></i> <span data-i18n="rep.cal.prev">Previous Month</span></a><a href="#" class="text-decoration-none" onclick="monthGo(0);return false"><span data-i18n="rep.cal.cur">Current Month</span></a><a href="#" class="text-decoration-none" onclick="monthGo(1);return false"><span data-i18n="rep.cal.next">Next Month</span> <i class="bi bi-caret-right-fill"></i></a></div><div id="calWrap"></div>
+  <div class="card-body"><div class="d-flex justify-content-center gap-3 small mb-2"><a href="#" class="text-decoration-none" onclick="monthGo(-1);return false"><i class="bi bi-caret-left-fill"></i> <span data-i18n="rep.cal.prev">Previous Month</span></a><a href="#" class="text-decoration-none" onclick="monthGo(0);return false"><span data-i18n="rep.cal.cur">Current Month</span></a><a href="#" class="text-decoration-none" onclick="monthGo(1);return false"><span data-i18n="rep.cal.next">Next Month</span> <i class="bi bi-caret-right-fill"></i></a></div><div id="calTotals" class="mb-2"></div><div class="cal-wrap"><div id="calWrap"></div></div>
   <div class="d-flex flex-wrap justify-content-center gap-2 small mt-3" id="calLegend"></div><div class="small text-muted mt-2" id="calNote"></div></div>
 </div>
 <div class="card mb-2"><div class="card-header"><i class="bi bi-table"></i> <span id="grpTitle"></span></div><div class="card-body"><div id="calGroup"></div></div></div>
@@ -123,7 +124,7 @@
   const fmt = (d) => { const x = new Date(d + 'T00:00:00'); return pad(x.getDate()) + '-' + pad(x.getMonth() + 1) + '-' + x.getFullYear(); };
   const hrs = (m) => m ? Math.floor(m / 60) + 'h ' + (Math.round(m) % 60) + 'm' : '';
   const nz = (v) => v ? v : '<span class="rp-zero">0</span>';
-  let FIL = null, DATA = null, VIEW = 'state', ACT = null, LASTLANG = window.I18n ? I18n.lang : 'en', DAYROWS = null, DAYSEL = null;
+  let DET = null, FIL = null, DATA = null, VIEW = 'state', ACT = null, LASTLANG = window.I18n ? I18n.lang : 'en', DAYROWS = null, DAYSEL = null;
   if (window.I18n) I18n.onChange(() => { if (I18n.lang !== LASTLANG) { LASTLANG = I18n.lang; if (DATA) { kpis(); rpRender(); } } });
   const GROUPS = { state: ['rep.cal.stateWise', 'State wise', 'state', 'entity.state', 'State'], hq: ['rep.cal.hqWise', 'HQ wise', 'hq', 'entity.hq', 'HQ'], des: ['rep.cal.desWise', 'Designation wise', 'designation', 'entity.designation', 'Designation'], emp: ['rep.cal.empWise', 'Employee wise', 'name', 'entity.employee', 'Employee'] };
   const gOf = (e) => { const f = GROUPS[VIEW][2]; return (e[f] == null || e[f] === '') ? '-' : String(e[f]); };
@@ -152,6 +153,8 @@
     try {
       DATA = await Api.get(EP + '/sheet', { query: query() });
       document.getElementById('rpSub').textContent = new Date(DATA.from + 'T00:00:00').toLocaleDateString(loc(), { month: 'long', year: 'numeric' });
+      DET = null; const one = query().empId && DATA.employees.length === 1 ? query().empId : null;
+      if (one) { try { DET = (await Api.get(EP + '/calendar-detail', { query: { empId: one, month: query().month } })).days; } catch (e) { DET = null; } }
       kpis(); rpRender(); rpFToggle(true); rpScrollTop();   // loaded: the filter card folds away, the page goes to the top
       Activity.record(REPORT_KEY, REPORT_LABEL, filterState(), summaryText());
     } catch (e) { SFA.toast(e.message, false); }
@@ -183,10 +186,39 @@
     if (!DATA) return;
     const emps = DATA.employees, single = document.getElementById('f_emp').value && emps.length === 1 ? emps[0] : null;
     document.getElementById('rpHint').textContent = single ? single.name + ' (' + single.empCode + ')' : T('rep.cal.clickDay', 'Click a day to see the details');
-    renderCalendar(single); renderGroup(); legend();
+    document.querySelector('.cal-wrap')?.classList.toggle('single', !!single); monthTotals(single); renderCalendar(single); renderGroup(); legend();
   }
 
   // ------------------------------------------------------------------ the month calendar
+  const money = (v) => Number(v || 0).toLocaleString(loc(), { maximumFractionDigits: 2 });
+  const ln = (t) => `<div>${t}</div>`;
+  function detailLines(date) {
+    const d = DET && DET[date]; if (!d) return '';
+    let h = '';
+    const sum = (o) => Object.values(o || {}).reduce((a, b) => a + Number(b), 0);
+    Object.entries(d.listed || {}).forEach(([t, n]) => h += ln(`${esc(t)} ${T('rep.cal.calls', 'Calls').toLowerCase()}: <b>${n}</b>`));
+    Object.entries(d.unlisted || {}).forEach(([t, n]) => h += ln(`${T('rep.cal.unlisted', 'Unlisted')} ${esc(t)}: <b>${n}</b>`));
+    if (d.refused) h += ln(`${T('rep.cal.refused', 'Refused')}: <b>${d.refused}</b>`);
+    if (Number(d.pob)) h += ln(`${T('rep.cal.pob', 'POB')}: <b>${money(d.pob)}</b>`);
+    Object.entries(d.items || {}).forEach(([t, m]) => { h += ln(`${esc(t)}: <b>${m.qty}</b>${Number(m.amount) ? ' · ' + money(m.amount) : ''}`); });
+    if (d.joint && d.joint.length) h += ln(`${T('rep.cal.joint', 'Joint work')}: ${esc(d.joint.join(', '))}`);
+    if (d.areas && d.areas.length) h += ln(`${T('rep.cal.areas', 'Areas')}: ${esc(d.areas.join(', '))}`);
+    if (Number(d.expense)) h += ln(`${T('rep.cal.expense', 'Expense')}: <b>${money(d.expense)}</b>`);
+    return h;
+  }
+  function monthTotals(single) {
+    if (!DET) { document.getElementById('calTotals').innerHTML = ''; return; }
+    const tot = { listed: {}, unlisted: {}, items: {}, pob: 0, refused: 0, expense: 0, days: 0 };
+    Object.values(DET).forEach(d => { tot.days++; tot.pob += Number(d.pob); tot.refused += d.refused; tot.expense += Number(d.expense);
+      Object.entries(d.listed).forEach(([t, n]) => tot.listed[t] = (tot.listed[t] || 0) + n); Object.entries(d.unlisted).forEach(([t, n]) => tot.unlisted[t] = (tot.unlisted[t] || 0) + n);
+      Object.entries(d.items).forEach(([t, m]) => tot.items[t] = (tot.items[t] || 0) + Number(m.qty)); });
+    const k = (l, v, c) => `<div class="rp-kpi ${c || ''}"><small>${l}</small><b>${v}</b></div>`;
+    document.getElementById('calTotals').innerHTML = `<div class="small fw-semibold mb-1">${T('rep.cal.monthTotal', 'Month total')} - ${esc(single.name)} (${esc(single.empCode)})</div><div class="rp-kpis">`
+      + Object.entries(tot.listed).map(([t, n]) => k(esc(t) + ' ' + T('rep.cal.calls', 'Calls').toLowerCase(), n)).join('')
+      + Object.entries(tot.unlisted).map(([t, n]) => k(T('rep.cal.unlisted', 'Unlisted') + ' ' + esc(t), n, 'warn')).join('')
+      + k(T('rep.cal.refused', 'Refused'), tot.refused, 'mut') + k(T('rep.cal.pob', 'POB'), money(tot.pob), 'ok')
+      + Object.entries(tot.items).map(([t, q]) => k(esc(t), q)).join('') + k(T('rep.cal.expense', 'Expense'), money(tot.expense), 'mut') + '</div>';
+  }
   function renderCalendar(single) {
     const first = new Date(DATA.from + 'T00:00:00'), y = first.getFullYear(), m = first.getMonth(), dim = new Date(y, m + 1, 0).getDate();
     const lead = first.getDay();   // Sunday first
@@ -203,7 +235,7 @@
         if (c) {
           const lbl = { P: T('rep.present', 'Present'), HD: T('rep.att.halfDay', 'Half day'), A: c.lk ? T('rep.cal.locked', 'Locked') : T('rep.absent', 'Absent'), L: T('rep.leave', 'Leave'), HL: T('rep.holiday', 'Holiday'), WK: T('rep.weeklyOff', 'Weekly off') }[c.s];
           cls.push(c.s === 'P' ? 'me-p' : c.s === 'HD' ? 'me-hd' : c.s === 'A' && c.lk ? 'me-k' : c.s === 'A' ? 'me-a' : c.s === 'L' ? 'me-l' : 'me-o');
-          body = `<div><b>${esc(lbl)}${c.s === 'A' && c.id ? '*' : ''}</b></div>${c.t ? `<div>${esc(c.t)}${c.c != null ? ' · ' + c.c + ' ' + T('rep.calls', 'Calls').toLowerCase() : ''}</div>` : ''}${c.in ? `<div>${esc(c.in)} - ${esc(c.out)}</div>` : ''}${c.h ? `<div>${esc(c.h)}</div>` : ''}`;
+          body = `<div><b>${esc(lbl)}${c.s === 'A' && c.id ? '*' : ''}</b></div>${c.n || c.t ? `<div>${esc(c.n || c.t)}</div>` : ''}${c.in ? `<div>${esc(c.in)} - ${esc(c.out || '')}${c.h ? ' (' + esc(c.h) + ')' : ''}</div>` : ''}${c.c != null && !DET ? `<div>${c.c} ${T('rep.calls', 'Calls').toLowerCase()}</div>` : ''}${detailLines(date)}`;
         } else cls.push('blank');
       } else if (t.n) {
         const chip = (k, n, c) => n ? `<span class="chip ${c}">${k} ${n}</span>` : '';
