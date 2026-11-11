@@ -649,6 +649,10 @@ public class DcrService {
                 f.getMeterStart(), f.getMeterEnd(), blank(f.getRemarks()), f.getDayEndAreaId(), dayEndAt,
                 blank(f.getDayEndRemarks()), f.getStayAreaId(), blank(f.getStayHotel()), status,
                 f.isSubmit() ? Timestamp.valueOf(LocalDateTime.now()) : null, dcrId);
+        // approval system: a work type that needs no approval (or a company that works without approval) is approved the moment it is submitted
+        if (status == SUBMITTED && !(rules.approvalOn() && worktypes.needsApproval(me, workType))) {
+            jdbc.update("UPDATE dcr_parent_summary SET status = ?, approved_by = 'AUTO', approved_at = NOW(), approval_remarks = 'Auto approved' WHERE dcr_id = ?", APPROVED, dcrId);
+        }
 
         // ---- listed calls ----
         BigDecimal pobTotal = BigDecimal.ZERO;

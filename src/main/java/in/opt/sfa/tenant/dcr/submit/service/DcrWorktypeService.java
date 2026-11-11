@@ -93,9 +93,17 @@ public class DcrWorktypeService {
     @Transactional(transactionManager = "tenantTransactionManager")
     public void copyMasterTo(String empId) {
         jdbc.update("""
-                INSERT IGNORE INTO app_dcr_worktype (emp_id, worktype_code, display_name, row_type, form_open, client_type_id, sub_forms, sort_order, icon, is_enabled, created_by)
-                SELECT ?, worktype_code, display_name, row_type, form_open, client_type_id, sub_forms, sort_order, icon, is_enabled, ?
+                INSERT IGNORE INTO app_dcr_worktype (emp_id, worktype_code, display_name, row_type, form_open, client_type_id, sub_forms, sort_order, icon, is_enabled, needs_approval, created_by)
+                SELECT ?, worktype_code, display_name, row_type, form_open, client_type_id, sub_forms, sort_order, icon, is_enabled, needs_approval, ?
                 FROM app_dcr_worktype WHERE emp_id IS NULL""", empId, TeamScope.me());
+    }
+
+    /** Does a submitted DCR of this work type wait for approval (app_dcr_worktype.needs_approval of the master row: it is a company decision)? Default yes. */
+    public boolean needsApproval(String empId, String code) {
+        try {
+            List<Integer> l = jdbc.query("SELECT needs_approval FROM app_dcr_worktype WHERE worktype_code = ? AND emp_id IS NULL LIMIT 1", (rs, i) -> rs.getInt(1), code);
+            return l.isEmpty() || l.get(0) != 0;
+        } catch (org.springframework.dao.DataAccessException e) { return true; }   // migration 116 not run
     }
 
     // ---- admin: maintain the rows ---------------------------------------------------
@@ -108,7 +116,7 @@ public class DcrWorktypeService {
         List<Map<String, Object>> rows = jdbc.queryForList("""
                 SELECT w.id, w.emp_id AS empId, w.worktype_code AS worktypeCode, w.display_name AS displayName, w.row_type AS rowType,
                        w.form_open AS formOpen, w.client_type_id AS clientTypeId, ct.type_name AS clientTypeName, w.sub_forms AS subForms,
-                       w.sort_order AS sortOrder, w.icon, w.is_enabled AS enabled
+                       w.sort_order AS sortOrder, w.icon, w.is_enabled AS enabled, w.needs_approval AS needsApproval
                 FROM app_dcr_worktype w LEFT JOIN client_type ct ON ct.oid = w.client_type_id
                 WHERE %s ORDER BY w.sort_order, w.id""".formatted(master ? "w.emp_id IS NULL" : "w.emp_id = ?"), master ? new Object[0] : new Object[]{empId});
         Map<String, Object> out = new LinkedHashMap<>();
@@ -152,14 +160,15 @@ public class DcrWorktypeService {
         if (icon != null && !icon.matches("[a-z0-9-]{1,40}")) throw new IllegalStateException("Icon is a bootstrap-icons name, e.g. person-badge");
         int sort = f.get("sortOrder") == null ? 100 : Integer.parseInt(String.valueOf(f.get("sortOrder")));
         int enabled = Boolean.FALSE.equals(f.get("enabled")) || "0".equals(String.valueOf(f.get("enabled"))) ? 0 : 1;
+        int needsAppr = Boolean.FALSE.equals(f.get("needsApproval")) || "0".equals(String.valueOf(f.get("needsApproval"))) ? 0 : 1;
         String me = TeamScope.me();
         jdbc.update("""
-                INSERT INTO app_dcr_worktype (emp_id, worktype_code, display_name, row_type, form_open, client_type_id, sub_forms, sort_order, icon, is_enabled, created_by)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                INSERT INTO app_dcr_worktype (emp_id, worktype_code, display_name, row_type, form_open, client_type_id, sub_forms, sort_order, icon, is_enabled, needs_approval, created_by)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
                 ON DUPLICATE KEY UPDATE display_name = VALUES(display_name), row_type = VALUES(row_type), form_open = VALUES(form_open),
                   client_type_id = VALUES(client_type_id), sub_forms = VALUES(sub_forms), sort_order = VALUES(sort_order), icon = VALUES(icon),
-                  is_enabled = VALUES(is_enabled), updated_by = VALUES(created_by), updated_at = NOW()""",
-                emp, code, name, rowType, form, ctype, subs.toString(), sort, icon, enabled, me);
+                  is_enabled = VALUES(is_enabled), needs_approval = VALUES(needs_approval), updated_by = VALUES(created_by), updated_at = NOW()""",
+                emp, code, name, rowType, form, ctype, subs.toString(), sort, icon, enabled, needsAppr, me);
     }
 
     @Transactional(transactionManager = "tenantTransactionManager")

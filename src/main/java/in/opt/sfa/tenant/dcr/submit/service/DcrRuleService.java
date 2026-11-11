@@ -23,6 +23,12 @@ public class DcrRuleService {
         this.jdbc = jdbc;
     }
 
+    /** The company switch DCR_APPROVAL_REQUIRED (master row; default on). Off = no approval at all. */
+    public boolean approvalOn() {
+        List<String> l = jdbc.query("SELECT config_value FROM app_validations WHERE module_name = 'DCR' AND config_code = 'DCR_APPROVAL_REQUIRED' AND emp_id IS NULL AND is_enabled = 1 AND is_active = 1 LIMIT 1", (rs, i) -> rs.getString(1));
+        return l.isEmpty() || l.get(0) == null || l.get(0).isBlank() || bool(Map.of("K", l.get(0).trim()), "K", true);
+    }
+
     /** The effective rules of one employee: config_code -> value. */
     public Map<String, String> of(String empId) {
         Map<String, String> out = new LinkedHashMap<>();

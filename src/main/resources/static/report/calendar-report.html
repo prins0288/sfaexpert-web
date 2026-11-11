@@ -64,10 +64,10 @@
   <div class="card-body rp-filters" id="rpFBody">
     <div class="row g-2 align-items-end">
       <div class="col-6 col-md-2"><label class="form-label" data-i18n="rep.month">Month</label><input type="month" class="form-control form-control-sm" id="f_month"></div>
-      <div class="col-6 col-md-2"><label class="form-label" data-i18n="entity.state">State</label><select class="form-select form-select-sm" id="f_state" onchange="rpCascade()"><option value="">All</option></select></div>
-      <div class="col-6 col-md-2"><label class="form-label" data-i18n="entity.hq">HQ</label><select class="form-select form-select-sm" id="f_hq" onchange="rpCascade()"><option value="">All</option></select></div>
-      <div class="col-6 col-md-2"><label class="form-label" data-i18n="entity.designation">Designation</label><select class="form-select form-select-sm" id="f_des" onchange="rpCascade()"><option value="">All</option></select></div>
-      <div class="col-6 col-md-2"><label class="form-label" data-i18n="entity.employee">Employee</label><select class="form-select form-select-sm" id="f_emp"><option value="">All</option></select></div>
+      <div class="col-6 col-md-2"><label class="form-label" data-i18n="entity.state">State</label><select class="form-select form-select-sm" id="f_state" onchange="rpFilterChange()"><option value="">All</option></select></div>
+      <div class="col-6 col-md-2"><label class="form-label" data-i18n="entity.hq">HQ</label><select class="form-select form-select-sm" id="f_hq" onchange="rpFilterChange()"><option value="">All</option></select></div>
+      <div class="col-6 col-md-2"><label class="form-label" data-i18n="entity.designation">Designation</label><select class="form-select form-select-sm" id="f_des" onchange="rpFilterChange()"><option value="">All</option></select></div>
+      <div class="col-6 col-md-2"><label class="form-label" data-i18n="entity.employee">Employee</label><select class="form-select form-select-sm" id="f_emp" onchange="rpSearch()"></select></div>
       <div class="col-auto ms-md-auto d-flex gap-2"><button class="btn btn-sm btn-light" onclick="rpReset()" data-i18n="common.reset">Reset</button><button class="btn btn-sm btn-primary" onclick="rpSearch()"><i class="bi bi-search"></i> <span data-i18n="rep.show">Show</span></button></div>
     </div>
   </div>
@@ -139,9 +139,11 @@
   function rpCascade() {
     const v = (id) => document.getElementById(id).value, sel = v('f_emp');
     const list = FIL.employees.filter(e => (!v('f_state') || String(e.stateId) === v('f_state')) && (!v('f_hq') || String(e.hqId) === v('f_hq')) && (!v('f_des') || String(e.designationId) === v('f_des')));
-    document.getElementById('f_emp').innerHTML = opt(list, T('common.all', 'All'), sel);
+    const keep = list.some(e => String(e.id) === sel) ? sel : (list[0] ? String(list[0].id) : '');   // never All: one employee is always chosen
+    document.getElementById('f_emp').innerHTML = list.map(x => `<option value="${esc(x.id)}" ${String(x.id) === keep ? 'selected' : ''}>${esc(x.name)}</option>`).join('');
   }
   function rpFilterChange() { rpCascade(); document.getElementById('f_emp').value = (document.getElementById('f_emp').options[0] || {}).value || ''; rpSearch(); }
+  function rpFilterChange() { rpCascade(); const f = document.getElementById('f_emp'); f.value = (f.options[0] || {}).value || ''; rpSearch(); }
   function query() { const v = (id) => { const x = document.getElementById(id).value; return x === '' ? undefined : x; }; return { month: v('f_month'), stateId: v('f_state'), hqId: v('f_hq'), designationId: v('f_des'), empId: v('f_emp') }; }
   async function rpSearch() {
     try {

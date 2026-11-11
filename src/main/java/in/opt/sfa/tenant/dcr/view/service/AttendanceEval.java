@@ -19,6 +19,8 @@ public final class AttendanceEval {
     public record Rule(Set<String> applyTypes, int minCalls, String callsResult, boolean countUnlisted, BigDecimal minHours, String hoursResult,
                        LocalTime lateStartAfter, String lateResult, LocalTime earlyEndBefore, String earlyResult, boolean needApproved) {
         /** No condition at all: a submitted DCR is a present day. */
+        /** The same rule with the approval requirement set by the approval system (company switch + work type) instead of the rule's own flag. */
+        public Rule withApproval(boolean need) { return new Rule(applyTypes, minCalls, callsResult, countUnlisted, minHours, hoursResult, lateStartAfter, lateResult, earlyEndBefore, earlyResult, need); }
         public static Rule none() { return new Rule(Set.of("WORKING"), 0, "ABSENT", true, BigDecimal.ZERO, "HALF", null, "HALF", null, "HALF", false); }
     }
 
