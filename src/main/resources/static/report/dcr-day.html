@@ -129,10 +129,11 @@
         <div class="small text-muted mt-1">${d.submittedAt ? T('rep.d.submittedAt', 'Submitted') + ' ' + esc(fmtT(d.submittedAt)) : T('rep.d.notSubmitted', 'Not submitted')}${d.approvedBy ? '<br>' + T('rep.d.approvedBy', 'Approved by') + ' ' + esc(d.approvedBy) + ' · ' + esc(fmtT(d.approvedAt)) : ''}</div></div></div>
       ${d.approvalRemarks ? `<div class="alert alert-secondary py-2 small mt-2 mb-0">${T('rep.d.approver', 'Approver')}: ${esc(d.approvalRemarks)}</div>` : ''}`;
     const start = d.startLat != null ? `<a class="no-print" target="_blank" rel="noopener" href="${mapUrl(d.startLat, d.startLng)}"><i class="bi bi-geo-alt"></i> ${esc(d.startAddress || (Number(d.startLat).toFixed(5) + ', ' + Number(d.startLng).toFixed(5)))}</a>` : '';
-    let h = `<div class="rp-kpis">${k(T('rep.calls', 'Calls'), calls + ' <small class="text-muted fs-6">(' + (d.listedCalls || 0) + ' ' + T('rep.d.listed', 'listed') + ', ' + (d.unlistedCalls || 0) + ' ' + T('rep.d.unlisted', 'unlisted') + ')</small>')}${k(T('rep.pob', 'POB'), '₹' + money(d.pob))}${k(T('rep.expense', 'Expense'), '₹' + money(d.expense))}${k(T('rep.d.duration', 'Duration'), mins(hm(d.timeIn), hm(d.timeOut)) || '-')}</div>
+    let h = `<div class="rp-kpis">${k(T('rep.calls', 'Calls'), calls + ' <small class="text-muted fs-6">(' + (d.listedCalls || 0) + ' ' + T('rep.d.listed', 'listed') + ', ' + (d.unlistedCalls || 0) + ' ' + T('rep.d.unlisted', 'unlisted') + ')</small>')}${k(T('rep.pob', 'POB'), '₹' + money(d.pob))}${k(T('rep.expense', 'Expense'), '₹' + money(d.expense))}${k(T('rep.workHours', 'Working hours'), d.workHours || '-')}${k(T('rep.callHours', 'Call hours'), d.callHours || '-')}</div>
       <div class="card mb-2"><div class="card-header"><i class="bi bi-sun"></i> ${T('rep.d.section', 'Day details')}</div><div class="card-body">
-        ${kv([T('report.dcr.workType', 'Work type'), esc(d.workType)], [T('report.dcr.timeIn', 'Time in'), esc(hm(d.timeIn))],
-             [T('report.dcr.timeOut', 'Time out'), esc(hm(d.timeOut))], [T('rep.d.dayStart', 'Day start location'), start],
+        ${kv([T('report.dcr.workType', 'Work type'), esc(d.workType)], [T('rep.dayStart', 'Day start'), esc(d.dayStart)],
+             [T('rep.dayEnd', 'Day end'), esc(d.dayEnd)], [T('rep.d.dayStart', 'Day start location'), start],
+             [T('rep.firstCall', 'First call'), esc(d.firstCall)], [T('rep.lastCall', 'Last call'), esc(d.lastCall)],
              [T('rep.startArea', 'Start area'), esc(d.startArea)], [T('rep.areaType', 'Area type'), esc(d.areaType)],
              [T('rep.d.workingArea', 'Working area'), esc(d.workingArea)], [T('rep.d.travelMode', 'Travel mode'), esc(d.travelMode)],
              [T('rep.d.meterStart', 'Meter start'), esc(d.meterStart)], [T('rep.d.meterEnd', 'Meter end'), esc(d.meterEnd)],

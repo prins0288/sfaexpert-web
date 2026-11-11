@@ -80,6 +80,31 @@ public class DcrReportService {
         return m;
     }
 
+    // ---- day timings: day start / day end, first / last call, working hours (day start -> day end), call hours (first call -> last call) ----
+    private static String hhmm(Object t) { String x = t == null ? "" : String.valueOf(t); return x.length() >= 5 && !"null".equals(x) ? x.substring(0, 5) : ""; }
+
+    private static Integer minutes(String a, String b) {
+        if (a == null || a.isBlank() || b == null || b.isBlank()) return null;
+        int m = (Integer.parseInt(b.substring(0, 2)) * 60 + Integer.parseInt(b.substring(3, 5))) - (Integer.parseInt(a.substring(0, 2)) * 60 + Integer.parseInt(a.substring(3, 5)));
+        return m > 0 ? m : null;
+    }
+
+    private static String hm(Integer m) { return m == null ? "" : (m / 60) + "h " + (m % 60) + "m"; }
+
+    /** Puts dayStart, dayEnd, firstCall, lastCall, workMin / workHours, callMin / callHours on a DCR row. The day ends at the time the day was submitted (day end time), else its time out. */
+    @SuppressWarnings("unchecked")
+    static void timings(Map<String, Object> r) {
+        String start = hhmm(r.get("timeIn")), end = r.get("dayEndAt") != null && String.valueOf(r.get("dayEndAt")).length() >= 16 ? String.valueOf(r.get("dayEndAt")).replace('T', ' ').substring(11, 16) : hhmm(r.get("timeOut"));
+        if (end.isEmpty()) end = hhmm(r.get("timeOut"));
+        boolean calls = r.get("calls") != null && ((Number) r.get("calls")).intValue() > 0;
+        String first = calls ? hhmm(r.get("firstCallRaw")) : "", last = calls ? hhmm(r.get("lastCallRaw")) : "";
+        if ("23:59".equals(first) && !calls) first = ""; if ("00:00".equals(last) && !calls) last = "";
+        Integer work = minutes(start, end), call = minutes(first, last);
+        r.put("dayStart", start); r.put("dayEnd", end); r.put("firstCall", first); r.put("lastCall", last);
+        r.put("workMin", work); r.put("workHours", hm(work)); r.put("callMin", call); r.put("callHours", hm(call));
+        r.remove("firstCallRaw"); r.remove("lastCallRaw");
+    }
+
     @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
     public Map<String, Object> summary(Filter in) {
         Filter f = checked(in);
@@ -93,7 +118,10 @@ public class DcrReportService {
         if (f.source() != null) { w.append(" AND p.submitted_through = ?"); a.add(f.source()); }
         List<Map<String, Object>> dcrs = jdbc.queryForList("""
                 SELECT p.dcr_id AS dcrId, p.dcr_date AS date, p.emp_id AS empId, e.emp_code AS empCode, e.emp_name AS empName, dg.designation, h.hq_name AS hq, st.state_name AS state,
-                       p.work_type AS workType, p.time_in AS timeIn, p.time_out AS timeOut, sa.area_name AS startArea, COALESCE(p.start_area_type, sa.area_type) AS areaType, p.travel_mode AS travelMode,
+                       p.work_type AS workType, p.time_in AS timeIn, p.time_out AS timeOut, p.day_end_at AS dayEndAt,
+                       LEAST(COALESCE((SELECT MIN(c.in_time) FROM dcr_client_summary c WHERE c.dcr_id = p.dcr_id AND c.in_time IS NOT NULL), '23:59:59'), COALESCE((SELECT MIN(u.in_time) FROM dcr_unlisted_client_summary u WHERE u.dcr_id = p.dcr_id AND u.in_time IS NOT NULL), '23:59:59')) AS firstCallRaw,
+                       GREATEST(COALESCE((SELECT MAX(COALESCE(c.out_time, c.in_time)) FROM dcr_client_summary c WHERE c.dcr_id = p.dcr_id AND c.in_time IS NOT NULL), '00:00:00'), COALESCE((SELECT MAX(COALESCE(u.out_time, u.in_time)) FROM dcr_unlisted_client_summary u WHERE u.dcr_id = p.dcr_id AND u.in_time IS NOT NULL), '00:00:00')) AS lastCallRaw,
+                       sa.area_name AS startArea, COALESCE(p.start_area_type, sa.area_type) AS areaType, p.travel_mode AS travelMode,
                        p.listed_calls AS listedCalls, p.unlisted_calls AS unlistedCalls, p.pob_total AS pob, p.expense_total AS expense, p.status, p.submitted_at AS submittedAt,
                        p.submitted_through AS source, ap.emp_name AS approvedBy, p.approved_at AS approvedAt, p.remarks
                 FROM dcr_parent_summary p JOIN emp_detail e ON e.emp_id = p.emp_id
@@ -109,6 +137,7 @@ public class DcrReportService {
             r.put("statusName", STATUS[Math.max(0, Math.min(3, st))]);
             r.put("sourceName", ((Number) r.get("source")).intValue() == 1 ? "App" : "Web");
             r.put("calls", ((Number) r.get("listedCalls")).intValue() + ((Number) r.get("unlistedCalls")).intValue());
+            timings(r);
             have.add(r.get("empId") + "|" + String.valueOf(r.get("date")).substring(0, 10));
             r.put("date", String.valueOf(r.get("date")).substring(0, 10));
             rows.add(r);
@@ -246,6 +275,14 @@ public class DcrReportService {
         calls.sort(Comparator.comparing(c -> String.valueOf(c.get("inTime"))));
         for (Map<String, Object> c : calls) { c.put("inTime", s(c.get("inTime"))); c.put("outTime", s(c.get("outTime"))); c.put("refused", flag(c.get("refused"))); c.put("nextVisit", s(c.get("nextVisit"))); }
         out.put("calls", calls);
+        {   // timings of the day from its calls
+            Map<String, Object> t = new LinkedHashMap<>();
+            t.put("timeIn", p.get("time_in")); t.put("timeOut", p.get("time_out")); t.put("dayEndAt", p.get("day_end_at")); t.put("calls", calls.size());
+            String f = null, l = null;
+            for (Map<String, Object> c : calls) { String i1 = hhmm(c.get("inTime")), o1 = hhmm(c.get("outTime")); if (o1.isEmpty()) o1 = i1; if (!i1.isEmpty() && (f == null || i1.compareTo(f) < 0)) f = i1; if (!o1.isEmpty() && (l == null || o1.compareTo(l) > 0)) l = o1; }
+            t.put("firstCallRaw", f); t.put("lastCallRaw", l); timings(t);
+            for (String k2 : List.of("dayStart", "dayEnd", "firstCall", "lastCall", "workHours", "callHours")) d.put(k2, t.get(k2));
+        }
         out.put("dayJoint", joint.getOrDefault("0|0", List.of()));
         out.put("expenses", jdbc.queryForList("""
                 SELECT x.id, em.expense_name AS type, x.amount, x.description, fa.area_name AS fromArea, ta.area_name AS toArea, x.start_km AS startKm, x.end_km AS endKm, x.total_km AS totalKm, x.file_name AS fileName,
@@ -290,7 +327,7 @@ public class DcrReportService {
             CellStyle grey = wb.createCellStyle(); grey.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex()); grey.setFillPattern(FillPatternType.SOLID_FOREGROUND);
 
             Sheet s1 = wb.createSheet("DCR Summary");
-            String[] h1 = {"Date", "Employee code", "Employee", "Designation", "HQ", "State", "Day", "Work type", "Time in", "Time out", "Start area", "Area type", "Travel mode", "Listed calls", "Unlisted calls", "Total calls", "POB", "Expense", "Status", "Submitted from", "Submitted at", "Approved by", "Remarks"};
+            String[] h1 = {"Date", "Employee code", "Employee", "Designation", "HQ", "State", "Day", "Work type", "Day start", "Day end", "First call", "Last call", "Working hours", "Call hours", "Start area", "Area type", "Travel mode", "Listed calls", "Unlisted calls", "Total calls", "POB", "Expense", "Status", "Submitted from", "Submitted at", "Approved by", "Remarks"};
             headerRow(s1, h1, head);
             int r = 1;
             for (Map<String, Object> x : rows) {
@@ -299,7 +336,7 @@ public class DcrReportService {
                 CellStyle sty = "ABSENT".equals(kind) ? rose : ("HOLIDAY".equals(kind) || "WEEKLY_OFF".equals(kind) || "NOT_STARTED".equals(kind)) ? grey : null;
                 String[] vals = {s(x.get("date")), s(x.get("empCode")), s(x.get("empName")), s(x.get("designation")), s(x.get("hq")), s(x.get("state")),
                         java.time.LocalDate.parse(s(x.get("date"))).getDayOfWeek().getDisplayName(java.time.format.TextStyle.SHORT, Locale.ENGLISH),
-                        "DCR".equals(kind) ? s(x.get("workTypeName")) : label(kind, x), "DCR".equals(kind) ? s(x.get("timeIn")) : "", "DCR".equals(kind) ? s(x.get("timeOut")) : "",
+                        "DCR".equals(kind) ? s(x.get("workTypeName")) : label(kind, x), "DCR".equals(kind) ? s(x.get("dayStart")) : "", "DCR".equals(kind) ? s(x.get("dayEnd")) : "", "DCR".equals(kind) ? s(x.get("firstCall")) : "", "DCR".equals(kind) ? s(x.get("lastCall")) : "", "DCR".equals(kind) ? s(x.get("workHours")) : "", "DCR".equals(kind) ? s(x.get("callHours")) : "",
                         s(x.get("startArea")), s(x.get("areaType")), s(x.get("travelMode"))};
                 int c = 0;
                 for (String v : vals) cell(row, c++, v, sty);

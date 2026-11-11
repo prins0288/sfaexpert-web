@@ -39,10 +39,10 @@ public final class DefaultColumnRegistry {
         register("DCR_REPORT_EMP",
                 col("code", null), col("employee", "entity.employee"), col("designation", "entity.designation"), col("hq", null), col("state", null),
                 col("present", null), col("absent", null), col("leave", null), col("off", null), col("calls", null), col("pob", null), col("expense", null),
-                col("submitted", null), col("draft", null), col("last", null));
+                col("submitted", null), col("draft", null), col("totalHrs", null), col("avgHrs", null), col("avgStart", null), col("avgEnd", null), hidden("avgFirst", null), hidden("avgLast", null), col("last", null));
         register("DCR_REPORT_DAY",
                 col("date", "common.date"), col("day", null), col("code", null), col("employee", "entity.employee"), col("designation", "entity.designation"), col("hq", null),
-                col("status", "common.status"), col("workType", "report.dcr.workType"), col("in", "report.dcr.timeIn"), col("out", "report.dcr.timeOut"), col("startArea", null), col("areaType", null),
+                col("status", "common.status"), col("workType", "report.dcr.workType"), col("dayStart", null), col("dayEnd", null), col("firstCall", null), col("lastCall", null), col("workHrs", null), col("callHrs", null), col("startArea", null), col("areaType", null),
                 col("calls", null), col("pob", null), col("expense", null), col("dcrStatus", null), col("source", null));
 
         register("DCR_DAY_CALLS",
