@@ -64,30 +64,23 @@
   <div class="card-body rp-filters" id="rpFBody">
     <div class="row g-2 align-items-end">
       <div class="col-6 col-md-2"><label class="form-label" data-i18n="rep.month">Month</label><input type="month" class="form-control form-control-sm" id="f_month"></div>
-      <div class="col-6 col-md-2"><label class="form-label" data-i18n="entity.state">State</label><select class="form-select form-select-sm" id="f_state" onchange="rpFilterChange()"><option value="">All</option></select></div>
-      <div class="col-6 col-md-2"><label class="form-label" data-i18n="entity.hq">HQ</label><select class="form-select form-select-sm" id="f_hq" onchange="rpFilterChange()"><option value="">All</option></select></div>
-      <div class="col-6 col-md-2"><label class="form-label" data-i18n="entity.designation">Designation</label><select class="form-select form-select-sm" id="f_des" onchange="rpFilterChange()"><option value="">All</option></select></div>
-      <div class="col-6 col-md-2"><label class="form-label" data-i18n="entity.employee">Employee</label><select class="form-select form-select-sm" id="f_emp" onchange="rpSearch()"></select></div>
+      <div class="col-6 col-md-2"><label class="form-label" data-i18n="entity.state">State</label><select class="form-select form-select-sm" id="f_state" onchange="rpCascade()"><option value="">All</option></select></div>
+      <div class="col-6 col-md-2"><label class="form-label" data-i18n="entity.hq">HQ</label><select class="form-select form-select-sm" id="f_hq" onchange="rpCascade()"><option value="">All</option></select></div>
+      <div class="col-6 col-md-2"><label class="form-label" data-i18n="entity.designation">Designation</label><select class="form-select form-select-sm" id="f_des" onchange="rpCascade()"><option value="">All</option></select></div>
+      <div class="col-6 col-md-2"><label class="form-label" data-i18n="entity.employee">Employee</label><select class="form-select form-select-sm" id="f_emp"><option value="">All</option></select></div>
       <div class="col-auto ms-md-auto d-flex gap-2"><button class="btn btn-sm btn-light" onclick="rpReset()" data-i18n="common.reset">Reset</button><button class="btn btn-sm btn-primary" onclick="rpSearch()"><i class="bi bi-search"></i> <span data-i18n="rep.show">Show</span></button></div>
     </div>
   </div>
 </div>
 
-<div class="rp-kpis" id="rpKpis"></div>
 
 <div class="card mb-2">
   <div class="card-header d-flex align-items-center flex-wrap gap-2">
-    <ul class="nav nav-pills rp-tabs" id="rpTabs">
-      <li class="nav-item"><button class="nav-link active" data-v="state" onclick="rpView('state')"><i class="bi bi-map"></i> <span data-i18n="rep.cal.stateWise">State wise</span></button></li>
-      <li class="nav-item"><button class="nav-link" data-v="hq" onclick="rpView('hq')"><i class="bi bi-geo-alt"></i> <span data-i18n="rep.cal.hqWise">HQ wise</span></button></li>
-      <li class="nav-item"><button class="nav-link" data-v="des" onclick="rpView('des')"><i class="bi bi-person-badge"></i> <span data-i18n="rep.cal.desWise">Designation wise</span></button></li>
-      <li class="nav-item"><button class="nav-link" data-v="emp" onclick="rpView('emp')"><i class="bi bi-person"></i> <span data-i18n="rep.cal.empWise">Employee wise</span></button></li></ul>
     <span class="small text-muted ms-auto" id="rpHint"></span>
   </div>
   <div class="card-body"><div class="d-flex justify-content-center gap-3 small mb-2"><a href="#" class="text-decoration-none" onclick="monthGo(-1);return false"><i class="bi bi-caret-left-fill"></i> <span data-i18n="rep.cal.prev">Previous Month</span></a><a href="#" class="text-decoration-none" onclick="monthGo(0);return false"><span data-i18n="rep.cal.cur">Current Month</span></a><a href="#" class="text-decoration-none" onclick="monthGo(1);return false"><span data-i18n="rep.cal.next">Next Month</span> <i class="bi bi-caret-right-fill"></i></a></div><div id="calTotals" class="mb-2"></div><div class="cal-wrap"><div id="calWrap"></div></div>
   <div class="d-flex flex-wrap justify-content-center gap-2 small mt-3" id="calLegend"></div><div class="small text-muted mt-2" id="calNote"></div></div>
 </div>
-<div class="card mb-2"><div class="card-header"><i class="bi bi-table"></i> <span id="grpTitle"></span></div><div class="card-body"><div id="calGroup"></div></div></div>
 
 <div class="modal fade" id="dayModal" tabindex="-1"><div class="modal-dialog modal-xl modal-dialog-scrollable modal-fullscreen-lg-down"><div class="modal-content">
   <div class="modal-header sfa-modal"><h5 class="modal-title" id="dayTitle"></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
@@ -125,7 +118,7 @@
   const hrs = (m) => m ? Math.floor(m / 60) + 'h ' + (Math.round(m) % 60) + 'm' : '';
   const nz = (v) => v ? v : '<span class="rp-zero">0</span>';
   let GDATA = null, DET = null, FIL = null, DATA = null, VIEW = 'state', ACT = null, LASTLANG = window.I18n ? I18n.lang : 'en', DAYROWS = null, DAYSEL = null;
-  if (window.I18n) I18n.onChange(() => { if (I18n.lang !== LASTLANG) { LASTLANG = I18n.lang; if (DATA) { kpis(); rpRender(); } } });
+  if (window.I18n) I18n.onChange(() => { if (I18n.lang !== LASTLANG) { LASTLANG = I18n.lang; if (DATA) rpRender(); } });
   const GROUPS = { state: ['rep.cal.stateWise', 'State wise', 'state', 'entity.state', 'State'], hq: ['rep.cal.hqWise', 'HQ wise', 'hq', 'entity.hq', 'HQ'], des: ['rep.cal.desWise', 'Designation wise', 'designation', 'entity.designation', 'Designation'], emp: ['rep.cal.empWise', 'Employee wise', 'name', 'entity.employee', 'Employee'] };
   const gOf = (e) => { const f = GROUPS[VIEW][2]; return (e[f] == null || e[f] === '') ? '-' : String(e[f]); };
 
@@ -146,20 +139,20 @@
   function rpCascade() {
     const v = (id) => document.getElementById(id).value, sel = v('f_emp');
     const list = FIL.employees.filter(e => (!v('f_state') || String(e.stateId) === v('f_state')) && (!v('f_hq') || String(e.hqId) === v('f_hq')) && (!v('f_des') || String(e.designationId) === v('f_des')));
-    const keep = list.some(e => String(e.id) === sel) ? sel : (list[0] ? String(list[0].id) : '');
-    document.getElementById('f_emp').innerHTML = list.map(x => `<option value="${esc(x.id)}" ${String(x.id) === keep ? 'selected' : ''}>${esc(x.name)}</option>`).join('');
+    document.getElementById('f_emp').innerHTML = opt(list, T('common.all', 'All'), sel);
   }
   function rpFilterChange() { rpCascade(); document.getElementById('f_emp').value = (document.getElementById('f_emp').options[0] || {}).value || ''; rpSearch(); }
   function query() { const v = (id) => { const x = document.getElementById(id).value; return x === '' ? undefined : x; }; return { month: v('f_month'), stateId: v('f_state'), hqId: v('f_hq'), designationId: v('f_des'), empId: v('f_emp') }; }
   async function rpSearch() {
     try {
-      const q = query(), qg = Object.assign({}, q, { empId: undefined });
-      GDATA = await Api.get(EP + '/sheet', { query: qg });   // everyone of the State / HQ / Designation filter: KPIs and the summary table
-      DATA = q.empId ? await Api.get(EP + '/sheet', { query: q }) : GDATA;   // the chosen employee: the calendar
+      const q = query(); DET = null;
+      if (!q.empId) { DATA = null; document.getElementById('rpSub').textContent = ''; document.getElementById('calTotals').innerHTML = ''; document.getElementById('calLegend').innerHTML = ''; document.getElementById('calNote').textContent = '';
+        document.getElementById('calWrap').innerHTML = `<div class="text-center text-muted py-5"><i class="bi bi-person-circle fs-2 d-block mb-2"></i>${T('rep.cal.pick', 'Choose an employee and press Show to see his calendar')}</div>`; document.getElementById('rpHint').textContent = ''; rpFToggle(false); return; }
+      DATA = await Api.get(EP + '/sheet', { query: q });   // the chosen employee only
       document.getElementById('rpSub').textContent = new Date(DATA.from + 'T00:00:00').toLocaleDateString(loc(), { month: 'long', year: 'numeric' });
-      DET = null; const one = query().empId && DATA.employees.length ? query().empId : null;
+      const one = DATA.employees.length ? query().empId : null;
       if (one) { try { DET = (await Api.get(EP + '/calendar-detail', { query: { empId: one, month: query().month } })).days; } catch (e) { DET = null; } }
-      kpis(); rpRender(); rpFToggle(true); rpScrollTop();   // loaded: the filter card folds away, the page goes to the top
+      rpRender(); rpFToggle(true); rpScrollTop();   // loaded: the filter card folds away, the page goes to the top
       Activity.record(REPORT_KEY, REPORT_LABEL, filterState(), summaryText());
     } catch (e) { SFA.toast(e.message, false); }
   }
@@ -190,7 +183,7 @@
     if (!DATA) return;
     const emps = DATA.employees, single = document.getElementById('f_emp').value && emps.length ? emps[0] : null;
     document.getElementById('rpHint').textContent = single ? single.name + ' (' + single.empCode + ')' : T('rep.cal.clickDay', 'Click a day to see the details');
-    document.querySelector('.cal-wrap')?.classList.toggle('single', !!single); monthTotals(single); renderCalendar(single); renderGroup(); legend();
+    document.querySelector('.cal-wrap')?.classList.toggle('single', !!single); monthTotals(single); renderCalendar(single); legend();
   }
 
   // ------------------------------------------------------------------ the month calendar
