@@ -77,11 +77,11 @@ window.pageInit = async function () {
   document.getElementById('body').innerHTML = `<div class="row g-3"><div class="col-12 col-md-6"><label class="form-label">Title</label><input class="form-control" id="d_title" value="${esc(c.title)}"></div><div class="col-12 col-md-3"><label class="form-label">Accent colour</label><input type="color" class="form-control form-control-color" id="d_accentColor" value="${esc(c.accentColor)}"></div>
    <div class="col-12 col-md-3"><label class="form-label">Signatory label</label><input class="form-control" id="d_signatoryLabel" value="${esc(c.signatoryLabel)}" placeholder="Authorised signatory"></div>
    <div class="col-12"><label class="form-label">Note under the heading</label><input class="form-control" id="d_headerNote" value="${esc(c.headerNote)}"></div><div class="col-12"><label class="form-label">Footer note</label><input class="form-control" id="d_footerNote" value="${esc(c.footerNote)}"></div>
-   ${sw('showLogo', 'Company logo')}${sw('showAddress', 'Company address')}${sw('showAttendance', 'Days paid / loss of pay')}${sw('showStatutoryIds', 'PAN / UAN / PF / ESI numbers')}${sw('showBank', 'Bank account (last 4 digits)')}${sw('showEmployerContrib', 'Employer contributions')}${sw('showNetInWords', 'Net pay in words')}</div>
+   ${sw('showLogo', 'Company logo')}${sw('showAddress', 'Company address')}${sw('showAttendance', 'Days paid / loss of pay')}${sw('showStatutoryIds', 'PAN / UAN / PF / ESI numbers')}${sw('showBank', 'Bank account (last 4 digits)')}${sw('showEmployerContrib', 'Employer contributions')}${sw('showNetInWords', 'Net pay in words')}${sw('showYtd', 'Year-to-date (YTD) column for earnings and deductions')}</div>
    <div class="mt-3 text-end"><button class="ap-btn go" onclick="save()"><i class="bi bi-check2"></i> Save design</button></div>`;
 };
 async function save() {
-  const b = {}; ['title', 'accentColor', 'signatoryLabel', 'headerNote', 'footerNote'].forEach(k => b[k] = val('d_' + k)); ['showLogo', 'showAddress', 'showAttendance', 'showStatutoryIds', 'showBank', 'showEmployerContrib', 'showNetInWords'].forEach(k => b[k] = chk('d_' + k));
+  const b = {}; ['title', 'accentColor', 'signatoryLabel', 'headerNote', 'footerNote'].forEach(k => b[k] = val('d_' + k)); ['showLogo', 'showAddress', 'showAttendance', 'showStatutoryIds', 'showBank', 'showEmployerContrib', 'showNetInWords', 'showYtd'].forEach(k => b[k] = chk('d_' + k));
   try { await Api.post(P.design, b); SFA.toast('Saved - open any payslip to see it'); } catch (e) { SFA.toast(e.message, false); }
 }
 

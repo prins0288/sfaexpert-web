@@ -317,7 +317,7 @@ public class PayrollService {
     // ---- slip design --------------------------------------------------------------------------------------------------
     @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
     public Map<String, Object> slipConfig() {
-        return jdbc.queryForMap("SELECT title, header_note AS headerNote, footer_note AS footerNote, show_logo AS showLogo, show_address AS showAddress, show_employer_contrib AS showEmployerContrib, show_bank AS showBank, show_statutory_ids AS showStatutoryIds, show_attendance AS showAttendance, show_net_in_words AS showNetInWords, accent_color AS accentColor, signatory_label AS signatoryLabel FROM hr_slip_config WHERE company_id = 1");
+        return jdbc.queryForMap("SELECT title, header_note AS headerNote, footer_note AS footerNote, show_logo AS showLogo, show_address AS showAddress, show_employer_contrib AS showEmployerContrib, show_bank AS showBank, show_statutory_ids AS showStatutoryIds, show_attendance AS showAttendance, show_net_in_words AS showNetInWords, show_ytd AS showYtd, accent_color AS accentColor, signatory_label AS signatoryLabel FROM hr_slip_config WHERE company_id = 1");
     }
 
     @Transactional(transactionManager = "tenantTransactionManager")
@@ -328,8 +328,8 @@ public class PayrollService {
         if (!color.matches("#[0-9a-fA-F]{6}")) throw new IllegalArgumentException("Colour must look like #d9441a");
         String title = String.valueOf(f.getOrDefault("title", "Salary Slip")).trim();
         if (title.isEmpty()) throw new IllegalArgumentException("Title is required");
-        jdbc.update("UPDATE hr_slip_config SET title=?, header_note=?, footer_note=?, show_logo=?, show_address=?, show_employer_contrib=?, show_bank=?, show_statutory_ids=?, show_attendance=?, show_net_in_words=?, accent_color=?, signatory_label=?, updated_by=?, updated_at=NOW() WHERE company_id = 1",
-                title, nz(f.get("headerNote")), nz(f.get("footerNote")), b(f.get("showLogo")) ? 1 : 0, b(f.get("showAddress")) ? 1 : 0, b(f.get("showEmployerContrib")) ? 1 : 0, b(f.get("showBank")) ? 1 : 0, b(f.get("showStatutoryIds")) ? 1 : 0, b(f.get("showAttendance")) ? 1 : 0, b(f.get("showNetInWords")) ? 1 : 0, color, nz(f.get("signatoryLabel")), me());
+        jdbc.update("UPDATE hr_slip_config SET title=?, header_note=?, footer_note=?, show_logo=?, show_address=?, show_employer_contrib=?, show_bank=?, show_statutory_ids=?, show_attendance=?, show_net_in_words=?, show_ytd=?, accent_color=?, signatory_label=?, updated_by=?, updated_at=NOW() WHERE company_id = 1",
+                title, nz(f.get("headerNote")), nz(f.get("footerNote")), b(f.get("showLogo")) ? 1 : 0, b(f.get("showAddress")) ? 1 : 0, b(f.get("showEmployerContrib")) ? 1 : 0, b(f.get("showBank")) ? 1 : 0, b(f.get("showStatutoryIds")) ? 1 : 0, b(f.get("showAttendance")) ? 1 : 0, b(f.get("showNetInWords")) ? 1 : 0, b(f.get("showYtd")) ? 1 : 0, color, nz(f.get("signatoryLabel")), me());
         audit.logDiff("SLIP_DESIGN", 1, null, "UPDATE", before, slipConfig(), null);
     }
 
