@@ -301,7 +301,7 @@
           holdConfig: "/api/hr/payroll/holds/config", holds: "/api/hr/payroll/holds", holdRelease: (id) => `/api/hr/payroll/holds/${id}/release`,
           design: "/api/hr/payroll/slip-design",
         },
-        mark: { employees: "/api/hr/mark/employees", submit: "/api/hr/mark" },   // admin marks attendance / leave: POST {mode, from, to, empIds, reason, leaveTypeId, dayPart, shortfallAsLwp}
+        mark: { employees: "/api/hr/mark/employees", workTypes: "/api/hr/mark/worktypes", submit: "/api/hr/mark" },   // admin marks attendance / leave: POST {mode, from, to, empIds, reason, leaveTypeId, dayPart, shortfallAsLwp}
         audit: "/api/hr/audit",                                        // ?entity=&empId=&by=&from=&to=
       },
       marquee: {

@@ -15,6 +15,7 @@ public class AttendanceMarkController {
 
     public AttendanceMarkController(AttendanceMarkService svc) { this.svc = svc; }
 
+    @GetMapping("/worktypes") public List<Map<String, Object>> workTypes() { return svc.workTypes(); }
     @GetMapping("/employees") public List<Map<String, Object>> employees(@RequestParam(required = false) String q) { return svc.employees(q); }
     @PostMapping public Map<String, Object> mark(@RequestBody Map<String, Object> body) { return svc.mark(body); }
 }

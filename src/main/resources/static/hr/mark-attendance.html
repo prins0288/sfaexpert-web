@@ -42,6 +42,7 @@
 <div class="ap-card"><div class="row g-3">
  <div class="col-6"><label class="form-label">From date</label><input type="date" class="form-control" id="m_from" oninput="clampTo()"></div>
  <div class="col-6"><label class="form-label">To date</label><input type="date" class="form-control" id="m_to"></div>
+ <div id="attnBox" class="col-12"><label class="form-label">Work type <span class="text-muted">(from DCR Work Types master)</span></label><select class="form-select" id="m_wt"></select></div>
  <div id="leaveBox" class="col-12 d-none"><div class="row g-3"><div class="col-12 col-md-6"><label class="form-label">Leave type</label><select class="form-select" id="m_type"></select></div>
    <div class="col-6 col-md-3"><label class="form-label">Day</label><select class="form-select" id="m_part"><option value="FULL">Full day</option><option value="FIRST">First half</option><option value="SECOND">Second half</option></select></div>
    <div class="col-12"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="m_lwp" checked><label class="form-check-label" for="m_lwp">If the leave balance is short, the extra days become loss of pay</label></div></div></div></div>
@@ -79,10 +80,11 @@ const today = () => new Date().toISOString().slice(0, 10);
 window.pageInit = async function () {
   ['m_from', 'm_to'].forEach(id => { const e = document.getElementById(id); e.max = today(); e.value = today(); });   // advance dates are blocked
   try { const t = await Api.get(LV.types); document.getElementById('m_type').innerHTML = t.filter(x => x.active).map(x => `<option value="${x.id}">${esc(x.name)}${x.paid ? '' : ' (unpaid)'}</option>`).join(''); } catch (e) { }
+  try { const w = await Api.get(M.workTypes); document.getElementById('m_wt').innerHTML = w.map(x => `<option value="${esc(x.code)}">${esc(x.name)}</option>`).join(''); } catch (e) { }
   await loadEmps('');
 };
 function clampTo() { const f = val('m_from'), t = document.getElementById('m_to'); if (!t.value || t.value < f) t.value = f; t.min = f; }
-function setMode(m) { MODE = m; document.querySelectorAll('#seg button').forEach(b => b.classList.toggle('active', b.dataset.k === m)); document.getElementById('leaveBox').classList.toggle('d-none', m !== 'LEAVE'); document.getElementById('goLbl').textContent = m === 'LEAVE' ? 'Mark leave' : 'Mark attendance'; }
+function setMode(m) { MODE = m; document.querySelectorAll('#seg button').forEach(b => b.classList.toggle('active', b.dataset.k === m)); document.getElementById('leaveBox').classList.toggle('d-none', m !== 'LEAVE'); document.getElementById('attnBox').classList.toggle('d-none', m !== 'ATTENDANCE'); document.getElementById('goLbl').textContent = m === 'LEAVE' ? 'Mark leave' : 'Mark attendance'; }
 async function loadEmps(q) {
   try { EMPS = await Api.get(M.employees, { query: { q } }); } catch (e) { document.getElementById('emps').innerHTML = '<div class="ap-empty">' + esc(e.message) + '</div>'; return; }
   renderEmps();
@@ -100,9 +102,9 @@ async function submitMark() {
   if (to > today() || from > today()) { SFA.toast('Advance dates are blocked - choose up to today', false); return; }
   if (!SEL.size) { SFA.toast('Choose at least one employee', false); return; }
   if (!reason) { SFA.toast('Please give the reason', false); return; }
-  if (!confirm('Mark ' + (MODE === 'LEAVE' ? 'LEAVE' : 'ATTENDANCE') + ' for ' + SEL.size + ' employee(s), ' + from + (to !== from ? ' to ' + to : '') + '?')) return;
+  if (!confirm('Mark ' + (MODE === 'LEAVE' ? 'LEAVE' : document.getElementById('m_wt').selectedOptions[0].text) + ' for ' + SEL.size + ' employee(s), ' + from + (to !== from ? ' to ' + to : '') + '?')) return;
   try {
-    const r = await Api.post(M.submit, { mode: MODE, from, to, empIds: [...SEL], reason, leaveTypeId: MODE === 'LEAVE' ? val('m_type') : null, dayPart: val('m_part'), shortfallAsLwp: document.getElementById('m_lwp').checked });
+    const r = await Api.post(M.submit, { mode: MODE, from, to, empIds: [...SEL], reason, workType: MODE === 'ATTENDANCE' ? val('m_wt') : null, leaveTypeId: MODE === 'LEAVE' ? val('m_type') : null, dayPart: val('m_part'), shortfallAsLwp: document.getElementById('m_lwp').checked });
     document.getElementById('result').innerHTML = `<div class="ap-card"><b>${r.done} done</b>${r.skipped ? ' · <span class="text-danger"><b>' + r.skipped + ' skipped</b></span>' : ''}</div>` + r.rows.map(x => `<div class="ap-card"><div class="d-flex gap-2 align-items-center"><span class="ap-badge ${x.status === 'DONE' ? 'ok' : 'bad'}">${x.status}</span><div class="flex-fill"><b>${esc(x.employee)}</b> <span class="text-muted">${esc(x.date)}</span><div class="small text-muted">${esc(x.message)}</div></div></div></div>`).join('');
     SFA.toast(r.done + ' done' + (r.skipped ? ', ' + r.skipped + ' skipped - see the list' : ''), r.skipped === 0);
     window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });

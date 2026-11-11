@@ -1,6 +1,7 @@
 package in.opt.sfa.tenant.hr.attendance;
 
 import in.opt.sfa.security.UserContext;
+import in.opt.sfa.tenant.dcr.submit.service.DcrWorktypeService;
 import in.opt.sfa.tenant.hr.access.HrAccessService;
 import in.opt.sfa.tenant.hr.common.AuditLogService;
 import in.opt.sfa.tenant.hr.leave.LeaveService;
@@ -25,10 +26,19 @@ public class AttendanceMarkService {
     private final LeaveService leaves;
     private final HolidayService holidays;
 
+    private final DcrWorktypeService worktypes;
     private final TransactionTemplate tx;
 
-    public AttendanceMarkService(JdbcTemplate jdbc, AuditLogService audit, HrAccessService access, LeaveService leaves, HolidayService holidays, @Qualifier("tenantTransactionManager") PlatformTransactionManager tm) {
+    public AttendanceMarkService(JdbcTemplate jdbc, AuditLogService audit, HrAccessService access, LeaveService leaves, HolidayService holidays, DcrWorktypeService worktypes, @Qualifier("tenantTransactionManager") PlatformTransactionManager tm) {
+        this.worktypes = worktypes;
         this.jdbc = jdbc; this.audit = audit; this.access = access; this.leaves = leaves; this.holidays = holidays; this.tx = new TransactionTemplate(tm);
+    }
+
+    /** The attendance work types from app_dcr_worktype (master rows): enabled, not a field day, not Leave - Attendance, Transit, Camp, Training ... */
+    @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
+    public List<Map<String, Object>> workTypes() {
+        access.require("ATTENDANCE_ADMIN");
+        return jdbc.queryForList("SELECT worktype_code AS code, display_name AS name FROM app_dcr_worktype WHERE emp_id IS NULL AND is_enabled = 1 AND row_type IN ('wd', 'attn') AND form_open <> 'WORK' AND worktype_code <> 'LEAVE' ORDER BY sort_order, id");
     }
 
     @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
@@ -53,6 +63,13 @@ public class AttendanceMarkService {
         if (to.isBefore(from)) throw new IllegalArgumentException("'To' date is before the 'From' date");
         if (to.isAfter(LocalDate.now())) throw new IllegalArgumentException("Advance dates are blocked - attendance / leave can be marked only up to today");
         if (java.time.temporal.ChronoUnit.DAYS.between(from, to) > 31) throw new IllegalArgumentException("Choose at most 32 days at a time");
+        String wt = String.valueOf(f.getOrDefault("workType", "ATTENDANCE")).toUpperCase();
+        String wtName = null;
+        if ("ATTENDANCE".equals(mode)) {
+            for (Map<String, Object> w : workTypes()) if (wt.equals(w.get("code"))) wtName = (String) w.get("name");
+            if (wtName == null) throw new IllegalArgumentException("Choose a work type from the list (Work Types & Tabs master)");
+        }
+        final String workType = wt, workTypeName = wtName;
         List<String> emps = ((List<Object>) f.getOrDefault("empIds", List.of())).stream().map(Object::toString).distinct().toList();
         if (emps.isEmpty()) throw new IllegalArgumentException("Choose at least one employee");
         if (emps.size() > 500) throw new IllegalArgumentException("Choose at most 500 employees at a time");
@@ -70,11 +87,12 @@ public class AttendanceMarkService {
                 } else {
                     Set<LocalDate> off = new HashSet<>();
                     holidays.forEmployee(emp, from, to).keySet().forEach(k -> off.add(LocalDate.parse(k)));
+                    if (!worktypes.isDayType(emp, workType)) throw new IllegalStateException(workTypeName + " is not enabled for this employee (DCR Work Types & Tabs)");
                     for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
                         String why = skipReason(emp, e, d, off);
                         if (why != null) { out.add(row(emp, label, d.toString(), "SKIPPED", why)); continue; }
-                        markPresent(emp, e, d, reason);
-                        out.add(row(emp, label, d.toString(), "DONE", "Attendance marked"));
+                        markPresent(emp, e, d, workType, reason);
+                        out.add(row(emp, label, d.toString(), "DONE", workTypeName + " marked"));
                     }
                 }
                 });
@@ -93,13 +111,13 @@ public class AttendanceMarkService {
         return null;
     }
 
-    private void markPresent(String emp, Map<String, Object> e, LocalDate d, String reason) {
+    private void markPresent(String emp, Map<String, Object> e, LocalDate d, String workType, String reason) {
         jdbc.update("DELETE FROM dcr_parent_summary WHERE emp_id = ? AND dcr_date = ? AND work_type IN ('HOLIDAY', 'WEEKLY_OFF')", emp, d);
         String me = UserContext.get() == null ? null : UserContext.get().empId();
         String remarks = "Marked by HR: " + reason;
-        jdbc.update("INSERT INTO dcr_parent_summary (emp_id, dcr_date, work_type, designation_id, manager_id, remarks, status, submitted_at, submitted_through, approved_by, approved_at, approval_remarks) VALUES (?,?, 'ATTENDANCE', ?, ?, ?, 2, NOW(), 2, ?, NOW(), 'Marked by HR')",
-                emp, d, e.get("designation"), e.get("manager_id"), remarks.length() > 190 ? remarks.substring(0, 190) : remarks, me);
-        audit.log("ATTENDANCE", d.toString(), emp, "CREATE", "attendance", null, "PRESENT (marked by HR)", reason);
+        jdbc.update("INSERT INTO dcr_parent_summary (emp_id, dcr_date, work_type, designation_id, manager_id, remarks, status, submitted_at, submitted_through, approved_by, approved_at, approval_remarks) VALUES (?,?,?, ?, ?, ?, 2, NOW(), 2, ?, NOW(), 'Marked by HR')",
+                emp, d, workType, e.get("designation"), e.get("manager_id"), remarks.length() > 190 ? remarks.substring(0, 190) : remarks, me);
+        audit.log("ATTENDANCE", d.toString(), emp, "CREATE", "attendance", null, workType + " (marked by HR)", reason);
     }
 
     private static Map<String, Object> row(String emp, String label, String date, String status, String message) {
