@@ -348,7 +348,7 @@
     const ro = !ST.canEdit;
     headBtns(!(ro || !started() || VIEW !== 'form'));
     document.getElementById('dcrDraftBtn').disabled = ro; document.getElementById('dcrSubmitBtn').disabled = ro;
-    document.getElementById('dcrSubmitBtn').innerHTML = ST.status === 3 ? '<i class="bi bi-send-check"></i> <span class="t">Resubmit</span>' : '<i class="bi bi-send-check"></i> <span class="t">Submit</span>';
+    document.getElementById('dcrSubmitBtn').innerHTML = ST.status === 3 ? '<i class="bi bi-send-check"></i> <span class="t">Resubmit</span>' : (RULE('FINAL_SUBMIT_REQUIRED', true) ? '<i class="bi bi-send-check"></i> <span class="t">Submit</span>' : '<i class="bi bi-moon"></i> <span class="t">End Day</span>');
   }
   const callPob = (c) => { const s = (c.items || []).reduce((a, i) => a + Number(i.pobQty || 0) * Number(i.rate || 0), 0); return s > 0 ? s : Number(c.pobValue || 0); };
 
@@ -515,7 +515,7 @@
     const list = (rows, fn) => rows.length ? rows.map(fn).join('') : '';
     let h = card('Client', 'person-badge', kv('Name', c.clientName) + kv(k === 'v' ? 'Code' : 'Mobile', f.code) + kv('Client type', f.type) + kv('Area', f.area) + kv('Category', f.category) + kv('Speciality', f.speciality)
       + (k === 'u' ? kv('Qualification', c.qualification) + kv('Contact person', c.contactPerson) + kv('Address', c.address) : ''));
-    h += card('Visit', 'geo-alt', kv('Visit type', c.visitType) + kv('Checked in', c.inTime) + kv('Checked out', c.outTime) + (c.refused ? kv('Result', 'Refused to meet') : '') + (c.checkinLat ? kv('Location', 'saved') : ''));
+    h += card('Visit', 'geo-alt', kv('Visit type', c.visitType) + kv('Checked in', c.inTime) + (c.checkinAddress ? kv('Check-in location', c.checkinAddress) : '') + kv('Checked out', c.outTime) + (c.checkoutAddress ? kv('Check-out location', c.checkoutAddress) : '') + (c.refused ? kv('Result', 'Refused to meet') : '') + (c.checkinLat ? kv('Location', 'saved') : ''));
     h += card('Joint Work', 'people', (c.jointWith || []).length ? c.jointWith.map(id => { const j = OPT.joint.find(x => x.id === id);
       return `<div class="py-1 border-bottom"><b>${esc(j ? j.empName : '')}</b> <small class="text-muted">${j ? '(' + esc(j.empCode) + ') · ' + esc(j.designation || '') : ''}</small></div>`; }).join('') : '<span class="text-muted">Self work</span>');
     const det = (c.items || []).filter(x => x.detailed);
@@ -895,6 +895,7 @@
   }
   async function doCheckOut() {
     EDIT.o.outTime = nowHm();
+    const gp = await getPos(); if (gp) { EDIT.o.checkoutLat = gp.lat; EDIT.o.checkoutLng = gp.lng; }   // where the call was ended
     const nm = EDIT.o.clientName;
     if (await persistCall(false)) { sheetClose(); SFA.toast('Checked out of ' + nm + ' at ' + EDIT.o.outTime, true); }
   }
@@ -997,11 +998,12 @@
     return `<div class="card-lite"><div class="row g-3">
       ${field('Day ended at (area)', `<select class="form-select" data-no-search onchange="ST.dayEndAreaId=this.value">${opts(OPT.areas, ST.dayEndAreaId, 'Select area')}</select>`)}
       ${field('Day end time', `<div class="form-control bg-body-tertiary text-muted">${ST.dayEndAt ? esc(ST.dayEndAt.replace('T', ' ')) : 'Captured automatically when you submit'}</div>`)}
+      ${field('Day end location', `<div class="form-control bg-body-tertiary text-muted">${ST.dayEndAddress ? esc(ST.dayEndAddress) : (ST.dayEndLat ? esc(ST.dayEndLat + ', ' + ST.dayEndLng) : 'Captured automatically when the day is ended')}</div>`)}
       ${field('Meter end (km)', inp('meterEnd', 'number', 'inputmode="decimal" step="0.1"'), 'col-6')}
       ${field('Day end remarks', `<input class="form-control" maxlength="200" value="${esc(ST.dayEndRemarks)}" oninput="ST.dayEndRemarks=this.value" />`, 'col-6')}
       ${field('Night stay area', `<select class="form-select" data-no-search onchange="ST.stayAreaId=this.value">${opts(OPT.areas, ST.stayAreaId, 'Not staying')}</select>`, 'col-6')}
       ${field('Hotel', `<input class="form-control" maxlength="100" value="${esc(ST.stayHotel)}" oninput="ST.stayHotel=this.value" />`, 'col-6')}
-    </div></div>`;
+    </div>${RULE('FINAL_SUBMIT_REQUIRED', true) || ST.status === 1 || ST.status === 2 ? '' : '<div class="mt-3"><button class="btn btn-primary w-100" onclick="dcrSave(true)"><i class="bi bi-moon"></i> End Day</button><div class="small text-muted mt-1">Final submit is not required: ending the day submits the DCR.</div></div>'}</div>`;
   }
 
   function paneReview() {
@@ -1024,14 +1026,14 @@
   const s = (v) => (v === '' || v == null ? null : v);
   function callPayload(c) {
     return { worktypeCode: c.worktypeCode, visitType: c.visitType, activityType: s(c.activityType), areaId: n(c.areaId), inTime: s(c.inTime), outTime: s(c.outTime), checkinAt: s(c.checkinAt),
-      checkinLat: c.checkinLat, checkinLng: c.checkinLng, pobValue: n(c.pobValue), remarks: s(c.remarks), refused: !!c.refused, nextVisit: s(c.nextVisit), nextVisitPriority: s(c.nextVisitPriority),
+      checkinLat: c.checkinLat, checkinLng: c.checkinLng, checkoutLat: c.checkoutLat, checkoutLng: c.checkoutLng, pobValue: n(c.pobValue), remarks: s(c.remarks), refused: !!c.refused, nextVisit: s(c.nextVisit), nextVisitPriority: s(c.nextVisitPriority),
       nextVisitRemarks: s(c.nextVisitRemarks), signaturePath: s(c.signaturePath), jointWith: c.jointWith || [], treatments: c.treatments || [],
       items: (c.items || []).map(i => ({ itemId: Number(i.itemId), itemType: i.itemType, qty: n(i.qty) || 0, pobQty: n(i.pobQty) || 0, rate: n(i.rate), detailed: !!i.detailed, remarks: s(i.remarks) })),
       leaflets: (c.leaflets || []).map(l => ({ itemId: Number(l.itemId), qty: n(l.qty) || 0, value: n(l.value) || 0 })) };
   }
   function payload(submit) {
     return { dcrDate: ST.dcrDate, workType: ST.workType, startAreaId: n(ST.startAreaId), workingAreaId: n(ST.workingAreaId), travelMode: s(ST.travelMode),
-      meterStart: n(ST.meterStart), meterEnd: n(ST.meterEnd), remarks: s(ST.remarks), dayEndAreaId: n(ST.dayEndAreaId), dayEndAt: s(ST.dayEndAt), dayEndRemarks: s(ST.dayEndRemarks),
+      meterStart: n(ST.meterStart), meterEnd: n(ST.meterEnd), remarks: s(ST.remarks), dayEndAreaId: n(ST.dayEndAreaId), dayEndAt: s(ST.dayEndAt), dayEndRemarks: s(ST.dayEndRemarks), dayEndLat: ST.dayEndLat, dayEndLng: ST.dayEndLng,
       stayAreaId: n(ST.stayAreaId), stayHotel: s(ST.stayHotel), jointWith: ST.jointWith, submit,
       visits: ST.visits.filter(v => v.inTime).map(v => Object.assign({ clientId: v.clientId }, callPayload(v))),   // only checked-in calls are saved
       unlisted: ST.unlisted.filter(u => u.inTime).map(u => Object.assign({ key: u.key, clientName: u.clientName, clientTypeId: n(u.clientTypeId), specialityId: n(u.specialityId), categoryId: n(u.categoryId),
@@ -1062,7 +1064,8 @@
       const issues = submitIssues();
       if (issues.length) { SFA.toast(issues.slice(0, 4).join(' · ') + (issues.length > 4 ? ' (+' + (issues.length - 4) + ' more)' : ''), false); CUR = 'day'; render(); return false; }
     }
-    if (submit && !confirm('Submit this DCR for approval? Your time out is captured now.')) return false;
+    if (submit && !confirm(RULE('FINAL_SUBMIT_REQUIRED', true) ? 'Submit this DCR for approval? Your time out is captured now.' : 'End your day now? The day end time and your location are captured.')) return false;
+    if (submit) { const gd = await getPos(); if (gd) { ST.dayEndLat = gd.lat; ST.dayEndLng = gd.lng; } }   // where the day was ended
     try {
       const saved = await Api.post(EP.save, payload(submit));
       ST = fromDto(saved); render();

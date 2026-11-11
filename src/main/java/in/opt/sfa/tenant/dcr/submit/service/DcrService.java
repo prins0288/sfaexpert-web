@@ -279,6 +279,7 @@ public class DcrService {
         d.setMeterEnd((BigDecimal) p.get("meter_end"));
         d.setRemarks((String) p.get("remarks"));
         d.setDayEndAreaId(lng(p.get("day_end_area_id")));
+        d.setDayEndLat((BigDecimal) p.get("day_end_lat")); d.setDayEndLng((BigDecimal) p.get("day_end_lng")); d.setDayEndAddress((String) p.get("day_end_address"));
         d.setDayEndAt(p.get("day_end_at") == null ? null : p.get("day_end_at").toString().replace(' ', 'T').substring(0, 16));
         d.setDayEndRemarks((String) p.get("day_end_remarks"));
         d.setStayAreaId(lng(p.get("stay_area_id")));
@@ -368,6 +369,7 @@ public class DcrService {
         c.setAreaId(lng(r.get("area_id"))); c.setInTime(hhmm(r.get("in_time"))); c.setOutTime(hhmm(r.get("out_time")));
         c.setCheckinAt(r.get("checkin_at") == null ? null : r.get("checkin_at").toString().replace(' ', 'T').substring(0, 16));
         c.setCheckinLat((BigDecimal) r.get("checkin_lat")); c.setCheckinLng((BigDecimal) r.get("checkin_lng"));
+        c.setCheckoutLat((BigDecimal) r.get("checkout_lat")); c.setCheckoutLng((BigDecimal) r.get("checkout_lng")); c.setCheckoutAddress((String) r.get("checkout_address"));
         c.setCheckinAddress((String) r.get("checkin_address")); c.setCheckinDistanceM(r.get("checkin_distance_m") == null ? null : ((Number) r.get("checkin_distance_m")).intValue());
         c.setPobValue((BigDecimal) r.get("pob_value")); c.setRemarks((String) r.get("remarks"));
         c.setRefused(flag(r.get("is_refused")) == 1);
@@ -592,6 +594,14 @@ public class DcrService {
             for (Map<String, Object> r : jdbc.queryForList("SELECT checkin_lat, checkin_lng, checkin_address FROM dcr_unlisted_client_summary WHERE dcr_id = ?", ed))
                 if (r.get("checkin_lat") != null) oldU.put(r.get("checkin_lat") + "|" + r.get("checkin_lng"), (String) r.get("checkin_address"));
         }
+        Map<String, String> oldOut = new HashMap<>();   // "lat|lng" -> address of an already stored check-out / day end position
+        boolean outCols = !jdbc.queryForList("SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'dcr_client_summary' AND column_name = 'checkout_lat'").isEmpty();
+        if (!existing.isEmpty() && outCols) {
+            long ed2 = ((Number) existing.get(0).get("dcr_id")).longValue();
+            for (String t : new String[]{"dcr_client_summary", "dcr_unlisted_client_summary"})
+                for (Map<String, Object> r : jdbc.queryForList("SELECT checkout_lat, checkout_lng, checkout_address FROM " + t + " WHERE dcr_id = ? AND checkout_lat IS NOT NULL", ed2)) oldOut.put(r.get("checkout_lat") + "|" + r.get("checkout_lng"), (String) r.get("checkout_address"));
+            for (Map<String, Object> r : jdbc.queryForList("SELECT day_end_lat, day_end_lng, day_end_address FROM dcr_parent_summary WHERE dcr_id = ? AND day_end_lat IS NOT NULL", ed2)) oldOut.put(r.get("day_end_lat") + "|" + r.get("day_end_lng"), (String) r.get("day_end_address"));
+        }
         String[] vAddr = new String[f.getVisits().size()]; Integer[] vDist = new Integer[f.getVisits().size()]; String[] uAddr = new String[f.getUnlisted().size()];
         for (int i = 0; i < f.getVisits().size(); i++) {
             DcrDto.Visit v = f.getVisits().get(i);
@@ -649,6 +659,11 @@ public class DcrService {
                 f.getMeterStart(), f.getMeterEnd(), blank(f.getRemarks()), f.getDayEndAreaId(), dayEndAt,
                 blank(f.getDayEndRemarks()), f.getStayAreaId(), blank(f.getStayHotel()), status,
                 f.isSubmit() ? Timestamp.valueOf(LocalDateTime.now()) : null, dcrId);
+        if (outCols) {   // where the day was ended
+            String addr = null; BigDecimal dl = f.getDayEndLat(), dg = f.getDayEndLng();
+            if (dl != null && dg != null && in.opt.sfa.tenant.dcr.geo.GeoCalc.validLatLng(dl.doubleValue(), dg.doubleValue())) { addr = oldOut.containsKey(dl + "|" + dg) ? oldOut.get(dl + "|" + dg) : geo.reverse(dl.doubleValue(), dg.doubleValue()); } else { dl = null; dg = null; }
+            jdbc.update("UPDATE dcr_parent_summary SET day_end_lat = ?, day_end_lng = ?, day_end_address = ? WHERE dcr_id = ?", dl, dg, addr, dcrId);
+        }
         // approval system: a work type that needs no approval (or a company that works without approval) is approved the moment it is submitted
         if (status == SUBMITTED && !(rules.approvalOn() && worktypes.needsApproval(me, workType))) {
             jdbc.update("UPDATE dcr_parent_summary SET status = ?, approved_by = 'AUTO', approved_at = NOW(), approval_remarks = 'Auto approved' WHERE dcr_id = ?", APPROVED, dcrId);
@@ -673,6 +688,7 @@ public class DcrService {
                     pob, blank(v.getRemarks()), v.isRefused() ? 1 : 0, date(v.getNextVisit(), "Next visit"), blank(v.getNextVisitPriority()), blank(v.getNextVisitRemarks()), blank(v.getSignaturePath()));
             int vi = f.getVisits().indexOf(v);
             if (geoCols && (vAddr[vi] != null || vDist[vi] != null)) jdbc.update("UPDATE dcr_client_summary SET checkin_address = ?, checkin_distance_m = ? WHERE dcr_id = ? AND client_id = ?", vAddr[vi], vDist[vi], dcrId, v.getClientId());
+            if (outCols) storeOut("dcr_client_summary", "dcr_id = ? AND client_id = ?", new Object[]{dcrId, v.getClientId()}, v.getCheckoutLat(), v.getCheckoutLng(), oldOut);
             if (area != null) areaRows.add(area + "|VISITED");
             children(dcrId, 1, v.getClientId(), v, tabs.get(code(v.getWorktypeCode(), "CLIENT")));
         }
@@ -699,6 +715,7 @@ public class DcrService {
             long uid = kh.getKey().longValue();
             String ua = uAddr[f.getUnlisted().indexOf(u)];
             if (geoCols && ua != null) jdbc.update("UPDATE dcr_unlisted_client_summary SET checkin_address = ? WHERE id = ?", ua, uid);
+            if (outCols) storeOut("dcr_unlisted_client_summary", "id = ?", new Object[]{uid}, u.getCheckoutLat(), u.getCheckoutLng(), oldOut);
             if (u.getKey() != null) unlistedId.put(u.getKey(), uid);
             if (u.getAreaId() != null) areaRows.add(u.getAreaId() + "|VISITED");
             children(dcrId, 2, uid, u, tabs.get(code(u.getWorktypeCode(), "UNLISTED")));
@@ -979,6 +996,14 @@ public class DcrService {
     // =========================================================================================
     // helpers
     // =========================================================================================
+
+    /** Keep the position of a client check-out with its address (an unchanged position keeps the address already found). */
+    private void storeOut(String table, String where, Object[] key, BigDecimal lat, BigDecimal lng, Map<String, String> old) {
+        if (lat == null || lng == null || !in.opt.sfa.tenant.dcr.geo.GeoCalc.validLatLng(lat.doubleValue(), lng.doubleValue())) return;
+        String addr = old.containsKey(lat + "|" + lng) ? old.get(lat + "|" + lng) : geo.reverse(lat.doubleValue(), lng.doubleValue());
+        Object[] a = new Object[key.length + 3]; a[0] = lat; a[1] = lng; a[2] = addr; System.arraycopy(key, 0, a, 3, key.length);
+        jdbc.update("UPDATE " + table + " SET checkout_lat = ?, checkout_lng = ?, checkout_address = ? WHERE " + where, a);
+    }
 
     private int backDays() {
         try { return Math.max(0, Integer.parseInt(settings.value(BACK_DAYS_KEY, "7").trim())); } catch (NumberFormatException e) { return 7; }

@@ -72,6 +72,11 @@ public class AttendanceReportService {
             }
             for (Map<String, Object> r : jdbc.queryForList("SELECT worktype_code, needs_approval FROM app_dcr_worktype WHERE emp_id IS NULL")) wtNeeds.put(s(r.get("worktype_code")), flag(r.get("needs_approval")));
         } catch (org.springframework.dao.DataAccessException e) { /* migration 116 not run: approval everywhere */ }
+        boolean finalRequired = true;   // FINAL_SUBMIT_REQUIRED off: a started DCR counts even when it stays a draft (Day End is the final submit)
+        try {
+            String fv = jdbc.queryForList("SELECT config_value FROM app_validations WHERE module_name = 'DCR' AND config_code = 'FINAL_SUBMIT_REQUIRED' AND emp_id IS NULL AND is_enabled = 1 AND is_active = 1 LIMIT 1", String.class).stream().findFirst().orElse("TRUE");
+            finalRequired = fv == null || fv.isBlank() || "TRUE".equalsIgnoreCase(fv.trim()) || "1".equals(fv.trim());
+        } catch (org.springframework.dao.DataAccessException e) { /* not set up */ }
         Map<String, String> shortCodes = new LinkedHashMap<>();
         List<Map<String, Object>> legend = new ArrayList<>();
         try {
@@ -106,7 +111,7 @@ public class AttendanceReportService {
                     else {
                         anyDcr = true;
                         boolean needAppr = approvalMaster && wtNeeds.getOrDefault(wt, true);   // not approved = Absent only where the approval system is on
-                        AttendanceEval.Outcome o = AttendanceEval.evaluate(new AttendanceEval.Day(((Number) r.get("status")).intValue(), wt, ((Number) r.get("listedCalls")).intValue(), ((Number) r.get("unlistedCalls")).intValue(),
+                        AttendanceEval.Outcome o = AttendanceEval.evaluate(new AttendanceEval.Day(!finalRequired && ((Number) r.get("status")).intValue() == 0 ? 2 : ((Number) r.get("status")).intValue(), wt, ((Number) r.get("listedCalls")).intValue(), ((Number) r.get("unlistedCalls")).intValue(),
                                 asInt(r.get("workMin")), time(blankNull(r.get("dayStart"))), time(blankNull(r.get("dayEnd")))), rule.withApproval(needAppr));
                         c.put("s", o.result() == AttendanceEval.Result.PRESENT ? "P" : o.result() == AttendanceEval.Result.HALF ? "HD" : "A");
                         c.put("t", shortCodes.getOrDefault(wt, wt == null ? "" : wt.substring(0, Math.min(3, wt.length())).toUpperCase())); c.put("c", r.get("calls")); c.put("h", r.get("workHours")); c.put("id", r.get("dcrId")); c.put("in", r.get("dayStart")); c.put("out", r.get("dayEnd")); c.put("n", r.get("workTypeName"));
