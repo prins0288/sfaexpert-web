@@ -27,6 +27,8 @@ public class DcrDto {
     private String travelMode;
     private BigDecimal meterStart;
     private BigDecimal meterEnd;
+    private String meterStartImage;
+    private String meterEndImage;
     private String remarks;
     private Long dayEndAreaId;
     private String dayEndAt;          // yyyy-MM-ddTHH:mm

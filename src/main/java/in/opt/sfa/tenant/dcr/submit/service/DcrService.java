@@ -277,6 +277,7 @@ public class DcrService {
         d.setTravelMode((String) p.get("travel_mode"));
         d.setMeterStart((BigDecimal) p.get("meter_start"));
         d.setMeterEnd((BigDecimal) p.get("meter_end"));
+        d.setMeterStartImage((String) p.get("meter_start_image")); d.setMeterEndImage((String) p.get("meter_end_image"));
         d.setRemarks((String) p.get("remarks"));
         d.setDayEndAreaId(lng(p.get("day_end_area_id")));
         d.setDayEndLat((BigDecimal) p.get("day_end_lat")); d.setDayEndLng((BigDecimal) p.get("day_end_lng")); d.setDayEndAddress((String) p.get("day_end_address"));
@@ -435,6 +436,7 @@ public class DcrService {
         }
         if (f.getStartAreaId() != null) checkAreaIds(List.of(f.getStartAreaId()));
         if (f.getMeterStart() != null && f.getMeterStart().signum() < 0) throw new IllegalStateException("Meter start cannot be negative");
+        if (working && DcrRuleService.bool(rl, "METER_READING_DAYSTART_VISIBLITY", false) && DcrRuleService.bool(rl, "METER_READING_DAYSTART", false) && f.getMeterStart() == null) throw new IllegalStateException("Enter the meter reading (km) to start your day");
         Map<String, Object> emp = jdbc.queryForList("SELECT designation, manager_id FROM emp_detail WHERE emp_id = ?", me).get(0);
         KeyHolder kh = new GeneratedKeyHolder();
         final LocalDate d = date; final LocalTime ti = timeIn;
@@ -447,6 +449,10 @@ public class DcrService {
             return ps;
         }, kh);
         long id = kh.getKey().longValue();
+        if (!Strings.isBlank(f.getMeterStartImage())) {
+            try { jdbc.update("UPDATE dcr_parent_summary SET meter_start_image = ? WHERE dcr_id = ?", f.getMeterStartImage().trim(), kh.getKey().longValue()); }
+            catch (org.springframework.dao.DataAccessException e) { /* migration 118 not run yet */ }
+        }
         if (here) {   // where the day started: position + address (columns from migration 111)
             try { jdbc.update("UPDATE dcr_parent_summary SET start_lat = ?, start_lng = ?, start_address = ? WHERE dcr_id = ?", f.getStartLat(), f.getStartLng(), geo.reverse(f.getStartLat().doubleValue(), f.getStartLng().doubleValue()), id); }
             catch (org.springframework.dao.DataAccessException e) { /* migration 111 not run yet */ }
@@ -580,6 +586,8 @@ public class DcrService {
             throw new IllegalStateException("Day end time cannot be before the day start time (" + tin + ")");
         }
         if (f.getMeterStart() != null && f.getMeterEnd() != null && f.getMeterEnd().compareTo(f.getMeterStart()) < 0) throw new IllegalStateException("Meter end cannot be less than meter start");
+        { Map<String, String> mr = rules.of(me);
+          if (f.isSubmit() && working && DcrRuleService.bool(mr, "METER_READING_DAYEND_VISIBLITY", false) && DcrRuleService.bool(mr, "METER_READING_DAYEND", false) && f.getMeterEnd() == null) throw new IllegalStateException("Enter the meter reading (km) at the end of the day"); }
 
         // ---- the parent row (snapshot of designation / immediate manager that day) ----
         Map<String, Object> emp = jdbc.queryForList("SELECT designation, manager_id FROM emp_detail WHERE emp_id = ?", me).get(0);
@@ -664,6 +672,8 @@ public class DcrService {
             if (dl != null && dg != null && in.opt.sfa.tenant.dcr.geo.GeoCalc.validLatLng(dl.doubleValue(), dg.doubleValue())) { addr = oldOut.containsKey(dl + "|" + dg) ? oldOut.get(dl + "|" + dg) : geo.reverse(dl.doubleValue(), dg.doubleValue()); } else { dl = null; dg = null; }
             jdbc.update("UPDATE dcr_parent_summary SET day_end_lat = ?, day_end_lng = ?, day_end_address = ? WHERE dcr_id = ?", dl, dg, addr, dcrId);
         }
+        try { jdbc.update("UPDATE dcr_parent_summary SET meter_start_image = ?, meter_end_image = ? WHERE dcr_id = ?", blank(f.getMeterStartImage()), blank(f.getMeterEndImage()), dcrId); }
+        catch (org.springframework.dao.DataAccessException e) { /* migration 118 not run yet */ }
         // approval system: a work type that needs no approval (or a company that works without approval) is approved the moment it is submitted
         if (status == SUBMITTED && !(rules.approvalOn() && worktypes.needsApproval(me, workType))) {
             jdbc.update("UPDATE dcr_parent_summary SET status = ?, approved_by = 'AUTO', approved_at = NOW(), approval_remarks = 'Auto approved' WHERE dcr_id = ?", APPROVED, dcrId);

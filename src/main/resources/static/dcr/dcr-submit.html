@@ -288,7 +288,7 @@
   function fromDto(d) {
     const x = JSON.parse(JSON.stringify(d));
     ['startAreaId', 'workingAreaId', 'dayEndAreaId', 'stayAreaId'].forEach(k => { if (x[k] == null) x[k] = ''; });
-    ['timeIn', 'timeOut', 'travelMode', 'meterStart', 'meterEnd', 'remarks', 'dayEndAt', 'dayEndRemarks', 'stayHotel'].forEach(k => { if (x[k] == null) x[k] = ''; });
+    ['timeIn', 'timeOut', 'travelMode', 'meterStart', 'meterEnd', 'meterStartImage', 'meterEndImage', 'remarks', 'dayEndAt', 'dayEndRemarks', 'stayHotel'].forEach(k => { if (x[k] == null) x[k] = ''; });
     x.unlisted.forEach(u => { u.key = u.key || ('n' + (++KEYSEQ)); });
     return x;
   }
@@ -359,7 +359,8 @@
 
   const RULE = (code, dflt) => { const v = ((OPT && OPT.rules) || {})[code]; return v == null || v === '' ? dflt : /^(true|1|y)$/i.test(v); };
   const tmField = (sel) => RULE('DAY_START_TRAVEL_MODE_VISIBLITY', true) ? field('Travel mode' + (RULE('DAY_START_TRAVEL_MODE_MANDATORY', false) ? ' *' : ''), sel, 'col-6') : '';
-  const meterField = () => RULE('METER_READING_DAYSTART_VISIBLITY', true) ? field('Meter start (km)', inp('meterStart', 'number', 'inputmode="decimal" step="0.1"'), 'col-6') : '';
+  const meterField = () => RULE('METER_READING_DAYSTART_VISIBLITY', true) ? field('Meter reading (km)' + (RULE('METER_READING_DAYSTART', false) ? ' *' : ''), inp('meterStart', 'number', 'inputmode="decimal" step="any"')
+    + `<div class="mt-2">${ST.meterStartImage ? `<div class="mb-1">${SFAFiles.thumb(ST.meterStartImage, null, { name: 'meter' })}</div>` : ''}${photoBtns("r=>{ST.meterStartImage=r.path;startSheet()}")}</div>`) : '';
   const isField = (c) => { const w = (OPT.workTypes || []).find(x => x.code === c); return !!(w && w.fieldWork); };
   const defaultWork = () => { const w = (OPT && OPT.workTypes) || []; return (w.find(x => x.fieldWork) || w[0] || {}).code || ''; };
   const wtName = (c) => { const w = (OPT.workTypes || []).find(x => x.code === c); return w ? w.name : c; };
@@ -457,7 +458,7 @@
     if (geoOn() && isField(ST.workType)) { sp = await getPos(); if (!sp) return geoLocHelp(dcrStart); }   // location check ON: the day starts only with a position
     else if (isField(ST.workType)) sp = await getPos();   // otherwise the position is kept when it can be had
     try {
-      const d = await Api.post(EP.start, { startLat: sp ? sp.lat : null, startLng: sp ? sp.lng : null, dcrDate: ST.dcrDate, workType: ST.workType, startAreaId: n(ST.startAreaId), travelMode: s(ST.travelMode), meterStart: n(ST.meterStart), remarks: s(ST.remarks), timeIn: s(ST.timeIn), leaveTypeId: ST.workType === 'LEAVE' ? n(ST.leaveTypeId) : null, leaveToDate: ST.workType === 'LEAVE' ? s(ST.leaveToDate) : null, leaveDayPart: ST.workType === 'LEAVE' ? (ST.leaveDayPart || 'FULL') : null });
+      const d = await Api.post(EP.start, { startLat: sp ? sp.lat : null, startLng: sp ? sp.lng : null, dcrDate: ST.dcrDate, workType: ST.workType, startAreaId: n(ST.startAreaId), travelMode: s(ST.travelMode), meterStart: n(ST.meterStart), meterStartImage: s(ST.meterStartImage), remarks: s(ST.remarks), timeIn: s(ST.timeIn), leaveTypeId: ST.workType === 'LEAVE' ? n(ST.leaveTypeId) : null, leaveToDate: ST.workType === 'LEAVE' ? s(ST.leaveToDate) : null, leaveDayPart: ST.workType === 'LEAVE' ? (ST.leaveDayPart || 'FULL') : null });
       ST = fromDto(d); CUR = 'day'; sheetClose(); render();
       SFA.toast('Day started at ' + ST.timeIn, true);
     } catch (e) { if (String(e.message).startsWith('NO_LOCATION')) return geoLocHelp(dcrStart); SFA.toast(e.message, false); }
@@ -762,7 +763,7 @@
         + `<button class="btn btn-outline-primary btn-sm rounded-pill" onclick="EDIT.o.leaflets.push({itemId:'',qty:1,value:0});renderCall()"><i class="bi bi-plus"></i> Add leaflet</button>`);
     if (k === 'treat') return panelShell('Treatment', o.treatments.length, `<div class="dcr-chips">` + OPT.treatments.map(t => `<button type="button" class="dcr-chip ${o.treatments.includes(t.id) ? 'on' : ''}" onclick="toggleIn(EDIT.o.treatments,${t.id});renderCall()">${esc(t.name)}</button>`).join('') + '</div>');
     if (k === 'image') return panelShell('Capture Image', o.signaturePath ? 1 : 0, `${o.signaturePath ? `<div class="mb-2">${SFAFiles.thumb(o.signaturePath, null, { name: 'image' })}</div>` : ''}
-      <input class="form-control" type="file" accept="image/*" capture="environment" onchange="callUpload(this,'signaturePath')" />`);
+      ${photoBtns("r=>{EDIT.o.signaturePath=r.path;renderCall()}")}`);
     return panelShell('Activity / Remarks', null, `<div class="dcr-chips dcr-chips-scroll mb-3">${OPT.activityTypes.map(a => `<button type="button" class="dcr-chip ${o.activityType === a ? 'on' : ''}" onclick="EDIT.o.activityType=EDIT.o.activityType==='${esc(a)}'?'':'${esc(a)}';renderCall()">${esc(a)}</button>`).join('')}</div>
       <div class="row g-2">${field('Remarks', `<textarea class="form-control" rows="3" oninput="${o_('remarks')}=this.value">${esc(o.remarks)}</textarea>`)}
       ${field('Next visit', `<input class="form-control" type="date" value="${esc(o.nextVisit)}" oninput="${o_('nextVisit')}=this.value" />`, 'col-6')}
@@ -907,6 +908,45 @@
     const f = inputEl.files[0]; if (!f) return;
     try { EDIT.o[key] = (await dcrUpload(f, 'image')).path; renderCall(); } catch (e) { SFA.toast(e.message, false); }
   }
+
+  // ============================================================== camera: a photo with the position and the time burned in (like a map camera)
+  let CAMSTREAM = null, CAMTIMER = null;
+  function camClose() { if (CAMTIMER) clearInterval(CAMTIMER); CAMTIMER = null; if (CAMSTREAM) CAMSTREAM.getTracks().forEach(t => t.stop()); CAMSTREAM = null; const o = document.getElementById('camOv'); if (o) o.remove(); }
+  function camShoot() {
+    return new Promise(async (resolve) => {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return resolve(null);
+      let stream; try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false }); } catch (e) { SFA.toast('Camera is not available: ' + (e.message || e.name), false); return resolve(false); }
+      CAMSTREAM = stream; let pos = null;
+      const ov = document.createElement('div'); ov.id = 'camOv'; ov.style.cssText = 'position:fixed;inset:0;z-index:3000;background:#000;display:flex;flex-direction:column';
+      ov.innerHTML = `<video id="camV" autoplay playsinline muted style="flex:1;min-height:0;width:100%;object-fit:cover"></video>
+        <div id="camStamp" style="position:absolute;left:0;right:0;bottom:84px;padding:6px 12px;background:rgba(0,0,0,.45);color:#fff;font:600 13px/1.4 monospace"></div>
+        <div style="height:84px;display:flex;align-items:center;justify-content:space-around;background:#111"><button type="button" id="camX" class="btn btn-light">Cancel</button><button type="button" id="camGo" class="btn btn-light rounded-circle" style="width:56px;height:56px"><i class="bi bi-camera-fill fs-4"></i></button><span style="width:70px"></span></div>`;
+      document.body.appendChild(ov);
+      const v = document.getElementById('camV'); v.srcObject = stream;
+      const stamp = () => { const d = new Date(); return [pos ? 'Lat ' + pos.lat.toFixed(6) + '  Lon ' + pos.lng.toFixed(6) : 'Location: waiting...', pad(d.getDate()) + '-' + pad(d.getMonth() + 1) + '-' + d.getFullYear() + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds())]; };
+      const draw = () => { const el = document.getElementById('camStamp'); if (el) el.innerHTML = stamp().join('<br>'); };
+      draw(); CAMTIMER = setInterval(draw, 1000); getPos().then(p => { pos = p; draw(); });
+      document.getElementById('camX').onclick = () => { camClose(); resolve(false); };
+      document.getElementById('camGo').onclick = () => {
+        const cv = document.createElement('canvas'); cv.width = v.videoWidth || 1280; cv.height = v.videoHeight || 720; const g = cv.getContext('2d'); g.drawImage(v, 0, 0, cv.width, cv.height);
+        const lines = stamp(), fs = Math.max(16, Math.round(cv.width / 32)); g.font = '600 ' + fs + 'px monospace';
+        g.fillStyle = 'rgba(0,0,0,.5)'; g.fillRect(0, cv.height - fs * 3.1, cv.width, fs * 3.1); g.fillStyle = '#fff'; lines.forEach((t, i) => g.fillText(t, fs * 0.6, cv.height - fs * (2.0 - i * 1.15)));
+        cv.toBlob(b => { camClose(); resolve(b ? new File([b], 'camera-' + Date.now() + '.jpg', { type: 'image/jpeg' }) : false); }, 'image/jpeg', 0.85);
+      };
+    });
+  }
+  // take a photo (camera dialog; the phone camera when the browser has none), upload it and hand the stored file to set(r)
+  async function camUse(set, kind) {
+    let f = await camShoot();
+    if (f === false) return;
+    if (!f) f = await new Promise(res => { const i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*'; i.capture = 'environment'; i.onchange = () => res(i.files[0] || null); i.click(); });
+    if (!f) return;
+    try { set(await dcrUpload(f, kind || 'image')); } catch (e) { SFA.toast(e.message, false); }
+  }
+  async function camFile(el, set, kind) { const f = el.files[0]; if (!f) return; try { set(await dcrUpload(f, kind || 'image')); } catch (e) { SFA.toast(e.message, false); } }
+  // [Camera] button (CAMERA_DIRECT) and the file picker (hidden when CAMERA_ONLY)
+  const photoBtns = (setJs, kind) => `<div class="d-flex gap-2 flex-wrap align-items-center">${RULE('CAMERA_DIRECT', true) ? `<button type="button" class="btn btn-outline-primary btn-sm" onclick='camUse(${setJs}, "${kind || 'image'}")'><i class="bi bi-camera"></i> Camera</button>` : ''}`
+    + `${RULE('CAMERA_ONLY', false) && RULE('CAMERA_DIRECT', true) ? '' : `<input class="form-control form-control-sm" style="max-width:15rem" type="file" accept="image/*" onchange='camFile(this, ${setJs}, "${kind || 'image'}")' />`}</div>`;
   async function dcrUpload(file, kind) {
     const fd = new FormData(); fd.append('file', file); fd.append('kind', kind);
     return Api.post(EP.upload, fd);
@@ -959,7 +999,7 @@
     const o = EDIT.o, t = OPT.expenseTypes.find(x => String(x.id) === String(o.expenseId)), travel = t && t.travel;
     const links = [{ id: '0', name: 'Not about a client' }].concat(ST.visits.map(v => ({ id: '1:' + v.clientId, name: v.clientName }))).concat(ST.unlisted.filter(u => u.clientName).map(u => ({ id: '2:' + u.key, name: u.clientName + ' (unlisted)' })));
     const cur = o.clientKind === 1 ? '1:' + o.clientId : o.clientKind === 2 ? '2:' + o.unlistedKey : '0';
-    const up = (key, label) => `<div class="col-6"><label class="form-label">${label}</label>${o[key] ? `<div class="mb-1">${SFAFiles.thumb(o[key], null, { name: label })}</div>` : ''}<input class="form-control" type="file" accept="image/*" capture="environment" onchange="expUpload(this,'${key}','image')" /></div>`;
+    const up = (key, label) => `<div class="col-6"><label class="form-label">${label}</label>${o[key] ? `<div class="mb-1">${SFAFiles.thumb(o[key], null, { name: label })}</div>` : ''}${photoBtns("r=>{EDIT.o." + key + "=r.path;renderExpense()}")}</div>`;
     let h = `<div class="row g-3">
       ${field('Expense type *', `<select class="form-select" data-no-search onchange="EDIT.o.expenseId=this.value;renderExpense()">${opts(OPT.expenseTypes, o.expenseId, 'Select type')}</select>`)}
       ${field('Amount (₹) *', `<input class="form-control" type="number" inputmode="decimal" value="${esc(o.amount)}" oninput="EDIT.o.amount=this.value" />`, 'col-6')}
@@ -971,7 +1011,8 @@
       ${field('End km', `<input class="form-control" type="number" inputmode="decimal" value="${esc(o.endKm)}" oninput="EDIT.o.endKm=this.value" />`, 'col-6')}
       ${up('startImagePath', 'Start meter photo')}${up('endImagePath', 'End meter photo')}`;
     h += `<div class="col-12"><label class="form-label">Bill / receipt</label>${o.filePath ? `<div class="small mb-1"><i class="bi bi-paperclip"></i> ${esc(o.fileName || 'attached')}</div>` : ''}
-      <input class="form-control" type="file" accept="image/*,application/pdf" onchange="expUpload(this,'filePath','document')" /></div></div>`;
+      ${photoBtns("r=>{EDIT.o.filePath=r.path;EDIT.o.fileName=r.name;EDIT.o.fileType=r.type;renderExpense()}", 'document')}
+      ${RULE('CAMERA_ONLY', false) ? '' : `<input class="form-control form-control-sm mt-1" type="file" accept="image/*,application/pdf" onchange="expUpload(this,'filePath','document')" />`}</div></div>`;
     document.getElementById('sheetBody').innerHTML = h;
   }
   function expLinkSet(v) {
@@ -999,7 +1040,8 @@
       ${field('Day ended at (area)', `<select class="form-select" data-no-search onchange="ST.dayEndAreaId=this.value">${opts(OPT.areas, ST.dayEndAreaId, 'Select area')}</select>`)}
       ${field('Day end time', `<div class="form-control bg-body-tertiary text-muted">${ST.dayEndAt ? esc(ST.dayEndAt.replace('T', ' ')) : 'Captured automatically when you submit'}</div>`)}
       ${field('Day end location', `<div class="form-control bg-body-tertiary text-muted">${ST.dayEndAddress ? esc(ST.dayEndAddress) : (ST.dayEndLat ? esc(ST.dayEndLat + ', ' + ST.dayEndLng) : 'Captured automatically when the day is ended')}</div>`)}
-      ${field('Meter end (km)', inp('meterEnd', 'number', 'inputmode="decimal" step="0.1"'), 'col-6')}
+      ${RULE('METER_READING_DAYEND_VISIBLITY', false) ? field('Meter reading at day end (km)' + (RULE('METER_READING_DAYEND', false) ? ' *' : '') + (ST.meterStart !== '' && ST.meterStart != null ? ' - started at ' + ST.meterStart : ''), inp('meterEnd', 'number', 'inputmode="decimal" step="any"')
+        + `<div class="mt-2">${ST.meterEndImage ? `<div class="mb-1">${SFAFiles.thumb(ST.meterEndImage, null, { name: 'meter' })}</div>` : ''}${photoBtns("r=>{ST.meterEndImage=r.path;render()}")}</div>`) : ''}
       ${field('Day end remarks', `<input class="form-control" maxlength="200" value="${esc(ST.dayEndRemarks)}" oninput="ST.dayEndRemarks=this.value" />`, 'col-6')}
       ${field('Night stay area', `<select class="form-select" data-no-search onchange="ST.stayAreaId=this.value">${opts(OPT.areas, ST.stayAreaId, 'Not staying')}</select>`, 'col-6')}
       ${field('Hotel', `<input class="form-control" maxlength="100" value="${esc(ST.stayHotel)}" oninput="ST.stayHotel=this.value" />`, 'col-6')}
@@ -1033,7 +1075,7 @@
   }
   function payload(submit) {
     return { dcrDate: ST.dcrDate, workType: ST.workType, startAreaId: n(ST.startAreaId), workingAreaId: n(ST.workingAreaId), travelMode: s(ST.travelMode),
-      meterStart: n(ST.meterStart), meterEnd: n(ST.meterEnd), remarks: s(ST.remarks), dayEndAreaId: n(ST.dayEndAreaId), dayEndAt: s(ST.dayEndAt), dayEndRemarks: s(ST.dayEndRemarks), dayEndLat: ST.dayEndLat, dayEndLng: ST.dayEndLng,
+      meterStart: n(ST.meterStart), meterEnd: n(ST.meterEnd), meterStartImage: s(ST.meterStartImage), meterEndImage: s(ST.meterEndImage), remarks: s(ST.remarks), dayEndAreaId: n(ST.dayEndAreaId), dayEndAt: s(ST.dayEndAt), dayEndRemarks: s(ST.dayEndRemarks), dayEndLat: ST.dayEndLat, dayEndLng: ST.dayEndLng,
       stayAreaId: n(ST.stayAreaId), stayHotel: s(ST.stayHotel), jointWith: ST.jointWith, submit,
       visits: ST.visits.filter(v => v.inTime).map(v => Object.assign({ clientId: v.clientId }, callPayload(v))),   // only checked-in calls are saved
       unlisted: ST.unlisted.filter(u => u.inTime).map(u => Object.assign({ key: u.key, clientName: u.clientName, clientTypeId: n(u.clientTypeId), specialityId: n(u.specialityId), categoryId: n(u.categoryId),
@@ -1048,6 +1090,7 @@
     if (working && !calls.length) out.push('Add at least one client call');
     if (RULE('CHECKOUT', true)) calls.filter(c => !c.outTime && !c.refused).forEach(c => out.push('Check out of ' + (c.clientName || 'the client') + ' first'));
     if (RULE('DCR_Remarks', false) && !String(ST.remarks || '').trim()) out.push('Remarks are required');
+    if (working && RULE('METER_READING_DAYEND_VISIBLITY', false) && RULE('METER_READING_DAYEND', false)) { if (ST.meterEnd === '' || ST.meterEnd == null) out.push('Meter reading at day end is required'); else if (ST.meterStart !== '' && ST.meterStart != null && Number(ST.meterEnd) < Number(ST.meterStart)) out.push('Meter end cannot be less than meter start'); }
     ST.unlisted.filter(u => u.inTime).forEach(u => {
       [['MOBILE', 'mobile', 'Mobile'], ['SPECIALITY', 'specialityId', 'Speciality'], ['CATEGORY', 'categoryId', 'Category']].forEach(([c, k, l]) => {
         if (RULE('UNLISTED_VISIT_' + c + '_VISIBLITY', true) && RULE('UNLISTED_VISIT_' + c, false) && !String(u[k] || '').trim()) out.push(l + ' of ' + (u.clientName || 'unlisted client') + ' is required');
