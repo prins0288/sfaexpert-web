@@ -73,12 +73,12 @@ public class DashboardOverviewService {
         List<String> ids = new ArrayList<>(byEmp.keySet());
         if (me != null && !ids.contains(me) && !"ALL".equals(level)) ids.add(me);
         if ("ALL".equals(level)) {
-            t.put("areas", jdbc.queryForObject("SELECT COUNT(*) FROM area_master WHERE status = 'Y' AND approval_status = 'APPROVED'", Long.class));
+            t.put("areas", jdbc.queryForObject("SELECT COUNT(*) FROM area_master WHERE status = 1 AND approval_status = 'APPROVED'", Long.class));
             t.put("clients", jdbc.queryForObject("SELECT COUNT(*) FROM client_master WHERE is_active = 1 AND approval_status = 'APPROVED'", Long.class));
         } else if (ids.isEmpty()) { t.put("areas", 0); t.put("clients", 0); }
         else {
             String in = String.join(",", Collections.nCopies(ids.size(), "?"));
-            t.put("areas", jdbc.queryForObject("SELECT COUNT(*) FROM area_master WHERE status = 'Y' AND approval_status = 'APPROVED' AND emp_id IN (" + in + ")", Long.class, ids.toArray()));
+            t.put("areas", jdbc.queryForObject("SELECT COUNT(*) FROM area_master WHERE status = 1 AND approval_status = 'APPROVED' AND emp_id IN (" + in + ")", Long.class, ids.toArray()));
             t.put("clients", jdbc.queryForObject("SELECT COUNT(*) FROM client_master WHERE is_active = 1 AND approval_status = 'APPROVED' AND mapped_emp_code IN (" + in + ")", Long.class, ids.toArray()));
         }
         t.put("products", jdbc.queryForObject("SELECT COUNT(*) FROM item_master WHERE status = 1", Long.class));

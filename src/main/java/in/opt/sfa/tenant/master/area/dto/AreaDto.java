@@ -24,6 +24,7 @@ public class AreaDto {
     private BigDecimal longitude;
     private String areaType;
     private BigDecimal distanceKm;
+    private Boolean home;
     private String status;
 
     // ---- read-only, filled by the server ----

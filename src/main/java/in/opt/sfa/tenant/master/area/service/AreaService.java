@@ -53,9 +53,12 @@ public class AreaService {
     private final EmpDetailRepository employees;
     private final TeamScope scope;
 
+    private final HomeAreaService homeAreas;
+
     public AreaService(AreaRepository areas, RouteAreaMapRepository maps, HqRepository hqs, StateRepository states,
                        AreaMapper mapper, ApprovalEngine approval, AreaMasterApprovalRepository history,
-                       EmpDetailRepository employees, TeamScope scope) {
+                       EmpDetailRepository employees, TeamScope scope, HomeAreaService homeAreas) {
+        this.homeAreas = homeAreas;
         this.scope = scope;
         this.areas = areas;
         this.maps = maps;
@@ -309,6 +312,11 @@ public class AreaService {
         a.setLongitude(f.getLongitude());
         a.setAreaType(Strings.isBlank(f.getAreaType()) ? null : f.getAreaType().trim());
         a.setDistanceKm(f.getDistanceKm());
+        if (f.getHome() != null) {
+            if (f.getHome() && a.getEmpId() == null) throw new IllegalStateException("A starting point needs an employee");
+            if (f.getHome()) homeAreas.makeHome(a.getOid(), a.getEmpId());   // one home per employee: the others are switched off first
+            a.setHome(f.getHome());
+        }
     }
 
     /** Save; a new area (or one corrected after a rejection) asks for approval. */

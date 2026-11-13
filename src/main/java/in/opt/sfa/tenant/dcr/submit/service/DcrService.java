@@ -141,11 +141,18 @@ public class DcrService {
 
     /** The approved areas of an employee (his own; when he has none yet, every approved area). */
     public List<Map<String, Object>> areasFor(String empId) {
-        List<Map<String, Object>> areas = jdbc.queryForList("""
-                SELECT oid AS id, area_name AS name, area_type AS areaType FROM area_master
-                WHERE status = 'Y' AND approval_status = 'APPROVED' AND emp_id = ? ORDER BY area_name""", empId);
+        List<Map<String, Object>> areas;
+        try {   // is_home = the starting point of the employee (migration 119)
+            areas = jdbc.queryForList("""
+                    SELECT id, area_name AS name, area_type AS areaType, is_home AS home FROM area_master
+                    WHERE status = 1 AND approval_status = 'APPROVED' AND emp_id = ? ORDER BY area_name""", empId);
+        } catch (org.springframework.dao.DataAccessException e) {
+            areas = jdbc.queryForList("""
+                    SELECT id, area_name AS name, area_type AS areaType FROM area_master
+                    WHERE status = 1 AND approval_status = 'APPROVED' AND emp_id = ? ORDER BY area_name""", empId);
+        }
         if (areas.isEmpty()) {
-            areas = jdbc.queryForList("SELECT oid AS id, area_name AS name, area_type AS areaType FROM area_master WHERE status = 'Y' AND approval_status = 'APPROVED' ORDER BY area_name");
+            areas = jdbc.queryForList("SELECT id, area_name AS name, area_type AS areaType FROM area_master WHERE status = 1 AND approval_status = 'APPROVED' ORDER BY area_name");
         }
         return areas;
     }
@@ -161,7 +168,7 @@ public class DcrService {
                 LEFT JOIN (SELECT s.client_id, COUNT(*) AS visits, MAX(p.dcr_date) AS last_visit FROM dcr_client_summary s JOIN dcr_parent_summary p ON p.dcr_id = s.dcr_id
                            WHERE s.emp_id = ? GROUP BY s.client_id) v ON v.client_id = c.id
                 LEFT JOIN client_type ct ON ct.oid = c.client_type_id
-                LEFT JOIN area_master ar ON ar.oid = c.city_id
+                LEFT JOIN area_master ar ON ar.id = c.city_id
                 LEFT JOIN speciality_master sp ON sp.oid = c.speciality_id
                 LEFT JOIN category_master cat ON cat.oid = c.category_id
                 WHERE c.is_active = 1 AND c.approval_status = 'APPROVED' AND (c.mapped_emp_code = ? OR (c.mapped_emp_code IS NULL AND c.created_by COLLATE utf8mb4_0900_ai_ci = ?))
@@ -460,7 +467,7 @@ public class DcrService {
         if (leaveDay) leaves.apply(me, f.getLeaveTypeId(), date, leaveTo, f.getLeaveDayPart() == null ? "FULL" : f.getLeaveDayPart(), f.getRemarks(), "DCR", id);
         if (working && f.getStartAreaId() != null) {
             try {   // area type (HQ / EX / OUT ...) of the start area, kept with the day (column from migration 95)
-                jdbc.update("UPDATE dcr_parent_summary SET start_area_type = (SELECT area_type FROM area_master WHERE oid = ?) WHERE dcr_id = ?", f.getStartAreaId(), id);
+                jdbc.update("UPDATE dcr_parent_summary SET start_area_type = (SELECT area_type FROM area_master WHERE id = ?) WHERE dcr_id = ?", f.getStartAreaId(), id);
             } catch (org.springframework.dao.DataAccessException e) { /* migration 95 not run yet */ }
         }
         if (working && f.getStartAreaId() != null) {
@@ -830,7 +837,7 @@ public class DcrService {
 
     private void checkAreaIds(List<Long> ids) {
         for (Long a : new HashSet<>(ids)) {
-            if (jdbc.queryForObject("SELECT COUNT(*) FROM area_master WHERE oid = ? AND status = 'Y' AND approval_status = 'APPROVED'", Integer.class, a) == 0) {
+            if (jdbc.queryForObject("SELECT COUNT(*) FROM area_master WHERE id = ? AND status = 1 AND approval_status = 'APPROVED'", Integer.class, a) == 0) {
                 throw new IllegalStateException("Area " + a + " is not an active, approved area");
             }
         }
@@ -947,7 +954,7 @@ public class DcrService {
                 LEFT JOIN category_master cat ON cat.oid = c.category_id
                 LEFT JOIN speciality_master sp ON sp.oid = c.speciality_id
                 LEFT JOIN degree_master dg ON dg.id = c.degree_id
-                LEFT JOIN area_master ar ON ar.oid = c.city_id
+                LEFT JOIN area_master ar ON ar.id = c.city_id
                 LEFT JOIN client_type ct ON ct.oid = c.client_type_id
                 WHERE c.id = ? AND c.is_active = 1 AND c.approval_status = 'APPROVED'
                   AND (c.mapped_emp_code = ? OR (c.mapped_emp_code IS NULL AND c.created_by COLLATE utf8mb4_0900_ai_ci = ?))""", clientId, me, me);

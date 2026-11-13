@@ -24,6 +24,7 @@ public class AreaMapper {
         d.setLongitude(e.getLongitude());
         d.setAreaType(e.getAreaType());
         d.setDistanceKm(e.getDistanceKm());
+        d.setHome(e.isHome());
         d.setStatus(e.getStatus());
         d.setStateName(e.getStateName());
         d.setHqName(e.getHqName());

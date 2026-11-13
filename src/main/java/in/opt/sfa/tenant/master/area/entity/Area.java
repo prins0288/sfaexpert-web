@@ -21,6 +21,7 @@ import java.time.LocalDateTime;
 public class Area implements Approvable {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
     private Long oid;
 
     @Column(name = "area_code")
@@ -31,10 +32,10 @@ public class Area implements Approvable {
 
     private String city;
 
-    @Column(name = "state_oid")
+    @Column(name = "state_id")
     private Long stateOid;
 
-    @Column(name = "hq_oid")
+    @Column(name = "hq_id")
     private Long hqOid;
 
     /** -> emp_detail.emp_id: whose area it is. */
@@ -62,8 +63,13 @@ public class Area implements Approvable {
     @Column(name = "distance_km")
     private BigDecimal distanceKm;
 
+    /** The starting point of the employee (emp_id); only one per employee. */
+    @Column(name = "is_home")
+    private boolean home;
+
     /** Y = active, N = inactive. */
-    private String status = "Y";
+    @Column(name = "status", nullable = false)
+    private boolean active = true;
 
     // ---- approval ----
     /** PENDING_MANAGER / PENDING_ADMIN / APPROVED / REJECTED (the add request). */
@@ -114,10 +120,10 @@ public class Area implements Approvable {
     private String updatedBy;
 
     // ---- display-only ----
-    @Formula("(select s.state_name from state_master s where s.oid = state_oid)")
+    @Formula("(select s.state_name from state_master s where s.oid = state_id)")
     private String stateName;
 
-    @Formula("(select h.hq_name from hq_master h where h.oid = hq_oid)")
+    @Formula("(select h.hq_name from hq_master h where h.oid = hq_id)")
     private String hqName;
 
     @Formula("(select e.emp_name from emp_detail e where e.emp_id = emp_id)")
@@ -140,10 +146,14 @@ public class Area implements Approvable {
     }
 
     @Override
-    public void activeNow(boolean active) { this.status = active ? "Y" : "N"; }
+    public void activeNow(boolean active) { this.active = active; }
+
+    /** The screens and the API keep talking Y / N; the column is a boolean (tinyint 1). */
+    public String getStatus() { return active ? "Y" : "N"; }
+    public void setStatus(String s) { this.active = "Y".equalsIgnoreCase(s); }
 
     @Override
-    public boolean isActiveNow() { return "Y".equals(status); }
+    public boolean isActiveNow() { return active; }
 
     /** The area's employee, else its creator. */
     @Override

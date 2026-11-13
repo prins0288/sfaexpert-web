@@ -51,6 +51,7 @@ public class EmpDetailService {
     private final EmpDetailRepository employees;
     private final in.opt.sfa.tenant.dcr.submit.service.DcrWorktypeService dcrWorktypes;
     private final in.opt.sfa.tenant.dcr.submit.service.DcrRuleService dcrRules;
+    private final in.opt.sfa.tenant.master.area.service.HomeAreaService homeAreas;
     private final in.opt.sfa.tenant.master.permission.service.PermissionService permissionService;
     private final EmpAssignmentHistoryRepository history;
     private final in.opt.sfa.tenant.team.TeamScope scope;
@@ -83,10 +84,12 @@ public class EmpDetailService {
                             in.opt.sfa.tenant.master.salutation.service.SalutationMasterService salutations,
                             in.opt.sfa.tenant.dcr.submit.service.DcrWorktypeService dcrWorktypes,
                             in.opt.sfa.tenant.dcr.submit.service.DcrRuleService dcrRules,
+                            in.opt.sfa.tenant.master.area.service.HomeAreaService homeAreas,
                             in.opt.sfa.tenant.master.permission.service.PermissionService permissionService) {
         this.permissionService = permissionService;
         this.dcrWorktypes = dcrWorktypes;
         this.dcrRules = dcrRules;
+        this.homeAreas = homeAreas;
         this.salutations = salutations;
         this.employees = employees;
         this.history = history;
@@ -271,7 +274,7 @@ public class EmpDetailService {
         employees.saveAndFlush(e);
         recordAssignmentHistory(e, isNew, oldDivisionId, oldStateId, oldHqId, oldDesignationId, oldManagerId, req);
         profiles.save(e.getEmpId(), req.getProfile());
-        if (isNew) { dcrWorktypes.copyMasterTo(e.getEmpId()); dcrRules.copyMasterTo(e.getEmpId()); permissionService.grantDefaults(e.getEmpId(), e.getDesignationId()); }   // own copy of the DCR day types / tabs
+        if (isNew) { dcrWorktypes.copyMasterTo(e.getEmpId()); dcrRules.copyMasterTo(e.getEmpId()); homeAreas.createFor(e.getEmpId(), e.getHqId(), e.getStateId(), currentEmpId()); permissionService.grantDefaults(e.getEmpId(), e.getDesignationId()); }   // own copy of the DCR day types / tabs
 
         // Keep the COMMON-db login (user_login_master) in sync — blank username/password
         // on an update keeps the existing ones (see AppUserAdminService.upsert).

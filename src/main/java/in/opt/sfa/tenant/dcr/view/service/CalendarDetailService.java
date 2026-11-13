@@ -47,7 +47,7 @@ public class CalendarDetailService {
             ((Map<String, Object>) day.get("items")).put(String.valueOf(r.get("t")), m);
         }
         for (Map<String, Object> r : jdbc.queryForList("""
-                SELECT DATE_FORMAT(a.dcr_date, '%Y-%m-%d') AS d, am.area_name AS n FROM dcr_area_summary a JOIN area_master am ON am.oid = a.area_id
+                SELECT DATE_FORMAT(a.dcr_date, '%Y-%m-%d') AS d, am.area_name AS n FROM dcr_area_summary a JOIN area_master am ON am.id = a.area_id
                 WHERE a.emp_id = ? AND a.dcr_date BETWEEN ? AND ? AND a.area_role = 'VISITED' GROUP BY d, n ORDER BY n""", empId, from, to)) {
             Map<String, Object> day = days.get((String) r.get("d")); if (day != null) ((List<String>) day.get("areas")).add((String) r.get("n"));
         }

@@ -134,7 +134,7 @@ public class LookupController {
                 .map(t -> new Item(t.getOid(), t.getTypeName())).toList());
         if (want(want, "routes")) res.put("routes", routes.findByStatusOrderByRouteNameAsc("Y").stream()
                 .map(r -> new Item(r.getOid(), r.getRouteName())).toList());
-        if (want(want, "areas")) res.put("areas", areas.findByStatusOrderByAreaNameAsc("Y").stream()
+        if (want(want, "areas")) res.put("areas", areas.findByActiveOrderByAreaNameAsc(true).stream()
                 .map(a -> new Item(a.getOid(), a.getAreaName())).toList());
         if (want(want, "designations")) res.put("designations", designations.findByActiveTrueOrderByDisplayOrderAscHierarchyLevelAsc().stream()
                 .map(d -> new Item(d.getId(), d.getDesignation(), d.getHierarchyLevel(), d.getDesignationCategory())).toList());

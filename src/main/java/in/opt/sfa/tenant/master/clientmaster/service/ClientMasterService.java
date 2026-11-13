@@ -179,7 +179,7 @@ public class ClientMasterService {
         m.put("degrees", degrees.findByIsActiveOrderByDisplayOrderAscDegreeNameAsc(true).stream().map(t -> item(t.getId(), t.getDegreeName(), null)).toList());
         m.put("states", states.findByStatusOrderByStateNameAsc("Y").stream().map(t -> item(t.getOid(), t.getStateName(), null)).toList());
         m.put("districts", districts.findByStatusOrderByDistrictNameAsc("Y").stream().map(t -> item(t.getOid(), t.getDistrictName(), t.getStateOid())).toList());
-        m.put("cities", areas.findByStatusOrderByAreaNameAsc("Y").stream().map(a -> {
+        m.put("cities", areas.findByActiveOrderByAreaNameAsc(true).stream().map(a -> {
             Map<String, Object> i = item(a.getOid(), a.getAreaName() + (Strings.isBlank(a.getCity()) ? "" : " (" + a.getCity() + ")"), a.getStateOid());
             i.put("pincode", a.getPincode());
             return i;

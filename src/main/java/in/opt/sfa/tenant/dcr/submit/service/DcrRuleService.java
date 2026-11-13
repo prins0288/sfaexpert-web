@@ -23,6 +23,12 @@ public class DcrRuleService {
         this.jdbc = jdbc;
     }
 
+    /** A company-wide (master row) boolean rule. */
+    public boolean masterBool(String code, boolean dflt) {
+        List<String> l = jdbc.query("SELECT config_value FROM app_validations WHERE module_name = 'DCR' AND config_code = ? AND emp_id IS NULL AND is_enabled = 1 AND is_active = 1 LIMIT 1", (rs, i) -> rs.getString(1), code);
+        return l.isEmpty() || l.get(0) == null || l.get(0).isBlank() ? dflt : bool(Map.of("K", l.get(0).trim()), "K", dflt);
+    }
+
     /** The company switch DCR_APPROVAL_REQUIRED (master row; default on). Off = no approval at all. */
     public boolean approvalOn() {
         List<String> l = jdbc.query("SELECT config_value FROM app_validations WHERE module_name = 'DCR' AND config_code = 'DCR_APPROVAL_REQUIRED' AND emp_id IS NULL AND is_enabled = 1 AND is_active = 1 LIMIT 1", (rs, i) -> rs.getString(1));

@@ -129,7 +129,7 @@ public class TourPlanService {
                 day.put("areas", new ArrayList<>()); day.put("clients", new ArrayList<>()); day.put("visitWith", new ArrayList<>());
                 days.put(ds, day);
             }
-            addAll(days, "SELECT a.tour_date AS d, ar.oid AS id, ar.area_name AS name, ar.area_type AS areaType FROM tour_emp_area a JOIN area_master ar ON ar.oid = a.area_id WHERE a.tour_main = ? ORDER BY ar.area_name", tm, "areas");
+            addAll(days, "SELECT a.tour_date AS d, ar.id AS id, ar.area_name AS name, ar.area_type AS areaType FROM tour_emp_area a JOIN area_master ar ON ar.id = a.area_id WHERE a.tour_main = ? ORDER BY ar.area_name", tm, "areas");
             addAll(days, """
                     SELECT c.tour_date AS d, c.client_id AS id, c.area_id AS areaId, CONCAT(COALESCE(CONCAT(m.salutation, ' '), ''), m.client_name) AS name, m.client_code AS code
                     FROM tour_emp_clients c JOIN client_master m ON m.id = c.client_id WHERE c.tour_main = ? ORDER BY m.client_name""", tm, "clients");
@@ -312,10 +312,10 @@ public class TourPlanService {
     /** One planned day in readable form (names, not ids) - the "before" and "after" of an approver's change. */
     private Map<String, Object> daySnapshot(long tm, LocalDate d) {
         Map<String, Object> m = new LinkedHashMap<>();
-        List<Map<String, Object>> day = jdbc.queryForList("SELECT c.worktype_code AS wt, c.tour_remark AS remark, (SELECT area_name FROM area_master WHERE oid = c.stay_area_id) AS stay FROM tour_child c WHERE c.tour_main = ? AND c.tour_date = ?", tm, d);
+        List<Map<String, Object>> day = jdbc.queryForList("SELECT c.worktype_code AS wt, c.tour_remark AS remark, (SELECT area_name FROM area_master WHERE id = c.stay_area_id) AS stay FROM tour_child c WHERE c.tour_main = ? AND c.tour_date = ?", tm, d);
         if (day.isEmpty()) return m;
         m.put("worktype", day.get(0).get("wt")); m.put("remark", day.get(0).get("remark")); m.put("stay", day.get(0).get("stay"));
-        m.put("areas", names("SELECT CONCAT(ar.area_name, IF(ar.area_type IS NULL OR ar.area_type = '', '', CONCAT(' [', ar.area_type, ']'))) FROM tour_emp_area a JOIN area_master ar ON ar.oid = a.area_id WHERE a.tour_main = ? AND a.tour_date = ? ORDER BY ar.area_name", tm, d));
+        m.put("areas", names("SELECT CONCAT(ar.area_name, IF(ar.area_type IS NULL OR ar.area_type = '', '', CONCAT(' [', ar.area_type, ']'))) FROM tour_emp_area a JOIN area_master ar ON ar.id = a.area_id WHERE a.tour_main = ? AND a.tour_date = ? ORDER BY ar.area_name", tm, d));
         m.put("clients", names("SELECT CONCAT(m.client_name, ' (', m.client_code, ')') FROM tour_emp_clients c JOIN client_master m ON m.id = c.client_id WHERE c.tour_main = ? AND c.tour_date = ? ORDER BY m.client_name", tm, d));
         m.put("visitWith", names("SELECT CONCAT(e.emp_name, ' (', e.emp_code, ')') FROM tour_emp_visit_with w JOIN emp_detail e ON e.emp_id = w.visit_with_id WHERE w.tour_main = ? AND w.tour_date = ? ORDER BY e.emp_name", tm, d));
         return m;

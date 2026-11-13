@@ -417,6 +417,7 @@
   }
   function startSheet() {
     const working = isField(ST.workType), today = ST.dcrDate === todayStr();
+    if (working && !ST.startAreaId) { const hm = startAreas().find(a => a.home); if (hm) { ST.startAreaId = hm.id; setTimeout(areaTypeShow, 0); } }   // the starting point (home area) is pre-selected
     const wt = `<select class="form-select" data-no-search onchange="ST.workType=this.value;startSheet()">${opts(OPT.workTypes.map(w => ({ id: w.code, name: w.name })), ST.workType)}</select>`;
     sheetOpen('Start your day', `<div class="row g-3">${field('Work type', wt)}
       ${working ? tpNote() : ''}

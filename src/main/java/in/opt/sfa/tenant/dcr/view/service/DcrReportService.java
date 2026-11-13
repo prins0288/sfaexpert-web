@@ -126,7 +126,7 @@ public class DcrReportService {
                        p.submitted_through AS source, ap.emp_name AS approvedBy, p.approved_at AS approvedAt, p.remarks
                 FROM dcr_parent_summary p JOIN emp_detail e ON e.emp_id = p.emp_id
                 LEFT JOIN designation_master dg ON dg.id = e.designation LEFT JOIN hq_master h ON h.oid = e.hq_id LEFT JOIN state_master st ON st.oid = e.state_id
-                LEFT JOIN area_master sa ON sa.oid = p.start_area_id LEFT JOIN emp_detail ap ON ap.emp_id = p.approved_by""" + w + " ORDER BY p.dcr_date, e.emp_name", a.toArray());
+                LEFT JOIN area_master sa ON sa.id = p.start_area_id LEFT JOIN emp_detail ap ON ap.emp_id = p.approved_by""" + w + " ORDER BY p.dcr_date, e.emp_name", a.toArray());
         dcrs = scope.filter(TeamScope.Scope.TEAM_SELF, dcrs, r -> (String) r.get("empId"));
         List<Map<String, Object>> rows = new ArrayList<>();
         Set<String> have = new HashSet<>();
@@ -223,8 +223,8 @@ public class DcrReportService {
                        (SELECT display_name FROM app_dcr_worktype w WHERE w.emp_id IS NULL AND w.worktype_code = p.work_type LIMIT 1) AS workTypeName
                 FROM dcr_parent_summary p JOIN emp_detail e ON e.emp_id = p.emp_id LEFT JOIN designation_master dg ON dg.id = e.designation
                 LEFT JOIN hq_master h ON h.oid = e.hq_id LEFT JOIN state_master st ON st.oid = e.state_id LEFT JOIN emp_detail mg ON mg.emp_id = p.manager_id
-                LEFT JOIN area_master sa ON sa.oid = p.start_area_id LEFT JOIN area_master wa ON wa.oid = p.working_area_id LEFT JOIN area_master da ON da.oid = p.day_end_area_id
-                LEFT JOIN area_master ya ON ya.oid = p.stay_area_id LEFT JOIN emp_detail ap ON ap.emp_id = p.approved_by
+                LEFT JOIN area_master sa ON sa.id = p.start_area_id LEFT JOIN area_master wa ON wa.id = p.working_area_id LEFT JOIN area_master da ON da.id = p.day_end_area_id
+                LEFT JOIN area_master ya ON ya.id = p.stay_area_id LEFT JOIN emp_detail ap ON ap.emp_id = p.approved_by
                 WHERE p.dcr_id = ?""", dcrId);
         if (ps.isEmpty()) throw new IllegalStateException("DCR not found");
         Map<String, Object> p = ps.get(0);
@@ -260,7 +260,7 @@ public class DcrReportService {
                        s.is_refused AS refused, s.pob_value AS pob, s.remarks, s.next_visit AS nextVisit, s.next_visit_priority AS priority, s.next_visit_remarks AS nextRemarks,
                        s.checkin_lat AS lat, s.checkin_lng AS lng%GEO%
                 FROM dcr_client_summary s JOIN client_master c ON c.id = s.client_id LEFT JOIN client_type ct ON ct.oid = c.client_type_id LEFT JOIN category_master cat ON cat.oid = c.category_id
-                LEFT JOIN speciality_master sp ON sp.oid = c.speciality_id LEFT JOIN area_master ar ON ar.oid = COALESCE(s.area_id, c.city_id)
+                LEFT JOIN speciality_master sp ON sp.oid = c.speciality_id LEFT JOIN area_master ar ON ar.id = COALESCE(s.area_id, c.city_id)
                 WHERE s.dcr_id = ? ORDER BY s.in_time, s.id""".replace("%GEO%", geoCols ? ", s.checkin_address AS address, s.checkin_distance_m AS distanceM" : ""), dcrId)) {
             c.put("kind", "Listed"); attach(c, "1|" + c.get("clientId"), items, leaflets, treat, joint); c.remove("clientId"); calls.add(c);
         }
@@ -269,7 +269,7 @@ public class DcrReportService {
                        u.worktype_code AS tab, u.visit_type AS visitType, u.activity_type AS activityType, u.in_time AS inTime, u.out_time AS outTime, u.is_refused AS refused, u.pob_value AS pob, u.remarks,
                        u.next_visit AS nextVisit, u.next_visit_priority AS priority, u.next_visit_remarks AS nextRemarks, u.checkin_lat AS lat, u.checkin_lng AS lng%GEO%
                 FROM dcr_unlisted_client_summary u LEFT JOIN client_type ct ON ct.oid = u.client_type_id LEFT JOIN category_master cat ON cat.oid = u.category_id
-                LEFT JOIN speciality_master sp ON sp.oid = u.speciality_id LEFT JOIN area_master ar ON ar.oid = u.area_id WHERE u.dcr_id = ? ORDER BY u.in_time, u.id""".replace("%GEO%", geoCols ? ", u.checkin_address AS address" : ""), dcrId)) {
+                LEFT JOIN speciality_master sp ON sp.oid = u.speciality_id LEFT JOIN area_master ar ON ar.id = u.area_id WHERE u.dcr_id = ? ORDER BY u.in_time, u.id""".replace("%GEO%", geoCols ? ", u.checkin_address AS address" : ""), dcrId)) {
             c.put("kind", "Unlisted"); attach(c, "2|" + c.get("id"), items, leaflets, treat, joint); calls.add(c);
         }
         calls.sort(Comparator.comparing(c -> String.valueOf(c.get("inTime"))));
@@ -287,7 +287,7 @@ public class DcrReportService {
         out.put("expenses", jdbc.queryForList("""
                 SELECT x.id, em.expense_name AS type, x.amount, x.description, fa.area_name AS fromArea, ta.area_name AS toArea, x.start_km AS startKm, x.end_km AS endKm, x.total_km AS totalKm, x.file_name AS fileName,
                        CASE x.client_kind WHEN 1 THEN (SELECT client_name FROM client_master WHERE id = x.client_ref_id) WHEN 2 THEN (SELECT client_name FROM dcr_unlisted_client_summary WHERE id = x.client_ref_id) END AS client
-                FROM dcr_expense x JOIN expense_master em ON em.id = x.expense_id LEFT JOIN area_master fa ON fa.oid = x.from_area_id LEFT JOIN area_master ta ON ta.oid = x.to_area_id WHERE x.dcr_id = ? ORDER BY x.id""", dcrId));
+                FROM dcr_expense x JOIN expense_master em ON em.id = x.expense_id LEFT JOIN area_master fa ON fa.id = x.from_area_id LEFT JOIN area_master ta ON ta.id = x.to_area_id WHERE x.dcr_id = ? ORDER BY x.id""", dcrId));
         return out;
     }
 
