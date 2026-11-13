@@ -54,6 +54,8 @@ public class InventoryService {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("fields", fields().stream().map(f -> { Map<String, Object> m = new LinkedHashMap<>(); m.put("code", f.code()); m.put("label", f.label()); m.put("short", f.shortCode()); m.put("enabled", f.enabled()); m.put("mandatory", f.mandatory()); m.put("sign", f.sign()); m.put("role", f.role()); m.put("builtin", f.builtin()); m.put("core", f.core()); m.put("sortOrder", f.sort()); return m; }).toList());
         out.put("settings", settings());
+        List<Map<String, Object>> ct = jdbc.queryForList("SELECT singular_label, plural_label FROM client_type WHERE dcr_tab = 'PARTY' AND is_active = 1 ORDER BY oid LIMIT 1");   // what the company calls its party: Party / Stockist / Distributor ...
+        out.put("partyLabel", ct.isEmpty() ? null : ct.get(0).get("singular_label")); out.put("partyLabelPlural", ct.isEmpty() ? null : ct.get(0).get("plural_label"));
         return out;
     }
 

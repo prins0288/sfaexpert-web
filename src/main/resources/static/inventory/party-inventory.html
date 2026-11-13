@@ -50,7 +50,7 @@
   <div class="card-body"><div class="row g-2 align-items-end">
     <div class="col-6 col-md-2"><label class="form-label small fw-semibold" data-i18n="entity.state">State</label><select class="form-select form-select-sm" id="f_state" onchange="fCascade()"><option value="">All</option></select></div>
     <div class="col-6 col-md-3"><label class="form-label small fw-semibold" data-i18n="entity.employee">Employee</label><select class="form-select form-select-sm" id="f_emp" onchange="empChanged()"></select></div>
-    <div class="col-12 col-md-3"><label class="form-label small fw-semibold" data-i18n="inv.party">Party / Stockist</label><select class="form-select form-select-sm" id="f_party"><option value="">All</option></select></div>
+    <div class="col-12 col-md-3"><label class="form-label small fw-semibold" data-plabel>Party / Stockist</label><select class="form-select form-select-sm" id="f_party"></select></div>
     <div class="col-6 col-md-2"><label class="form-label small fw-semibold" data-i18n="rep.month">Month</label><select class="form-select form-select-sm" id="f_month"></select></div>
     <div class="col-6 col-md-1"><label class="form-label small fw-semibold" data-i18n="inv.year">Year</label><select class="form-select form-select-sm" id="f_year"></select></div>
     <div class="col-12 col-md-1 text-end"><button class="btn btn-sm btn-primary w-100" onclick="listLoad()"><i class="bi bi-search"></i> <span data-i18n="rep.show">Show</span></button></div>
@@ -61,7 +61,7 @@
 <div class="modal fade" id="entryModal" tabindex="-1" data-bs-backdrop="static"><div class="modal-dialog modal-fullscreen"><div class="modal-content">
   <div class="modal-header sfa-modal"><h5 class="modal-title"><i class="bi bi-box-seam"></i> <span data-i18n="inv.title">Stock &amp; Sales Submit</span> <span class="badge bg-warning text-dark ms-2 d-none" id="eUpd" data-i18n="inv.updating">Updating a submitted record</span></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
   <div class="modal-body">
-    <div class="text-center mb-2"><span class="inv-chip" data-i18n="inv.party">Party / Stockist</span><span class="inv-chip v" id="eParty"></span> <span class="inv-chip" data-i18n="rep.month">Month</span><span class="inv-chip v" id="eMonth"></span> <span class="inv-chip" data-i18n="inv.year">Year</span><span class="inv-chip v" id="eYear"></span></div>
+    <div class="text-center mb-2"><span class="inv-chip" data-plabel>Party / Stockist</span><span class="inv-chip v" id="eParty"></span> <span class="inv-chip" data-i18n="rep.month">Month</span><span class="inv-chip v" id="eMonth"></span> <span class="inv-chip" data-i18n="inv.year">Year</span><span class="inv-chip v" id="eYear"></span></div>
     <div class="small text-primary text-center mb-1" id="eOpen"></div>
     <div class="small text-danger text-center mb-2" id="eFormula"></div>
     <div class="inv-wrap border rounded"><table class="table table-sm table-bordered mb-0 inv-grid" id="eGrid"><thead></thead><tbody></tbody></table></div>
@@ -94,10 +94,14 @@
   const T = (k, en) => (window.I18n ? I18n.t(k, en) : en);
   const EP = API.report.inventory, FEP = API.report.attendance;
   const esc = (v) => SFA.esc(v == null ? '' : v);
+  // what this company calls its party (the client type of the PARTY tab: Party / Stockist / ...): English uses that table value, another language uses the language text (lang_*.properties / label_master)
+  let PLAB = null;
+  const PL = () => (window.I18n && I18n.lang !== 'en') || !PLAB ? T('inv.party', PLAB || 'Party / Stockist') : PLAB;
+  const plApply = () => document.querySelectorAll('[data-plabel]').forEach(e => { e.textContent = PL(); });
   const loc = () => (window.I18n && I18n.lang === 'hi' ? 'hi-IN' : 'en-GB');
   const money = (v) => Number(v || 0).toLocaleString(loc(), { maximumFractionDigits: 2 });
   let FIL = null, ROWS = [], E = null, VALS = [], MODAL = null, ME = null, LASTLANG = window.I18n ? I18n.lang : 'en';
-  if (window.I18n) I18n.onChange(() => { if (I18n.lang !== LASTLANG) { LASTLANG = I18n.lang; drawList(); } });
+  if (window.I18n) I18n.onChange(() => { if (I18n.lang !== LASTLANG) { LASTLANG = I18n.lang; plApply(); drawList(); } });
   const MONTHS = [...Array(12)].map((_, i) => new Date(2024, i, 1).toLocaleDateString('en-GB', { month: 'long' }));
 
   window.pageInit = async function () {
@@ -107,21 +111,24 @@
     document.getElementById('f_year').innerHTML = [0, 1, 2, 3].map(k => `<option>${now.getFullYear() - k}</option>`).join('');
     try {
       FIL = await Api.get(FEP + '/filters'); ME = (Session.me && Session.me()) || null;
+      PLAB = (await Api.get(EP + '/config')).partyLabel; plApply();
       document.getElementById('f_state').innerHTML = '<option value="">All</option>' + FIL.states.map(x => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('');
-      fCascade(); await listLoad();
+      fCascade(); await new Promise(r => setTimeout(r, 400)); await listLoad();
     } catch (e) { SFA.toast(e.message, false); }
   };
   function fCascade() {
     const st = document.getElementById('f_state').value, sel = document.getElementById('f_emp').value;
     const list = FIL.employees.filter(e => !st || String(e.stateId) === st);
-    document.getElementById('f_emp').innerHTML = list.map(e => `<option value="${esc(e.id)}" ${String(e.id) === sel ? 'selected' : ''}>${esc(e.name)}</option>`).join('');
+    document.getElementById('f_emp').innerHTML = '<option value="">' + T('common.all', 'All') + '</option>' + list.map(e => `<option value="${esc(e.id)}" ${String(e.id) === sel ? 'selected' : ''}>${esc(e.name)}</option>`).join('');
     empChanged();
   }
   async function empChanged() {
-    const emp = document.getElementById('f_emp').value; const p = document.getElementById('f_party');
-    if (!emp) { p.innerHTML = '<option value="">All</option>'; return; }
-    try { const list = await Api.get(EP + '/parties', { query: { empId: emp }, noLoader: true }); p.innerHTML = '<option value="">All</option>' + list.map(x => `<option value="${x.id}">${esc(x.name)}</option>`).join(''); }
-    catch (e) { p.innerHTML = '<option value="">All</option>'; }
+    const emp = document.getElementById('f_emp').value, st = document.getElementById('f_state').value; const p = document.getElementById('f_party');
+    const none = '<option value="">' + T('inv.noParty', 'No party for this employee') + '</option>';
+    try {   // an employee: his parties; All: the parties of everyone the user may see (of the state when one is chosen) - the Party itself is never All
+      const list = emp ? await Api.get(EP + '/parties', { query: { empId: emp }, noLoader: true }).then(l => l.map(x => Object.assign(x, { empId: emp }))) : await Api.get(EP + '/report/parties', { query: { stateId: st || undefined }, noLoader: true });
+      p.innerHTML = list.length ? list.map(x => `<option value="${x.id}" data-emp="${esc(x.empId)}">${esc(x.name)}</option>`).join('') : none;
+    } catch (e) { p.innerHTML = none; }
   }
   async function listLoad() {
     const g = (i) => document.getElementById(i).value;
@@ -131,7 +138,7 @@
     const w = document.getElementById('invList');
     if (window.jQuery && $.fn.DataTable.isDataTable('#invT')) $('#invT').DataTable().destroy();
     if (!ROWS.length) { w.innerHTML = `<div class="text-center text-muted py-4">${T('inv.none', 'Nothing submitted for these filters')}</div>`; return; }
-    w.innerHTML = `<table id="invT" data-screen-key="PARTY_INVENTORY" class="table table-striped table-bordered nowrap" style="width:100%"><thead><tr><th>${T('common.sno', 'S.No')}</th><th data-field="employee">${T('entity.employee', 'Employee')}</th><th data-field="party">${T('inv.party', 'Party / Stockist')}</th><th data-field="state">${T('entity.state', 'State')}</th><th data-field="period">${T('inv.period', 'Month / Year')}</th>
+    w.innerHTML = `<table id="invT" data-screen-key="PARTY_INVENTORY" class="table table-striped table-bordered nowrap" style="width:100%"><thead><tr><th>${T('common.sno', 'S.No')}</th><th data-field="employee">${T('entity.employee', 'Employee')}</th><th data-field="party">${PL()}</th><th data-field="state">${T('entity.state', 'State')}</th><th data-field="period">${T('inv.period', 'Month / Year')}</th>
       <th data-field="items" class="text-end">${T('inv.items', 'Items')}</th><th data-field="closing" class="text-end">${T('inv.closing', 'Closing qty')}</th><th data-field="value" class="text-end">${T('inv.stockValue', 'Stock value')}</th><th data-field="file">${T('inv.file', 'File')}</th><th data-field="updated">${T('inv.updated', 'Last updated')}</th></tr></thead><tbody>
       ${ROWS.map((r, i) => `<tr class="rp-click" onclick="openEntry(${i})"><td>${i + 1}</td><td><b>${esc(r.empName)}</b> <small class="text-muted">${esc(r.empCode)}</small></td><td>${esc(r.party)} <small class="text-muted">${esc(r.partyCode)}</small></td><td>${esc(r.state)}</td>
       <td data-order="${r.year * 100 + r.month}">${MONTHS[r.month - 1]} ${r.year}</td><td class="num">${r.items}</td><td class="num">${money(r.closing)}</td><td class="num">${money(r.stockValue)}</td><td>${r.fileName ? '<i class="bi bi-paperclip"></i> ' + esc(r.fileName) : ''}</td><td>${esc(String(r.updatedAt || r.createdAt || '').replace('T', ' ').substring(0, 16))}</td></tr>`).join('')}</tbody></table>`;
@@ -144,7 +151,7 @@
   async function openEntry(i) {
     let emp, party, month, year; const g = (id) => document.getElementById(id).value;
     if (i != null) { const r = ROWS[i]; emp = r.empId; party = r.partyId; month = r.month; year = r.year; }
-    else { emp = g('f_emp'); party = g('f_party'); month = g('f_month'); year = g('f_year'); if (!emp || !party) { SFA.toast(T('inv.pick', 'Choose the employee and the party / stockist first'), false); return; } }
+    else { party = g('f_party'); const po = document.getElementById('f_party').selectedOptions[0]; emp = g('f_emp') || (po && po.dataset.emp) || ''; month = g('f_month'); year = g('f_year'); if (!emp || !party) { SFA.toast(T('inv.pick', 'Choose the employee and the party / stockist first'), false); return; } }
     try { E = await Api.get(EP + '/entry', { query: { empId: emp, partyId: party, month, year } }); } catch (e) { SFA.toast(e.message, false); return; }
     E.empId = emp; VALS = E.items.map(it => { const o = {}; E.fields.forEach(f => o[f.code] = it.v[f.code] == null ? '' : String(it.v[f.code])); return o; });
     document.getElementById('eParty').textContent = E.party.name; document.getElementById('eMonth').textContent = MONTHS[E.month - 1]; document.getElementById('eYear').textContent = E.year;

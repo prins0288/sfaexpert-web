@@ -65,8 +65,8 @@
     <div class="col-6 col-md-2"><label class="form-label" data-i18n="entity.hq">HQ</label><select class="form-select form-select-sm" id="f_hq" onchange="cas()"><option value="">All</option></select></div>
     <div class="col-6 col-md-2"><label class="form-label" data-i18n="entity.designation">Designation</label><select class="form-select form-select-sm" id="f_des" onchange="cas()"><option value="">All</option></select></div>
     <div class="col-6 col-md-3"><label class="form-label" data-i18n="entity.employee">Employee</label><select class="form-select form-select-sm" id="f_emp" onchange="empCh()"><option value="">All</option></select></div>
-    <div class="col-12 col-md-3"><label class="form-label" data-i18n="inv.party">Party / Stockist</label><select class="form-select form-select-sm" id="f_party"><option value="">All</option></select></div>
-    <div class="col-6 col-md-2"><label class="form-label" data-i18n="inv.groupBy">Columns by</label><select class="form-select form-select-sm" id="f_group" onchange="rpGo()"><option value="PARTY" data-i18n="inv.party">Party / Stockist</option><option value="EMPLOYEE" data-i18n="entity.employee">Employee</option><option value="HQ" data-i18n="entity.hq">HQ</option><option value="STATE" data-i18n="entity.state">State</option><option value="DESIGNATION" data-i18n="entity.designation">Designation</option></select></div>
+    <div class="col-12 col-md-3"><label class="form-label" data-plabel>Party / Stockist</label><select class="form-select form-select-sm" id="f_party"><option value="">All</option></select></div>
+    <div class="col-6 col-md-2"><label class="form-label" data-i18n="inv.groupBy">Columns by</label><select class="form-select form-select-sm" id="f_group" onchange="rpGo()"><option value="PARTY" data-plabel>Party / Stockist</option><option value="EMPLOYEE" data-i18n="entity.employee">Employee</option><option value="HQ" data-i18n="entity.hq">HQ</option><option value="STATE" data-i18n="entity.state">State</option><option value="DESIGNATION" data-i18n="entity.designation">Designation</option></select></div>
     <div class="col-6 col-md-2"><label class="form-label" data-i18n="inv.types">Type</label><div class="dropdown"><button class="btn btn-sm btn-outline-secondary w-100 text-start dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" id="f_typeBtn"></button><div class="dropdown-menu p-2" id="f_typeMenu" style="max-height:320px;overflow:auto"></div></div></div>
     <div class="col-6 col-md-2"><label class="form-label" data-i18n="inv.view">View</label><select class="form-select form-select-sm" id="f_view" onchange="draw()"><option value="BOTH" data-i18n="inv.viewBoth">Qty + Value</option><option value="QTY" data-i18n="inv.viewQty">Qty</option><option value="VAL" data-i18n="inv.viewVal">Value</option></select></div>
     <div class="col-6 col-md-2"><label class="form-label" data-i18n="inv.priceType">Price type</label><select class="form-select form-select-sm" id="f_price"><option value="APPLIED" data-i18n="inv.priceApplied">As set in Inventory Master</option><option value="ITEM" data-i18n="inv.priceItem">Item rate (PTS)</option><option value="SPECIAL" data-i18n="inv.priceSpecial">Special rate (else item rate)</option></select></div>
@@ -103,13 +103,17 @@
   const T = (k, en) => (window.I18n ? I18n.t(k, en) : en);
   const REPORT_KEY = 'stockreport', REPORT_LABEL = 'Company Stock', EP = API.report.inventory, FEP = API.report.attendance;
   const esc = (v) => SFA.esc(v == null ? '' : v);
+  // what this company calls its party (the client type of the PARTY tab: Party / Stockist / ...): English uses that table value, another language uses the language text (lang_*.properties / label_master)
+  let PLAB = null;
+  const PL = () => (window.I18n && I18n.lang !== 'en') || !PLAB ? T('inv.party', PLAB || 'Party / Stockist') : PLAB;
+  const plApply = () => document.querySelectorAll('[data-plabel]').forEach(e => { e.textContent = PL(); });
   const loc = () => (window.I18n && I18n.lang === 'hi' ? 'hi-IN' : 'en-GB');
   const num = (v) => Number(v || 0).toLocaleString(loc(), { maximumFractionDigits: 2 });
   const MONTHS = [...Array(12)].map((_, i) => new Date(2024, i, 1).toLocaleDateString('en-GB', { month: 'long' }));
   let TYPES = [];   // [short code, label] of the fields the company set up (Inventory Master)
   let FIL = null, D = null, ACT = null, LASTLANG = window.I18n ? I18n.lang : 'en';
   const picked = { months: new Set(), types: new Set() };
-  if (window.I18n) I18n.onChange(() => { if (I18n.lang !== LASTLANG) { LASTLANG = I18n.lang; if (D) draw(); } });
+  if (window.I18n) I18n.onChange(() => { if (I18n.lang !== LASTLANG) { LASTLANG = I18n.lang; plApply(); if (D) draw(); } });
 
   window.pageInit = async function () {
     ACT = new bootstrap.Modal('#activityModal');
@@ -121,7 +125,7 @@
     try {
       const cfg = await Api.get(EP + '/config'); TYPES = cfg.fields.filter(f => f.enabled && f.role !== 'VALUE' && f.role !== 'RATE').map(f => [f.short, f.label]); TYPES.forEach(t => picked.types.add(t[0]));
       checks('f_typeMenu', TYPES, picked.types, 'f_typeBtn', T('inv.allTypes', 'All types'), false);
-      FIL = await Api.get(FEP + '/filters');
+      FIL = await Api.get(FEP + '/filters'); PLAB = cfg.partyLabel; plApply();
       const o = (list) => '<option value="">All</option>' + list.map(x => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('');
       document.getElementById('f_state').innerHTML = o(FIL.states); document.getElementById('f_hq').innerHTML = o(FIL.hqs); document.getElementById('f_des').innerHTML = o(FIL.designations);
       cas(); await rpGo();
@@ -199,7 +203,7 @@
     const t = wrap.querySelector('table'), rows = t.querySelectorAll('thead tr'); let top = 0;
     rows.forEach(r => { const h = r.getBoundingClientRect().height; r.querySelectorAll('th').forEach(c => { c.style.top = top + 'px'; }); top += h; });
   }
-  const groupName = () => ({ PARTY: T('inv.party', 'Party / Stockist'), EMPLOYEE: T('entity.employee', 'Employee'), HQ: T('entity.hq', 'HQ'), STATE: T('entity.state', 'State'), DESIGNATION: T('entity.designation', 'Designation') })[D.groupBy] || '';
+  const groupName = () => ({ PARTY: PL(), EMPLOYEE: T('entity.employee', 'Employee'), HQ: T('entity.hq', 'HQ'), STATE: T('entity.state', 'State'), DESIGNATION: T('entity.designation', 'Designation') })[D.groupBy] || '';
 </script>
 </body>
 </html>
