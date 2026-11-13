@@ -60,6 +60,7 @@
     <div class="col-md-4"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="s_calc"><label class="form-check-label" for="s_calc" data-i18n="inv.calc">Calculate Sale / Closing</label></div>
       <div class="form-text" data-i18n="inv.calcHelp">ON: only Sale typed - Closing is calculated; only Closing typed - Sale is calculated; both typed - no formula. OFF: nothing is calculated, what is typed is saved.</div></div>
     <div class="col-md-4"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="s_file" onchange="mFileToggle()"><label class="form-check-label" for="s_file" data-i18n="inv.fileUpload">File upload (stock statement)</label></div>
+      <div class="form-check form-switch mt-2"><input class="form-check-input" type="checkbox" id="s_open"><label class="form-check-label" for="s_open" data-i18n="inv.openEdit">Opening can be edited</label></div><div class="form-text" data-i18n="inv.openHelp">OFF: the opening of a month is the closing of the last submitted month and cannot be changed; it is typed only the first time a party is submitted. ON: it can always be edited.</div>
       <div class="form-check form-switch mt-2"><input class="form-check-input" type="checkbox" id="s_filem"><label class="form-check-label" for="s_filem" data-i18n="inv.fileMandatory">File is mandatory</label></div></div>
   </div></div></div>
 <div class="card"><div class="card-body small">
@@ -104,7 +105,7 @@
       <td><input class="form-control form-control-sm" type="number" data-k="sortOrder" data-i="${i}" value="${esc(f.sortOrder)}"></td>
       <td>${f.core ? '<i class="bi bi-lock-fill text-muted" title="Always stays - you can rename it"></i>' : `<button class="btn btn-sm btn-outline-danger" title="Delete" onclick="mDel('${esc(f.code)}')"><i class="bi bi-trash"></i></button>`}</td></tr>`; }).join('');
     const s = CFG.settings;
-    document.getElementById('s_basis').value = s.RATE_BASIS; document.getElementById('s_rate').value = s.RATE_SHOWN; document.getElementById('s_calc').checked = s.SALE_CLOSING_CALC === 'Y';
+    document.getElementById('s_basis').value = s.RATE_BASIS; document.getElementById('s_rate').value = s.RATE_SHOWN; document.getElementById('s_calc').checked = s.SALE_CLOSING_CALC === 'Y'; document.getElementById('s_open').checked = s.OPENING_EDITABLE === 'Y';
     document.getElementById('s_file').checked = s.FILE_UPLOAD === 'Y'; document.getElementById('s_filem').checked = s.FILE_MANDATORY === 'Y'; mFileToggle();
   }
   async function mAdd() {
@@ -118,7 +119,7 @@
       const g = (k) => document.querySelector(`[data-k="${k}"][data-i="${i}"]`);
       return { code: f.code, label: g('label').value, short: g('short').value, sign: g('sign').value, enabled: g('enabled').checked, mandatory: g('mandatory').checked, sortOrder: g('sortOrder').value };
     });
-    const settings = { RATE_BASIS: document.getElementById('s_basis').value, RATE_SHOWN: document.getElementById('s_rate').value, SALE_CLOSING_CALC: document.getElementById('s_calc').checked ? 'Y' : 'N', FILE_UPLOAD: document.getElementById('s_file').checked ? 'Y' : 'N', FILE_MANDATORY: document.getElementById('s_filem').checked ? 'Y' : 'N' };
+    const settings = { RATE_BASIS: document.getElementById('s_basis').value, RATE_SHOWN: document.getElementById('s_rate').value, SALE_CLOSING_CALC: document.getElementById('s_calc').checked ? 'Y' : 'N', OPENING_EDITABLE: document.getElementById('s_open').checked ? 'Y' : 'N', FILE_UPLOAD: document.getElementById('s_file').checked ? 'Y' : 'N', FILE_MANDATORY: document.getElementById('s_filem').checked ? 'Y' : 'N' };
     try { await Api.post(EP + '/config', { fields, settings }); SFA.toast(T('inv.saved', 'Saved'), true); CFG = await Api.get(EP + '/config'); draw(); } catch (e) { SFA.toast(e.message, false); }
   }
 </script>

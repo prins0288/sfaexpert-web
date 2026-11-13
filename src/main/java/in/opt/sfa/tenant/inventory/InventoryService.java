@@ -37,7 +37,7 @@ public class InventoryService {
     public InventoryService(JdbcTemplate jdbc, TeamScope scope) { this.jdbc = jdbc; this.scope = scope; }
 
     // ------------------------------------------------------------------ master (fields + settings)
-    private static final Map<String, String> SETTING_DEFAULTS = Map.of("RATE_SHOWN", "SPECIAL", "FILE_UPLOAD", "N", "FILE_MANDATORY", "N", "SALE_CLOSING_CALC", "Y", "RATE_BASIS", "PTS");
+    private static final Map<String, String> SETTING_DEFAULTS = Map.of("RATE_SHOWN", "SPECIAL", "FILE_UPLOAD", "N", "FILE_MANDATORY", "N", "SALE_CLOSING_CALC", "Y", "RATE_BASIS", "PTS", "OPENING_EDITABLE", "N");
 
     public List<Field> fields() {
         List<Field> l = new ArrayList<>();
@@ -153,6 +153,16 @@ public class InventoryService {
         return l.isEmpty() || l.get(0) == null ? BigDecimal.ZERO : l.get(0);
     }
 
+    /** The closing of the party's latest EARLIER submission, item by item - the opening of this month. null = the party has never submitted before this month (the opening is typed). */
+    private Map<Long, BigDecimal> prevClosing(long partyId, int month, int year, int[] ym) {
+        List<Map<String, Object>> p = jdbc.queryForList("SELECT id, sale_month, sale_year FROM party_sales_parent WHERE party_id = ? AND (sale_year < ? OR (sale_year = ? AND sale_month < ?)) ORDER BY sale_year DESC, sale_month DESC LIMIT 1", partyId, year, year, month);
+        if (p.isEmpty()) return null;
+        if (ym != null) { ym[0] = ((Number) p.get(0).get("sale_month")).intValue(); ym[1] = ((Number) p.get(0).get("sale_year")).intValue(); }
+        Map<Long, BigDecimal> m = new HashMap<>();
+        for (Map<String, Object> r : jdbc.queryForList("SELECT item_id, closing_qty FROM party_sales_child WHERE parent_id = ?", p.get(0).get("id"))) m.put(((Number) r.get("item_id")).longValue(), (BigDecimal) r.get("closing_qty"));
+        return m;
+    }
+
     private Long stateOf(String empId) { List<Long> l = jdbc.query("SELECT state_id FROM emp_detail WHERE emp_id = ?", (rs, i) -> rs.getObject(1) == null ? null : rs.getLong(1), empId); return l.isEmpty() ? null : l.get(0); }
 
     // ------------------------------------------------------------------ entry (open) and save
@@ -166,6 +176,8 @@ public class InventoryService {
         if (!parent.isEmpty()) for (Map<String, Object> r : jdbc.queryForList("SELECT * FROM party_sales_child WHERE parent_id = ?", parent.get(0).get("id"))) saved.put(((Number) r.get("item_id")).longValue(), r);
         Map<String, String> st = settings(); Long state = stateOf(empId);
         List<Field> fields = fields();
+        int[] pm = new int[2]; Map<Long, BigDecimal> prev = prevClosing(partyId, month, year, pm);
+        boolean openingLocked = prev != null && !"Y".equals(st.get("OPENING_EDITABLE"));   // the opening is the closing of the last submitted month; typed only the first time (or when the setting lets it be edited)
         List<Map<String, Object>> items = new ArrayList<>();
         for (Map<String, Object> it : jdbc.queryForList("""
                 SELECT i.id, i.item_code AS code, i.item_name AS name, i.pack_size AS pack FROM item_master i JOIN item_type_master t ON t.id = i.item_type_id
@@ -180,14 +192,15 @@ public class InventoryService {
             for (Field f : fields) {
                 Object val = s == null ? null : (COL.containsKey(f.code()) ? s.get(COL.get(f.code())) : extra.get(f.code()));
                 if (("C".equals(cf) && "CLOSING".equals(f.code())) || ("S".equals(cf) && "SECONDARY".equals(f.code()))) val = null;
+                if (openingLocked && "OPENING".equals(f.code())) val = prev.get(id);   // read only: the previous closing
                 v.put(f.code(), val);
             }
-            m.put("v", v); m.put("closing", s == null ? null : s.get("closing_qty")); m.put("stockValue", s == null ? null : s.get("stock_value"));
+            m.put("v", v); if (prev != null) m.put("openingPrev", prev.get(id)); m.put("closing", s == null ? null : s.get("closing_qty")); m.put("stockValue", s == null ? null : s.get("stock_value"));
             items.add(m);
         }
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("exists", !parent.isEmpty()); out.put("parent", parent.isEmpty() ? null : parent.get(0)); out.put("party", party); out.put("items", items);
-        out.put("month", month); out.put("year", year); out.putAll(config());
+        out.put("month", month); out.put("year", year); out.put("openingLocked", openingLocked); out.put("openingFrom", prev == null ? null : pm[0] + "-" + pm[1]); out.putAll(config());
         return out;
     }
 
@@ -220,6 +233,8 @@ public class InventoryService {
         int month = Integer.parseInt(String.valueOf(b.get("month"))), year = Integer.parseInt(String.valueOf(b.get("year")));
         checkPeriod(month, year); partyOf(empId, partyId);
         Map<String, String> st = settings();
+        Map<Long, BigDecimal> prevM = prevClosing(partyId, month, year, null);
+        boolean openingLocked = prevM != null && !"Y".equals(st.get("OPENING_EDITABLE"));
         List<Field> fields = fields();
         Field sale = fields.stream().filter(f -> "SALE".equals(f.role()) && f.enabled()).findFirst().orElse(null), closingF = fields.stream().filter(f -> "CLOSING".equals(f.role()) && f.enabled()).findFirst().orElse(null);
         List<Field> typed = fields.stream().filter(f -> f.enabled() && !"VALUE".equals(f.role())).toList();
@@ -240,6 +255,7 @@ public class InventoryService {
             Map<String, BigDecimal> v = new LinkedHashMap<>(); boolean any = false;
             for (Field f : typed) { BigDecimal x = num(r.get(f.code()), f.label()); v.put(f.code(), x); if (x != null) any = true; }
             if (!any) continue;
+            if (openingLocked) v.put("OPENING", prevM.getOrDefault(itemId, BigDecimal.ZERO));   // never typed: the closing of the last submitted month
             String name = jdbc.queryForList("SELECT item_name FROM item_master WHERE id = ?", String.class, itemId).stream().findFirst().orElseThrow(() -> new IllegalArgumentException("Item not found: " + itemId));
             for (Field f : typed) if (f.mandatory() && "NORMAL".equals(f.role()) && v.get(f.code()) == null) throw new IllegalArgumentException(f.label() + " is required for " + name);
             if (sale != null && sale.mandatory() && closingF == null && v.get(sale.code()) == null) throw new IllegalArgumentException(sale.label() + " is required for " + name);

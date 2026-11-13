@@ -62,6 +62,7 @@
   <div class="modal-header sfa-modal"><h5 class="modal-title"><i class="bi bi-box-seam"></i> <span data-i18n="inv.title">Stock &amp; Sales Submit</span> <span class="badge bg-warning text-dark ms-2 d-none" id="eUpd" data-i18n="inv.updating">Updating a submitted record</span></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
   <div class="modal-body">
     <div class="text-center mb-2"><span class="inv-chip" data-i18n="inv.party">Party / Stockist</span><span class="inv-chip v" id="eParty"></span> <span class="inv-chip" data-i18n="rep.month">Month</span><span class="inv-chip v" id="eMonth"></span> <span class="inv-chip" data-i18n="inv.year">Year</span><span class="inv-chip v" id="eYear"></span></div>
+    <div class="small text-primary text-center mb-1" id="eOpen"></div>
     <div class="small text-danger text-center mb-2" id="eFormula"></div>
     <div class="inv-wrap border rounded"><table class="table table-sm table-bordered mb-0 inv-grid" id="eGrid"><thead></thead><tbody></tbody></table></div>
     <div class="row g-2 mt-2"><div class="col-md-8"><label class="form-label small fw-semibold" data-i18n="inv.remarks">Remarks</label><input class="form-control form-control-sm" id="eRemarks" maxlength="500"></div>
@@ -148,6 +149,7 @@
     E.empId = emp; VALS = E.items.map(it => { const o = {}; E.fields.forEach(f => o[f.code] = it.v[f.code] == null ? '' : String(it.v[f.code])); return o; });
     document.getElementById('eParty').textContent = E.party.name; document.getElementById('eMonth').textContent = MONTHS[E.month - 1]; document.getElementById('eYear').textContent = E.year;
     document.getElementById('eUpd').classList.toggle('d-none', !E.exists);
+    document.getElementById('eOpen').textContent = E.openingLocked ? T('inv.openFrom', 'Opening = closing of') + ' ' + MONTHS[Number(E.openingFrom.split('-')[0]) - 1] + ' ' + E.openingFrom.split('-')[1] + ' (' + T('inv.readOnly', 'read only') + ')' : (E.openingFrom ? '' : T('inv.openFirst', 'First submission of this party: type the opening'));
     document.getElementById('eRemarks').value = (E.parent && E.parent.remarks) || '';
     E.filePath = E.parent && E.parent.filePath; E.fileName = E.parent && E.parent.fileName;
     E.basis = (E.parent && E.parent.rateBasis) || E.settings.RATE_BASIS;
@@ -159,7 +161,7 @@
     const cols = COLS(), sv = E.fields.find(f => f.role === 'VALUE' && f.enabled);
     document.querySelector('#eGrid thead').innerHTML = `<tr><th>${T('common.sno', 'Sr.')}</th><th style="min-width:14rem">${T('inv.item', 'Item Name')}</th><th>${T('inv.pack', 'Packing Size')}</th><th>${esc(E.basis)}</th>${cols.map(c => `<th>${esc(c.label)}</th>`).join('')}${sv ? `<th>${esc(sv.label)}</th>` : ''}</tr>`;
     document.querySelector('#eGrid tbody').innerHTML = E.items.map((it, i) => `<tr><td>${i + 1}</td><td>${esc(it.name)}</td><td class="text-center">${esc(it.pack)}</td><td class="num">${money(it.rate)}</td>
-      ${cols.map(c => `<td><input class="form-control form-control-sm ${c.role === 'RATE' ? 'sm' : ''}" type="number" min="0" step="any" inputmode="decimal" id="v_${i}_${c.code}" value="${esc(VALS[i][c.code])}" oninput="vIn(${i},'${c.code}',this.value)"></td>`).join('')}
+      ${cols.map(c => `<td><input class="form-control form-control-sm ${c.role === 'RATE' ? 'sm' : ''}" type="number" min="0" step="any" inputmode="decimal" id="v_${i}_${c.code}" value="${esc(VALS[i][c.code])}" ${E.openingLocked && c.code === 'OPENING' ? 'readonly tabindex="-1" style="background:#eef1f4"' : ''} oninput="vIn(${i},'${c.code}',this.value)"></td>`).join('')}
       ${sv ? `<td class="num" id="sv_${i}"></td>` : ''}</tr>`).join('');
     E.items.forEach((_, i) => recalc(i)); totals();
   }
