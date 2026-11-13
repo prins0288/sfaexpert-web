@@ -41,7 +41,10 @@ public class InventoryService {
 
     public List<Field> fields() {
         List<Field> l = new ArrayList<>();
-        for (Map<String, Object> r : jdbc.queryForList("SELECT field_code, label, short_code, is_enabled, is_mandatory, sign_op, field_role, is_builtin, is_core, sort_order FROM inventory_field_master ORDER BY sort_order, id"))
+        List<Map<String, Object>> rows;
+        try { rows = jdbc.queryForList("SELECT field_code, label, short_code, is_enabled, is_mandatory, sign_op, field_role, is_builtin, is_core, sort_order FROM inventory_field_master ORDER BY sort_order, id"); }
+        catch (org.springframework.dao.DataAccessException e) { throw new IllegalStateException("The inventory tables are from an older version - run 124_inventory.sql and then 126_inventory_upgrade.sql on this company's database"); }
+        for (Map<String, Object> r : rows)
             l.add(new Field((String) r.get("field_code"), (String) r.get("label"), r.get("short_code") == null ? (String) r.get("field_code") : (String) r.get("short_code"), flag(r.get("is_enabled")), flag(r.get("is_mandatory")), ((Number) r.get("sign_op")).intValue(), (String) r.get("field_role"), flag(r.get("is_builtin")), flag(r.get("is_core")), ((Number) r.get("sort_order")).intValue()));
         return l;
     }
