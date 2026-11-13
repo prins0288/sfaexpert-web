@@ -1038,8 +1038,6 @@
   function paneDayEnd() {
     return `<div class="card-lite"><div class="row g-3">
       ${field('Day ended at (area)', `<select class="form-select" data-no-search onchange="ST.dayEndAreaId=this.value">${opts(OPT.areas, ST.dayEndAreaId, 'Select area')}</select>`)}
-      ${field('Day end time', `<div class="form-control bg-body-tertiary text-muted">${ST.dayEndAt ? esc(ST.dayEndAt.replace('T', ' ')) : 'Captured automatically when you submit'}</div>`)}
-      ${field('Day end location', `<div class="form-control bg-body-tertiary text-muted">${ST.dayEndAddress ? esc(ST.dayEndAddress) : (ST.dayEndLat ? esc(ST.dayEndLat + ', ' + ST.dayEndLng) : 'Captured automatically when the day is ended')}</div>`)}
       ${RULE('METER_READING_DAYEND_VISIBLITY', false) ? field('Meter reading at day end (km)' + (RULE('METER_READING_DAYEND', false) ? ' *' : '') + (ST.meterStart !== '' && ST.meterStart != null ? ' - started at ' + ST.meterStart : ''), inp('meterEnd', 'number', 'inputmode="decimal" step="any"')
         + `<div class="mt-2">${ST.meterEndImage ? `<div class="mb-1">${SFAFiles.thumb(ST.meterEndImage, null, { name: 'meter' })}</div>` : ''}${photoBtns("r=>{ST.meterEndImage=r.path;render()}")}</div>`) : ''}
       ${field('Day end remarks', `<input class="form-control" maxlength="200" value="${esc(ST.dayEndRemarks)}" oninput="ST.dayEndRemarks=this.value" />`, 'col-6')}
