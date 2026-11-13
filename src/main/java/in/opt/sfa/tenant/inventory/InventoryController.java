@@ -16,9 +16,10 @@ import java.util.Map;
 @RequestMapping("/api/inventory")
 public class InventoryController {
     private final InventoryService service;
+    private final InventoryReportService report;
     private final FileUploadService uploads;
 
-    public InventoryController(InventoryService service, FileUploadService uploads) { this.service = service; this.uploads = uploads; }
+    public InventoryController(InventoryService service, InventoryReportService report, FileUploadService uploads) { this.service = service; this.report = report; this.uploads = uploads; }
 
     @GetMapping("/config") public Map<String, Object> config() { return service.config(); }
     @PostMapping("/config") public Map<String, Object> saveConfig(@RequestBody Map<String, Object> b) { service.saveConfig(b); return Map.of("saved", true); }
@@ -31,8 +32,29 @@ public class InventoryController {
     @GetMapping("/entry")
     public Map<String, Object> entry(@RequestParam String empId, @RequestParam long partyId, @RequestParam int month, @RequestParam int year) { return service.entry(empId, partyId, month, year); }
 
-    @PostMapping("/save") public Map<String, Object> save(@RequestBody Map<String, Object> b) { return service.save(b); }
+    @PostMapping("/save") public Map<String, Object> save(@RequestBody Map<String, Object> b) throws Exception { return service.save(b); }
+    @PostMapping("/config/field/{code}/delete") public Map<String, Object> deleteField(@PathVariable String code) { service.deleteField(code); return Map.of("deleted", true); }
     @PostMapping("/{id}/delete") public Map<String, Object> delete(@PathVariable long id) { return Map.of("deleted", service.delete(id)); }
+
+    // ---- company stock report (items x state / HQ / designation / employee / party x O P S FG R E C) ----
+    private static List<Integer> ints(String csv) { return csv == null || csv.isBlank() ? List.of() : java.util.Arrays.stream(csv.split(",")).map(String::trim).filter(x -> !x.isEmpty()).map(Integer::valueOf).toList(); }
+    private InventoryReportService.Q q(Integer year, String months, Long stateId, Long hqId, Integer designationId, String empId, Long partyId, String groupBy, String types, String priceType) {
+        return new InventoryReportService.Q(year, ints(months), stateId, hqId, designationId, empId, partyId, groupBy, types == null || types.isBlank() ? List.of() : java.util.Arrays.asList(types.split(",")), priceType);
+    }
+    @GetMapping("/report/parties") public List<Map<String, Object>> partyOptions(@RequestParam(required = false) String empId, @RequestParam(required = false) Long stateId) { return report.partyOptions(empId, stateId); }
+    @GetMapping("/report")
+    public Map<String, Object> report(@RequestParam(required = false) Integer year, @RequestParam(required = false) String months, @RequestParam(required = false) Long stateId, @RequestParam(required = false) Long hqId,
+                                      @RequestParam(required = false) Integer designationId, @RequestParam(required = false) String empId, @RequestParam(required = false) Long partyId,
+                                      @RequestParam(defaultValue = "PARTY") String groupBy, @RequestParam(required = false) String types, @RequestParam(defaultValue = "APPLIED") String priceType) {
+        return report.pivot(q(year, months, stateId, hqId, designationId, empId, partyId, groupBy, types, priceType));
+    }
+    @GetMapping("/report/excel")
+    public org.springframework.http.ResponseEntity<byte[]> excel(@RequestParam(required = false) Integer year, @RequestParam(required = false) String months, @RequestParam(required = false) Long stateId, @RequestParam(required = false) Long hqId,
+                                      @RequestParam(required = false) Integer designationId, @RequestParam(required = false) String empId, @RequestParam(required = false) Long partyId,
+                                      @RequestParam(defaultValue = "PARTY") String groupBy, @RequestParam(required = false) String types, @RequestParam(defaultValue = "APPLIED") String priceType, @RequestParam(defaultValue = "BOTH") String view) throws Exception {
+        byte[] b = report.excel(q(year, months, stateId, hqId, designationId, empId, partyId, groupBy, types, priceType), view);
+        return org.springframework.http.ResponseEntity.ok().header("Content-Disposition", "attachment; filename=company-stock.xlsx").contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")).body(b);
+    }
 
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Map<String, Object> upload(@RequestParam("file") MultipartFile file) throws Exception {

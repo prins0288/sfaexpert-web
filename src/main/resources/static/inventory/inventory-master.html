@@ -41,11 +41,20 @@
   <div class="card-header d-flex align-items-center flex-wrap gap-2"><span><i class="bi bi-sliders"></i> <span data-i18n="inv.master">Inventory Master</span></span>
     <div class="card-tools ms-auto"><button class="btn btn-sm btn-primary" onclick="mSave()"><i class="bi bi-check2"></i> <span data-i18n="common.save">Save</span></button></div></div>
   <div class="card-body"><div class="small text-muted mb-2" data-i18n="inv.masterHelp">What the user fills in the Stock &amp; Sales Submit of a party / stockist. A field that is switched off is not shown and counts as 0. Closing is typed OR calculated from the sale; Stock value is always calculated.</div>
-    <div class="table-responsive"><table class="table table-sm align-middle" id="fieldT"><thead><tr><th style="width:3.5rem">#</th><th>Code</th><th data-i18n="inv.label">Label</th><th class="text-center" data-i18n="inv.show">Show</th><th class="text-center" data-i18n="inv.mandatory">Mandatory</th><th style="width:6rem" data-i18n="inv.order">Order</th></tr></thead><tbody></tbody></table></div></div>
+    <div class="table-responsive"><table class="table table-sm align-middle" id="fieldT"><thead><tr><th style="width:3.5rem">#</th><th>Code</th><th data-i18n="inv.label">Label</th><th style="width:6rem" data-i18n="inv.short">Report code</th><th style="width:9rem" data-i18n="inv.sign">In closing</th><th class="text-center" data-i18n="inv.show">Show</th><th class="text-center" data-i18n="inv.mandatory">Mandatory</th><th style="width:6rem" data-i18n="inv.order">Order</th><th></th></tr></thead><tbody></tbody></table></div>
+    <div class="border rounded p-2 mt-2"><div class="fw-semibold small mb-2" data-i18n="inv.addField">Add your own field</div><div class="row g-2 align-items-end">
+      <div class="col-6 col-md-2"><label class="form-label small mb-0">Code</label><input class="form-control form-control-sm" id="n_code" maxlength="24" placeholder="DAMAGE" style="text-transform:uppercase"></div>
+      <div class="col-6 col-md-4"><label class="form-label small mb-0" data-i18n="inv.label">Label</label><input class="form-control form-control-sm" id="n_label" maxlength="60" placeholder="Damaged goods"></div>
+      <div class="col-6 col-md-2"><label class="form-label small mb-0" data-i18n="inv.short">Report code</label><input class="form-control form-control-sm" id="n_short" maxlength="10"></div>
+      <div class="col-6 col-md-2"><label class="form-label small mb-0" data-i18n="inv.sign">In closing</label><select class="form-select form-select-sm" id="n_sign"><option value="1">+ added</option><option value="-1">- subtracted</option><option value="0">information only</option></select></div>
+      <div class="col-12 col-md-2"><button class="btn btn-sm btn-outline-primary w-100" onclick="mAdd()"><i class="bi bi-plus-lg"></i> <span data-i18n="inv.add">Add</span></button></div></div></div></div>
 </div>
 <div class="card mb-2"><div class="card-header"><i class="bi bi-gear"></i> <span data-i18n="inv.settings">Settings</span></div>
   <div class="card-body"><div class="row g-3">
-    <div class="col-md-4"><label class="form-label small fw-semibold" data-i18n="inv.rateShown">Rate used / shown in the inventory</label>
+    <div class="col-md-4"><label class="form-label small fw-semibold" data-i18n="inv.rateBasis">Stock is submitted on the rate</label>
+      <select class="form-select form-select-sm" id="s_basis"><option value="PTS">PTS</option><option value="PTR">PTR</option><option value="MRP">MRP</option><option value="PURCHASE_RATE">Purchase rate</option></select>
+      <div class="form-text" data-i18n="inv.rateBasisHelp">The column of the item rate master (state wise rate first, else the all-state rate) the item rate is taken from.</div>
+      <label class="form-label small fw-semibold mt-2" data-i18n="inv.rateShown">Rate used / shown in the inventory</label>
       <select class="form-select form-select-sm" id="s_rate"><option value="SPECIAL" data-i18n="inv.rateSpecial">Special rate when entered, else the item rate</option><option value="ITEM" data-i18n="inv.rateItem">Always the item rate (PTS)</option></select>
       <div class="form-text" data-i18n="inv.rateHelp">Both rates are always saved when a special rate is entered. This decides which one the stock value and the views use.</div></div>
     <div class="col-md-4"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="s_calc"><label class="form-check-label" for="s_calc" data-i18n="inv.calc">Calculate Sale / Closing</label></div>
@@ -85,23 +94,31 @@
   window.pageInit = async function () { try { CFG = await Api.get(EP + '/config'); draw(); } catch (e) { SFA.toast(e.message, false); } };
   function draw() {
     document.querySelector('#fieldT tbody').innerHTML = CFG.fields.map((f, i) => {
-      const noMand = f.auto || f.code === 'CLOSING' || f.code === 'SECONDARY';
-      return `<tr><td>${i + 1}</td><td><code>${esc(f.code)}</code>${f.auto ? ' <span class="badge bg-info">auto</span>' : ''}</td>
+      const fixed = f.role !== 'NORMAL' || f.core, noMand = f.role !== 'NORMAL';
+      return `<tr><td>${i + 1}</td><td><code>${esc(f.code)}</code>${f.role === 'VALUE' ? ' <span class="badge bg-info">auto</span>' : f.role !== 'NORMAL' ? ' <span class="badge bg-secondary">' + esc(f.role.toLowerCase()) + '</span>' : ''}${f.builtin ? '' : ' <span class="badge bg-success">own</span>'}${f.core ? '' : ''}</td>
       <td><input class="form-control form-control-sm" data-k="label" data-i="${i}" value="${esc(f.label)}" maxlength="60"></td>
-      <td class="text-center"><input class="form-check-input" type="checkbox" data-k="enabled" data-i="${i}" ${f.enabled ? 'checked' : ''}></td>
+      <td><input class="form-control form-control-sm" data-k="short" data-i="${i}" value="${esc(f.short)}" maxlength="10"></td>
+      <td><select class="form-select form-select-sm" data-k="sign" data-i="${i}" ${fixed ? 'disabled' : ''}><option value="1" ${f.sign === 1 ? 'selected' : ''}>+ added</option><option value="-1" ${f.sign === -1 ? 'selected' : ''}>- subtracted</option><option value="0" ${f.sign === 0 ? 'selected' : ''}>${fixed ? '-' : 'information only'}</option></select></td>
+      <td class="text-center"><input class="form-check-input" type="checkbox" data-k="enabled" data-i="${i}" ${f.enabled ? 'checked' : ''} ${f.core ? 'disabled' : ''}></td>
       <td class="text-center"><input class="form-check-input" type="checkbox" data-k="mandatory" data-i="${i}" ${f.mandatory ? 'checked' : ''} ${noMand ? 'disabled' : ''}></td>
-      <td><input class="form-control form-control-sm" type="number" data-k="sortOrder" data-i="${i}" value="${esc(f.sortOrder)}"></td></tr>`; }).join('');
+      <td><input class="form-control form-control-sm" type="number" data-k="sortOrder" data-i="${i}" value="${esc(f.sortOrder)}"></td>
+      <td>${f.core ? '<i class="bi bi-lock-fill text-muted" title="Always stays - you can rename it"></i>' : `<button class="btn btn-sm btn-outline-danger" title="Delete" onclick="mDel('${esc(f.code)}')"><i class="bi bi-trash"></i></button>`}</td></tr>`; }).join('');
     const s = CFG.settings;
-    document.getElementById('s_rate').value = s.RATE_SHOWN; document.getElementById('s_calc').checked = s.SALE_CLOSING_CALC === 'Y';
+    document.getElementById('s_basis').value = s.RATE_BASIS; document.getElementById('s_rate').value = s.RATE_SHOWN; document.getElementById('s_calc').checked = s.SALE_CLOSING_CALC === 'Y';
     document.getElementById('s_file').checked = s.FILE_UPLOAD === 'Y'; document.getElementById('s_filem').checked = s.FILE_MANDATORY === 'Y'; mFileToggle();
   }
+  async function mAdd() {
+    const g = (i) => document.getElementById(i).value.trim();
+    try { await Api.post(EP + '/config', { fields: [{ code: g('n_code'), label: g('n_label'), short: g('n_short'), sign: g('n_sign'), enabled: true, mandatory: false, sortOrder: 200 + CFG.fields.length }] }); ['n_code', 'n_label', 'n_short'].forEach(i => document.getElementById(i).value = ''); SFA.toast(T('inv.saved', 'Saved'), true); CFG = await Api.get(EP + '/config'); draw(); } catch (e) { SFA.toast(e.message, false); }
+  }
+  async function mDel(code) { if (!confirm('Delete this field?')) return; try { await Api.post(EP + '/config/field/' + code + '/delete', {}); CFG = await Api.get(EP + '/config'); draw(); } catch (e) { SFA.toast(e.message, false); } }
   function mFileToggle() { const on = document.getElementById('s_file').checked; const m = document.getElementById('s_filem'); m.disabled = !on; if (!on) m.checked = false; }
   async function mSave() {
     const fields = CFG.fields.map((f, i) => {
       const g = (k) => document.querySelector(`[data-k="${k}"][data-i="${i}"]`);
-      return { code: f.code, label: g('label').value, enabled: g('enabled').checked, mandatory: g('mandatory').checked, sortOrder: g('sortOrder').value };
+      return { code: f.code, label: g('label').value, short: g('short').value, sign: g('sign').value, enabled: g('enabled').checked, mandatory: g('mandatory').checked, sortOrder: g('sortOrder').value };
     });
-    const settings = { RATE_SHOWN: document.getElementById('s_rate').value, SALE_CLOSING_CALC: document.getElementById('s_calc').checked ? 'Y' : 'N', FILE_UPLOAD: document.getElementById('s_file').checked ? 'Y' : 'N', FILE_MANDATORY: document.getElementById('s_filem').checked ? 'Y' : 'N' };
+    const settings = { RATE_BASIS: document.getElementById('s_basis').value, RATE_SHOWN: document.getElementById('s_rate').value, SALE_CLOSING_CALC: document.getElementById('s_calc').checked ? 'Y' : 'N', FILE_UPLOAD: document.getElementById('s_file').checked ? 'Y' : 'N', FILE_MANDATORY: document.getElementById('s_filem').checked ? 'Y' : 'N' };
     try { await Api.post(EP + '/config', { fields, settings }); SFA.toast(T('inv.saved', 'Saved'), true); CFG = await Api.get(EP + '/config'); draw(); } catch (e) { SFA.toast(e.message, false); }
   }
 </script>

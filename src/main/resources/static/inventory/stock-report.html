@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>/* reverse-proxy sub-path support: make relative css/js resolve under the deploy prefix (e.g. /sfaexpert), "" locally */
+  (function(){try{var p=location.pathname,m=p.match(/^(.*?)\/u\/\d+(\/|$)/),c=m?m[1]:p.replace(/\/[^\/]*$/,'');document.write('<base href="'+(c||'')+'/">');}catch(e){}})();</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StarSFA &middot; Company Stock</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css" rel="stylesheet" />
+  <link href="css/app.css" rel="stylesheet" />
+  <link href="css/app-ui.css" rel="stylesheet" />
+  <script>
+    /* Apply the saved theme (mode / layout / density / colours) BEFORE first
+       paint so there is no flash. theme.js re-applies from the server after. */
+    (function () {
+      try {
+        var d = document.documentElement, s = localStorage;
+        // theme is PER TENANT and several tenants can be signed in at once
+        // (/u/0, /u/1...), so these caches are scoped to the account slot —
+        // a shared key would paint the last-customised tenant's colours here.
+        var m = location.pathname.match(/\/u\/(\d+)(\/|$)/), q = '_u' + (m ? m[1] : '0');
+        d.setAttribute('data-theme', s.getItem('sfa_mode' + q) || 'light');
+        d.setAttribute('data-nav', s.getItem('sfa_nav' + q) || 'vertical');
+        d.setAttribute('data-density', s.getItem('sfa_density' + q) || 'comfortable');
+        var f = s.getItem('sfa_font' + q); if (f) d.style.setProperty('--sfa-font-scale', f);
+        var c = s.getItem('sfa_theme' + q);
+        if (c) { c = JSON.parse(c); var t = (c.resolved && c.resolved[c.mode]) || {};
+          for (var k in t) d.style.setProperty('--sfa-' + k, t[k]); }
+      } catch (e) {}
+    })();
+  </script>
+<style>
+  .rp-kpis { display: flex; flex-wrap: wrap; gap: .5rem; margin: 0 0 .6rem; } .rp-kpi { background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-left: 3px solid var(--bs-primary); border-radius: .4rem; padding: .35rem .8rem; min-width: 8rem; flex: 1 1 8rem; }
+  .rp-kpi small { color: var(--bs-secondary-color); display: block; font-size: .68rem; text-transform: uppercase; letter-spacing: .04em; } .rp-kpi b { font-size: 1.05rem; line-height: 1.2; } .rp-kpi.ok { border-left-color: #198754; } .rp-kpi.warn { border-left-color: #fd7e14; } .rp-kpi.mut { border-left-color: #6c757d; }
+  .rp-filters .form-label { font-size: .72rem; font-weight: 600; color: var(--bs-secondary-color); margin-bottom: .1rem; }
+  .sk-wrap { max-height: calc(100vh - 240px); min-height: 320px; overflow: auto; border: 1px solid var(--bs-border-color); border-radius: .4rem; }
+  table.sk { border-collapse: separate; border-spacing: 0; font-size: .78rem; width: max-content; min-width: 100%; }
+  table.sk th, table.sk td { border-right: 1px solid var(--bs-border-color); border-bottom: 1px solid var(--bs-border-color); padding: .25rem .45rem; white-space: nowrap; background: var(--bs-body-bg); }
+  table.sk thead th { background: #0a5a78; color: #fff; text-align: center; position: sticky; z-index: 3; font-weight: 600; }
+  table.sk .c1 { position: sticky; left: 0; min-width: 44px; max-width: 44px; z-index: 2; } table.sk .c2 { position: sticky; left: 44px; min-width: 230px; max-width: 230px; overflow: hidden; text-overflow: ellipsis; z-index: 2; }
+  table.sk .c3 { position: sticky; left: 274px; min-width: 80px; z-index: 2; } table.sk .c4 { position: sticky; left: 354px; min-width: 80px; text-align: right; z-index: 2; box-shadow: 2px 0 0 var(--bs-border-color); }
+  table.sk thead th.c1, table.sk thead th.c2, table.sk thead th.c3, table.sk thead th.c4 { z-index: 5; }
+  table.sk td.n { text-align: right; font-variant-numeric: tabular-nums; } table.sk td.z { color: var(--bs-secondary-color); opacity: .55; } table.sk td.g0 { background: var(--bs-tertiary-bg); }
+  table.sk tfoot td { position: sticky; bottom: 0; z-index: 3; background: #e7f0f4; font-weight: 700; } table.sk tfoot td.c1, table.sk tfoot td.c2, table.sk tfoot td.c3, table.sk tfoot td.c4 { z-index: 6; }
+  table.sk th small { display: block; font-weight: 400; opacity: .8; }
+</style>
+</head>
+<body>
+<div id="app" data-page="stockreport" data-title="Company Stock"></div>
+<template id="pageContent">
+<div class="card mb-2">
+  <div class="card-header d-flex align-items-center flex-wrap gap-2"><span><i class="bi bi-table"></i> <span data-i18n="inv.stockTitle">Company Stock</span></span><small class="text-muted" id="rpSub"></small>
+    <div class="card-tools ms-auto d-flex gap-2 flex-wrap">
+      <button class="btn btn-sm sfa-btn-outline" id="rpFBtn" onclick="rpFToggle()"><i class="bi bi-sliders"></i> <span data-i18n="rep.filters">Filters</span></button>
+      <button class="btn btn-sm sfa-btn-outline" data-bs-toggle="modal" data-bs-target="#activityModal"><i class="bi bi-clock-history"></i> <span data-i18n="rep.recent">Recent</span></button>
+      <button class="btn btn-sm btn-accent" onclick="rpExcel()"><i class="bi bi-file-earmark-excel"></i> <span data-i18n="inv.excel">Download Excel</span></button></div></div>
+  <div class="card-body rp-filters" id="rpFBody"><div class="row g-2 align-items-end">
+    <div class="col-6 col-md-1"><label class="form-label" data-i18n="inv.year">Year</label><select class="form-select form-select-sm" id="f_year"></select></div>
+    <div class="col-6 col-md-2"><label class="form-label" data-i18n="rep.month">Month</label><div class="dropdown"><button class="btn btn-sm btn-outline-secondary w-100 text-start dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" id="f_monthBtn"></button><div class="dropdown-menu p-2" id="f_monthMenu" style="max-height:300px;overflow:auto"></div></div></div>
+    <div class="col-6 col-md-2"><label class="form-label" data-i18n="entity.state">State</label><select class="form-select form-select-sm" id="f_state" onchange="cas()"><option value="">All</option></select></div>
+    <div class="col-6 col-md-2"><label class="form-label" data-i18n="entity.hq">HQ</label><select class="form-select form-select-sm" id="f_hq" onchange="cas()"><option value="">All</option></select></div>
+    <div class="col-6 col-md-2"><label class="form-label" data-i18n="entity.designation">Designation</label><select class="form-select form-select-sm" id="f_des" onchange="cas()"><option value="">All</option></select></div>
+    <div class="col-6 col-md-3"><label class="form-label" data-i18n="entity.employee">Employee</label><select class="form-select form-select-sm" id="f_emp" onchange="empCh()"><option value="">All</option></select></div>
+    <div class="col-12 col-md-3"><label class="form-label" data-i18n="inv.party">Party / Stockist</label><select class="form-select form-select-sm" id="f_party"><option value="">All</option></select></div>
+    <div class="col-6 col-md-2"><label class="form-label" data-i18n="inv.groupBy">Columns by</label><select class="form-select form-select-sm" id="f_group" onchange="rpGo()"><option value="PARTY" data-i18n="inv.party">Party / Stockist</option><option value="EMPLOYEE" data-i18n="entity.employee">Employee</option><option value="HQ" data-i18n="entity.hq">HQ</option><option value="STATE" data-i18n="entity.state">State</option><option value="DESIGNATION" data-i18n="entity.designation">Designation</option></select></div>
+    <div class="col-6 col-md-2"><label class="form-label" data-i18n="inv.types">Type</label><div class="dropdown"><button class="btn btn-sm btn-outline-secondary w-100 text-start dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" id="f_typeBtn"></button><div class="dropdown-menu p-2" id="f_typeMenu" style="max-height:320px;overflow:auto"></div></div></div>
+    <div class="col-6 col-md-2"><label class="form-label" data-i18n="inv.view">View</label><select class="form-select form-select-sm" id="f_view" onchange="draw()"><option value="BOTH" data-i18n="inv.viewBoth">Qty + Value</option><option value="QTY" data-i18n="inv.viewQty">Qty</option><option value="VAL" data-i18n="inv.viewVal">Value</option></select></div>
+    <div class="col-6 col-md-2"><label class="form-label" data-i18n="inv.priceType">Price type</label><select class="form-select form-select-sm" id="f_price"><option value="APPLIED" data-i18n="inv.priceApplied">As set in Inventory Master</option><option value="ITEM" data-i18n="inv.priceItem">Item rate (PTS)</option><option value="SPECIAL" data-i18n="inv.priceSpecial">Special rate (else item rate)</option></select></div>
+    <div class="col-auto ms-md-auto d-flex gap-2"><button class="btn btn-sm btn-light" onclick="rpReset()" data-i18n="common.reset">Reset</button><button class="btn btn-sm btn-primary" onclick="rpGo()"><i class="bi bi-search"></i> <span data-i18n="rep.show">Show</span></button></div>
+  </div></div>
+</div>
+<div class="rp-kpis" id="rpKpis"></div>
+<div class="sk-wrap" id="skWrap"></div>
+<div class="modal fade" id="activityModal" tabindex="-1"><div class="modal-dialog modal-dialog-scrollable modal-fullscreen-sm-down"><div class="modal-content">
+  <div class="modal-header sfa-modal"><h5 class="modal-title"><i class="bi bi-clock-history"></i> <span data-i18n="rep.recentSearches">Recent searches</span></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body"><div id="activityList"></div></div><div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal" data-i18n="common.close">Close</button></div></div></div></div>
+</template>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.colVis.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="js/core/session.js"></script>
+<script src="js/core/endpoints.js"></script>
+<script src="js/core/http.js"></script>
+<script src="js/core/theme.js"></script>
+<script src="js/core/settings.js"></script>
+<script src="js/core/i18n.js"></script>
+<script src="js/app.js"></script>
+<script src="js/core/uikit.js"></script>
+<script src="js/core/activity.js"></script>
+<script src="js/shell.js"></script>
+<script>
+  const T = (k, en) => (window.I18n ? I18n.t(k, en) : en);
+  const REPORT_KEY = 'stockreport', REPORT_LABEL = 'Company Stock', EP = API.report.inventory, FEP = API.report.attendance;
+  const esc = (v) => SFA.esc(v == null ? '' : v);
+  const loc = () => (window.I18n && I18n.lang === 'hi' ? 'hi-IN' : 'en-GB');
+  const num = (v) => Number(v || 0).toLocaleString(loc(), { maximumFractionDigits: 2 });
+  const MONTHS = [...Array(12)].map((_, i) => new Date(2024, i, 1).toLocaleDateString('en-GB', { month: 'long' }));
+  let TYPES = [];   // [short code, label] of the fields the company set up (Inventory Master)
+  let FIL = null, D = null, ACT = null, LASTLANG = window.I18n ? I18n.lang : 'en';
+  const picked = { months: new Set(), types: new Set() };
+  if (window.I18n) I18n.onChange(() => { if (I18n.lang !== LASTLANG) { LASTLANG = I18n.lang; if (D) draw(); } });
+
+  window.pageInit = async function () {
+    ACT = new bootstrap.Modal('#activityModal');
+    document.getElementById('activityModal').addEventListener('shown.bs.modal', () => Activity.renderInto('activityList', REPORT_KEY, applyActivity));
+    const now = new Date();
+    document.getElementById('f_year').innerHTML = [0, 1, 2, 3].map(k => `<option>${now.getFullYear() - k}</option>`).join('');
+    picked.months.add(now.getMonth() + 1);
+    checks('f_monthMenu', MONTHS.map((m, i) => [i + 1, m]), picked.months, 'f_monthBtn', T('inv.allMonths', 'All months'), true);
+    try {
+      const cfg = await Api.get(EP + '/config'); TYPES = cfg.fields.filter(f => f.enabled && f.role !== 'VALUE' && f.role !== 'RATE').map(f => [f.short, f.label]); TYPES.forEach(t => picked.types.add(t[0]));
+      checks('f_typeMenu', TYPES, picked.types, 'f_typeBtn', T('inv.allTypes', 'All types'), false);
+      FIL = await Api.get(FEP + '/filters');
+      const o = (list) => '<option value="">All</option>' + list.map(x => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('');
+      document.getElementById('f_state').innerHTML = o(FIL.states); document.getElementById('f_hq').innerHTML = o(FIL.hqs); document.getElementById('f_des').innerHTML = o(FIL.designations);
+      cas(); await rpGo();
+    } catch (e) { SFA.toast(e.message, false); }
+  };
+  // a dropdown of checkboxes
+  function checks(menuId, list, set, btnId, allText, numeric) {
+    document.getElementById(menuId).innerHTML = `<div class="form-check"><input class="form-check-input" type="checkbox" id="${menuId}_all"><label class="form-check-label fw-semibold" for="${menuId}_all">${allText}</label></div><hr class="my-1">`
+      + list.map(([k, l]) => `<div class="form-check"><input class="form-check-input ck-${menuId}" type="checkbox" value="${k}" id="${menuId}_${k}" ${set.has(k) ? 'checked' : ''}><label class="form-check-label" for="${menuId}_${k}">${esc(l)}</label></div>`).join('');
+    const sync = () => { const all = list.length === set.size; document.getElementById(menuId + '_all').checked = all; document.getElementById(btnId).textContent = all || !set.size ? allText : list.filter(([k]) => set.has(k)).map(([, l]) => l).join(', ').substring(0, 28) + (set.size > 2 ? ' +' + (set.size - 2) : ''); if (menuId === 'f_typeMenu' && D) draw(); };
+    document.getElementById(menuId).addEventListener('change', (e) => {
+      if (e.target.id === menuId + '_all') { set.clear(); if (e.target.checked) list.forEach(([k]) => set.add(k)); document.querySelectorAll('.ck-' + menuId).forEach(c => c.checked = e.target.checked); }
+      else { const k = numeric ? Number(e.target.value) : e.target.value; e.target.checked ? set.add(k) : set.delete(k); }
+      sync();
+    }); sync();
+  }
+  function cas() {
+    const v = (id) => document.getElementById(id).value, sel = v('f_emp');
+    const list = FIL.employees.filter(e => (!v('f_state') || String(e.stateId) === v('f_state')) && (!v('f_hq') || String(e.hqId) === v('f_hq')) && (!v('f_des') || String(e.designationId) === v('f_des')));
+    document.getElementById('f_emp').innerHTML = '<option value="">All</option>' + list.map(e => `<option value="${esc(e.id)}" ${String(e.id) === sel ? 'selected' : ''}>${esc(e.name)}</option>`).join('');
+    empCh();
+  }
+  async function empCh() {
+    const sel = document.getElementById('f_party').value;
+    try { const l = await Api.get(EP + '/report/parties', { query: { empId: document.getElementById('f_emp').value || undefined, stateId: document.getElementById('f_state').value || undefined }, noLoader: true });
+      document.getElementById('f_party').innerHTML = '<option value="">All</option>' + l.map(x => `<option value="${x.id}" ${String(x.id) === sel ? 'selected' : ''}>${esc(x.name)}</option>`).join(''); } catch (e) { }
+  }
+  const q = () => { const g = (i) => document.getElementById(i).value || undefined; return { year: g('f_year'), months: [...picked.months].sort((a, b) => a - b).join(',') || undefined, stateId: g('f_state'), hqId: g('f_hq'), designationId: g('f_des'), empId: g('f_emp'), partyId: g('f_party'), groupBy: g('f_group'), priceType: g('f_price') }; };
+  async function rpGo() {
+    try {
+      D = await Api.get(EP + '/report', { query: q() });
+      const ms = [...picked.months].sort((a, b) => a - b); document.getElementById('rpSub').textContent = (ms.length && ms.length < 12 ? ms.map(m => MONTHS[m - 1]).join(', ') : T('inv.allMonths', 'All months')) + ' ' + document.getElementById('f_year').value;
+      draw(); rpFToggle(true); window.scrollTo(0, 0);
+      Activity.record(REPORT_KEY, REPORT_LABEL, filterState(), (D.groups.length + ' / ' + D.items.length));
+    } catch (e) { SFA.toast(e.message, false); }
+  }
+  function rpFToggle(close) { const b = document.getElementById('rpFBody'), hide = close === true ? true : !b.classList.contains('d-none'); b.classList.toggle('d-none', hide); document.getElementById('rpFBtn').classList.toggle('active', !hide); if (!hide) window.scrollTo(0, 0); }
+  function rpReset() { ['f_state', 'f_hq', 'f_des', 'f_emp', 'f_party'].forEach(i => document.getElementById(i).value = ''); cas(); rpGo(); }
+  function filterState() { const g = (i) => document.getElementById(i).value; return { year: g('f_year'), months: [...picked.months], state: g('f_state'), hq: g('f_hq'), des: g('f_des'), emp: g('f_emp'), party: g('f_party'), group: g('f_group'), view: g('f_view'), price: g('f_price'), types: [...picked.types] }; }
+  function applyActivity(f) {
+    const set = (i, v) => document.getElementById(i).value = v || '';
+    set('f_year', f.year); set('f_state', f.state); set('f_hq', f.hq); set('f_des', f.des); cas(); set('f_emp', f.emp); set('f_group', f.group || 'PARTY'); set('f_view', f.view || 'BOTH'); set('f_price', f.price || 'APPLIED');
+    picked.months.clear(); (f.months || []).forEach(m => picked.months.add(m)); checks('f_monthMenu', MONTHS.map((m, i) => [i + 1, m]), picked.months, 'f_monthBtn', T('inv.allMonths', 'All months'), true);
+    picked.types.clear(); (f.types || TYPES.map(t => t[0])).filter(t => TYPES.some(x => x[0] === t)).forEach(t => picked.types.add(t)); checks('f_typeMenu', TYPES, picked.types, 'f_typeBtn', T('inv.allTypes', 'All types'), false);
+    empCh().then(() => { set('f_party', f.party); rpGo(); }); if (ACT) ACT.hide();
+  }
+  function rpExcel() {
+    const p = Object.assign(q(), { types: [...picked.types].join(','), view: document.getElementById('f_view').value }); Object.keys(p).forEach(k => p[k] === undefined && delete p[k]);
+    Api.download(EP + '/report/excel', 'company-stock.xlsx', { query: p }).catch(e => SFA.toast(e.message, false));
+  }
+
+  // ------------------------------------------------------------------ the pivot (header and the item columns are frozen)
+  function draw() {
+    if (!D) return;
+    const view = document.getElementById('f_view').value, bq = view !== 'VAL', bv = view !== 'QTY', per = (bq ? 1 : 0) + (bv ? 1 : 0);
+    const F = D.fields.filter(f => picked.types.has(f.code)), nf = F.length, ng = D.groups.length;
+    const wrap = document.getElementById('skWrap');
+    if (!ng || !D.items.length || !nf) { wrap.innerHTML = `<div class="text-center text-muted py-5">${T('rep.nothing', 'Nothing found for these filters')}</div>`; document.getElementById('rpKpis').innerHTML = ''; return; }
+    const fidx = D.fields.map(f => f.code);
+    const at = (it, g, f) => it.cells[g * D.fields.length + fidx.indexOf(f.code)];
+    // totals per group + field
+    const tot = D.groups.map((_, g) => F.map(f => D.items.reduce((a, it) => { const c = at(it, g, f); return [a[0] + c[0], a[1] + c[1]]; }, [0, 0])));
+    const sumF = (code, k) => tot.reduce((a, gt) => a + gt[F.findIndex(f => f.code === code)]?.[k] || 0, 0);
+    const kp = (l, v, c) => `<div class="rp-kpi ${c || ''}"><small>${l}</small><b>${v}</b></div>`;
+    document.getElementById('rpKpis').innerHTML = kp(T('inv.items', 'Items'), D.items.length) + kp(esc(groupName()), ng, 'mut') + (F.some(f => f.code === 'O') ? kp(T('inv.openingVal', 'Opening value'), num(sumF('O', 1))) : '') + (F.some(f => f.code === 'P') ? kp(T('inv.purchaseVal', 'Purchase value'), num(sumF('P', 1)), 'warn') : '')
+      + (F.some(f => f.code === 'S') ? kp(T('inv.salesVal', 'Sales value'), num(sumF('S', 1)), 'ok') : '') + (F.some(f => f.code === 'C') ? kp(T('inv.closingVal', 'Closing value'), num(sumF('C', 1)), 'ok') : '');
+    const th1 = D.groups.map(g => `<th colspan="${nf * per}" class="r1">${esc(g.label)}${g.sub ? `<small>${esc(g.sub)}</small>` : ''}</th>`).join('');
+    const th2 = D.groups.map(() => F.map(f => `<th colspan="${per}" class="r2" title="${esc(f.label)}">${esc(f.code)}</th>`).join('')).join('');
+    const th3 = D.groups.map(() => F.map(() => (bq ? '<th class="r3">qty</th>' : '') + (bv ? '<th class="r3">val</th>' : '')).join('')).join('');
+    const cell = (c, g) => (bq ? `<td class="n ${c[0] ? '' : 'z'} ${g % 2 ? 'g0' : ''}">${num(c[0])}</td>` : '') + (bv ? `<td class="n ${c[1] ? '' : 'z'} ${g % 2 ? 'g0' : ''}">${num(c[1])}</td>` : '');
+    wrap.innerHTML = `<table class="sk"><thead><tr><th class="c1" rowspan="3">#</th><th class="c2" rowspan="3">${T('inv.item', 'Item Name')}</th><th class="c3" rowspan="3">${T('inv.pack', 'Pack')}</th><th class="c4" rowspan="3">${T('inv.rate', 'Rate')}</th>${th1}</tr><tr>${th2}</tr><tr>${th3}</tr></thead>
+      <tbody>${D.items.map((it, i) => `<tr><td class="c1">${i + 1}</td><td class="c2" title="${esc(it.name)}">${esc(it.name)}</td><td class="c3">${esc(it.pack)}</td><td class="c4 n">${num(it.rate)}</td>${D.groups.map((_, g) => F.map(f => cell(at(it, g, f), g)).join('')).join('')}</tr>`).join('')}</tbody>
+      <tfoot><tr><td class="c1"></td><td class="c2">${T('inv.total', 'Total')}</td><td class="c3"></td><td class="c4"></td>${D.groups.map((_, g) => F.map((f, k) => cell(tot[g][k], g).replace(/class="n /g, 'class="n ')).join('')).join('')}</tr></tfoot></table>`;
+    // the three header rows stick one below the other
+    const t = wrap.querySelector('table'), rows = t.querySelectorAll('thead tr'); let top = 0;
+    rows.forEach(r => { const h = r.getBoundingClientRect().height; r.querySelectorAll('th').forEach(c => { c.style.top = top + 'px'; }); top += h; });
+  }
+  const groupName = () => ({ PARTY: T('inv.party', 'Party / Stockist'), EMPLOYEE: T('entity.employee', 'Employee'), HQ: T('entity.hq', 'HQ'), STATE: T('entity.state', 'State'), DESIGNATION: T('entity.designation', 'Designation') })[D.groupBy] || '';
+</script>
+</body>
+</html>

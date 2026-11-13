@@ -137,43 +137,45 @@
     sfaDataTable('#invT', { order: [[4, 'desc']] });
   }
 
-  // ------------------------------------------------------------------ the entry
-  const COLS = () => E.fields.filter(f => f.enabled && f.code !== 'STOCK_VALUE');   // the typed columns in the order of the master (Closing is typed too)
+  // ------------------------------------------------------------------ the entry (the columns are the fields the company set up in Inventory Master)
+  const COLS = () => E.fields.filter(f => f.enabled && f.role !== 'VALUE');
+  const roleF = (role) => E.fields.find(f => f.enabled && f.role === role);
   async function openEntry(i) {
     let emp, party, month, year; const g = (id) => document.getElementById(id).value;
     if (i != null) { const r = ROWS[i]; emp = r.empId; party = r.partyId; month = r.month; year = r.year; }
     else { emp = g('f_emp'); party = g('f_party'); month = g('f_month'); year = g('f_year'); if (!emp || !party) { SFA.toast(T('inv.pick', 'Choose the employee and the party / stockist first'), false); return; } }
     try { E = await Api.get(EP + '/entry', { query: { empId: emp, partyId: party, month, year } }); } catch (e) { SFA.toast(e.message, false); return; }
-    E.empId = emp; VALS = E.items.map(it => { const o = {}; Object.keys(F2).forEach(c => o[c] = it[c] == null ? '' : String(it[c])); return o; });
+    E.empId = emp; VALS = E.items.map(it => { const o = {}; E.fields.forEach(f => o[f.code] = it.v[f.code] == null ? '' : String(it.v[f.code])); return o; });
     document.getElementById('eParty').textContent = E.party.name; document.getElementById('eMonth').textContent = MONTHS[E.month - 1]; document.getElementById('eYear').textContent = E.year;
     document.getElementById('eUpd').classList.toggle('d-none', !E.exists);
     document.getElementById('eRemarks').value = (E.parent && E.parent.remarks) || '';
     E.filePath = E.parent && E.parent.filePath; E.fileName = E.parent && E.parent.fileName;
-    document.getElementById('eFormula').textContent = E.settings.SALE_CLOSING_CALC === 'Y' ? T('inv.formulaNote', 'Closing = (Opening + Purchase) - (Sale + Free) + (Return from Retailer - Return to Consignee) + (Expiry from Retailer - Expiry to Consignee). Type the Sale and the Closing is calculated, or type the Closing and the Sale is calculated. Stock value = Closing x Spl. Rate (if entered) else Closing x PTS.') : '';
+    E.basis = (E.parent && E.parent.rateBasis) || E.settings.RATE_BASIS;
+    const plus = COLS().filter(f => f.role === 'NORMAL' && f.sign > 0).map(f => f.label), minus = COLS().filter(f => f.role === 'NORMAL' && f.sign < 0).map(f => f.label), sf = roleF('SALE'), cf = roleF('CLOSING');
+    document.getElementById('eFormula').textContent = E.settings.SALE_CLOSING_CALC === 'Y' && cf ? (T('inv.closingWord', 'Closing') + ' = (' + plus.join(' + ') + ')' + (sf || minus.length ? ' - (' + [sf ? sf.label : null].concat(minus).filter(Boolean).join(' + ') + ')' : '') + '. ' + (sf ? T('inv.eitherOr', 'Type the Sale and the Closing is calculated, or type the Closing and the Sale is calculated.') : '')) : '';
     drawGrid(); drawFile(); MODAL.show();
   }
-  const F2 = { OPENING: 1, PRIMARY: 1, SECONDARY: 1, FREE: 1, RETURN_RETAILER: 1, RETURN_CONSIGNEE: 1, EXPIRY_RETAILER: 1, EXPIRY_CONSIGNEE: 1, SPECIAL_RATE: 1, CLOSING: 1 };
   function drawGrid() {
-    const cols = COLS(), sv = E.fields.find(f => f.code === 'STOCK_VALUE');
-    document.querySelector('#eGrid thead').innerHTML = `<tr><th>${T('common.sno', 'Sr.')}</th><th style="min-width:14rem">${T('inv.item', 'Item Name')}</th><th>${T('inv.pack', 'Packing Size')}</th><th>PTS</th>${cols.map(c => `<th>${esc(c.label)}</th>`).join('')}${sv && sv.enabled ? `<th>${esc(sv.label)}</th>` : ''}</tr>`;
+    const cols = COLS(), sv = E.fields.find(f => f.role === 'VALUE' && f.enabled);
+    document.querySelector('#eGrid thead').innerHTML = `<tr><th>${T('common.sno', 'Sr.')}</th><th style="min-width:14rem">${T('inv.item', 'Item Name')}</th><th>${T('inv.pack', 'Packing Size')}</th><th>${esc(E.basis)}</th>${cols.map(c => `<th>${esc(c.label)}</th>`).join('')}${sv ? `<th>${esc(sv.label)}</th>` : ''}</tr>`;
     document.querySelector('#eGrid tbody').innerHTML = E.items.map((it, i) => `<tr><td>${i + 1}</td><td>${esc(it.name)}</td><td class="text-center">${esc(it.pack)}</td><td class="num">${money(it.rate)}</td>
-      ${cols.map(c => `<td><input class="form-control form-control-sm ${c.code === 'SPECIAL_RATE' ? 'sm' : ''}" type="number" min="0" step="any" inputmode="decimal" id="v_${i}_${c.code}" value="${esc(VALS[i][c.code])}" oninput="vIn(${i},'${c.code}',this.value)"></td>`).join('')}
-      ${sv && sv.enabled ? `<td class="num" id="sv_${i}"></td>` : ''}</tr>`).join('');
+      ${cols.map(c => `<td><input class="form-control form-control-sm ${c.role === 'RATE' ? 'sm' : ''}" type="number" min="0" step="any" inputmode="decimal" id="v_${i}_${c.code}" value="${esc(VALS[i][c.code])}" oninput="vIn(${i},'${c.code}',this.value)"></td>`).join('')}
+      ${sv ? `<td class="num" id="sv_${i}"></td>` : ''}</tr>`).join('');
     E.items.forEach((_, i) => recalc(i)); totals();
   }
   function vIn(i, code, v) { VALS[i][code] = v; recalc(i); totals(); }
   // the calculation of one row (the server does the same on save)
   function calcRow(i) {
-    const r = VALS[i], n = (c) => (r[c] === '' || r[c] == null ? null : Number(r[c])), z = (c) => n(c) || 0;
-    const base = z('OPENING') + z('PRIMARY') - z('FREE') + (z('RETURN_RETAILER') - z('RETURN_CONSIGNEE')) + (z('EXPIRY_RETAILER') - z('EXPIRY_CONSIGNEE'));
-    let S = n('SECONDARY'), C = n('CLOSING'), hint = null; const any = Object.keys(F2).some(c => n(c) != null);
-    if (E.settings.SALE_CLOSING_CALC === 'Y' && !(S != null && C != null) && any) { if (S != null) { C = base - S; hint = 'CLOSING'; } else if (C != null) { S = base - C; hint = 'SECONDARY'; } else { C = base; hint = 'CLOSING'; } }
-    const sp = n('SPECIAL_RATE'), rate = E.settings.RATE_SHOWN === 'SPECIAL' && sp > 0 ? sp : Number(E.items[i].rate);
-    return { S, C, hint, value: (C || 0) * rate, any, bad: (C != null && C < 0) || (S != null && S < 0) };
+    const r = VALS[i], n = (c) => (c == null || r[c] === '' || r[c] == null ? null : Number(r[c])), cols = COLS(), sf = roleF('SALE'), cf = roleF('CLOSING'), rf = roleF('RATE');
+    let base = 0; cols.forEach(f => { if (f.role === 'NORMAL' && f.sign) base += f.sign * (n(f.code) || 0); });
+    let S = sf ? n(sf.code) : null, C = cf ? n(cf.code) : null, hint = null; const any = cols.some(f => n(f.code) != null);
+    if (E.settings.SALE_CLOSING_CALC === 'Y' && !(S != null && C != null) && any) { if (S != null) { C = base - S; hint = cf ? cf.code : null; } else if (C != null && sf) { S = base - C; hint = sf.code; } else if (C == null) { C = base; hint = cf ? cf.code : null; } }
+    const sp = rf ? n(rf.code) : null, rate = E.settings.RATE_SHOWN === 'SPECIAL' && sp > 0 ? sp : Number(E.items[i].rate);
+    return { S, C, hint, value: (C || 0) * rate, any, bad: (C != null && C < 0) || (S != null && S < 0), sf, cf };
   }
   function recalc(i) {
     const c = calcRow(i);
-    ['CLOSING', 'SECONDARY'].forEach(code => { const el = document.getElementById('v_' + i + '_' + code); if (!el) return; el.placeholder = c.hint === code ? '= ' + (code === 'CLOSING' ? c.C : c.S) : ''; el.classList.toggle('bad', c.bad && (c.hint === code || el.value !== '')); });
+    [c.sf, c.cf].filter(Boolean).forEach(f => { const el = document.getElementById('v_' + i + '_' + f.code); if (!el) return; el.placeholder = c.hint === f.code ? '= ' + (f.role === 'CLOSING' ? c.C : c.S) : ''; el.classList.toggle('bad', c.bad && (c.hint === f.code || el.value !== '')); });
     const sv = document.getElementById('sv_' + i); if (sv) sv.textContent = c.any ? money(c.value) : '';
   }
   function totals() { let n = 0, v = 0; E.items.forEach((_, i) => { const c = calcRow(i); if (c.any) { n++; v += c.value; } }); document.getElementById('eTotal').textContent = n + ' ' + T('inv.items', 'Items') + ' · ' + T('inv.stockValue', 'Stock value') + ' ' + money(v); }
