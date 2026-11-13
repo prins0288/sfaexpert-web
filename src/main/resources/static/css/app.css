@@ -464,8 +464,18 @@ legend.sfa-legend {
 .btn-primary:hover { background: var(--sfa-primary); border-color: var(--sfa-primary); color: var(--sfa-primary-contrast); }
 .btn-outline-primary { color: var(--sfa-primary); border-color: var(--sfa-primary); }
 .btn-outline-primary:hover { background: var(--sfa-primary); border-color: var(--sfa-primary); color: var(--sfa-primary-contrast); }
-.btn-accent { background: var(--sfa-accent); border-color: var(--sfa-accent); color: var(--sfa-accent-contrast); }
-.btn-accent:hover { filter: brightness(.94); color: var(--sfa-accent-contrast); }
+.btn-accent {
+  --bs-btn-color: var(--sfa-accent-contrast); --bs-btn-bg: var(--sfa-accent); --bs-btn-border-color: var(--sfa-accent);
+  --bs-btn-hover-color: var(--sfa-accent-contrast); --bs-btn-hover-bg: var(--sfa-accent); --bs-btn-hover-border-color: var(--sfa-accent);
+  --bs-btn-active-color: var(--sfa-accent-contrast); --bs-btn-active-bg: var(--sfa-accent); --bs-btn-active-border-color: var(--sfa-accent);
+  --bs-btn-focus-shadow-rgb: 13, 110, 253;
+  background: var(--sfa-accent); border-color: var(--sfa-accent); color: var(--sfa-accent-contrast);
+}
+/* hover / focus / pressed keep the colour (Bootstrap's .btn:hover would otherwise turn the background transparent and the white text vanishes) */
+.btn-accent:hover, .btn-accent:focus, .btn-accent:focus-visible, .btn-accent:active, .btn-accent.active, .dt-buttons .btn.btn-accent:hover {
+  background: var(--sfa-accent) !important; border-color: var(--sfa-accent) !important; color: var(--sfa-accent-contrast) !important; filter: brightness(.92);
+}
+.btn-accent:disabled, .btn-accent.disabled { background: var(--sfa-accent); border-color: var(--sfa-accent); color: var(--sfa-accent-contrast); opacity: .55; }
 
 /* ---- tables ------------------------------------------------------------- */
 .card, .table { color: var(--sfa-text); }

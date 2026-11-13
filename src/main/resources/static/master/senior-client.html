@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>/* reverse-proxy sub-path support: make relative css/js resolve under the deploy prefix (e.g. /sfaexpert), "" locally */
+  (function(){try{var p=location.pathname,m=p.match(/^(.*?)\/u\/\d+(\/|$)/),c=m?m[1]:p.replace(/\/[^\/]*$/,'');document.write('<base href="'+(c||'')+'/">');}catch(e){}})();</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StarSFA &middot; Senior Client Access</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css" rel="stylesheet" />
+  <link href="css/app.css" rel="stylesheet" />
+  <link href="css/app-ui.css" rel="stylesheet" />
+  <script>
+    /* Apply the saved theme (mode / layout / density / colours) BEFORE first
+       paint so there is no flash. theme.js re-applies from the server after. */
+    (function () {
+      try {
+        var d = document.documentElement, s = localStorage;
+        // theme is PER TENANT and several tenants can be signed in at once
+        // (/u/0, /u/1...), so these caches are scoped to the account slot —
+        // a shared key would paint the last-customised tenant's colours here.
+        var m = location.pathname.match(/\/u\/(\d+)(\/|$)/), q = '_u' + (m ? m[1] : '0');
+        d.setAttribute('data-theme', s.getItem('sfa_mode' + q) || 'light');
+        d.setAttribute('data-nav', s.getItem('sfa_nav' + q) || 'vertical');
+        d.setAttribute('data-density', s.getItem('sfa_density' + q) || 'comfortable');
+        var f = s.getItem('sfa_font' + q); if (f) d.style.setProperty('--sfa-font-scale', f);
+        var c = s.getItem('sfa_theme' + q);
+        if (c) { c = JSON.parse(c); var t = (c.resolved && c.resolved[c.mode]) || {};
+          for (var k in t) d.style.setProperty('--sfa-' + k, t[k]); }
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+<div id="app" data-page="seniorclient" data-title="Senior Client Access"></div>
+<template id="pageContent">
+<div class="card mb-2">
+  <div class="card-header"><i class="bi bi-person-lines-fill"></i> <span data-i18n="sen.title">Senior Client Access</span></div>
+  <div class="card-body">
+    <div class="small text-muted mb-2" data-i18n="sen.help">Give a senior / manager the clients of his team so he can check in them in his own DCR. For every manager + client you decide whether the location check is ON: ON = he must be at a tagged place of the client, otherwise the far-away message is shown (a client without a usable tag cannot be checked in either). A manager + client can be given only once.</div>
+    <div class="row g-2 align-items-end">
+      <div class="col-12 col-md-5"><label class="form-label small fw-semibold" data-i18n="sen.manager">Manager / senior</label><select class="form-select form-select-sm" id="s_emp" onchange="sLoad()"></select></div>
+      <div class="col-6 col-md-3"><div class="form-check form-switch mt-3"><input class="form-check-input" type="checkbox" id="s_geo" checked><label class="form-check-label small" for="s_geo" data-i18n="sen.geoOn">Location check ON</label></div></div>
+      <div class="col-6 col-md-4 text-end"><button class="btn btn-sm btn-primary" onclick="sGive()"><i class="bi bi-plus-lg"></i> <span data-i18n="sen.give">Give access to selected</span></button></div>
+    </div>
+  </div>
+</div>
+<div class="card mb-2"><div class="card-header"><span data-i18n="sen.teamClients">Clients of his team</span> <small class="text-muted" id="s_cnt"></small></div><div class="card-body"><div id="candWrap"></div></div></div>
+<div class="card"><div class="card-header" data-i18n="sen.given">Given access</div><div class="card-body"><div id="givenWrap"></div></div></div>
+</template>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.colVis.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="js/core/session.js"></script>
+<script src="js/core/endpoints.js"></script>
+<script src="js/core/http.js"></script>
+<script src="js/core/theme.js"></script>
+<script src="js/core/settings.js"></script>
+<script src="js/core/i18n.js"></script>
+<script src="js/app.js"></script>
+<script src="js/core/uikit.js"></script>
+<script src="js/core/activity.js"></script>
+<script src="js/shell.js"></script>
+<script>
+  const T = (k, en) => (window.I18n ? I18n.t(k, en) : en);
+  const EP = API.report.seniorClients, FEP = API.report.attendance;
+  const esc = (v) => SFA.esc(v == null ? '' : v);
+  let FIL = null, CAND = [], GIVEN = [], LASTLANG = window.I18n ? I18n.lang : 'en';
+  const picked = new Set();
+  if (window.I18n) I18n.onChange(() => { if (I18n.lang !== LASTLANG) { LASTLANG = I18n.lang; drawCand(); drawGiven(); } });
+
+  window.pageInit = async function () {
+    try { FIL = await Api.get(FEP + '/filters'); document.getElementById('s_emp').innerHTML = '<option value="">-</option>' + FIL.employees.map(e => `<option value="${esc(e.id)}">${esc(e.name)}</option>`).join(''); await sLoad(); } catch (e) { SFA.toast(e.message, false); }
+  };
+  const emp = () => document.getElementById('s_emp').value;
+  async function sLoad() {
+    picked.clear();
+    try {
+      GIVEN = await Api.get(EP, { query: { empId: emp() || undefined } });
+      CAND = emp() ? await Api.get(EP + '/candidates', { query: { empId: emp() } }) : [];
+    } catch (e) { SFA.toast(e.message, false); CAND = []; GIVEN = []; }
+    drawCand(); drawGiven();
+  }
+  function drawCand() {
+    const w = document.getElementById('candWrap');
+    document.getElementById('s_cnt').textContent = emp() ? '(' + CAND.length + ')' : '';
+    if (!emp()) { w.innerHTML = `<div class="text-muted small">${T('sen.pick', 'Choose a manager')}</div>`; return; }
+    if (!CAND.length) { w.innerHTML = `<div class="text-muted small">${T('sen.noClients', 'No clients under this manager')}</div>`; return; }
+    w.innerHTML = `<div style="max-height:320px;overflow:auto">${CAND.map(c => `<div class="form-check py-1 border-bottom"><input class="form-check-input" type="checkbox" id="sc_${c.id}" ${c.assigned ? 'disabled checked' : ''} ${picked.has(c.id) ? 'checked' : ''} onchange="sPick(${c.id}, this.checked)">
+      <label class="form-check-label small" for="sc_${c.id}"><b>${esc(c.name)}</b> <span class="text-muted">${esc(c.code)} · ${esc(c.owner)}</span>${c.assigned ? ' <span class="badge bg-secondary">' + T('sen.already', 'already given') + '</span>' : ''}</label></div>`).join('')}</div>`;
+  }
+  function sPick(id, on) { on ? picked.add(id) : picked.delete(id); }
+  async function sGive() {
+    try {
+      const r = await Api.post(EP, { empId: emp(), clientIds: [...picked], geoEnabled: document.getElementById('s_geo').checked });
+      SFA.toast(T('sen.saved', 'Access given') + ' (' + r.created + (r.skipped ? ', ' + r.skipped + ' ' + T('sen.skipped', 'already existed') : '') + ')', true); await sLoad();
+    } catch (e) { SFA.toast(e.message, false); }
+  }
+  function drawGiven() {
+    const w = document.getElementById('givenWrap');
+    if (window.jQuery && $.fn.DataTable.isDataTable('#givenT')) $('#givenT').DataTable().destroy();
+    if (!GIVEN.length) { w.innerHTML = `<div class="text-muted small">${T('sen.none', 'Nothing given yet')}</div>`; return; }
+    w.innerHTML = `<table id="givenT" data-screen-key="SENIOR_CLIENT" class="table table-striped table-bordered nowrap" style="width:100%"><thead><tr><th>${T('common.sno', 'S.No')}</th><th data-field="manager">${T('sen.manager', 'Manager / senior')}</th><th data-field="client">${T('entity.client', 'Client')}</th><th data-field="owner">${T('sen.owner', 'Client of')}</th><th data-field="geo">${T('sen.geoOn', 'Location check ON')}</th><th data-field="givenBy">${T('perm.givenBy', 'Given by')}</th><th class="no-export"></th></tr></thead><tbody>
+      ${GIVEN.map((r, i) => `<tr><td>${i + 1}</td><td><b>${esc(r.manager)}</b> <small class="text-muted">${esc(r.managerCode)}</small></td><td>${esc(r.client)} <small class="text-muted">${esc(r.clientCode)}</small></td><td>${esc(r.owner)}</td>
+      <td data-order="${r.geoEnabled ? 1 : 0}"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" ${r.geoEnabled ? 'checked' : ''} onchange="sGeo(${r.id}, this.checked)"></div></td><td>${esc(r.createdBy)}</td>
+      <td class="no-export"><button class="btn btn-sm btn-outline-danger" title="${T('common.delete', 'Delete')}" onclick="sDel(${r.id})"><i class="bi bi-trash"></i></button></td></tr>`).join('')}</tbody></table>`;
+    sfaDataTable('#givenT', { order: [[1, 'asc']] });
+  }
+  async function sGeo(id, on) { try { await Api.post(EP + '/' + id + '/geo', { enabled: on }); SFA.toast(T('sen.geoSaved', 'Location check updated'), true); } catch (e) { SFA.toast(e.message, false); sLoad(); } }
+  async function sDel(id) { if (!confirm(T('sen.confirmDel', 'Remove this access?'))) return; try { await Api.post(EP + '/delete', { ids: [id] }); SFA.toast(T('perm.removed', 'Removed'), true); await sLoad(); } catch (e) { SFA.toast(e.message, false); } }
+</script>
+</body>
+</html>

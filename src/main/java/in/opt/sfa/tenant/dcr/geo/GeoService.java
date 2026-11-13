@@ -45,6 +45,14 @@ public class GeoService {
     private static Double dbl(Object o) { return o == null ? null : ((Number) o).doubleValue(); }
 
     public boolean on(String empId) { return DcrRuleService.bool(rules.of(empId), "GEO_FENCING_ALLOW", false); }
+    /** Is the location check on for this user at this client? A senior at a team client: the geo_enabled of his manager_client_geo row; otherwise the user's own rule. */
+    public boolean enabledFor(String empId, long clientId) {
+        try {
+            List<Integer> l = jdbc.query("SELECT geo_enabled FROM manager_client_geo WHERE emp_id = ? AND client_id = ?", (rs, i) -> rs.getInt(1), empId, clientId);
+            if (!l.isEmpty()) return l.get(0) == 1;
+        } catch (org.springframework.dao.DataAccessException e) { /* migration 123 not run yet */ }
+        return on(empId);
+    }
     public int fenceM(String empId) { return DcrRuleService.integer(rules.of(empId), "GEO_FENCING_DISTANCE", 200); }
 
     /** What the rules mean for the screen: {on, distance}. */
@@ -70,7 +78,7 @@ public class GeoService {
     @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
     public Map<String, Object> checkListed(String empId, long clientId, Double lat, Double lng) {
         Map<String, Object> out = new LinkedHashMap<>();
-        boolean geo = on(empId);
+        boolean geo = enabledFor(empId, clientId);
         out.put("geo", geo);
         if (!geo) { out.put("ok", true); out.put("code", "OK"); return out; }
         if (!GeoCalc.validLatLng(lat, lng)) { out.put("ok", false); out.put("code", "NO_LOCATION"); out.put("message", NO_LOCATION); return out; }
@@ -79,9 +87,10 @@ public class GeoService {
         List<Map<String, Object>> places = places(clientId);   // the primary place and the other places the client sits at
         boolean tagged = !places.isEmpty();
         out.put("tagged", tagged); out.put("clientName", c.get("name")); out.put("fenceM", fenceM(empId));
-        if (!tagged) {
-            out.put("ok", true); out.put("code", "NOT_TAGGED");
-            out.put("message", "The location of " + c.get("name") + " is not tagged yet, so it cannot be checked. Check-in is allowed - please tag the client's location.");
+        if (!tagged) {   // location check is ON but the client has no usable tag (blank / 0,0): no bypass
+            out.put("ok", false); out.put("code", "NOT_TAGGED");
+            out.put("message", "The location of " + c.get("name") + " is not tagged (blank or 0), so the location check cannot pass. Check-in is not allowed until the client is tagged - use Retag to send the correct location for approval.");
+            out.put("retagPending", jdbc.queryForObject("SELECT COUNT(*) FROM client_retag_request WHERE client_id = ? AND requested_by = ? AND status = 'PENDING'", Integer.class, clientId, empId) > 0);
             return out;
         }
         int fence = fenceM(empId);
@@ -108,13 +117,14 @@ public class GeoService {
     public List<Map<String, Object>> places(long clientId) {
         List<Map<String, Object>> out = new ArrayList<>();
         for (Map<String, Object> c : jdbc.queryForList("SELECT latitude, longitude, gps_address, has_geo_tag FROM client_master WHERE id = ?", clientId)) {
-            if (flag(c.get("has_geo_tag")) && c.get("latitude") != null && c.get("longitude") != null) {
+            if (flag(c.get("has_geo_tag")) && usable(c.get("latitude"), c.get("longitude"))) {
                 Map<String, Object> m = new LinkedHashMap<>(); m.put("id", 0L); m.put("label", "Primary"); m.put("latitude", c.get("latitude")); m.put("longitude", c.get("longitude")); m.put("address", c.get("gps_address")); m.put("primary", true);
                 out.add(m);
             }
         }
         try {
             for (Map<String, Object> t : jdbc.queryForList("SELECT id, label, latitude, longitude, address FROM client_geo_tag WHERE client_id = ? AND is_active = 1 ORDER BY id", clientId)) {
+                if (!usable(t.get("latitude"), t.get("longitude"))) continue;
                 Map<String, Object> m = new LinkedHashMap<>(); m.put("id", t.get("id")); m.put("label", t.get("label") == null || t.get("label").toString().isBlank() ? "Place " + (out.size() + 1) : t.get("label")); m.put("latitude", t.get("latitude")); m.put("longitude", t.get("longitude")); m.put("address", t.get("address")); m.put("primary", false);
                 out.add(m);
             }
@@ -182,6 +192,13 @@ public class GeoService {
         Long best = null;
         for (Map<String, Object> pl : places(clientId)) { long dm = GeoCalc.distanceM(lat, lng, dbl(pl.get("latitude")), dbl(pl.get("longitude"))); if (best == null || dm < best) best = dm; }
         return best;
+    }
+
+    /** A usable tag: a real latitude / longitude, not blank and not the 0,0 point. */
+    static boolean usable(Object lat, Object lng) {
+        if (lat == null || lng == null) return false;
+        double la = ((Number) lat).doubleValue(), lo = ((Number) lng).doubleValue();
+        return GeoCalc.validLatLng(la, lo) && !(Math.abs(la) < 1e-6 && Math.abs(lo) < 1e-6);
     }
 
     private static boolean flag(Object o) { return o instanceof Boolean b ? b : o instanceof Number n && n.intValue() == 1; }

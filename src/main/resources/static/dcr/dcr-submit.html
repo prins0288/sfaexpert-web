@@ -817,6 +817,15 @@
   const gmapDir = (lat, lng) => 'https://www.google.com/maps/dir/?api=1&destination=' + lat + ',' + lng + '&travelmode=driving';
   function openDir(id) { const c = OPT.clients.find(x => x.id === id); if (c && c.tagged && c.lat != null) window.open(gmapDir(c.lat, c.lng), '_blank', 'noopener'); }
   // far from the client: how far, which clients are near, directions to the tagged location, and a retag request
+  // the location check is ON but the client has no usable tag (blank / 0): no check-in, the tag can be sent for approval
+  function geoUntagged(r, pos, client) {
+    window.__geoCtx = { r, pos, client };
+    geoModal(`<div class="text-center"><i class="bi bi-geo-alt text-danger" style="font-size:2.6rem"></i><div class="fs-5 fw-bold mt-1">Client location is not tagged</div></div>
+      <div class="alert alert-danger mt-3 mb-2 py-2 small">${esc(r.message)}</div>
+      <div class="d-grid gap-2">${r.retagPending ? '<div class="alert alert-info py-2 small mb-0"><i class="bi bi-hourglass-split"></i> Your retag request is waiting for your manager / admin to approve.</div>'
+        : `<button class="btn btn-warning" onclick="geoRetagOpen()"><i class="bi bi-pin-map-fill"></i> Tag / Retag this client's location</button>`}
+        <button class="btn btn-light" onclick="geoModalClose()">Close</button></div>`);
+  }
   function geoFar(r, pos, client) {
     window.__geoCtx = { r, pos, client };
     geoModal(`<div class="text-center"><i class="bi bi-exclamation-triangle-fill text-warning" style="font-size:2.6rem"></i><div class="fs-5 fw-bold mt-1">You are far from the client</div></div>
@@ -878,12 +887,11 @@
     if (o.items.some(i => !i.itemId) || o.leaflets.some(l => !l.itemId)) { SFA.toast('Choose the item in every item / leaflet row (or remove the row)', false); return; }
     if (ST.visits.concat(ST.unlisted).some(c => c !== o && isOpen(c))) { SFA.toast('Check out of the open client first', false); return; }
     const g = await getPos();
-    if (geoOn()) {   // location check ON: the position is a must, and a listed client must be within the allowed distance of its tag
-      if (!g) return geoLocHelp(doCheckIn);
+    if (geoOn() || EDIT.kind === 'v') {   // location check ON (own rule, or the manager + client setting - the server tells): the position is a must, and a listed client must be within the allowed distance of its tag
+      if (geoOn() && !g) return geoLocHelp(doCheckIn);
       if (EDIT.kind === 'v') {
-        let r; try { r = await Api.post(EP.geoCheck, { clientId: o.clientId, lat: g.lat, lng: g.lng }); } catch (e) { SFA.toast(e.message, false); return; }
-        if (!r.ok) { if (r.code === 'NO_LOCATION') return geoLocHelp(doCheckIn); return geoFar(r, g, { clientId: o.clientId, clientName: o.clientName }); }
-        if (r.code === 'NOT_TAGGED') SFA.toast(r.message, 'info');
+        let r; try { r = await Api.post(EP.geoCheck, { clientId: o.clientId, lat: g ? g.lat : null, lng: g ? g.lng : null }); } catch (e) { SFA.toast(e.message, false); return; }
+        if (!r.ok) { if (r.code === 'NO_LOCATION') return geoLocHelp(doCheckIn); if (r.code === 'NOT_TAGGED') return geoUntagged(r, g, { clientId: o.clientId, clientName: o.clientName }); return geoFar(r, g, { clientId: o.clientId, clientName: o.clientName }); }
       }
     }
     o.inTime = nowHm(); o.checkinAt = nowDt(); if (g) { o.checkinLat = g.lat; o.checkinLng = g.lng; }

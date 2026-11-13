@@ -158,11 +158,9 @@ public class DcrService {
     }
 
     /** My approved, active clients with their type / tab, category, speciality, area and visit history. */
-    /** Whose clients the user may check in: his own, and - when SENIOR_CLIENT_CHECKIN is on for him - the clients of everyone under him. */
-    private List<String> clientOwners(String me) {
-        List<String> o = new ArrayList<>(); o.add(me);
-        if (DcrRuleService.bool(rules.of(me), "SENIOR_CLIENT_CHECKIN", false)) o.addAll(new TreeSet<>(scope.team(me)));
-        return o;
+    /** True when the manager_client_geo table exists (migration 123). */
+    private boolean seniorTable() {
+        return !jdbc.queryForList("SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'manager_client_geo'").isEmpty();
     }
 
     public List<Map<String, Object>> myClients(String me) {
@@ -179,11 +177,11 @@ public class DcrService {
                 LEFT JOIN area_master ar ON ar.id = c.city_id
                 LEFT JOIN speciality_master sp ON sp.oid = c.speciality_id
                 LEFT JOIN category_master cat ON cat.oid = c.category_id
-                WHERE c.is_active = 1 AND c.approval_status = 'APPROVED' AND (c.mapped_emp_code IN (%OWN%) OR (c.mapped_emp_code IS NULL AND c.created_by COLLATE utf8mb4_0900_ai_ci IN (%OWN%)))
+                WHERE c.is_active = 1 AND c.approval_status = 'APPROVED' AND (c.mapped_emp_code = ? OR (c.mapped_emp_code IS NULL AND c.created_by COLLATE utf8mb4_0900_ai_ci = ?)%SENIOR%)
                 ORDER BY c.client_name""";
-        List<String> own = clientOwners(me); String q = String.join(",", java.util.Collections.nCopies(own.size(), "?"));
-        List<Object> args = new ArrayList<>(); args.add(me); args.addAll(own); args.addAll(own);
-        clientSql = clientSql.replace("%OWN%", q);
+        boolean sen = seniorTable();   // clients of his team that the admin gave him (Senior Client Access)
+        List<Object> args = new ArrayList<>(List.of(me, me, me)); if (sen) args.add(me);
+        clientSql = clientSql.replace("%SENIOR%", sen ? " OR c.id IN (SELECT m.client_id FROM manager_client_geo m WHERE m.emp_id = ?)" : "");
         try {
             return jdbc.queryForList(clientSql.replace("%TAB%", TAB_COL), args.toArray());
         } catch (org.springframework.dao.DataAccessException e) {   // migration 94 (client_type.dcr_tab) not run yet
@@ -518,9 +516,9 @@ public class DcrService {
             String myClientSql = """
                     SELECT c.id, c.client_type_id, c.city_id, %TAB% AS dcr_tab FROM client_master c LEFT JOIN client_type ct ON ct.oid = c.client_type_id
                     WHERE c.is_active = 1 AND c.approval_status = 'APPROVED'
-                      AND (c.mapped_emp_code IN (%OWN%) OR (c.mapped_emp_code IS NULL AND c.created_by COLLATE utf8mb4_0900_ai_ci IN (%OWN%)))""";
-            List<String> own = clientOwners(me); myClientSql = myClientSql.replace("%OWN%", String.join(",", java.util.Collections.nCopies(own.size(), "?")));
-            List<Object> oargs = new ArrayList<>(own); oargs.addAll(own);
+                      AND (c.mapped_emp_code = ? OR (c.mapped_emp_code IS NULL AND c.created_by COLLATE utf8mb4_0900_ai_ci = ?)%SENIOR%)""";
+            boolean sen = seniorTable(); myClientSql = myClientSql.replace("%SENIOR%", sen ? " OR c.id IN (SELECT m.client_id FROM manager_client_geo m WHERE m.emp_id = ?)" : "");
+            List<Object> oargs = new ArrayList<>(List.of(me, me)); if (sen) oargs.add(me);
             List<Map<String, Object>> mine;
             try {
                 mine = jdbc.queryForList(myClientSql.replace("%TAB%", TAB_COL), oargs.toArray());
@@ -634,13 +632,14 @@ public class DcrService {
             DcrDto.Visit v = f.getVisits().get(i);
             if (Strings.isBlank(v.getInTime())) continue;
             boolean has = v.getCheckinLat() != null && v.getCheckinLng() != null && in.opt.sfa.tenant.dcr.geo.GeoCalc.validLatLng(v.getCheckinLat().doubleValue(), v.getCheckinLng().doubleValue());
-            if (geoOn && !has) throw new IllegalStateException("NO_LOCATION: " + in.opt.sfa.tenant.dcr.geo.GeoService.NO_LOCATION);
+            boolean gOn = geo.enabledFor(me, v.getClientId());   // the user's own geo rule, or - for a senior at a team client - the setting of that manager + client
+            if (gOn && !has) throw new IllegalStateException("NO_LOCATION: " + in.opt.sfa.tenant.dcr.geo.GeoService.NO_LOCATION);
             if (!has) continue;
             Object[] old = oldV.get(v.getClientId());
             if (old != null && old[0] != null && new BigDecimal(old[0].toString()).compareTo(v.getCheckinLat()) == 0 && new BigDecimal(old[1].toString()).compareTo(v.getCheckinLng()) == 0) {   // the same check-in as already stored: nothing to check again
                 vAddr[i] = (String) old[2]; vDist[i] = old[3] == null ? null : ((Number) old[3]).intValue(); continue;
             }
-            if (geoOn) {
+            if (gOn) {
                 Map<String, Object> chk = geo.checkListed(me, v.getClientId(), v.getCheckinLat().doubleValue(), v.getCheckinLng().doubleValue());
                 if (!Boolean.TRUE.equals(chk.get("ok"))) throw new IllegalStateException("GEO_BLOCKED: " + chk.get("message"));
             }
