@@ -30,80 +30,56 @@
     })();
   </script>
   <style>
-    .sfa-photo { width: 132px; height: 132px; border-radius: 50%; object-fit: cover;
-      border: 3px solid var(--sfa-border); background: var(--sfa-surface-2); display: block; }
-    .sfa-photo-wrap { position: relative; width: 132px; }
+    .pf-hero { display: flex; align-items: center; gap: 1.1rem; flex-wrap: wrap; }
+    .pf-photo { position: relative; width: 112px; height: 112px; flex: 0 0 auto; }
+    .pf-photo img { width: 112px; height: 112px; border-radius: 50%; object-fit: cover; border: 3px solid var(--sfa-border); background: var(--sfa-surface-2); display: block; }
+    .pf-photo .pf-cam { position: absolute; right: 0; bottom: 0; width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--sfa-surface); background: var(--sfa-primary); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+    .pf-name { font-size: 1.35rem; font-weight: 700; line-height: 1.2; } .pf-sub { color: var(--bs-secondary-color); }
+    .pf-info { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: .75rem 1.25rem; }
+    .pf-info .k { font-size: .7rem; text-transform: uppercase; letter-spacing: .04em; color: var(--bs-secondary-color); font-weight: 600; } .pf-info .v { font-weight: 600; word-break: break-word; }
+    .pf-lock { color: var(--bs-secondary-color); font-size: .75rem; }
   </style>
 </head>
 <body>
 <div id="app" data-page="profile" data-title="My Profile"></div>
-
 <template id="pageContent">
+  <div class="card mb-3"><div class="card-body"><div class="pf-hero">
+    <div class="pf-photo"><img id="photoImg" alt="photo" /><label class="pf-cam" for="photoFile" title="Change photo"><i class="bi bi-camera-fill"></i></label><input type="file" id="photoFile" accept="image/*" class="d-none" /></div>
+    <div class="flex-grow-1"><div class="pf-name" id="photoName"></div><div class="pf-sub"><span id="photoRole"></span> <span class="badge bg-secondary" id="p_username"></span></div>
+      <div class="d-flex gap-2 mt-2 flex-wrap"><button class="btn btn-sm btn-primary" onclick="document.getElementById('photoFile').click()"><i class="bi bi-image"></i> Choose photo</button>
+        <button class="btn btn-sm btn-outline-danger" onclick="removePhoto()"><i class="bi bi-trash"></i> Remove</button></div>
+      <div class="form-text">JPG / PNG, up to 8 MB. The photo is saved as soon as you choose it.</div></div>
+  </div></div></div>
+
   <div class="row g-3">
-    <!-- photo + password -->
-    <div class="col-lg-4">
-      <div class="card mb-3">
-        <div class="card-header"><i class="bi bi-person-badge"></i> Photo</div>
-        <div class="card-body text-center">
-          <div class="sfa-photo-wrap mx-auto mb-3">
-            <img id="photoImg" class="sfa-photo" alt="photo" />
-          </div>
-          <div id="photoName" class="fw-semibold"></div>
-          <div id="photoRole" class="text-muted small mb-3"></div>
-          <input type="file" id="photoFile" accept="image/*" class="form-control form-control-sm mb-2" />
-          <div class="d-flex gap-2 justify-content-center">
-            <button class="btn btn-sm btn-primary" onclick="uploadPhoto()"><i class="bi bi-upload"></i> Upload</button>
-            <button class="btn btn-sm btn-outline-danger" onclick="removePhoto()"><i class="bi bi-trash"></i> Remove</button>
-          </div>
-          <div class="form-text mt-2">JPG / PNG, up to a few MB.</div>
-        </div>
-      </div>
+    <div class="col-lg-6"><div class="card h-100">
+      <div class="card-header"><i class="bi bi-person-vcard"></i> Work details <span class="pf-lock ms-2"><i class="bi bi-lock-fill"></i> set by your admin, cannot be changed here</span></div>
+      <div class="card-body"><div class="pf-info">
+        <div><div class="k">Employee code</div><div class="v" id="i_code">-</div></div>
+        <div><div class="k">Designation</div><div class="v" id="i_des">-</div></div>
+        <div><div class="k">HQ</div><div class="v" id="i_hq">-</div></div>
+        <div><div class="k">State</div><div class="v" id="i_state">-</div></div>
+        <div><div class="k">Reporting manager</div><div class="v" id="i_mgr">-</div></div>
+        <div><div class="k">Date of joining</div><div class="v" id="i_doj">-</div></div>
+      </div></div></div></div>
 
-      <div class="card">
-        <div class="card-header"><i class="bi bi-key"></i> Change password</div>
-        <div class="card-body">
-          <form onsubmit="changePassword(event)">
-            <div class="mb-2"><label class="form-label">Current password <span class="required-star">*</span></label>
-              <input class="form-control" id="pw_current" type="password" required /></div>
-            <div class="mb-2"><label class="form-label">New password <span class="required-star">*</span></label>
-              <input class="form-control" id="pw_new" type="password" required minlength="4" /></div>
-            <div class="mb-3"><label class="form-label">Confirm new password <span class="required-star">*</span></label>
-              <input class="form-control" id="pw_confirm" type="password" required /></div>
-            <button class="btn btn-primary w-100" type="submit">Update password</button>
-          </form>
-        </div>
-      </div>
-    </div>
+    <div class="col-lg-6"><div class="card h-100">
+      <div class="card-header"><i class="bi bi-pencil-square"></i> Basic details</div>
+      <div class="card-body"><form onsubmit="saveProfile(event)"><div class="row g-3">
+        <div class="col-12"><label class="form-label">Full name <span class="required-star">*</span></label><input class="form-control" id="p_name" maxlength="100" required /></div>
+        <div class="col-md-6"><label class="form-label">Mobile</label><input class="form-control" id="p_mobile" inputmode="numeric" maxlength="10" placeholder="10 digit number" /></div>
+        <div class="col-md-6"><label class="form-label">Email</label><input class="form-control" id="p_email" type="email" maxlength="120" /></div>
+        <div class="col-12"><button class="btn btn-primary" type="submit"><i class="bi bi-save"></i> Save</button></div>
+      </div></form></div></div></div>
 
-    <!-- details -->
-    <div class="col-lg-8">
-      <div class="card">
-        <div class="card-header"><i class="bi bi-pencil-square"></i> Profile details
-          <div class="card-tools"><span class="badge bg-secondary" id="p_username"></span></div>
-        </div>
-        <div class="card-body">
-          <form onsubmit="saveProfile(event)"><div class="row g-3">
-            <div class="col-md-6"><label class="form-label">Full name <span class="required-star">*</span></label>
-              <input class="form-control" id="p_name" required /></div>
-            <div class="col-md-6"><label class="form-label">Employee code</label>
-              <input class="form-control" id="p_empId" readonly /></div>
-            <div class="col-md-4"><label class="form-label">Designation</label>
-              <select class="form-select" id="p_designationOid" disabled title="Set by your admin in the employee master"></select></div>
-            <div class="col-md-4"><label class="form-label">State</label>
-              <select class="form-select" id="p_stateOid"></select></div>
-            <div class="col-md-4"><label class="form-label">District</label>
-              <select class="form-select" id="p_districtOid"></select></div>
-            <div class="col-md-4"><label class="form-label">Mobile</label>
-              <input class="form-control" id="p_mobile" /></div>
-            <div class="col-md-4"><label class="form-label">Email</label>
-              <input class="form-control" id="p_email" type="email" /></div>
-            <div class="col-md-4"><label class="form-label">Date of birth</label>
-              <input class="form-control sfa-date" id="p_dob" type="text" /></div>
-            <div class="col-12"><button class="btn btn-primary" type="submit"><i class="bi bi-save"></i> Save profile</button></div>
-          </div></form>
-        </div>
-      </div>
-    </div>
+    <div class="col-12"><div class="card">
+      <div class="card-header"><i class="bi bi-key"></i> Change password</div>
+      <div class="card-body"><form onsubmit="changePassword(event)"><div class="row g-3 align-items-end">
+        <div class="col-md-4"><label class="form-label">Current password <span class="required-star">*</span></label><input class="form-control" id="pw_current" type="password" required /></div>
+        <div class="col-md-3"><label class="form-label">New password <span class="required-star">*</span></label><input class="form-control" id="pw_new" type="password" required minlength="4" /></div>
+        <div class="col-md-3"><label class="form-label">Confirm new password <span class="required-star">*</span></label><input class="form-control" id="pw_confirm" type="password" required /></div>
+        <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">Update</button></div>
+      </div></form></div></div></div>
   </div>
 </template>
 
@@ -121,89 +97,55 @@
 <script src="js/shell.js"></script>
 <script>
   const FALLBACK = 'data:image/svg+xml;utf8,' + encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" width="132" height="132"><rect width="100%" height="100%" fill="#e3e7ee"/>' +
-    '<text x="50%" y="54%" font-size="60" text-anchor="middle" fill="#8b9ab1" font-family="Arial">?</text></svg>');
-  function fileToDataUrl(file) {
-    return new Promise((resolve, reject) => {
-      const r = new FileReader();
-      r.onload = () => resolve(r.result);
-      r.onerror = () => reject(new Error('Could not read the file'));
-      r.readAsDataURL(file);
-    });
-  }
+    '<svg xmlns="http://www.w3.org/2000/svg" width="112" height="112"><rect width="100%" height="100%" fill="#e3e7ee"/>' +
+    '<text x="50%" y="56%" font-size="52" text-anchor="middle" fill="#8b9ab1" font-family="Arial">?</text></svg>');
+  const fmtDate = (d) => d ? String(d).substring(8, 10) + '-' + String(d).substring(5, 7) + '-' + String(d).substring(0, 4) : '-';
+  const txt = (id, v) => { document.getElementById(id).textContent = v == null || v === '' ? '-' : v; };
 
   window.pageInit = async function () {
-    try {
-      const [lk, me] = await Promise.all([Api.get(API.lookups), Api.get(API.profile.get)]);
-      SFA.fillSelect(document.getElementById('p_designationOid'), lk.designations);
-      SFA.fillSelect(document.getElementById('p_stateOid'), lk.states);
-      SFA.fillSelect(document.getElementById('p_districtOid'), lk.districts);
-      fill(me);
-    } catch (e) { SFA.toast(e.message, false); }
+    try { fill(await Api.get(API.profile.get)); } catch (e) { SFA.toast(e.message, false); }
   };
-
   function fill(me) {
     document.getElementById('photoImg').src = me.photo || FALLBACK;
     document.getElementById('photoName').textContent = me.name || me.username || '';
-    document.getElementById('photoRole').textContent = me.role || '';
+    document.getElementById('photoRole').textContent = me.designation || me.role || '';
     document.getElementById('p_username').textContent = '@' + (me.username || '');
     document.getElementById('p_name').value = me.name || '';
-    document.getElementById('p_empId').value = me.empCode || '';
-    document.getElementById('p_designationOid').value = me.designationOid || '';
-    document.getElementById('p_stateOid').value = me.stateOid || '';
-    document.getElementById('p_districtOid').value = me.districtOid || '';
     document.getElementById('p_mobile').value = me.mobile || '';
     document.getElementById('p_email').value = me.email || '';
-    sfaSetDate('p_dob', me.dob);
+    txt('i_code', me.empCode); txt('i_des', me.designation); txt('i_hq', me.hq); txt('i_state', me.state); txt('i_mgr', me.manager); txt('i_doj', me.joined ? fmtDate(me.joined) : '');
   }
 
-  // live preview when a file is chosen — delegated so it works for the
-  // shell-injected content (the input is inside <template> until then).
+  // choosing a photo uploads it right away (multipart file - the server stores it as a file)
   document.addEventListener('change', async function (e) {
     if (!e.target || e.target.id !== 'photoFile') return;
     const f = e.target.files[0]; if (!f) return;
+    if (!/^image\//.test(f.type)) { SFA.toast('Please choose an image file', false); e.target.value = ''; return; }
     if (f.size > 8 * 1024 * 1024) { SFA.toast('Please choose an image under 8 MB', false); e.target.value = ''; return; }
-    try { document.getElementById('photoImg').src = await fileToDataUrl(f); } catch (_) {}
-  });
-
-  // read the chosen file at CLICK time (robust: no reliance on a pre-read value)
-  async function uploadPhoto() {
-    const f = document.getElementById('photoFile').files[0];
-    if (!f) { SFA.toast('Choose an image first', false); return; }
-    if (f.size > 8 * 1024 * 1024) { SFA.toast('Please choose an image under 8 MB', false); return; }
     try {
-      const dataUri = await fileToDataUrl(f);
-      await Api.post(API.profile.photo, { image: dataUri });
-      document.getElementById('photoImg').src = dataUri;
+      const fd = new FormData(); fd.append('file', f);
+      const r = await Api.post(API.profile.photo, fd);
+      document.getElementById('photoImg').src = r.photo || URL.createObjectURL(f);
       SFA.toast('Photo updated'); refreshChrome();
-    } catch (e) { SFA.toast(e.message, false); }
-  }
+    } catch (err) { SFA.toast(err.message, false); }
+    e.target.value = '';
+  });
   async function removePhoto() {
     if (!confirm('Remove your profile photo?')) return;
-    try {
-      await Api.post(API.profile.photo, { image: '' });
-      document.getElementById('photoImg').src = FALLBACK;
-      document.getElementById('photoFile').value = '';
-      SFA.toast('Photo removed'); refreshChrome();
-    } catch (e) { SFA.toast(e.message, false); }
+    try { await Api.del(API.profile.photo); document.getElementById('photoImg').src = FALLBACK; SFA.toast('Photo removed'); refreshChrome(); }
+    catch (e) { SFA.toast(e.message, false); }
   }
 
   async function saveProfile(ev) {
     ev.preventDefault();
-    const v = id => { const x = document.getElementById(id).value; return x === '' ? null : x; };
-    const body = {
-      name: v('p_name'), stateOid: v('p_stateOid'),
-      districtOid: v('p_districtOid'), mobile: v('p_mobile'), email: v('p_email'), dob: v('p_dob')
-    };
-    try { await Api.post(API.profile.save, body); SFA.toast('Profile saved'); refreshChrome(); }
+    const v = id => { const x = document.getElementById(id).value.trim(); return x === '' ? null : x; };
+    try { await Api.post(API.profile.save, { name: v('p_name'), mobile: v('p_mobile'), email: v('p_email') }); SFA.toast('Profile saved'); document.getElementById('photoName').textContent = v('p_name') || ''; refreshChrome(); }
     catch (e) { SFA.toast(e.message, false); }
   }
 
   async function changePassword(ev) {
     ev.preventDefault();
-    const cur = document.getElementById('pw_current').value;
-    const nw = document.getElementById('pw_new').value;
-    const cf = document.getElementById('pw_confirm').value;
+    const cur = document.getElementById('pw_current').value, nw = document.getElementById('pw_new').value, cf = document.getElementById('pw_confirm').value;
     if (nw !== cf) { SFA.toast('New passwords do not match', false); return; }
     try {
       await Api.post(API.profile.password, { currentPassword: cur, newPassword: nw });
@@ -211,8 +153,6 @@
       SFA.toast('Password updated');
     } catch (e) { SFA.toast(e.message, false); }
   }
-
-  // let the shell re-read the photo into the header avatar
   function refreshChrome() { if (window.Shell && Shell.refreshIdentity) Shell.refreshIdentity(); }
 </script>
 </body>
