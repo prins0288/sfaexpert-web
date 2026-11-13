@@ -59,6 +59,8 @@ public final class DefaultColumnRegistry {
         // report/calendar-report.html
         register("CALENDAR_SUMMARY",
                 col("group", null), col("employees", "entity.employees"), col("present", null), col("half", null), col("leave", null), col("off", null), col("absent", null), col("calls", null), col("hours", null), col("pct", null));
+        register("PARTY_INVENTORY",
+                col("employee", "entity.employee"), col("party", null), col("state", "entity.state"), col("period", null), col("items", null), col("closing", null), col("value", null), col("file", null), col("updated", null));
         register("SENIOR_CLIENT",
                 col("manager", null), col("client", "entity.client"), col("owner", null), col("geo", null), col("givenBy", null));
         register("DCR_PERMISSION",

@@ -513,6 +513,7 @@
 
     report: {
       dcr: "/api/report/dcr",
+      inventory: "/api/inventory",                                   // /config (GET, POST) /parties?empId= /list /entry?empId&partyId&month&year /save /upload
       seniorClients: "/api/dcr/senior-clients",                      // GET ?empId= | GET /candidates?empId= | POST {empId, clientIds[], geoEnabled} | POST /{id}/geo {enabled} | POST /delete {ids}
       dcrPermissions: "/api/dcr/permissions",                        // GET ?type=&empId=&expired= | POST {type, empIds, dcrFrom, dcrTo, allowFrom, allowTo, reason} | POST /delete {ids}
       attendance: "/api/report/attendance",                          // /filters  /sheet?month= | from & to ...  /rules (GET / POST) /rules/delete
