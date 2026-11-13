@@ -41,7 +41,7 @@
   <div class="card">
     <div class="card-header d-flex align-items-center flex-wrap gap-2">
       <span><i class="bi bi-shield-lock"></i> Permission Master</span>
-      <small class="text-muted">Allow / deny actions per employee, designation or emp level &mdash; employee beats designation beats emp level; <b>Default</b> = no rule (allowed)</small>
+      <small class="text-muted">Allow / deny actions per employee, designation or hierarchy level &mdash; employee beats designation beats hierarchy level; <b>Default</b> = no rule (the code's own default)</small>
       <button class="btn btn-sm btn-outline-primary ms-auto" onclick="pmCodeAdd()"><i class="bi bi-plus-lg"></i> Add Permission Code</button>
     </div>
     <div class="card-body">
@@ -51,7 +51,7 @@
           <select class="form-select" id="pm_type" onchange="pmFillValues()">
             <option value="EMP_ID">Employee</option>
             <option value="DESIGNATION">Designation</option>
-            <option value="EMP_LEVEL">Emp Level</option>
+            <option value="HIERARCHY_LEVEL">Hierarchy Level</option>
           </select>
         </div>
         <div class="col-md-5">
@@ -79,7 +79,7 @@
       <div class="modal-header sfa-modal"><h5 class="modal-title" id="pmCodeTitle">Add Permission Code</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
       <div class="modal-body">
-        <input type="hidden" id="pc_oid" />
+        <input type="hidden" id="pc_id" />
         <div class="mb-3"><label class="form-label">Code <span class="required-star">*</span></label>
           <input class="form-control text-uppercase" id="pc_code" required maxlength="100" placeholder="e.g. ZONE_SAVE" /></div>
         <div class="mb-3"><label class="form-label">Module</label>
@@ -88,6 +88,9 @@
           <input class="form-control" id="pc_desc" maxlength="255" /></div>
         <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="pc_status" checked>
           <label class="form-check-label" for="pc_status">Active</label></div>
+        <div class="form-check form-switch mt-2"><input class="form-check-input" type="checkbox" id="pc_default" checked>
+          <label class="form-check-label" for="pc_default">Allowed by default</label></div>
+        <div class="form-text">Off = nobody has it until you Allow it for an employee, designation or hierarchy level (e.g. COLUMN_SETTINGS).</div>
         <div class="form-text">The backend checks a code only where a controller carries <code>@RequiresPermission("CODE")</code>; a new code here is for buttons/features you wire up yourself.</div>
       </div>
       <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
@@ -109,7 +112,7 @@
 <script src="js/shell.js"></script>
 <script>
   const EP = API.permissionMaster;
-  let CODES = [], TARGETS = { employees: [], designations: [], empLevels: [] };
+  let CODES = [], TARGETS = { employees: [], designations: [], hierarchyLevels: [] };
   let CURRENT = {};   // permissionCode -> assignment row for the selected target
   let CODE_MODAL;
 
@@ -128,14 +131,14 @@
     const sel = document.getElementById('pm_value');
     let opts = [];
     if (type === 'EMP_ID') {
-      opts = TARGETS.employees.map(e => [e.empId, `${e.name} (${e.empCode || e.empId})`]);
+      opts = TARGETS.employees.map(e => [e.empId, `${e.name} (${e.empCode || ''})`]);
     } else if (type === 'DESIGNATION') {
-      opts = TARGETS.designations.map(d => [d.code, `${d.name} (${d.code})${d.empLevel != null ? ' · level ' + d.empLevel : ''}`]);
+      opts = TARGETS.designations.map(d => [d.code, `${d.name}${d.hierarchyLevel != null ? ' · level ' + d.hierarchyLevel : ''}`]);
     } else {
-      opts = TARGETS.empLevels.map(l => [String(l), 'Level ' + l]);
+      opts = TARGETS.hierarchyLevels.map(l => [String(l), 'Level ' + l]);
     }
     document.getElementById('pm_valueLabel').innerHTML =
-      ({ EMP_ID: 'Employee', DESIGNATION: 'Designation', EMP_LEVEL: 'Emp Level' })[type] + ' <span class="required-star">*</span>';
+      ({ EMP_ID: 'Employee', DESIGNATION: 'Designation', HIERARCHY_LEVEL: 'Hierarchy Level' })[type] + ' <span class="required-star">*</span>';
     sel.innerHTML = '<option value="">Select…</option>' +
       opts.map(([v, l]) => `<option value="${SFA.esc(v)}">${SFA.esc(l)}</option>`).join('');
     pmLoadAssignments();
@@ -182,7 +185,7 @@
         <td class="text-center">${c.status ? '<span class="badge badge-active">Active</span>' : '<span class="badge badge-inactive">Inactive</span>'}</td>
         <td><select class="form-select form-select-sm pm-access ${acc === 'ALLOW' ? 'pm-allow' : acc === 'DENY' ? 'pm-deny' : ''}"
                     ${picked ? '' : 'disabled'} onchange="pmSetAccess('${SFA.esc(c.permissionCode)}', this)">
-              <option value="" ${acc === '' ? 'selected' : ''}>Default</option>
+              <option value="" ${acc === '' ? 'selected' : ''}>Default (${c.defaultAllowed === false ? 'Denied' : 'Allowed'})</option>
               <option value="ALLOW" ${acc === 'ALLOW' ? 'selected' : ''}>Allow</option>
               <option value="DENY" ${acc === 'DENY' ? 'selected' : ''}>Deny</option>
             </select></td>
@@ -213,7 +216,7 @@
     const prev = accessOf(code);
     try {
       if (!sel.value) {
-        if (CURRENT[code]) await Api.del(EP.deleteAssignment(CURRENT[code].oid));
+        if (CURRENT[code]) await Api.del(EP.deleteAssignment(CURRENT[code].id));
         delete CURRENT[code];
       } else {
         CURRENT[code] = await Api.post(EP.assignments,
@@ -232,32 +235,35 @@
   // ---- permission_master (catalog) ----------------------------------------
   function pmCodeAdd() {
     document.getElementById('pmCodeTitle').textContent = 'Add Permission Code';
-    ['pc_oid', 'pc_code', 'pc_module', 'pc_desc'].forEach(id => document.getElementById(id).value = '');
+    ['pc_id', 'pc_code', 'pc_module', 'pc_desc'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('pc_code').readOnly = false;
     document.getElementById('pc_status').checked = true;
+    document.getElementById('pc_default').checked = true;
     CODE_MODAL.show();
   }
 
   function pmCodeEdit(c) {
     document.getElementById('pmCodeTitle').textContent = 'Edit Permission Code';
-    document.getElementById('pc_oid').value = c.oid;
+    document.getElementById('pc_id').value = c.id;
     document.getElementById('pc_code').value = c.permissionCode;
     document.getElementById('pc_code').readOnly = true;   // assignments reference the code by value
     document.getElementById('pc_module').value = c.module || '';
     document.getElementById('pc_desc').value = c.description || '';
     document.getElementById('pc_status').checked = !!c.status;
+    document.getElementById('pc_default').checked = c.defaultAllowed !== false;
     CODE_MODAL.show();
   }
 
   async function pmCodeSave(ev) {
     ev.preventDefault();
-    const oid = document.getElementById('pc_oid').value;
+    const id = document.getElementById('pc_id').value;
     const body = {
-      oid: oid ? Number(oid) : null,
+      id: id ? Number(id) : null,
       permissionCode: document.getElementById('pc_code').value.trim().toUpperCase(),
       module: document.getElementById('pc_module').value.trim() || null,
       description: document.getElementById('pc_desc').value.trim() || null,
       status: document.getElementById('pc_status').checked,
+      defaultAllowed: document.getElementById('pc_default').checked,
     };
     try {
       await Api.post(EP.save, body);

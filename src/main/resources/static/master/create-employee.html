@@ -28,6 +28,12 @@
       } catch (e) {}
     })();
   </script>
+  <style>
+    #e_profile .accordion-button { padding: .6rem 1rem; font-weight: 500; }
+    #e_profile .accordion-button .badge { margin-left: .5rem; }
+    .p-row { border: 1px dashed var(--sfa-border, #dee2e6); border-radius: .5rem; padding: .75rem; margin-bottom: .5rem; position: relative; }
+    .p-row .p-remove { position: absolute; top: .25rem; right: .25rem; }
+  </style>
 </head>
 <body>
 <div id="app" data-page="createemployee" data-title="Create Employee"></div>
@@ -42,13 +48,13 @@
       </div>
     </div>
     <div class="card-body">
-      <p class="text-muted small">Only the essentials are shown by default — click <b>Columns</b> below the table to show gender / email / department / etc. Creating an employee also creates their login (username + password).</p>
+      <p class="text-muted small">Only the essentials are shown by default — use <b>Columns</b> / <b>Column Settings</b> above the table to show gender / email / department / etc. Creating an employee also creates their login (username + password).</p>
       <div class="table-responsive">
-        <table id="empCreateTable" class="table table-striped table-bordered nowrap" style="width:100%">
+        <table data-screen-key="CREATE_EMPLOYEE_MASTER" id="empCreateTable" class="table table-striped table-bordered nowrap" style="width:100%">
           <thead><tr>
-            <th>S.No</th><th>Emp Code</th><th>Name</th><th>Mobile</th><th>Designation</th><th>Division</th>
-            <th>Username</th><th>Active</th>
-            <th>Gender</th><th>Official Email</th><th>Department</th><th>Date of Joining</th><th>Manager</th><th>Profile Complete</th>
+            <th>S.No</th><th data-field="photo" class="no-export">Photo</th><th data-field="empCode">Emp Code</th><th data-field="name">Name</th><th data-field="mobile">Mobile</th><th data-field="designation">Designation</th><th data-field="division">Division</th>
+            <th data-field="username">Username</th><th data-field="active">Active</th><th data-field="vacant">Working / Vacant</th>
+            <th data-field="gender">Gender</th><th data-field="officialEmail">Official Email</th><th data-field="department">Department</th><th data-field="dateOfJoining">Date of Joining</th><th data-field="manager">Manager</th><th data-field="profileComplete">Profile Complete</th>
             <th class="no-export">Actions</th>
           </tr></thead>
           <tbody></tbody>
@@ -58,7 +64,7 @@
   </div>
 
   <!-- Add / Edit -->
-  <div class="modal fade" id="empModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
+  <div class="modal fade" id="empModal" tabindex="-1"><div class="modal-dialog modal-xl modal-dialog-scrollable modal-fullscreen-sm-down">
     <form class="modal-content" onsubmit="empSave(event)" onkeydown="empFormKeydown(event)">
       <div class="modal-header sfa-modal"><h5 class="modal-title" id="empModalTitle">Add Employee</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
@@ -66,54 +72,264 @@
         <input type="hidden" id="e_empId" />
         <h6 class="text-muted">Essential details</h6>
         <div class="row g-3 mb-3">
-          <div class="col-md-6"><label class="form-label">Name <span class="required-star">*</span></label>
-            <input class="form-control" id="e_empName" required placeholder="Jane Doe" /></div>
+          <div class="col-md-2"><label class="form-label">Salutation</label>
+            <select class="form-select" id="e_salutation" data-quick-add="salutation"></select></div>
+          <div class="col-md-4"><label class="form-label">Name <span class="required-star">*</span></label>
+            <input class="form-control" id="e_empName" required maxlength="150" placeholder="Jane Doe" /></div>
           <div class="col-md-6"><label class="form-label">Mobile</label>
-            <input class="form-control" id="e_mobile" placeholder="9876543210" /></div>
+            <input class="form-control" id="e_mobile" inputmode="numeric" maxlength="10" pattern="[6-9][0-9]{9}"
+                   title="10 digits starting with 6-9" placeholder="9876543210" /></div>
           <div class="col-md-6"><label class="form-label">Division <small class="text-muted">(leave blank for a company-wide role like Super Admin)</small></label>
-            <select class="form-select" id="e_divisionId"></select></div>
-          <div class="col-md-6"><label class="form-label">Designation <span class="required-star">*</span></label>
-            <select class="form-select" id="e_designationId" required></select></div>
-          <div class="col-md-6"><label class="form-label">Username <span class="required-star">*</span></label>
-            <input class="form-control" id="e_username" required placeholder="jane.doe" /></div>
-          <div class="col-md-6"><label class="form-label">Password <span id="e_pwdStar" class="required-star">*</span></label>
-            <input type="password" class="form-control" id="e_password" placeholder="Leave blank to keep existing (on edit)" /></div>
+            <select class="form-select" id="e_divisionId" data-quick-add="division"></select></div>
+          <div class="col-md-6"><label class="form-label">Designation <span class="required-star">*</span>
+              <small class="text-muted" id="e_levelHint"></small></label>
+            <select class="form-select" id="e_designationId" data-quick-add="designation" required onchange="designationLevelHint()"></select></div>
+          <div class="col-md-6"><label class="form-label">State</label>
+            <select class="form-select" id="e_stateId" data-quick-add="state"></select></div>
+          <div class="col-md-6"><label class="form-label">HQ</label>
+            <select class="form-select" id="e_hqId" data-quick-add="hq"></select></div>
+          <div class="col-md-6"><label class="form-label d-block">Position</label>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="e_position" id="e_working" value="working" checked>
+              <label class="form-check-label" for="e_working">Working <small class="text-muted">(can log in)</small></label></div>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="e_position" id="e_vacant" value="vacant">
+              <label class="form-check-label" for="e_vacant">Vacant <small class="text-muted">(login blocked)</small></label></div></div>
+          <div class="col-md-6"><label class="form-label">Photo <small class="text-muted">(shown at the top-right after this employee logs in)</small></label>
+            <div id="e_photo"></div></div>
         </div>
+
+        <h6 class="text-muted">Login</h6>
+        <div class="row g-3 mb-3">
+          <div class="col-md-6"><label class="form-label">Username <span class="required-star">*</span></label>
+            <div class="input-group has-validation">
+              <input class="form-control" id="e_username" required maxlength="50" autocomplete="off"
+                     oninput="empUsernameChanged()" placeholder="ACME12345678" />
+              <button type="button" class="btn btn-outline-secondary" id="e_userGen" title="Generate a new username"
+                      onclick="empGenerate('username')"><i class="bi bi-arrow-repeat"></i></button>
+              <div class="invalid-feedback" id="e_userBad"></div>
+              <div class="valid-feedback" id="e_userOk"></div>
+            </div>
+            <div class="form-text">Auto-generated (company prefix + 8 digits) — you can type your own.</div></div>
+          <div class="col-md-6"><label class="form-label">Password <span id="e_pwdStar" class="required-star">*</span></label>
+            <div class="input-group">
+              <input type="text" class="form-control font-monospace" id="e_password" minlength="4" maxlength="100"
+                     autocomplete="new-password" placeholder="Leave blank to keep existing (on edit)" />
+              <button type="button" class="btn btn-outline-secondary" title="Generate an 8-digit password"
+                      onclick="empGenerate('password')"><i class="bi bi-arrow-repeat"></i></button>
+              <button type="button" class="btn btn-outline-secondary" title="Copy username + password"
+                      onclick="empCopyLogin()"><i class="bi bi-clipboard"></i></button>
+            </div>
+            <div class="form-text" id="e_pwdHelp">Share it with the employee — it is shown only here.</div></div>
+          <div class="col-12 d-none" id="e_loginLocked"><div class="alert alert-secondary py-2 small mb-0">
+            <i class="bi bi-lock"></i> Username and password cannot be changed here. To set a new password use
+            <a href="master/password-reset.html">Master Entry &gt; Password Reset</a>.</div></div>
+        </div>
+
         <h6 class="text-muted">More details <small>(optional — fill now or update later)</small></h6>
-        <div class="row g-3">
+        <div class="row g-3 mb-3">
           <div class="col-md-4"><label class="form-label">Gender</label>
             <select class="form-select" id="e_gender"><option value="">--</option><option value="MALE">Male</option><option value="FEMALE">Female</option><option value="OTHER">Other</option></select></div>
           <div class="col-md-4"><label class="form-label">Date of Joining</label>
             <input class="form-control sfa-date" id="e_dateOfJoining" /></div>
+          <div class="col-md-4"><label class="form-label">Reporting Date</label>
+            <input class="form-control sfa-date" id="e_reportingDate" /></div>
           <div class="col-md-4"><label class="form-label">Manager</label>
             <select class="form-select" id="e_managerId"><option value="">--</option></select></div>
-          <div class="col-md-6"><label class="form-label">Official Email</label>
-            <input type="email" class="form-control" id="e_officialEmail" placeholder="jane.doe@company.com" /></div>
-          <div class="col-md-6"><label class="form-label">Department</label>
-            <input class="form-control" id="e_department" placeholder="Sales" /></div>
+          <div class="col-md-4"><label class="form-label">Official Email</label>
+            <input type="email" class="form-control" id="e_officialEmail" maxlength="150" placeholder="jane.doe@company.com" /></div>
+          <div class="col-md-4"><label class="form-label">Department</label>
+            <input class="form-control" id="e_department" maxlength="100" placeholder="Sales" /></div>
+        </div>
+
+        <h6 class="text-muted">Employment status</h6>
+        <div class="row g-3">
+          <div class="col-md-4 d-flex align-items-end"><div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" id="e_officeStaff">
+            <label class="form-check-label" for="e_officeStaff">Office staff</label></div></div>
+          <div class="col-md-4 d-flex align-items-end"><div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" id="e_confirmed" onchange="empConfirmedChanged()">
+            <label class="form-check-label" for="e_confirmed">Confirmed</label></div></div>
+          <div class="col-md-4" id="e_confirmationWrap"><label class="form-label">Confirmation Date</label>
+            <input class="form-control sfa-date" id="e_confirmationDate" /></div>
+          <div class="col-md-4 e-exit"><label class="form-label">Resignation Date</label>
+            <input class="form-control sfa-date" id="e_resignationDate" /></div>
+          <div class="col-md-4 e-exit"><label class="form-label">Last Working Date</label>
+            <input class="form-control sfa-date" id="e_lastWorkingDate" /></div>
+        </div>
+
+        <div class="d-none" id="e_promoWrap">
+          <h6 class="text-muted mt-4">Promotion / Transfer <small>applied directly — no approval</small></h6>
+          <div class="alert alert-info py-2 small d-none" id="e_promoHint"></div>
+          <div class="row g-3">
+            <div class="col-md-4"><label class="form-label">Change reason</label>
+              <select class="form-select" id="e_changeReason" data-no-search>
+                <option value="">Auto (based on what changed)</option>
+                <option value="PROMOTION">Promotion</option>
+                <option value="DEMOTION">Demotion</option>
+                <option value="TRANSFER">Transfer</option>
+                <option value="MANAGER_CHANGE">Manager change</option>
+                <option value="CORRECTION">Correction</option>
+              </select></div>
+            <div class="col-md-4"><label class="form-label">Effective date</label>
+              <input class="form-control sfa-date" id="e_effectiveDate" />
+              <div class="form-text">Blank = today</div></div>
+            <div class="col-md-4"><label class="form-label">Remarks</label>
+              <input class="form-control" id="e_changeRemarks" maxlength="255" placeholder="e.g. promoted after Q2 review" /></div>
+          </div>
+        </div>
+
+        <h6 class="text-muted mt-4">Full profile <small>(optional — click a section to open it)</small></h6>
+        <div class="accordion" id="e_profile">
+
+          <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button"
+              data-bs-toggle="collapse" data-bs-target="#p_personal"><i class="bi bi-person me-2"></i> Personal details
+              <span class="badge bg-success d-none" data-badge="personal"></span></button></h2>
+            <div id="p_personal" class="accordion-collapse collapse"><div class="accordion-body"><div class="row g-3">
+              <div class="col-md-3"><label class="form-label">Date of Birth</label><input class="form-control sfa-date" id="pp_dob" /></div>
+              <div class="col-md-3"><label class="form-label">Father's Name</label><input class="form-control" id="pp_fatherName" maxlength="150" /></div>
+              <div class="col-md-3"><label class="form-label">Mother's Name</label><input class="form-control" id="pp_motherName" maxlength="150" /></div>
+              <div class="col-md-3"><label class="form-label">Marital Status</label>
+                <select class="form-select" id="pp_maritalStatus" onchange="pMarital()"><option value="">--</option><option value="SINGLE">Single</option><option value="MARRIED">Married</option></select></div>
+              <div class="col-md-3 p-married"><label class="form-label">Spouse Name</label><input class="form-control" id="pp_spouseName" maxlength="150" /></div>
+              <div class="col-md-3 p-married"><label class="form-label">Anniversary Date</label><input class="form-control sfa-date" id="pp_anniversaryDate" /></div>
+              <div class="col-md-3"><label class="form-label">Qualification</label><select class="form-select" id="pp_qualificationId" data-quick-add="degree"></select></div>
+              <div class="col-md-3"><label class="form-label">Qualification Detail</label><input class="form-control" id="pp_qualificationDetail" maxlength="150" placeholder="e.g. B.Pharm" /></div>
+              <div class="col-md-3"><label class="form-label">Blood Group</label><select class="form-select" id="pp_bloodGroup"></select></div>
+              <div class="col-md-3"><label class="form-label">Personal Email</label><input type="email" class="form-control" id="pp_personalEmail" maxlength="150" /></div>
+              <div class="col-md-3"><label class="form-label">Landline</label><input class="form-control" id="pp_landlineNo" maxlength="20" /></div>
+              <div class="col-md-3"><label class="form-label">Total Experience (yrs)</label><input type="number" step="0.1" min="0" max="999.9" class="form-control" id="pp_totalExperienceYrs" /></div>
+              <div class="col-md-3"><label class="form-label">Shirt Size</label><input type="number" min="0" max="255" class="form-control" id="pp_shirtSize" /></div>
+              <div class="col-md-9"><label class="form-label">Remarks</label><input class="form-control" id="pp_remarks" maxlength="1000" /></div>
+            </div></div></div></div>
+
+          <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button"
+              data-bs-toggle="collapse" data-bs-target="#p_address"><i class="bi bi-house me-2"></i> Address
+              <span class="badge bg-success d-none" data-badge="address"></span></button></h2>
+            <div id="p_address" class="accordion-collapse collapse"><div class="accordion-body">
+              <div class="fw-semibold mb-2">Present address</div>
+              <div class="row g-3 mb-3">
+                <div class="col-12"><label class="form-label">Address</label><textarea class="form-control" rows="2" id="pa_present_addressLine" maxlength="500"></textarea></div>
+                <div class="col-md-3"><label class="form-label">City</label><input class="form-control" id="pa_present_city" maxlength="100" /></div>
+                <div class="col-md-3"><label class="form-label">District</label><input class="form-control" id="pa_present_district" maxlength="100" /></div>
+                <div class="col-md-3"><label class="form-label">State</label><select class="form-select" id="pa_present_stateId" data-quick-add="state"></select></div>
+                <div class="col-md-3"><label class="form-label">Pincode</label><input class="form-control" id="pa_present_pincode" inputmode="numeric" maxlength="6" pattern="[1-9][0-9]{5}" title="6 digits" /></div>
+              </div>
+              <div class="d-flex align-items-center gap-3 mb-2"><span class="fw-semibold">Permanent address</span>
+                <div class="form-check mb-0"><input class="form-check-input" type="checkbox" id="pa_same" onchange="pSameAddress()">
+                  <label class="form-check-label" for="pa_same">Same as present</label></div></div>
+              <div class="row g-3" id="pa_permanentBox">
+                <div class="col-12"><label class="form-label">Address</label><textarea class="form-control" rows="2" id="pa_permanent_addressLine" maxlength="500"></textarea></div>
+                <div class="col-md-3"><label class="form-label">City</label><input class="form-control" id="pa_permanent_city" maxlength="100" /></div>
+                <div class="col-md-3"><label class="form-label">District</label><input class="form-control" id="pa_permanent_district" maxlength="100" /></div>
+                <div class="col-md-3"><label class="form-label">State</label><select class="form-select" id="pa_permanent_stateId" data-quick-add="state"></select></div>
+                <div class="col-md-3"><label class="form-label">Pincode</label><input class="form-control" id="pa_permanent_pincode" inputmode="numeric" maxlength="6" pattern="[1-9][0-9]{5}" title="6 digits" /></div>
+              </div>
+            </div></div></div>
+
+          <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button"
+              data-bs-toggle="collapse" data-bs-target="#p_bank"><i class="bi bi-bank me-2"></i> Bank account
+              <span class="badge bg-success d-none" data-badge="bank"></span></button></h2>
+            <div id="p_bank" class="accordion-collapse collapse"><div class="accordion-body">
+              <div id="pl_bank"></div>
+              <button type="button" class="btn btn-sm btn-outline-primary" onclick="pAddRow('bank')"><i class="bi bi-plus"></i> Add bank account</button>
+            </div></div></div>
+
+          <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button"
+              data-bs-toggle="collapse" data-bs-target="#p_nominee"><i class="bi bi-people me-2"></i> Nominee
+              <span class="badge bg-success d-none" data-badge="nominee"></span></button></h2>
+            <div id="p_nominee" class="accordion-collapse collapse"><div class="accordion-body">
+              <p class="small text-muted mb-2">Shares of one type (PF, ESI, …) must add up to at most 100%.</p>
+              <div id="pl_nominee"></div>
+              <button type="button" class="btn btn-sm btn-outline-primary" onclick="pAddRow('nominee')"><i class="bi bi-plus"></i> Add nominee</button>
+            </div></div></div>
+
+          <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button"
+              data-bs-toggle="collapse" data-bs-target="#p_emergency"><i class="bi bi-telephone me-2"></i> Emergency contact
+              <span class="badge bg-success d-none" data-badge="emergency"></span></button></h2>
+            <div id="p_emergency" class="accordion-collapse collapse"><div class="accordion-body">
+              <div id="pl_emergency"></div>
+              <button type="button" class="btn btn-sm btn-outline-primary" onclick="pAddRow('emergency')"><i class="bi bi-plus"></i> Add emergency contact</button>
+            </div></div></div>
+
+          <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button"
+              data-bs-toggle="collapse" data-bs-target="#p_statutory"><i class="bi bi-file-earmark-text me-2"></i> Statutory (PAN / PF / UAN / ESI / Aadhaar)
+              <span class="badge bg-success d-none" data-badge="statutory"></span></button></h2>
+            <div id="p_statutory" class="accordion-collapse collapse"><div class="accordion-body"><div class="row g-3">
+              <div class="col-md-4"><label class="form-label">PAN</label><input class="form-control text-uppercase" id="ps_panNo" maxlength="10" placeholder="ABCDE1234F" /></div>
+              <div class="col-md-4"><label class="form-label">PF Number</label><input class="form-control" id="ps_pfNo" maxlength="30" /></div>
+              <div class="col-md-4"><label class="form-label">UAN</label><input class="form-control" id="ps_uanNo" inputmode="numeric" maxlength="12" placeholder="12 digits" /></div>
+              <div class="col-md-4"><label class="form-label">ESI Number</label><input class="form-control" id="ps_esiNo" maxlength="20" /></div>
+              <div class="col-md-4"><label class="form-label">Mediclaim Policy No.</label><input class="form-control" id="ps_mediclaimPolicyNo" maxlength="50" /></div>
+              <div class="col-md-4"><label class="form-label">Aadhaar</label><input class="form-control" id="ps_aadhaarNo" inputmode="numeric" maxlength="14" placeholder="12 digits" /></div>
+            </div></div></div></div>
+
+          <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button"
+              data-bs-toggle="collapse" data-bs-target="#p_children"><i class="bi bi-emoji-smile me-2"></i> Children
+              <span class="badge bg-success d-none" data-badge="children"></span></button></h2>
+            <div id="p_children" class="accordion-collapse collapse"><div class="accordion-body">
+              <div id="pl_children"></div>
+              <button type="button" class="btn btn-sm btn-outline-primary" onclick="pAddRow('children')"><i class="bi bi-plus"></i> Add child</button>
+            </div></div></div>
+
+          <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button"
+              data-bs-toggle="collapse" data-bs-target="#p_prev"><i class="bi bi-briefcase me-2"></i> Previous employment
+              <span class="badge bg-success d-none" data-badge="prev"></span></button></h2>
+            <div id="p_prev" class="accordion-collapse collapse"><div class="accordion-body">
+              <div id="pl_prev"></div>
+              <button type="button" class="btn btn-sm btn-outline-primary" onclick="pAddRow('prev')"><i class="bi bi-plus"></i> Add previous employer</button>
+            </div></div></div>
+
+          <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button"
+              data-bs-toggle="collapse" data-bs-target="#p_docs"><i class="bi bi-folder2-open me-2"></i> Documents
+              <span class="badge bg-success d-none" data-badge="docs"></span></button></h2>
+            <div id="p_docs" class="accordion-collapse collapse"><div class="accordion-body">
+              <p class="small text-muted mb-2">PDF or image, up to 20 MB each. Type comes from Document Master (use + to add a new type).
+                New files are uploaded when you click Save.</p>
+              <div id="d_existing"></div>
+              <div id="d_new"></div>
+              <button type="button" class="btn btn-sm btn-outline-primary" onclick="dAddRow()"><i class="bi bi-plus"></i> Add document</button>
+            </div></div></div>
+
         </div>
       </div>
       <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-        <button type="submit" class="btn btn-primary">Save</button></div>
+        <button type="submit" class="btn btn-primary" id="e_saveBtn">Save</button></div>
     </form>
   </div></div>
 
   <!-- Bulk Upload -->
-  <div class="modal fade" id="empUploadModal" tabindex="-1"><div class="modal-dialog modal-dialog-scrollable modal-fullscreen-sm-down">
+  <div class="modal fade" id="empUploadModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-sm-down">
     <form class="modal-content" onsubmit="empUpload(event)">
       <div class="modal-header sfa-modal"><h5 class="modal-title">Bulk Upload &middot; Employees</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
       <div class="modal-body">
-        <p class="text-muted small">Every row creates a <b>new</b> employee + login (emp_code is always auto-generated —
-          existing employees are not updated by this upload). <code>division_code</code> and <code>designation_code</code>
-          must match an existing master row.</p>
+        <ul class="text-muted small ps-3">
+          <li><b>emp_code blank</b> = new employee + login. Blank <code>username</code> / <code>password</code> are generated
+            (company prefix + 8 digits / 8 digits) and listed below after the upload.</li>
+          <li><b>emp_code of an existing employee</b> = update it — a blank cell keeps the stored value.</li>
+          <li>Codes (<code>division_code</code>, <code>state_code</code>, <code>hq_code</code>,
+            <code>bank_code</code>, <code>qualification_code</code>, <code>manager_emp_code</code>) and the <code>designation</code> name must match the masters;
+            relationships are names (Father, Mother, Spouse, …); yes/no columns take Y / N; dates 2024-12-25 or 25-12-2024.</li>
+          <li>One bank, nominee and emergency contact per row (add more from the form). Old 8-column sheets still work.</li>
+        </ul>
         <button type="button" class="btn btn-sm btn-outline-secondary mb-3" onclick="Api.download(API.master.createEmployee.template,'employee_template.xlsx')">
           <i class="bi bi-download"></i> Download Template</button>
         <input type="file" class="form-control" id="empFile" name="file" accept=".xlsx,.xls" required />
+        <div id="empUploadResult" class="mt-3"></div>
       </div>
       <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
         <button type="submit" class="btn btn-accent">Upload</button></div>
     </form>
+  </div></div>
+
+  <!-- Promotion / transfer history -->
+  <div class="modal fade" id="empHistModal" tabindex="-1"><div class="modal-dialog modal-xl modal-dialog-scrollable modal-fullscreen-lg-down">
+    <div class="modal-content">
+      <div class="modal-header sfa-modal"><h5 class="modal-title" id="empHistTitle">Promotion / transfer history</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body" id="empHistBody"></div>
+    </div>
   </div></div>
 </template>
 
@@ -137,14 +353,36 @@
 <script src="js/core/uikit.js"></script>
 <script src="js/shell.js"></script>
 <script>
-  let DT = null, MODAL = null, LK = null, EMP = [];
+  let DT = null, MODAL = null, LK = null, EMP = [], PHOTO = null, LOGIN_LOCKED = false, DOCS_EXISTING = [], DOCS_REMOVED = new Set(), OPTS = { relationships: [], nomineeTypes: [], bloodGroups: [] }, EDIT_ORIG = null;
 
   window.pageInit = async function () {
     MODAL = new bootstrap.Modal('#empModal');
     try {
-      LK = await Api.get(API.lookups, { query: { keys: 'divisions,designations' } });
+      [LK, OPTS] = await Promise.all([
+        Api.get(API.lookups, { query: { keys: 'divisions,designations,states,hqs,banks,degrees,documents,salutations' } }),
+        Api.get(API.master.createEmployee.profileOptions),
+      ]);
+      SFA.fillSelect(document.getElementById('e_salutation'), LK.salutations);
       SFA.fillSelect(document.getElementById('e_divisionId'), LK.divisions);
       SFA.fillSelect(document.getElementById('e_designationId'), LK.designations);
+      SFA.fillSelect(document.getElementById('e_stateId'), LK.states);
+      SFA.fillSelect(document.getElementById('e_hqId'), LK.hqs);
+      SFA.fillSelect(document.getElementById('pp_qualificationId'), LK.degrees);
+      SFA.fillSelect(document.getElementById('pa_present_stateId'), LK.states);
+      SFA.fillSelect(document.getElementById('pa_permanent_stateId'), LK.states);
+      document.getElementById('pp_bloodGroup').innerHTML = '<option value="">--</option>' +
+        (OPTS.bloodGroups || []).map(b => `<option value="${SFA.esc(b)}">${SFA.esc(b)}</option>`).join('');
+      PHOTO = SFAFiles.picker(document.getElementById('e_photo'), { maxMb: 5 });
+      SFAQuickAdd.decorate(document.getElementById('empModal'));
+      ['e_managerId', 'e_divisionId', 'e_hqId', 'e_stateId'].forEach(id => document.getElementById(id).addEventListener('change', empPromoHint));
+      // a master row added with "+": keep the page's own lists in step
+      document.getElementById('empModal').addEventListener('sfa:quick-added', ev => {
+        LK[ev.detail.lookup] = ev.detail.list;
+        if (ev.detail.kind === 'designation') designationLevelHint();
+      });
+      document.getElementById('empModal').addEventListener('input', pBadges);
+      document.getElementById('empModal').addEventListener('change', pBadges);
+      document.getElementById('empUploadModal').addEventListener('show.bs.modal', () => document.getElementById('empUploadResult').innerHTML = '');
       await reload();
     } catch (e) { SFA.toast(e.message, false); }
   };
@@ -154,65 +392,232 @@
     if (DT) { DT.destroy(); }
     document.querySelector('#empCreateTable tbody').innerHTML = EMP.map((r, i) => `
       <tr>
-        <td>${i + 1}</td><td>${SFA.esc(r.empCode)}</td><td>${SFA.esc(r.empName)}</td><td>${SFA.esc(r.mobile)}</td>
+        <td>${i + 1}</td>
+        <td class="no-export">${r.photoPath ? SFAFiles.thumb(r.photoPath, r.photoThumbnailPath, { name: r.empName }) : ''}</td>
+        <td>${SFA.esc(r.empCode)}</td><td>${SFA.esc((r.salutation ? r.salutation + ' ' : '') + r.empName)}</td><td>${SFA.esc(r.mobile)}</td>
         <td>${SFA.esc(r.designationName)}</td><td>${SFA.esc(r.divisionName)}</td>
         <td>${SFA.esc(r.username)}</td><td>${SFA.statusBadge(r.active ? 'Y' : 'N')}</td>
+        <td>${r.vacant ? '<span class="badge bg-warning text-dark">Vacant</span>' : '<span class="badge badge-active">Working</span>'}</td>
         <td>${SFA.esc(r.gender)}</td><td>${SFA.esc(r.officialEmail)}</td><td>${SFA.esc(r.department)}</td>
-        <td>${SFA.esc(r.dateOfJoining)}</td><td>${SFA.esc(r.managerId)}</td>
+        <td>${SFA.esc(r.dateOfJoining)}</td><td>${SFA.esc(managerName(r.managerId))}</td>
         <td>${r.profileComplete ? '<span class="badge badge-active">Complete</span>' : '<span class="badge badge-inactive">Partial</span>'}</td>
         <td class="no-export">
-          <button data-perm="EMP_DETAIL_SAVE" class="btn btn-sm btn-outline-primary" onclick='empEdit(${JSON.stringify(r)})'><i class="bi bi-pencil"></i></button>
+          <button data-perm="EMP_DETAIL_SAVE" class="btn btn-sm btn-outline-primary" onclick="empEdit('${SFA.esc(r.empId)}')"><i class="bi bi-pencil"></i></button>
+          <button class="btn btn-sm btn-outline-info" title="Promotion / transfer history" onclick="empHistory('${SFA.esc(r.empId)}','${SFA.esc(r.empName)}')"><i class="bi bi-clock-history"></i></button>
           ${r.active
-            ? `<button data-perm="EMP_DETAIL_STATUS" class="btn btn-sm btn-outline-danger" onclick="empStatus('${r.empId}',false)"><i class="bi bi-slash-circle"></i></button>`
-            : `<button data-perm="EMP_DETAIL_STATUS" class="btn btn-sm btn-outline-success" onclick="empStatus('${r.empId}',true)"><i class="bi bi-check-circle"></i></button>`}
+            ? `<button data-perm="EMP_DETAIL_STATUS" class="btn btn-sm btn-outline-danger" onclick="empStatus('${SFA.esc(r.empId)}',false)"><i class="bi bi-slash-circle"></i></button>`
+            : `<button data-perm="EMP_DETAIL_STATUS" class="btn btn-sm btn-outline-success" onclick="empStatus('${SFA.esc(r.empId)}',true)"><i class="bi bi-check-circle"></i></button>`}
         </td>
       </tr>`).join('');
-    DT = sfaDataTable('#empCreateTable', { columnDefs: [{ targets: [8, 9, 10, 11, 12, 13], visible: false }] });
+    DT = sfaDataTable('#empCreateTable');   // Gender..Profile Complete start hidden: see CREATE_EMPLOYEE_MASTER in DefaultColumnRegistry
     fillManagerSelect();
   }
 
-  function fillManagerSelect() {
+  function managerName(empId) {
+    const m = empId && EMP.find(x => x.empId === empId);
+    return m ? m.empName : '';
+  }
+
+  // Active employees, minus the one being edited; keepEmpId (their current
+  // manager) stays even if inactive, so saving doesn't silently clear it.
+  function fillManagerSelect(excludeEmpId, keepEmpId) {
     const sel = document.getElementById('e_managerId');
     const current = sel.value;
     sel.innerHTML = '<option value="">--</option>' +
-      EMP.map(r => `<option value="${r.empId}">${SFA.esc(r.empName)} (${SFA.esc(r.empCode)})</option>`).join('');
+      EMP.filter(r => r.empId !== excludeEmpId && (r.active || r.empId === keepEmpId) && (!r.adminLevel || r.empId === keepEmpId))   // admin-level users are never offered as manager
+         .map(r => `<option value="${SFA.esc(r.empId)}">${SFA.esc(r.empName)} (${SFA.esc(r.empCode)})</option>`).join('');
     sel.value = current;
+    syncSelects();
+  }
+
+  const TEXT_FIELDS = ['e_empId', 'e_empName', 'e_mobile', 'e_username', 'e_password', 'e_officialEmail', 'e_department', 'e_changeRemarks'];
+  const SELECTS = ['e_salutation', 'e_divisionId', 'e_designationId', 'e_stateId', 'e_hqId', 'e_managerId', 'e_gender', 'e_changeReason'];
+  const DATES = ['e_dateOfJoining', 'e_reportingDate', 'e_confirmationDate', 'e_resignationDate', 'e_lastWorkingDate', 'e_effectiveDate'];
+
+  // select2 does not notice a plain `.value = ...`: refresh the shown text, else the box keeps the previous
+  // employee's choice on screen while the real value is empty (and the save then sends nothing)
+  function syncSelects() {
+    if (!window.jQuery) return;
+    SELECTS.concat(['e_changeReason']).forEach(id => { const el = document.getElementById(id); if (el && jQuery(el).data('select2')) jQuery(el).trigger('change.select2'); });
   }
 
   function clearForm() {
-    ['e_empId', 'e_empName', 'e_mobile', 'e_username', 'e_password', 'e_officialEmail', 'e_department'].forEach(id => document.getElementById(id).value = '');
-    document.getElementById('e_divisionId').value = '';
-    document.getElementById('e_designationId').value = '';
-    document.getElementById('e_managerId').value = '';
-    document.getElementById('e_gender').value = '';
-    sfaSetDate('e_dateOfJoining', '');
+    TEXT_FIELDS.forEach(id => document.getElementById(id).value = '');
+    SELECTS.forEach(id => document.getElementById(id).value = '');
+    DATES.forEach(id => sfaSetDate(id, ''));
+    document.getElementById('e_officeStaff').checked = false;
+    document.getElementById('e_confirmed').checked = false;
+    setUsernameState(null);
+    document.getElementById('e_working').checked = true;
+    PHOTO.reset();
+    dClear();
+    setLoginLocked(false);
+    empConfirmedChanged();
+    designationLevelHint();
+    pClear();
+    syncSelects();
+    EDIT_ORIG = null;
+    document.getElementById('e_promoWrap').classList.add('d-none');
+    document.getElementById('e_promoHint').classList.add('d-none');
   }
 
-  function empAdd() {
+  async function empAdd() {
     clearForm();
+    fillManagerSelect();
     document.getElementById('e_password').required = true;
     document.getElementById('e_pwdStar').style.display = '';
+    document.querySelectorAll('.e-exit').forEach(el => el.style.display = 'none');   // exit dates only make sense on edit
     document.getElementById('empModalTitle').textContent = 'Add Employee';
+    PROFILE_READY = true;
     MODAL.show();
+    try {
+      const login = await Api.get(API.master.createEmployee.suggestLogin, { noLoader: true });
+      document.getElementById('e_username').value = login.username;
+      document.getElementById('e_password').value = login.password;
+      empUsernameChanged(true);
+    } catch (e) { setUsernameState({ available: false, message: e.message }); }
   }
 
-  function empEdit(r) {
+  function empEdit(empId) {
+    const r = EMP.find(x => x.empId === empId);
+    if (!r) return;
     clearForm();
+    fillManagerSelect(r.empId, r.managerId);
     document.getElementById('e_empId').value = r.empId;
+    const sal = document.getElementById('e_salutation');
+    if (r.salutation && ![...sal.options].some(o => o.value === r.salutation)) {
+      sal.insertAdjacentHTML('beforeend', `<option value="${SFA.esc(r.salutation)}">${SFA.esc(r.salutation)}</option>`);   // since deactivated
+    }
+    sal.value = r.salutation || '';
     document.getElementById('e_empName').value = r.empName || '';
     document.getElementById('e_mobile').value = r.mobile || '';
     document.getElementById('e_divisionId').value = r.divisionId || '';
     document.getElementById('e_designationId').value = r.designationId || '';
+    document.getElementById('e_stateId').value = r.stateId || '';
+    document.getElementById('e_hqId').value = r.hqId || '';
     document.getElementById('e_username').value = r.username || '';
     document.getElementById('e_password').required = false;
     document.getElementById('e_pwdStar').style.display = 'none';
     document.getElementById('e_gender').value = r.gender || '';
-    sfaSetDate('e_dateOfJoining', r.dateOfJoining || '');
     document.getElementById('e_managerId').value = r.managerId || '';
     document.getElementById('e_officialEmail').value = r.officialEmail || '';
     document.getElementById('e_department').value = r.department || '';
+    document.getElementById('e_officeStaff').checked = !!r.officeStaff;
+    document.getElementById('e_confirmed').checked = !!r.confirmed;
+    document.getElementById(r.vacant ? 'e_vacant' : 'e_working').checked = true;
+    PHOTO.set(r.photoPath ? { path: r.photoPath, thumbPath: r.photoThumbnailPath, name: r.empName } : null);
+    setLoginLocked(!!r.username);   // an existing login is changed only from Password Reset
+    dLoad(r.empId);
+    sfaSetDate('e_dateOfJoining', r.dateOfJoining || '');
+    sfaSetDate('e_reportingDate', r.reportingDate || '');
+    sfaSetDate('e_confirmationDate', r.confirmationDate || '');
+    sfaSetDate('e_resignationDate', r.resignationDate || '');
+    sfaSetDate('e_lastWorkingDate', r.lastWorkingDate || '');
+    document.querySelectorAll('.e-exit').forEach(el => el.style.display = '');
+    empConfirmedChanged();
+    designationLevelHint();
+    syncSelects();
+    EDIT_ORIG = r;
+    document.getElementById('e_promoWrap').classList.remove('d-none');
+    empPromoHint();
     document.getElementById('empModalTitle').textContent = 'Edit Employee';
     MODAL.show();
+    if (r.username && !LOGIN_LOCKED) empUsernameChanged(true);
+    // Profile sections: until they are loaded, Save sends NO profile (= untouched),
+    // so a slow / failed load can never wipe the stored address, bank, …
+    PROFILE_READY = false;
+    Api.get(API.master.createEmployee.profile(r.empId), { noLoader: true })
+      .then(pr => { if (document.getElementById('e_empId').value === r.empId) { pFill(pr); PROFILE_READY = true; } })
+      .catch(e => SFA.toast('Could not load the full profile: ' + e.message, false));
+  }
+
+  function designationLevelHint() {
+    const id = document.getElementById('e_designationId').value;
+    const d = id && (LK.designations || []).find(x => String(x.oid) === String(id));
+    document.getElementById('e_levelHint').textContent = d && d.hierarchyLevel != null ? '(level ' + d.hierarchyLevel + ')' : '';
+    empPromoHint();
+  }
+
+  // Client-side preview only — the server decides the real reason (designations.findById etc).
+  function empPromoHint() {
+    const hint = document.getElementById('e_promoHint');
+    if (!EDIT_ORIG) { hint.classList.add('d-none'); return; }
+    const r = EDIT_ORIG;
+    const designationId = v2('e_designationId'), managerId = v2('e_managerId'), divisionId = v2('e_divisionId'), hqId = v2('e_hqId'), stateId = v2('e_stateId');
+    const changed = [];
+    if (String(designationId || '') !== String(r.designationId || '')) {
+      const oldD = (LK.designations || []).find(x => String(x.oid) === String(r.designationId));
+      const newD = (LK.designations || []).find(x => String(x.oid) === String(designationId));
+      const oldLvl = oldD && oldD.hierarchyLevel, newLvl = newD && newD.hierarchyLevel;
+      const kind = (oldLvl != null && newLvl != null) ? (newLvl > oldLvl ? 'Promotion' : newLvl < oldLvl ? 'Demotion' : 'Transfer') : 'Designation change';
+      changed.push(kind + ': ' + (oldD ? oldD.label : '-') + ' → ' + (newD ? newD.label : '-'));
+    }
+    if (String(managerId || '') !== String(r.managerId || '')) changed.push('Manager change: ' + managerName(r.managerId) + ' → ' + (managerId ? managerName(managerId) : '-'));
+    if (String(divisionId || '') !== String(r.divisionId || '') || String(hqId || '') !== String(r.hqId || '') || String(stateId || '') !== String(r.stateId || '')) changed.push('Transfer (division / HQ / state)');
+    if (changed.length) {
+      hint.textContent = changed.join(' · ') + ' — will be recorded in the promotion / transfer history.';
+      hint.classList.remove('d-none');
+    } else hint.classList.add('d-none');
+  }
+  function v2(id) { const x = document.getElementById(id).value; return x === '' ? null : x; }
+
+  function empConfirmedChanged() {
+    const on = document.getElementById('e_confirmed').checked;
+    document.getElementById('e_confirmationWrap').style.display = on ? '' : 'none';
+    if (!on) sfaSetDate('e_confirmationDate', '');
+  }
+
+  // ---- username availability (live) ----------------------------------------
+  // USERNAME = { value, available, message } for the value currently in the box;
+  // null while unchecked. Save stays disabled unless the CURRENT value is available.
+  let USERNAME = null, USER_TIMER = null, USER_SEQ = 0;
+
+  function setUsernameState(state) {
+    USERNAME = state;
+    const input = document.getElementById('e_username');
+    input.classList.toggle('is-valid', !!(state && state.available));
+    input.classList.toggle('is-invalid', !!(state && state.available === false));
+    document.getElementById('e_userOk').textContent = state && state.available ? state.message : '';
+    document.getElementById('e_userBad').textContent = state && state.available === false ? state.message : '';
+    document.getElementById('e_saveBtn').disabled = !LOGIN_LOCKED && !(state && state.available);   // locked login: nothing to check
+  }
+
+  function empUsernameChanged(immediate) {
+    const value = document.getElementById('e_username').value.trim();
+    clearTimeout(USER_TIMER);
+    if (!value) { setUsernameState({ value, available: false, message: 'Username is required' }); return; }
+    setUsernameState(null);   // checking... (Save disabled meanwhile)
+    USER_TIMER = setTimeout(() => checkUsername(value), immediate ? 0 : 400);
+  }
+
+  async function checkUsername(value) {
+    const seq = ++USER_SEQ;
+    try {
+      const res = await Api.get(API.master.createEmployee.usernameAvailable,
+        { query: { username: value, empId: document.getElementById('e_empId').value || null }, noLoader: true });
+      if (seq !== USER_SEQ || document.getElementById('e_username').value.trim() !== value) return;   // typed on meanwhile
+      setUsernameState({ value, available: !!res.available, message: res.message });
+    } catch (e) {
+      if (seq === USER_SEQ) setUsernameState({ value, available: false, message: e.message });
+    }
+  }
+
+  async function empGenerate(what) {
+    try {
+      const login = await Api.get(API.master.createEmployee.suggestLogin, { noLoader: true });
+      if (what === 'username') {
+        document.getElementById('e_username').value = login.username;
+        empUsernameChanged(true);
+      } else {
+        document.getElementById('e_password').value = login.password;
+      }
+    } catch (e) { SFA.toast(e.message, false); }
+  }
+
+  function empCopyLogin() {
+    const u = document.getElementById('e_username').value, p = document.getElementById('e_password').value;
+    const text = 'Username: ' + u + (p ? '\nPassword: ' + p : '');
+    if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => SFA.toast('Copied'), () => {});
   }
 
   // Belt-and-braces Enter-to-submit: the Division/Designation/Manager <select>s and the
@@ -229,16 +634,304 @@
 
   async function empSave(ev) {
     ev.preventDefault();
+    const username = document.getElementById('e_username').value.trim();
+    if (!LOGIN_LOCKED && (!USERNAME || USERNAME.value !== username || !USERNAME.available)) {
+      SFA.toast(USERNAME && USERNAME.message ? USERNAME.message : 'Please wait — checking the username', false);
+      return;
+    }
     const v = id => { const x = document.getElementById(id).value; return x === '' ? null : x; };
+    const t = id => document.getElementById(id).value.trim();   // '' clears an optional text field on edit
     const body = {
-      empId: v('e_empId'), empName: v('e_empName'), mobile: v('e_mobile'),
+      empId: v('e_empId'), salutation: t('e_salutation'), empName: t('e_empName'), mobile: t('e_mobile'),
       divisionId: v('e_divisionId'), designationId: v('e_designationId'),
-      username: v('e_username'), password: v('e_password'),
-      gender: v('e_gender'), dateOfJoining: v('e_dateOfJoining'), managerId: v('e_managerId'),
-      officialEmail: v('e_officialEmail'), department: v('e_department')
+      stateId: v('e_stateId'), hqId: v('e_hqId'),
+      username: LOGIN_LOCKED ? null : username, password: LOGIN_LOCKED ? null : v('e_password'),
+      vacant: document.getElementById('e_vacant').checked,
+      gender: document.getElementById('e_gender').value, managerId: document.getElementById('e_managerId').value,
+      officialEmail: t('e_officialEmail'), department: t('e_department'),
+      dateOfJoining: t('e_dateOfJoining'), reportingDate: t('e_reportingDate'),
+      changeReason: v('e_changeReason'), effectiveDate: t('e_effectiveDate'), changeRemarks: t('e_changeRemarks'),
+      officeStaff: document.getElementById('e_officeStaff').checked,
+      confirmed: document.getElementById('e_confirmed').checked,
+      confirmationDate: t('e_confirmationDate'),
+      resignationDate: t('e_resignationDate'), lastWorkingDate: t('e_lastWorkingDate'),
+      profile: PROFILE_READY ? pCollect() : null,
     };
-    try { await Api.post(API.master.createEmployee.save, body); MODAL.hide(); await reload(); SFA.toast('Saved'); }
-    catch (e) { SFA.toast(e.message, false); }
+    const newDocs = dPending();
+    if (newDocs.error) { bootstrap.Collapse.getOrCreateInstance(document.getElementById('p_docs'), { toggle: false }).show(); SFA.toast(newDocs.error, false); return; }
+    const btn = document.getElementById('e_saveBtn');
+    btn.disabled = true;
+    try {
+      const saved = await Api.post(API.master.createEmployee.save, body);
+      const empId = saved.empId, problems = [];
+      // photo + documents need the employee to exist, so they go right after it is saved
+      try {
+        if (PHOTO.file()) { const fd = new FormData(); fd.append('file', PHOTO.file()); await Api.post(API.master.createEmployee.photo(empId), fd); }
+        else if (PHOTO.removed()) await Api.del(API.master.createEmployee.photo(empId));
+      } catch (e) { problems.push('Photo: ' + e.message); }
+      for (const id of DOCS_REMOVED) {
+        try { await Api.del(API.master.createEmployee.document(empId, id)); } catch (e) { problems.push('Remove document: ' + e.message); }
+      }
+      for (const d of newDocs.list) {
+        const fd = new FormData();
+        fd.append('file', d.file); fd.append('documentTypeId', d.documentTypeId);
+        if (d.documentNo) fd.append('documentNo', d.documentNo);
+        if (d.remarks) fd.append('remarks', d.remarks);
+        try { await Api.post(API.master.createEmployee.documents(empId), fd); } catch (e) { problems.push(d.file.name + ': ' + e.message); }
+      }
+      MODAL.hide(); await reload();
+      if (problems.length) { SFA.toast((body.empId ? 'Employee updated' : 'Employee ' + saved.empCode + ' created') + ', but:', 'warning'); problems.forEach(m => SFA.toast(m, false, 6000)); }
+      else SFA.toast(body.empId ? 'Employee updated' : 'Employee ' + saved.empCode + ' created');
+      const me = window.SFA && SFA.claims; if (me && me.sub === empId && window.Shell) Shell.refreshIdentity();   // my own photo changed
+    }
+    catch (e) {
+      if (/username/i.test(e.message)) setUsernameState({ value: username, available: false, message: e.message });
+      SFA.toast(e.message, false);
+    }
+    finally { btn.disabled = false; }
+  }
+
+  // ---- login lock on edit ---------------------------------------------------------
+  function setLoginLocked(on) {
+    LOGIN_LOCKED = on;
+    ['e_username', 'e_password'].forEach(id => { const el = document.getElementById(id); el.readOnly = on; el.classList.toggle('bg-body-secondary', on); });
+    document.getElementById('e_password').value = '';
+    document.getElementById('e_password').placeholder = on ? 'Hidden — use Password Reset' : '';
+    document.querySelectorAll('#e_userGen, #e_password ~ button').forEach(b => b.classList.toggle('d-none', on));
+    document.getElementById('e_loginLocked').classList.toggle('d-none', !on);
+    document.getElementById('e_pwdHelp').classList.toggle('d-none', on);
+    if (on) { document.getElementById('e_username').classList.remove('is-valid', 'is-invalid'); }
+    document.getElementById('e_saveBtn').disabled = !on && !(USERNAME && USERNAME.available);
+  }
+
+  // ---- documents --------------------------------------------------------------------
+  function dClear() {
+    DOCS_EXISTING = []; DOCS_REMOVED = new Set();
+    document.getElementById('d_existing').innerHTML = '';
+    document.getElementById('d_new').innerHTML = '';
+    pBadges();
+  }
+  async function dLoad(empId) {
+    try {
+      const list = await Api.get(API.master.createEmployee.documents(empId), { noLoader: true });
+      if (document.getElementById('e_empId').value !== empId) return;
+      DOCS_EXISTING = list || [];
+      dRenderExisting();
+    } catch (e) { SFA.toast('Could not load the documents: ' + e.message, false); }
+  }
+  function dRenderExisting() {
+    const box = document.getElementById('d_existing');
+    box.innerHTML = DOCS_EXISTING.length ? `<div class="table-responsive mb-2"><table class="table table-sm table-bordered align-middle mb-0 small">
+      <thead><tr><th style="width:56px"></th><th>Type</th><th>No.</th><th>File</th><th>Uploaded</th><th style="width:40px"></th></tr></thead><tbody>
+      ${DOCS_EXISTING.map(d => {
+        const gone = DOCS_REMOVED.has(d.id);
+        return `<tr class="${gone ? 'text-decoration-line-through text-muted' : ''}">
+          <td>${SFAFiles.thumb(d.path, d.thumbnailPath, { name: d.fileName, type: d.type, size: d.size })}</td>
+          <td>${SFA.esc(d.documentTypeName)}</td><td>${SFA.esc(d.documentNo || '')}</td>
+          <td>${SFA.esc(d.fileName)}${d.remarks ? `<div class="text-muted">${SFA.esc(d.remarks)}</div>` : ''}</td>
+          <td>${SFA.esc(d.uploadedAt || '')}</td>
+          <td>${gone
+            ? `<button type="button" class="btn btn-sm btn-link p-0" title="Keep" onclick="dToggleRemove(${d.id})"><i class="bi bi-arrow-counterclockwise"></i></button>`
+            : `<button type="button" class="btn btn-sm btn-link text-danger p-0" title="Remove (on Save)" onclick="dToggleRemove(${d.id})"><i class="bi bi-trash"></i></button>`}</td></tr>`;
+      }).join('')}</tbody></table></div>` : '';
+    SFAFiles.hydrate(box);
+    pBadges();
+  }
+  function dToggleRemove(id) { DOCS_REMOVED.has(id) ? DOCS_REMOVED.delete(id) : DOCS_REMOVED.add(id); dRenderExisting(); }
+  function dAddRow() {
+    const wrap = document.createElement('div');
+    wrap.className = 'p-row d-row';
+    wrap.innerHTML = `<button type="button" class="btn btn-sm btn-link text-danger p-remove" title="Remove" onclick="this.closest('.p-row').remove(); pBadges()"><i class="bi bi-x-lg"></i></button>
+      <div class="row g-2">
+        <div class="col-md-3"><label class="form-label">Type <span class="required-star">*</span></label>
+          <select class="form-select" data-k="documentTypeId" data-quick-add="document">${opt(LK.documents)}</select></div>
+        <div class="col-md-2"><label class="form-label">Document No.</label><input class="form-control" data-k="documentNo" maxlength="50" /></div>
+        <div class="col-md-3"><label class="form-label">Remarks</label><input class="form-control" data-k="remarks" maxlength="255" /></div>
+        <div class="col-md-4"><label class="form-label">File <span class="required-star">*</span></label>
+          <input type="file" class="form-control" data-k="file" accept="application/pdf,image/png,image/jpeg,image/gif,image/webp,image/bmp" /></div>
+      </div>`;
+    document.getElementById('d_new').appendChild(wrap);
+    SFAQuickAdd.decorate(wrap);
+    pBadges();
+  }
+  /** New document rows to upload: { list } or { error }. Empty rows are ignored. */
+  function dPending() {
+    const list = [];
+    const rows = document.querySelectorAll('#d_new .d-row');
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i], g = k => r.querySelector(`[data-k="${k}"]`);
+      const file = g('file').files[0], type = g('documentTypeId').value;
+      const no = g('documentNo').value.trim(), rem = g('remarks').value.trim();
+      if (!file && !type && !no && !rem) continue;
+      if (!file) return { error: 'Document ' + (i + 1) + ': choose the file' };
+      if (!type) return { error: 'Document ' + (i + 1) + ' (' + file.name + '): choose the type' };
+      if (file.size > 20 * 1048576) return { error: file.name + ' is larger than 20 MB' };
+      list.push({ file, documentTypeId: type, documentNo: no, remarks: rem });
+    }
+    return { list };
+  }
+
+  // ---- full profile (address, bank, nominee, …) ------------------------------
+  let PROFILE_READY = false, ROW_SEQ = 0;
+  const pv = id => { const x = document.getElementById(id).value.trim(); return x === '' ? null : x; };
+  const pnum = v => (v === null || v === '' || v === undefined) ? null : Number(v);
+  const opt = (items, cur) => '<option value="">--</option>' + (items || []).map(i =>
+    `<option value="${SFA.esc(i.oid)}" ${String(i.oid) === String(cur ?? '') ? 'selected' : ''}>${SFA.esc(i.label)}</option>`).join('');
+  const optS = (vals, cur, labels) => '<option value="">--</option>' + (vals || []).map((v, i) =>
+    `<option value="${SFA.esc(v)}" ${v === cur ? 'selected' : ''}>${SFA.esc(labels ? labels[i] : v)}</option>`).join('');
+
+  // One template per repeatable section; every input carries data-k = its DTO field.
+  const ROWS = {
+    bank: d => `
+      <div class="col-md-3"><label class="form-label">Bank</label><select class="form-select" data-k="bankId" data-quick-add="bank">${opt(LK.banks, d.bankId)}</select></div>
+      <div class="col-md-3"><label class="form-label">Account No. <span class="required-star">*</span></label><input class="form-control" data-k="accountNo" inputmode="numeric" maxlength="20" value="${SFA.esc(d.accountNo || '')}" /></div>
+      <div class="col-md-2"><label class="form-label">IFSC</label><input class="form-control text-uppercase" data-k="ifscCode" maxlength="11" placeholder="SBIN0001234" value="${SFA.esc(d.ifscCode || '')}" /></div>
+      <div class="col-md-2"><label class="form-label">Branch</label><input class="form-control" data-k="branchName" maxlength="150" value="${SFA.esc(d.branchName || '')}" /></div>
+      <div class="col-md-2 d-flex flex-column justify-content-end gap-1">
+        <div class="form-check"><input class="form-check-input" type="radio" name="p_bank_primary" data-k="primary" ${d.primary ? 'checked' : ''}><label class="form-check-label">Primary</label></div>
+        <div class="form-check"><input class="form-check-input" type="checkbox" data-k="active" ${d.active === false ? '' : 'checked'}><label class="form-check-label">Active</label></div></div>`,
+    nominee: d => `
+      <div class="col-md-2"><label class="form-label">Type <span class="required-star">*</span></label><select class="form-select" data-k="nomineeType">${optS(OPTS.nomineeTypes, d.nomineeType || 'PF')}</select></div>
+      <div class="col-md-3"><label class="form-label">Name <span class="required-star">*</span></label><input class="form-control" data-k="nomineeName" maxlength="150" value="${SFA.esc(d.nomineeName || '')}" /></div>
+      <div class="col-md-2"><label class="form-label">Relationship</label><select class="form-select" data-k="relationshipId">${opt(OPTS.relationships, d.relationshipId)}</select></div>
+      <div class="col-md-2"><label class="form-label">Date of Birth</label><input class="form-control sfa-date" data-k="nomineeDob" data-v="${SFA.esc(d.nomineeDob || '')}" /></div>
+      <div class="col-md-2"><label class="form-label">Contact</label><input class="form-control" data-k="contactNo" inputmode="numeric" maxlength="10" value="${SFA.esc(d.contactNo || '')}" /></div>
+      <div class="col-md-1"><label class="form-label">Share %</label><input type="number" min="0.01" max="100" step="0.01" class="form-control" data-k="sharePct" value="${d.sharePct ?? 100}" /></div>`,
+    emergency: d => `
+      <div class="col-md-3"><label class="form-label">Name</label><input class="form-control" data-k="contactName" maxlength="150" value="${SFA.esc(d.contactName || '')}" /></div>
+      <div class="col-md-3"><label class="form-label">Relationship</label><select class="form-select" data-k="relationshipId">${opt(OPTS.relationships, d.relationshipId)}</select></div>
+      <div class="col-md-3"><label class="form-label">Phone 1 <span class="required-star">*</span></label><input class="form-control" data-k="contactNo1" maxlength="15" value="${SFA.esc(d.contactNo1 || '')}" /></div>
+      <div class="col-md-3"><label class="form-label">Phone 2</label><input class="form-control" data-k="contactNo2" maxlength="15" value="${SFA.esc(d.contactNo2 || '')}" /></div>`,
+    children: d => `
+      <div class="col-md-5"><label class="form-label">Name <span class="required-star">*</span></label><input class="form-control" data-k="childName" maxlength="150" value="${SFA.esc(d.childName || '')}" /></div>
+      <div class="col-md-3"><label class="form-label">Gender</label><select class="form-select" data-k="gender">${optS(['MALE', 'FEMALE', 'OTHER'], d.gender, ['Male', 'Female', 'Other'])}</select></div>
+      <div class="col-md-4"><label class="form-label">Date of Birth</label><input class="form-control sfa-date" data-k="dob" data-v="${SFA.esc(d.dob || '')}" /></div>`,
+    prev: d => `
+      <div class="col-md-3"><label class="form-label">Company <span class="required-star">*</span></label><input class="form-control" data-k="companyName" maxlength="200" value="${SFA.esc(d.companyName || '')}" /></div>
+      <div class="col-md-2"><label class="form-label">Designation</label><input class="form-control" data-k="designation" maxlength="100" value="${SFA.esc(d.designation || '')}" /></div>
+      <div class="col-md-2"><label class="form-label">From</label><input class="form-control sfa-date" data-k="fromDate" data-v="${SFA.esc(d.fromDate || '')}" /></div>
+      <div class="col-md-2"><label class="form-label">To</label><input class="form-control sfa-date" data-k="toDate" data-v="${SFA.esc(d.toDate || '')}" /></div>
+      <div class="col-md-1"><label class="form-label">Yrs</label><input type="number" min="0" step="0.1" class="form-control" data-k="experienceYrs" value="${d.experienceYrs ?? ''}" /></div>
+      <div class="col-md-2"><label class="form-label">Last CTC (yearly)</label><input type="number" min="0" step="1" class="form-control" data-k="lastCtc" value="${d.lastCtc ?? ''}" /></div>`,
+  };
+
+  function pAddRow(kind, data) {
+    const wrap = document.createElement('div');
+    wrap.className = 'p-row';
+    wrap.innerHTML = `<button type="button" class="btn btn-sm btn-link text-danger p-remove" title="Remove" onclick="this.closest('.p-row').remove(); pBadges()"><i class="bi bi-x-lg"></i></button>
+      <div class="row g-2">${ROWS[kind](data || {})}</div>`;
+    wrap.querySelectorAll('.sfa-date').forEach(el => { el.id = 'pd_' + (++ROW_SEQ); });
+    document.getElementById('pl_' + kind).appendChild(wrap);
+    if (window.sfaFlatpickr) sfaFlatpickr(wrap);
+    SFAQuickAdd.decorate(wrap);
+    wrap.querySelectorAll('.sfa-date').forEach(el => sfaSetDate(el.id, el.dataset.v || ''));
+    if (kind === 'bank' && !document.querySelector('#pl_bank [data-k="primary"]:checked')) wrap.querySelector('[data-k="primary"]').checked = true;
+    pBadges();
+    return wrap;
+  }
+
+  function pRows(kind) {
+    return Array.from(document.querySelectorAll('#pl_' + kind + ' .p-row')).map(row => {
+      const o = {};
+      row.querySelectorAll('[data-k]').forEach(el => {
+        const k = el.dataset.k;
+        if (el.type === 'checkbox' || el.type === 'radio') o[k] = el.checked;
+        else if (el.type === 'number') o[k] = pnum(el.value);
+        else o[k] = el.value.trim() === '' ? null : el.value.trim();
+      });
+      return o;
+    });
+  }
+
+  function pAddress(kind) {
+    const g = f => pv('pa_' + kind + '_' + f);
+    return { addressLine: g('addressLine'), city: g('city'), district: g('district'), stateId: g('stateId'), pincode: g('pincode') };
+  }
+
+  function pCollect() {
+    const present = pAddress('present');
+    return {
+      personal: {
+        dob: pv('pp_dob'), fatherName: pv('pp_fatherName'), motherName: pv('pp_motherName'),
+        maritalStatus: pv('pp_maritalStatus'), spouseName: pv('pp_spouseName'), anniversaryDate: pv('pp_anniversaryDate'),
+        qualificationId: pv('pp_qualificationId'), qualificationDetail: pv('pp_qualificationDetail'),
+        bloodGroup: pv('pp_bloodGroup'), personalEmail: pv('pp_personalEmail'), landlineNo: pv('pp_landlineNo'),
+        totalExperienceYrs: pnum(pv('pp_totalExperienceYrs')), shirtSize: pnum(pv('pp_shirtSize')), remarks: pv('pp_remarks'),
+      },
+      presentAddress: present,
+      permanentAddress: document.getElementById('pa_same').checked ? Object.assign({}, present) : pAddress('permanent'),
+      bankAccounts: pRows('bank'),
+      nominees: pRows('nominee'),
+      emergencyContacts: pRows('emergency'),
+      statutory: { panNo: pv('ps_panNo'), pfNo: pv('ps_pfNo'), uanNo: pv('ps_uanNo'), esiNo: pv('ps_esiNo'), aadhaarNo: pv('ps_aadhaarNo'), mediclaimPolicyNo: pv('ps_mediclaimPolicyNo') },
+      children: pRows('children'),
+      prevEmployment: pRows('prev'),
+    };
+  }
+
+  function pClear() {
+    document.querySelectorAll('#e_profile input:not([type=checkbox]):not([type=radio]), #e_profile select, #e_profile textarea')
+      .forEach(el => { if (!el.classList.contains('sfa-date')) el.value = ''; });
+    document.querySelectorAll('#e_profile .sfa-date[id^="pp_"]').forEach(el => sfaSetDate(el.id, ''));
+    ['bank', 'nominee', 'emergency', 'children', 'prev'].forEach(k => document.getElementById('pl_' + k).innerHTML = '');
+    document.getElementById('pa_same').checked = false;
+    pSameAddress();
+    pMarital();
+    document.querySelectorAll('#e_profile .accordion-collapse.show').forEach(el => bootstrap.Collapse.getOrCreateInstance(el, { toggle: false }).hide());
+    pBadges();
+  }
+
+  function pFill(pr) {
+    pr = pr || {};
+    const per = pr.personal || {};
+    ['fatherName', 'motherName', 'maritalStatus', 'spouseName', 'qualificationId', 'qualificationDetail', 'bloodGroup',
+     'personalEmail', 'landlineNo', 'totalExperienceYrs', 'shirtSize', 'remarks']
+      .forEach(k => document.getElementById('pp_' + k).value = per[k] ?? '');
+    sfaSetDate('pp_dob', per.dob || '');
+    sfaSetDate('pp_anniversaryDate', per.anniversaryDate || '');
+    pMarital();
+    [['present', pr.presentAddress], ['permanent', pr.permanentAddress]].forEach(([kind, a]) => {
+      a = a || {};
+      ['addressLine', 'city', 'district', 'stateId', 'pincode'].forEach(f => document.getElementById('pa_' + kind + '_' + f).value = a[f] ?? '');
+    });
+    const st = pr.statutory || {};
+    ['panNo', 'pfNo', 'uanNo', 'esiNo', 'aadhaarNo', 'mediclaimPolicyNo'].forEach(k => document.getElementById('ps_' + k).value = st[k] || '');
+    (pr.bankAccounts || []).forEach(b => pAddRow('bank', b));
+    (pr.nominees || []).forEach(n => pAddRow('nominee', n));
+    (pr.emergencyContacts || []).forEach(c => pAddRow('emergency', c));
+    (pr.children || []).forEach(c => pAddRow('children', c));
+    (pr.prevEmployment || []).forEach(w => pAddRow('prev', w));
+    pBadges();
+  }
+
+  function pMarital() {
+    const married = document.getElementById('pp_maritalStatus').value === 'MARRIED';
+    document.querySelectorAll('#e_profile .p-married').forEach(el => el.style.display = married ? '' : 'none');
+  }
+
+  function pSameAddress() {
+    const same = document.getElementById('pa_same').checked;
+    document.getElementById('pa_permanentBox').style.display = same ? 'none' : '';
+  }
+
+  /** Section header badges: ✓ for a filled 1:1 section, the row count for a list. */
+  function pBadges() {
+    const set = (k, text) => {
+      const b = document.querySelector(`[data-badge="${k}"]`);
+      if (!b) return;
+      b.textContent = text || '';
+      b.classList.toggle('d-none', !text);
+    };
+    const filled = sel => Array.from(document.querySelectorAll(sel)).some(el => el.value && el.value.trim() !== '');
+    set('personal', filled('#p_personal input, #p_personal select') ? '✓' : '');
+    set('address', filled('#p_address textarea') ? '✓' : '');
+    set('statutory', filled('#p_statutory input') ? '✓' : '');
+    const nDocs = (DOCS_EXISTING || []).filter(d => !DOCS_REMOVED.has(d.id)).length + document.querySelectorAll('#d_new .d-row').length;
+    set('docs', nDocs ? String(nDocs) : '');
+    ['bank', 'nominee', 'emergency', 'children', 'prev'].forEach(k => {
+      const n = document.querySelectorAll('#pl_' + k + ' .p-row').length;
+      set(k, n ? String(n) : '');
+    });
   }
 
   async function empStatus(empId, active) {
@@ -247,20 +940,65 @@
     catch (e) { SFA.toast(e.message, false); }
   }
 
+  const REASON_BADGE = { JOINING: 'bg-secondary', PROMOTION: 'bg-success', DEMOTION: 'bg-danger', TRANSFER: 'bg-info text-dark', MANAGER_CHANGE: 'bg-primary', CORRECTION: 'bg-warning text-dark' };
+  async function empHistory(empId, empName) {
+    document.getElementById('empHistTitle').textContent = 'Promotion / transfer history · ' + (empName || empId);
+    const body = document.getElementById('empHistBody');
+    body.innerHTML = '<div class="text-muted">Loading…</div>';
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('empHistModal')).show();
+    try {
+      const list = await Api.get(API.master.createEmployee.history(empId));
+      body.innerHTML = !list.length ? '<div class="text-muted">No history yet — save a change to designation, manager, division, HQ or state to start one.</div>' : `
+        <div class="table-responsive"><table class="table table-sm table-bordered align-middle mb-0">
+          <thead><tr><th>From</th><th>To</th><th>Reason</th><th>Designation</th><th>Level</th><th>Manager</th><th>Division</th><th>State</th><th>HQ</th><th>By</th><th>Remarks</th></tr></thead>
+          <tbody>${list.map(h => `<tr>
+            <td class="text-nowrap">${SFA.esc(h.effectiveFrom)}</td><td class="text-nowrap">${SFA.esc(h.effectiveTo || 'Current')}</td>
+            <td><span class="badge ${REASON_BADGE[h.changeReason] || 'bg-secondary'}">${SFA.esc(h.changeReason || '')}</span></td>
+            <td>${SFA.esc(h.designationName)}</td><td>${h.hierarchyLevel != null ? SFA.esc(h.hierarchyLevel) : ''}</td>
+            <td>${SFA.esc(h.managerName || h.managerId || '')}</td><td>${SFA.esc(h.divisionName)}</td><td>${SFA.esc(h.stateName)}</td><td>${SFA.esc(h.hqName)}</td>
+            <td>${SFA.esc(h.createdByName || h.createdBy || '')}</td><td>${SFA.esc(h.remarks)}</td></tr>`).join('')}</tbody></table></div>`;
+    } catch (e) { body.innerHTML = '<div class="text-danger">' + SFA.esc(e.message) + '</div>'; }
+  }
+
   async function empUpload(ev) {
     ev.preventDefault();
     const f = document.getElementById('empFile').files[0];
     if (!f) { SFA.toast('Choose a file', false); return; }
     const fd = new FormData(); fd.append('file', f);
+    const out = document.getElementById('empUploadResult');
+    out.innerHTML = '';
     try {
       const res = await Api.post(API.master.createEmployee.upload, fd);
-      bootstrap.Modal.getInstance(document.getElementById('empUploadModal')).hide();
       document.getElementById('empFile').value = '';
       await reload();
-      let msg = res.inserted + ' inserted, ' + res.skipped + ' skipped';
-      SFA.toast(msg, res.skipped === 0);
-      if (res.errors && res.errors.length) console.warn('Bulk upload row errors:', res.errors);
+      LAST_LOGINS = res.created || [];
+      const errs = res.errors || [];
+      out.innerHTML = `
+        <div class="alert ${res.skipped ? 'alert-warning' : 'alert-success'} py-2 small mb-2">
+          <b>${res.inserted}</b> created, <b>${res.updated || 0}</b> updated, <b>${res.skipped}</b> skipped</div>
+        ${errs.length ? `<div class="small text-danger mb-2"><b>Skipped rows</b><ul class="mb-0 ps-3">${errs.map(e => `<li>${SFA.esc(e)}</li>`).join('')}</ul></div>` : ''}
+        ${LAST_LOGINS.length ? `
+          <div class="d-flex align-items-center mb-1"><b class="small">Logins of the new employees</b>
+            <button type="button" class="btn btn-sm btn-outline-primary ms-auto" onclick="empDownloadLogins()"><i class="bi bi-download"></i> Download (CSV)</button></div>
+          <div class="table-responsive" style="max-height:40vh"><table class="table table-sm table-bordered small mb-0">
+            <thead><tr><th>Row</th><th>Emp Code</th><th>Name</th><th>Username</th><th>Password</th></tr></thead>
+            <tbody>${LAST_LOGINS.map(c => `<tr><td>${c.row}</td><td>${SFA.esc(c.empCode)}</td><td>${SFA.esc(c.empName)}</td>
+              <td class="font-monospace">${SFA.esc(c.username)}</td><td class="font-monospace">${SFA.esc(c.password)}</td></tr>`).join('')}</tbody>
+          </table></div>
+          <div class="form-text">Passwords are shown only now — download or note them before closing.</div>` : ''}`;
+      if (errs.length) console.warn('Bulk upload row errors:', errs);
     } catch (e) { SFA.toast(e.message, false); }
+  }
+
+  let LAST_LOGINS = [];
+  function empDownloadLogins() {
+    const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+    const csv = ['Emp Code,Name,Username,Password']
+      .concat(LAST_LOGINS.map(c => [c.empCode, c.empName, c.username, c.password].map(q).join(','))).join('\r\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv' }));
+    a.download = 'employee_logins.csv';
+    document.body.appendChild(a); a.click(); a.remove();
   }
 </script>
 </body>

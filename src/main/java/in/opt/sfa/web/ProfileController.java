@@ -42,10 +42,12 @@ public class ProfileController {
     private final DesignationRepository designations;
     private final StateRepository states;
     private final FileStorageService storage;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     public ProfileController(EmpDetailRepository employees, AppUserAdminService credentials,
                              DesignationRepository designations, StateRepository states,
-                             FileStorageService storage) {
+                             FileStorageService storage, org.springframework.jdbc.core.JdbcTemplate jdbc) {
+        this.jdbc = jdbc;
         this.employees = employees;
         this.credentials = credentials;
         this.designations = designations;
@@ -66,6 +68,10 @@ public class ProfileController {
         if (empId != null) {
             employees.findById(empId).ifPresent(e -> {
                 res.put("name", e.getEmpName());
+                res.put("empCode", e.getEmpCode());
+                res.put("hq", e.getHqId() == null ? null : jdbc.queryForList("SELECT hq_name FROM hq_master WHERE oid = ?", String.class, e.getHqId()).stream().findFirst().orElse(null));
+                res.put("manager", e.getManagerId() == null ? null : jdbc.queryForList("SELECT emp_name FROM emp_detail WHERE emp_id = ?", String.class, e.getManagerId()).stream().findFirst().orElse(null));
+                res.put("joined", e.getDateOfJoining() == null ? null : e.getDateOfJoining().toString());
                 res.put("designationOid", e.getDesignationId());
                 res.put("designation", designationName(e.getDesignationId()));
                 res.put("stateOid", e.getStateId());
@@ -80,15 +86,19 @@ public class ProfileController {
     }
 
     @PostMapping
-    @Operation(summary = "Update my profile fields (name, contact, designation)")
+    @Operation(summary = "Update my profile fields (name, contact). The designation decides the role, so only the employee master changes it")
     @Transactional(transactionManager = "tenantTransactionManager")
     public Map<String, Object> update(@RequestBody Map<String, Object> body) {
+        // only the basic details: the code, designation, HQ, state, manager ... are set by the admin in the employee master
+        String name = str(body.get("name")), mobile = str(body.get("mobile")), email = str(body.get("email"));
+        if (name == null) throw new IllegalStateException("Name is required");
+        if (name.length() > 100) throw new IllegalStateException("Name can be at most 100 characters");
+        if (mobile != null && !mobile.matches("[0-9]{10}")) throw new IllegalStateException("Mobile must be a 10 digit number");
+        if (email != null && !email.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")) throw new IllegalStateException("Enter a valid email");
         EmpDetail e = employee();
-        e.setEmpName(str(body.get("name")));
-        e.setDesignationId(lng(body.get("designationOid")));
-        e.setStateId(lng(body.get("stateOid")));
-        e.setMobile(str(body.get("mobile")));
-        e.setOfficialEmail(str(body.get("email")));
+        e.setEmpName(name);
+        e.setMobile(mobile);
+        e.setOfficialEmail(email);
         employees.save(e);
         return Map.of("saved", true);
     }
@@ -172,9 +182,9 @@ public class ProfileController {
         return e;
     }
 
-    private String designationName(Long designationId) {
+    private String designationName(Integer designationId) {
         if (designationId == null) return null;
-        return designations.findById(designationId).map(Designation::getDesignationName).orElse(null);
+        return designations.findById(designationId).map(Designation::getDesignation).orElse(null);
     }
 
     private String stateName(Long stateId) {

@@ -89,6 +89,11 @@
     return ctx() + "/u/" + i + "/" + String(rest || "").replace(/^\//, "");
   }
 
+  /** URL of an in-app page for the CURRENT account: pageUrl('dcr/dcr-submit.html?view=approval') -> /u/0/dcr/dcr-submit.html?view=approval. Use it for every link built in script. */
+  function pageUrl(rest) {
+    return uUrl(activeIndex(), rest);
+  }
+
   function current() {
     return list()[activeIndex()] || null;
   }
@@ -177,7 +182,7 @@
   }
 
   window.Session = {
-    KEY, list, decode, ctx, activeIndex, currentRest, uUrl,
+    KEY, list, decode, ctx, activeIndex, currentRest, uUrl, pageUrl,
     current, token, refreshToken, claims, add, updateTokens, signOut, signOutAll,
     cache: { get: cacheGet, set: cacheSet, clear: cacheClear },
   };

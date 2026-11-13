@@ -1,3 +1,6 @@
 target/
 *.class
 .DS_Store
+
+# uploaded files (app.storage.base-dir) — never commit
+sfa-storage/

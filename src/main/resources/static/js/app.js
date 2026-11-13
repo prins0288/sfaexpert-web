@@ -44,7 +44,7 @@
         // gray on both text AND background, so the label goes invisible. Use
         // our own explicitly-styled class instead (see app.css .sfa-btn-outline).
         if (screenKey && sfaCanEditColumns()) {
-            // saved for the whole company (admins only); replaces the session-only colvis toggle
+            // saved for the whole company (COLUMN_SETTINGS permission); replaces the session-only colvis toggle
             buttons.push({ text: '<i class="bi bi-layout-three-columns"></i> <span data-i18n="columns.settings">Column Settings</span>',
                 className: "btn btn-sm sfa-btn-outline",
                 action: function () { sfaOpenColumnSettings($table.get(0)); } });
@@ -120,14 +120,17 @@
     // shell.js). <th>s without data-field (S.No, Actions) are not
     // configurable and keep their position. Any failure -> the page's own
     // column order, all visible: nothing breaks.
-    // The layout is per COMPANY (same for every user); only ADMIN / SUPER_ADMIN
-    // get the Column Settings button — others keep the session-only Columns toggle.
+    // The layout is per COMPANY (same for every user); only users granted the
+    // COLUMN_SETTINGS permission get the Column Settings button — others keep
+    // the session-only Columns toggle and simply see the company layout.
     var SFA_COLPREFS = {};   // screenKey -> { screenKey, customized, columns: [...] } | null
     var SORTABLE_SRC = "https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js";
 
+    // Needs the COLUMN_SETTINGS permission, which is DENIED by default — an
+    // admin grants it per emp_id / designation / hierarchy level (Permission Master).
+    // The server enforces the same code on save/reset.
     function sfaCanEditColumns() {
-        var role = (window.Session && Session.claims() || {}).role;
-        return role === "ADMIN" || role === "SUPER_ADMIN";
+        return !!(window.SFA && SFA.granted && SFA.granted("COLUMN_SETTINGS"));
     }
 
     function sfaLoadColumnPrefs(key) {
@@ -623,6 +626,451 @@
         document.body.appendChild(el);
         setTimeout(function () { var e = document.getElementById("sfaProtectionWarning"); if (e) e.remove(); }, 4000);
     };
+
+    // ---- SFAFiles: ONE way to show / pick uploaded files on every screen ------
+    // Files saved by the server's FileUploadService are read through
+    // GET /api/files?path=… with the Bearer token (a bare <img src> could not
+    // send it), turned into object URLs and cached per path.
+    //
+    //   List cell:   SFAFiles.thumb(row.imagePath, row.thumbnailPath, { name, type, size })
+    //                -> small thumbnail; hover = zoomed preview, click = full image
+    //                   in a popup with a Download button. Works anywhere in the
+    //                   DOM (rows rendered later are picked up automatically).
+    //   Form field:  const pick = SFAFiles.picker(el, { maxMb: 5, keepName: true });
+    //                keepName = the server stores the user's own file name, so
+    //                auto-generated names (WhatsApp Image…, IMG_2024…) are refused
+    //                here with an alert (same rules as FileUploadService.checkFileName).
+    //                pick.set(record) on edit, pick.reset() on add,
+    //                pick.file() / pick.removed() / pick.compress() on save.
+    window.SFAFiles = (function () {
+        var cache = {};   // path -> Promise<objectURL>
+
+        function load(path) {
+            if (!path) return Promise.reject(new Error("no file"));
+            if (!cache[path]) {
+                cache[path] = Api.blob(API.files.view(path)).then(function (b) { return URL.createObjectURL(b); });
+                cache[path].catch(function () { delete cache[path]; });   // allow a retry later
+            }
+            return cache[path];
+        }
+
+        function isImage(type, path) {
+            return (type && type.indexOf("image/") === 0) || /\.(png|jpe?g|gif|webp|bmp)$/i.test(path || "");
+        }
+
+        function prettySize(n) {
+            if (n == null) return "";
+            if (n < 1024) return n + " B";
+            if (n < 1048576) return (n / 1024).toFixed(1) + " KB";
+            return (n / 1048576).toFixed(1) + " MB";
+        }
+
+        /** HTML for a list cell. path = original, thumbPath = thumbnail (falls back to the original). */
+        function thumb(path, thumbPath, meta) {
+            if (!path) return '<span class="text-muted">—</span>';
+            meta = meta || {};
+            var esc = SFA.esc;
+            if (!isImage(meta.type, path)) {
+                return '<a href="#" class="sfa-file-link" data-path="' + esc(path) + '" data-name="' + esc(meta.name || "") +
+                    '"><i class="bi bi-file-earmark-arrow-down"></i> ' + esc(meta.name || "file") + '</a>';
+            }
+            return '<span class="sfa-file-thumb" tabindex="0" role="button" title="' + esc(meta.name || "") + '"' +
+                ' data-path="' + esc(path) + '" data-thumb="' + esc(thumbPath || path) + '"' +
+                ' data-name="' + esc(meta.name || "") + '" data-type="' + esc(meta.type || "") + '"' +
+                ' data-size="' + esc(meta.size == null ? "" : meta.size) + '">' +
+                '<i class="bi bi-image text-muted"></i></span>';
+        }
+
+        // load thumbnails as they appear (lazy, once each)
+        var io = ("IntersectionObserver" in window) ? new IntersectionObserver(function (entries) {
+            entries.forEach(function (e) { if (e.isIntersecting) { io.unobserve(e.target); fill(e.target); } });
+        }, { rootMargin: "200px" }) : null;
+
+        function fill(el) {
+            load(el.getAttribute("data-thumb")).then(function (url) {
+                el.innerHTML = '<img alt="" src="' + url + '">';
+            }).catch(function () { el.innerHTML = '<i class="bi bi-image-alt text-muted" title="File not found"></i>'; });
+        }
+
+        function hydrate(root) {
+            var els = (root && root.querySelectorAll) ? root.querySelectorAll(".sfa-file-thumb:not([data-sfa-h])") : [];
+            Array.prototype.forEach.call(els, function (el) {
+                el.setAttribute("data-sfa-h", "1");
+                if (io) io.observe(el); else fill(el);
+            });
+            if (root && root.classList && root.classList.contains("sfa-file-thumb") && !root.hasAttribute("data-sfa-h")) {
+                root.setAttribute("data-sfa-h", "1");
+                if (io) io.observe(root); else fill(root);
+            }
+        }
+
+        // ---- hover zoom ----
+        var zoom = null, zoomFor = null;
+        function zoomBox() {
+            if (!zoom) {
+                zoom = document.createElement("div");
+                zoom.className = "sfa-file-zoom";
+                document.body.appendChild(zoom);
+            }
+            return zoom;
+        }
+        function placeZoom(ev) {
+            if (!zoom) return;
+            var pad = 16, w = zoom.offsetWidth, h = zoom.offsetHeight;
+            var x = ev.clientX + pad, y = ev.clientY + pad;
+            if (x + w > window.innerWidth - 8) x = ev.clientX - w - pad;
+            if (y + h > window.innerHeight - 8) y = Math.max(8, window.innerHeight - h - 8);
+            zoom.style.left = Math.max(8, x) + "px";
+            zoom.style.top = y + "px";
+        }
+        function showZoom(el, ev) {
+            zoomFor = el;
+            var box = zoomBox();
+            box.innerHTML = '<div class="sfa-file-zoom-loading"><span class="spinner-border spinner-border-sm"></span></div>';
+            box.style.display = "block";
+            placeZoom(ev);
+            load(el.getAttribute("data-path")).then(function (url) {
+                if (zoomFor !== el) return;
+                box.innerHTML = '<img alt="" src="' + url + '">';
+                var img = box.querySelector("img");
+                img.onload = function () { placeZoom(ev); };
+            }).catch(function () { if (zoomFor === el) box.style.display = "none"; });
+        }
+        function hideZoom() { zoomFor = null; if (zoom) zoom.style.display = "none"; }
+
+        // ---- full-size viewer with download ----
+        function viewer() {
+            var el = document.getElementById("sfaFileViewer");
+            if (el) return el;
+            el = document.createElement("div");
+            el.className = "modal fade";
+            el.id = "sfaFileViewer";
+            el.tabIndex = -1;
+            el.innerHTML =
+                '<div class="modal-dialog modal-xl modal-dialog-centered modal-fullscreen-sm-down"><div class="modal-content">' +
+                '<div class="modal-header sfa-modal"><h5 class="modal-title text-truncate" id="sfaFileViewerTitle"></h5>' +
+                '<button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>' +
+                '<div class="modal-body text-center sfa-file-viewer-body" id="sfaFileViewerBody"></div>' +
+                '<div class="modal-footer"><small class="text-muted me-auto" id="sfaFileViewerMeta"></small>' +
+                '<button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>' +
+                '<button type="button" class="btn btn-primary" id="sfaFileViewerDl"><i class="bi bi-download"></i> Download</button>' +
+                '</div></div></div>';
+            document.body.appendChild(el);
+            return el;
+        }
+        function open(path, meta) {
+            meta = meta || {};
+            var el = viewer();
+            var name = meta.name || path.substring(path.lastIndexOf("/") + 1);
+            el.querySelector("#sfaFileViewerTitle").textContent = name;
+            el.querySelector("#sfaFileViewerMeta").textContent = [meta.type, prettySize(meta.size)].filter(Boolean).join(" · ");
+            var body = el.querySelector("#sfaFileViewerBody");
+            body.innerHTML = '<div class="py-5"><span class="spinner-border"></span></div>';
+            el.querySelector("#sfaFileViewerDl").onclick = function () {
+                Api.download(API.files.view(path, true, name), name).catch(function (e) { SFA.toast(e.message, false); });
+            };
+            bootstrap.Modal.getOrCreateInstance(el).show();
+            load(path).then(function (url) {
+                body.innerHTML = isImage(meta.type, path)
+                    ? '<img alt="" src="' + url + '">'
+                    : '<p class="py-4 text-muted">Preview not available — use Download.</p>';
+            }).catch(function (e) { body.innerHTML = '<p class="py-4 text-danger">' + SFA.esc(e.message) + '</p>'; });
+        }
+        function metaOf(el) {
+            var size = el.getAttribute("data-size");
+            return { name: el.getAttribute("data-name") || "", type: el.getAttribute("data-type") || "", size: size === "" || size == null ? null : Number(size) };
+        }
+
+        // ---- file-name rules for uploads that keep the user's name ----
+        // Keep in sync with FileUploadService.GENERIC_NAMES / SAFE_NAME.
+        var GENERIC_NAMES = [
+            /^whats ?app/,
+            /^(screenshot|screen ?shot|scrnshot|snip)/,
+            /^(img|pxl|dsc|dscn|dcim|mvimg|vid|pic|fb_img|snapchat|telegram|signal)[ _-]?[0-9]/,
+            /^(image|images|img|photo|picture|pic|file|download|downloaded|untitled|unnamed|new|new image|scan|document|received|copy)[ _-]*(\([0-9]+\)|[0-9]+)?$/,
+            /^[0-9 _.()-]+$/,
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-/,
+            /^(cam|camscanner|scanned|scanner|lens)[ _-]/
+        ];
+        var EXT_TYPES = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", bmp: "image/bmp", pdf: "application/pdf" };
+
+        /** null when the name can be kept, else the message telling the user to rename the file. */
+        function checkName(name, type) {
+            name = (name || "").trim();
+            var dot = name.lastIndexOf(".");
+            if (dot <= 0 || dot === name.length - 1) return '"' + name + '" has no file extension.\nPlease rename the file first (e.g. Dolo 650.jpg), then upload it.';
+            if (!/^[A-Za-z0-9][A-Za-z0-9 ._()-]{0,149}$/.test(name)) {
+                return '"' + name + '" has characters a file name cannot keep.\nUse only letters, digits, space and . _ - ( ) — rename the file first, then upload it.';
+            }
+            var base = name.substring(0, dot).trim().toLowerCase(), ext = name.substring(dot + 1).toLowerCase();
+            if (type && EXT_TYPES[ext] && EXT_TYPES[ext] !== type) {
+                return '"' + name + '" is really a ' + type.split("/")[1].toUpperCase() + ' file.\nRename it with the right extension first, then upload it.';
+            }
+            if (GENERIC_NAMES.some(function (re) { return re.test(base); })) {
+                return '"' + name + '" looks like an automatic name (WhatsApp / camera / screenshot / download).\n\n'
+                    + 'Please rename the file first (e.g. Dolo 650.jpg), then upload it.';
+            }
+            return null;
+        }
+
+        // ---- picker (upload field with preview) ----
+        function picker(host, opts) {
+            opts = opts || {};
+            var maxMb = opts.maxMb || 5;
+            var accept = opts.accept || "image/png,image/jpeg,image/gif,image/webp,image/bmp";
+            host.innerHTML =
+                '<div class="sfa-file-picker d-flex align-items-start gap-3">' +
+                '<div class="sfa-file-picker-preview"><i class="bi bi-image text-muted fs-3"></i></div>' +
+                '<div class="flex-grow-1">' +
+                '<input type="file" class="form-control" accept="' + accept + '">' +
+                '<div class="form-text sfa-file-picker-info">PNG, JPG, GIF, WebP or BMP · max ' + maxMb + ' MB · a thumbnail is made automatically' +
+                (opts.keepName ? '<br>The file is saved with its own name — rename WhatsApp / camera / screenshot files first (e.g. Dolo 650.jpg)' : '') +
+                (opts.defaultNote ? '<br>' + opts.defaultNote : '') + '</div>' +
+                '<div class="d-flex flex-wrap gap-3 mt-1">' +
+                '<div class="form-check"><input class="form-check-input sfa-file-compress" type="checkbox" checked>' +
+                '<label class="form-check-label small">Compress (lossless — quality is never reduced)</label></div>' +
+                '<button type="button" class="btn btn-sm btn-link text-danger p-0 sfa-file-remove d-none"><i class="bi bi-trash"></i> Remove image</button>' +
+                '</div><div class="small text-danger sfa-file-error"></div></div></div>';
+            var input = host.querySelector("input[type=file]");
+            var preview = host.querySelector(".sfa-file-picker-preview");
+            var removeBtn = host.querySelector(".sfa-file-remove");
+            var err = host.querySelector(".sfa-file-error");
+            var state = { record: null, file: null, removed: false, localUrl: null };
+
+            function showCurrent() {
+                if (state.localUrl) { URL.revokeObjectURL(state.localUrl); state.localUrl = null; }
+                var r = state.record;
+                if (r && r.path && !state.removed) {
+                    preview.innerHTML = thumb(r.path, r.thumbPath, r);
+                    hydrate(preview);
+                    // the default "no image" picture cannot be removed, only replaced
+                    removeBtn.classList.toggle("d-none", !!r.isDefault);
+                } else {
+                    preview.innerHTML = '<i class="bi bi-image text-muted fs-3"></i>';
+                    removeBtn.classList.add("d-none");
+                }
+            }
+            input.addEventListener("change", function () {
+                err.textContent = "";
+                var f = input.files && input.files[0];
+                if (!f) { state.file = null; showCurrent(); return; }
+                if (accept.split(",").indexOf(f.type) === -1) {
+                    err.textContent = "Please choose a PNG, JPG, GIF, WebP or BMP image."; input.value = ""; state.file = null; showCurrent(); return;
+                }
+                if (f.size > maxMb * 1048576) {
+                    err.textContent = "File is " + prettySize(f.size) + " — the limit is " + maxMb + " MB."; input.value = ""; state.file = null; showCurrent(); return;
+                }
+                var bad = opts.keepName ? checkName(f.name, f.type) : null;
+                if (bad) {
+                    window.alert(bad);
+                    err.textContent = "Rename the file first, then choose it again."; input.value = ""; state.file = null; showCurrent(); return;
+                }
+                state.file = f;
+                state.removed = false;
+                if (state.localUrl) URL.revokeObjectURL(state.localUrl);
+                state.localUrl = URL.createObjectURL(f);
+                preview.innerHTML = '<img alt="" src="' + state.localUrl + '">';
+                removeBtn.classList.remove("d-none");
+            });
+            removeBtn.addEventListener("click", function () {
+                input.value = "";
+                state.file = null;
+                state.removed = !!(state.record && state.record.path);
+                showCurrent();
+            });
+            return {
+                /** record = { path, thumbPath, name, type, size, isDefault } of the stored file (or null). */
+                set: function (record) { state.record = record && record.path ? record : null; state.file = null; state.removed = false; input.value = ""; err.textContent = ""; showCurrent(); },
+                reset: function () { this.set(null); },
+                file: function () { return state.file; },
+                removed: function () { return state.removed && !state.file; },
+                compress: function () { return host.querySelector(".sfa-file-compress").checked; },
+            };
+        }
+
+        // global wiring (once)
+        $(function () {
+            hydrate(document);
+            new MutationObserver(function (muts) {
+                muts.forEach(function (m) { m.addedNodes.forEach(function (n) { if (n.nodeType === 1) hydrate(n); }); });
+            }).observe(document.body, { childList: true, subtree: true });
+            $(document)
+                .on("mouseenter", ".sfa-file-thumb", function (ev) { showZoom(this, ev); })
+                .on("mousemove", ".sfa-file-thumb", function (ev) { placeZoom(ev); })
+                .on("mouseleave", ".sfa-file-thumb", hideZoom)
+                .on("click keydown", ".sfa-file-thumb", function (ev) {
+                    if (ev.type === "keydown" && ev.key !== "Enter" && ev.key !== " ") return;
+                    ev.preventDefault();
+                    hideZoom();
+                    open(this.getAttribute("data-path"), metaOf(this));
+                })
+                .on("click", ".sfa-file-link", function (ev) {
+                    ev.preventDefault();
+                    open(this.getAttribute("data-path"), { name: this.getAttribute("data-name") });
+                });
+        });
+
+        return { thumb: thumb, open: open, picker: picker, hydrate: hydrate, load: load, prettySize: prettySize, checkName: checkName };
+    })();
+
+    // ---- SFAQuickAdd: "+" next to a master dropdown creates a new master row ----
+    // Mark a <select> with data-quick-add="state" (division / state / hq /
+    // designation / degree / bank / document) and call SFAQuickAdd.decorate(root).
+    // "+" opens a small form ABOVE any open popup, saves through that master's
+    // normal save API (its permission applies), reloads the list, refills every
+    // select of that kind on the page (keeping their values) and selects the new
+    // row in the one that was clicked. Pages listen to "sfa:quick-added"
+    // (detail = { kind, lookup, list, id }) to refresh their own cached lists.
+    window.SFAQuickAdd = (function () {
+        var CODE = function (k) { return { k: k, label: "Code", req: true, max: 30, code: true }; };
+        var NAME = function (k, max) { return { k: k, label: "Name", req: true, max: max || 120, name: true }; };
+        var KINDS = {
+            division:    { title: "Division", perm: "DIVISION_SAVE", ep: function () { return API.master.division.save; }, lookup: "divisions", id: "oid",
+                           fields: [CODE("divisionCode"), NAME("divisionName")], extra: { status: "Y" } },
+            state:       { title: "State", perm: "STATE_SAVE", ep: function () { return API.master.state.save; }, lookup: "states", id: "oid",
+                           fields: [CODE("stateCode"), NAME("stateName")], extra: { status: "Y" } },
+            hq:          { title: "HQ", perm: "HQ_SAVE", ep: function () { return API.master.hq.save; }, lookup: "hqs", id: "oid",
+                           fields: [CODE("hqCode"), NAME("hqName"), { k: "stateOid", label: "State", type: "select", lookup: "states" }], extra: { isActive: true } },
+            designation: { title: "Designation", perm: "DESIGNATION_SAVE", ep: function () { return API.master.designationMaster.save; }, lookup: "designations", id: "id",
+                           fields: [{ k: "designation", label: "Designation", req: true, max: 50, name: true },
+                                    { k: "hierarchyLevel", label: "Hierarchy level (unique, higher = senior; decides the role)", req: true, type: "number", min: 1, max: 9999 }],
+                           extra: { active: true } },
+            degree:      { title: "Qualification", perm: "DEGREE_SAVE", ep: function () { return API.master.degreeMaster.save; }, lookup: "degrees", id: "id",
+                           fields: [CODE("degreeCode"), NAME("degreeName")], extra: { isActive: true, displayOrder: 0 } },
+            bank:        { title: "Bank", perm: "BANK_SAVE", ep: function () { return API.master.bankMaster.save; }, lookup: "banks", id: "id",
+                           fields: [CODE("bankCode"), NAME("bankName")], extra: { isActive: true, displayOrder: 0 } },
+            document:    { title: "Document type", perm: "DOCUMENT_SAVE", ep: function () { return API.master.documentMaster.save; }, lookup: "documents", id: "id",
+                           fields: [CODE("documentCode"), NAME("documentName")], extra: { isActive: true, displayOrder: 0 } },
+            salutation:  { title: "Salutation", perm: "SALUTATION_SAVE", ep: function () { return API.master.salutation.save; }, lookup: "salutations", id: "salutation",
+                           fields: [{ k: "salutation", label: "Salutation (e.g. Dr., Er., Adv.)", req: true, max: 20, name: true }] },
+            clientType:  { title: "Client type", perm: "CLIENT_TYPE_SAVE", ep: function () { return API.master.clientType.save; }, lookup: "clientTypes", id: "oid",
+                           fields: [CODE("typeCode"), NAME("typeName", 80)], extra: { isActive: true },
+                           prepare: function (b) { b.singularLabel = b.typeName; b.pluralLabel = b.typeName + "s"; } },
+            category:    { title: "Category", perm: "CATEGORY_SAVE", ep: function () { return API.master.categoryMaster.save; }, lookup: "categories", id: "oid",
+                           fields: [CODE("categoryCode"), NAME("categoryName")], extra: { status: true } },
+            speciality:  { title: "Speciality", perm: "SPECIALITY_SAVE", ep: function () { return API.master.specialityMaster.save; }, lookup: "specialities", id: "oid",
+                           fields: [CODE("specialityCode"), NAME("specialityName")], extra: { status: true } },
+            city:        { title: "City / Area", perm: "AREA_SAVE", ep: function () { return API.master.area.save; }, lookup: "areas", id: "oid",
+                           fields: [CODE("areaCode"), NAME("areaName"), { k: "city", label: "City", max: 120 },
+                                    { k: "stateOid", label: "State", type: "select", lookup: "states" }], extra: { status: "Y" } }
+        };
+        var esc = function (v) { return window.SFA ? SFA.esc(v == null ? "" : v) : String(v == null ? "" : v); };
+        var allowed = function (cfg) { return !window.SFA || !SFA.can || SFA.can(cfg.perm); };
+
+        function decorate(root) {
+            $(root || document).find("select[data-quick-add]").each(function () {
+                var sel = this, kind = sel.getAttribute("data-quick-add"), cfg = KINDS[kind];
+                if (!cfg || sel.dataset.qaDone || !allowed(cfg)) return;
+                sel.dataset.qaDone = "1";
+                var group = document.createElement("div");
+                group.className = "input-group sfa-qa-group";
+                sel.parentNode.insertBefore(group, sel);
+                group.appendChild(sel);
+                // already a Select2 widget? its box sits right after the select — keep them together
+                var s2 = group.nextElementSibling;
+                if (s2 && s2.classList.contains("select2-container")) group.appendChild(s2);
+                var btn = document.createElement("button");
+                btn.type = "button";
+                btn.className = "btn btn-outline-primary sfa-qa-btn";
+                btn.title = "Add a new " + cfg.title;
+                btn.innerHTML = '<i class="bi bi-plus-lg"></i>';
+                btn.addEventListener("click", function () { open(sel); });
+                group.appendChild(btn);
+                // Select2 applied later inserts its box after the select (inside the group): keep "+" last
+                new MutationObserver(function () {
+                    if (group.lastElementChild !== btn) group.appendChild(btn);
+                }).observe(group, { childList: true });
+            });
+        }
+
+        function codeFrom(name) {
+            return String(name || "").toUpperCase().replace(/[^A-Z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 20);
+        }
+
+        async function open(sel) {
+            var kind = sel.getAttribute("data-quick-add"), cfg = KINDS[kind];
+            var lists = {};
+            var need = cfg.fields.filter(function (f) { return f.lookup; }).map(function (f) { return f.lookup; });
+            if (need.length) {
+                try { lists = await Api.get(API.lookups, { query: { keys: need.join(",") } }); } catch (e) { lists = {}; }
+            }
+            var ov = document.createElement("div");
+            ov.className = "sfa-qa-overlay";
+            ov.innerHTML = '<form class="sfa-qa-card card shadow" novalidate>' +
+                '<div class="card-header d-flex align-items-center"><b>Add ' + esc(cfg.title) + '</b>' +
+                '<button type="button" class="btn-close ms-auto" data-qa-close aria-label="Close"></button></div>' +
+                '<div class="card-body"><div class="row g-2">' + cfg.fields.map(function (f) {
+                    var label = '<label class="form-label small mb-0">' + esc(f.label) + (f.req ? ' <span class="required-star">*</span>' : '') + '</label>';
+                    if (f.type === "select") {
+                        return '<div class="col-12">' + label + '<select class="form-select" data-no-search data-qa="' + f.k + '"><option value="">--</option>' +
+                            (lists[f.lookup] || []).map(function (o) { return '<option value="' + esc(o.oid) + '">' + esc(o.label) + '</option>'; }).join("") +
+                            '</select></div>';
+                    }
+                    var attrs = f.type === "number" ? ' type="number" min="' + f.min + '" max="' + f.max + '"' : ' maxlength="' + f.max + '"';
+                    return '<div class="' + (f.code ? 'col-5' : f.name ? 'col-7' : 'col-12') + '">' + label +
+                        '<input class="form-control' + (f.code ? ' text-uppercase' : '') + '" data-qa="' + f.k + '"' + attrs + ' /></div>';
+                }).join("") + '</div><div class="small text-danger mt-2" data-qa-err></div></div>' +
+                '<div class="card-footer text-end"><button type="button" class="btn btn-light btn-sm" data-qa-close>Cancel</button> ' +
+                '<button type="submit" class="btn btn-primary btn-sm">Save &amp; select</button></div></form>';
+            document.body.appendChild(ov);
+            var form = ov.querySelector("form"), err = ov.querySelector("[data-qa-err]");
+            var codeF = cfg.fields.find(function (f) { return f.code; }), nameF = cfg.fields.find(function (f) { return f.name; });
+            var codeIn = codeF && form.querySelector('[data-qa="' + codeF.k + '"]');
+            var nameIn = nameF && form.querySelector('[data-qa="' + nameF.k + '"]');
+            var codeTouched = false;
+            if (codeIn) codeIn.addEventListener("input", function () { codeTouched = true; });
+            if (nameIn && codeIn) nameIn.addEventListener("input", function () { if (!codeTouched) codeIn.value = codeFrom(nameIn.value); });
+            // e.g. data-qa-state="c_stateId": the new City / HQ starts in the state chosen on the form
+            var stateSrc = sel.getAttribute("data-qa-state"), stateIn = form.querySelector('[data-qa="stateOid"]');
+            if (stateSrc && stateIn && document.getElementById(stateSrc)) stateIn.value = document.getElementById(stateSrc).value;
+            (nameIn || form.querySelector("[data-qa]")).focus();
+            var close = function () { ov.remove(); sel.focus(); };
+            ov.querySelectorAll("[data-qa-close]").forEach(function (b) { b.addEventListener("click", close); });
+            ov.addEventListener("keydown", function (ev) { if (ev.key === "Escape") { ev.stopPropagation(); close(); } });
+            form.addEventListener("submit", async function (ev) {
+                ev.preventDefault();
+                ev.stopPropagation();   // never submit the page form behind
+                err.textContent = "";
+                var body = Object.assign({}, cfg.extra || {});
+                for (var i = 0; i < cfg.fields.length; i++) {
+                    var f = cfg.fields[i], el = form.querySelector('[data-qa="' + f.k + '"]'), v = el.value.trim();
+                    if (f.code) v = v.toUpperCase();
+                    if (f.req && !v) { err.textContent = f.label + " is required"; el.focus(); return; }
+                    body[f.k] = v === "" ? null : (f.type === "number" || f.type === "select" ? Number(v) : v);
+                }
+                if (cfg.prepare) cfg.prepare(body);
+                var btn = form.querySelector('[type="submit"]');
+                btn.disabled = true;
+                try {
+                    var saved = await Api.post(cfg.ep(), body);
+                    var res = await Api.get(API.lookups, { query: { keys: cfg.lookup } });
+                    var list = res[cfg.lookup] || [], id = saved && saved[cfg.id];
+                    refill(kind, list, sel, id);
+                    sel.dispatchEvent(new CustomEvent("sfa:quick-added", { bubbles: true, detail: { kind: kind, lookup: cfg.lookup, list: list, id: id } }));
+                    var waits = saved && /^PENDING/.test(saved.approvalStatus || "");
+                    if (window.SFA) SFA.toast(waits ? cfg.title + " added — waiting for approval (usable once approved)" : cfg.title + " added", waits ? "info" : true);
+                    ov.remove();
+                    sel.focus();
+                } catch (e) { err.textContent = e.message; }
+                finally { btn.disabled = false; }
+            });
+        }
+
+        /** Refill every select of this kind on the page (keeping values), then select id in `target`. */
+        function refill(kind, list, target, id) {
+            document.querySelectorAll('select[data-quick-add="' + kind + '"]').forEach(function (s) {
+                var keep = s === target && id != null ? String(id) : s.value;
+                var first = s.options.length && s.options[0].value === "" ? s.options[0].text : "--";
+                s.innerHTML = '<option value="">' + esc(first) + '</option>' + list.map(function (o) {
+                    return '<option value="' + esc(o.oid) + '">' + esc(o.label) + '</option>';
+                }).join("");
+                s.value = keep;
+                if (s === target) s.dispatchEvent(new Event("change", { bubbles: true }));
+            });
+        }
+
+        return { decorate: decorate, kinds: KINDS };
+    })();
 
     $(function () { sfaSelect2(document); sfaFlatpickr(document); });
 

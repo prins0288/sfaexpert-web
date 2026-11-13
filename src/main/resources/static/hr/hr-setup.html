@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>/* reverse-proxy sub-path support: make relative css/js resolve under the deploy prefix (e.g. /sfaexpert), "" locally */
+  (function(){try{var p=location.pathname,m=p.match(/^(.*?)\/u\/\d+(\/|$)/),c=m?m[1]:p.replace(/\/[^\/]*$/,'');document.write('<base href="'+(c||'')+'/">');}catch(e){}})();</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StarSFA &middot; HR Setup</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css" rel="stylesheet" />
+  <link href="css/app.css" rel="stylesheet" />
+  <link href="css/app-ui.css" rel="stylesheet" />
+  <script>
+    /* Apply the saved theme (mode / layout / density / colours) BEFORE first
+       paint so there is no flash. theme.js re-applies from the server after. */
+    (function () {
+      try {
+        var d = document.documentElement, s = localStorage;
+        // theme is PER TENANT and several tenants can be signed in at once
+        // (/u/0, /u/1...), so these caches are scoped to the account slot —
+        // a shared key would paint the last-customised tenant's colours here.
+        var m = location.pathname.match(/\/u\/(\d+)(\/|$)/), q = '_u' + (m ? m[1] : '0');
+        d.setAttribute('data-theme', s.getItem('sfa_mode' + q) || 'light');
+        d.setAttribute('data-nav', s.getItem('sfa_nav' + q) || 'vertical');
+        d.setAttribute('data-density', s.getItem('sfa_density' + q) || 'comfortable');
+        var f = s.getItem('sfa_font' + q); if (f) d.style.setProperty('--sfa-font-scale', f);
+        var c = s.getItem('sfa_theme' + q);
+        if (c) { c = JSON.parse(c); var t = (c.resolved && c.resolved[c.mode]) || {};
+          for (var k in t) d.style.setProperty('--sfa-' + k, t[k]); }
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+<div id="app" data-page="hrsetup" data-title="HR Setup"></div>
+<template id="pageContent">
+<div class="ap-app">
+  <div class="ap-top"><div><h1 class="ap-title">HR Setup</h1><div class="text-muted small">Company, branches (state decides PT / LWF), departments, grades, cost centres, employee types and each employee's HR details</div></div>
+    <button class="ap-btn go" id="addBtn" onclick="addNew()"><i class="bi bi-plus-circle"></i> Add</button></div>
+  <div class="ap-seg" id="seg"></div>
+  <div id="body"></div>
+  <div class="offcanvas offcanvas-bottom ap-sheet" tabindex="-1" id="sh" data-bs-backdrop="true">
+    <div class="offcanvas-header"><h5 class="offcanvas-title" id="shT"></h5><button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button></div>
+    <div class="offcanvas-body" id="shB"></div><div class="ap-sheet-foot" id="shF"></div></div>
+</div>
+</template>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.colVis.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="js/core/session.js"></script>
+<script src="js/core/endpoints.js"></script>
+<script src="js/core/http.js"></script>
+<script src="js/core/theme.js"></script>
+<script src="js/core/settings.js"></script>
+<script src="js/core/i18n.js"></script>
+<script src="js/app.js"></script>
+<script src="js/core/uikit.js"></script>
+<script src="js/shell.js"></script>
+<script>
+
+const H = API.master.hr;
+const esc = (v) => SFA.esc(v == null ? '' : v);
+const val = (id) => document.getElementById(id).value;
+const chk = (id) => document.getElementById(id).checked;
+const SHEETS = {};
+function sheet(id) { return SHEETS[id] || (SHEETS[id] = new bootstrap.Offcanvas('#' + id)); }
+async function askReason(label) { const r = prompt(label || 'Reason for this change (kept in the audit log)'); if (r == null) return null; if (!r.trim()) { SFA.toast('A reason is required', false); return null; } return r.trim(); }
+
+const TABS = [
+ { k: 'company', t: 'Company' },
+ { k: 'branches', t: 'Branches', f: [['code','Code'],['name','Name'],['stateId','State','state'],['city','City'],['address','Address'],['timezone','Timezone'],['ptRegNo','PT registration no.'],['lwfRegNo','LWF registration no.'],['sortOrder','Order','number'],['isActive','Active','flag']] },
+ { k: 'departments', t: 'Departments', f: [['code','Code'],['name','Name'],['sortOrder','Order','number'],['isActive','Active','flag']] },
+ { k: 'grades', t: 'Grades', f: [['code','Code'],['name','Name'],['sortOrder','Order','number'],['isActive','Active','flag']] },
+ { k: 'cost-centers', t: 'Cost centres', f: [['code','Code'],['name','Name'],['sortOrder','Order','number'],['isActive','Active','flag']] },
+ { k: 'employee-types', t: 'Employee types', f: [['code','Code'],['name','Name'],['pfApplicable','PF applies','flag'],['esiApplicable','ESI applies','flag'],['leaveApplicable','Leave applies','flag'],['compoffApplicable','Comp-off applies','flag'],['probationApplicable','Has probation','flag'],['bonusApplicable','Bonus applies','flag'],['gratuityApplicable','Gratuity applies','flag'],['sortOrder','Order','number'],['isActive','Active','flag']] },
+ { k: 'employees', t: 'Employees' },
+];
+let TAB = 'company', ROWS = [], STATES = [], LK = {}, SEL = new Set();
+const tab = () => TABS.find(x => x.k === TAB);
+window.pageInit = async function () {
+  document.getElementById('seg').innerHTML = TABS.map(x => `<button data-k="${x.k}" onclick="go('${x.k}')">${x.t}</button>`).join('');
+  try { STATES = await Api.get(H.states); } catch (e) {}
+  await go('company');
+};
+async function go(k) {
+  TAB = k; SEL = new Set();
+  document.querySelectorAll('#seg button').forEach(b => b.classList.toggle('active', b.dataset.k === k));
+  document.getElementById('addBtn').style.display = (k === 'company' || k === 'employees') ? 'none' : '';
+  try {
+    if (k === 'company') return renderCompany(await Api.get(H.company));
+    if (k === 'employees') { await loadLookups(); return loadEmployees(''); }
+    ROWS = await Api.get(H.master(k)); renderList();
+  } catch (e) { SFA.toast(e.message, false); document.getElementById('body').innerHTML = '<div class="ap-card ap-empty">' + esc(e.message) + '</div>'; }
+}
+function renderCompany(c) {
+  const f = (id, l, v, extra) => `<div class="col-12 col-md-6"><label class="form-label">${l}</label><input class="form-control" id="${id}" value="${esc(v)}" ${extra || ''}></div>`;
+  document.getElementById('body').innerHTML = `<div class="ap-card"><div class="row g-3">
+   ${f('c_legalName','Legal name',c.legalName)}${f('c_tradeName','Trade name',c.tradeName)}${f('c_pan','PAN',c.pan,'maxlength=10')}${f('c_tan','TAN',c.tan,'maxlength=10')}
+   ${f('c_gstin','GSTIN',c.gstin)}${f('c_cin','CIN',c.cin)}${f('c_pfCode','PF establishment code',c.pfCode)}${f('c_esiCode','ESI employer code',c.esiCode)}
+   <div class="col-12"><label class="form-label">Address</label><input class="form-control" id="c_address" value="${esc(c.address)}"></div>
+   <div class="col-6 col-md-3"><label class="form-label">Financial year starts in month</label><select class="form-select" id="c_fyStartMonth">${[1,2,3,4,5,6,7,8,9,10,11,12].map(m => `<option value="${m}" ${m == c.fyStartMonth ? 'selected' : ''}>${new Date(2000, m - 1, 1).toLocaleString('en', { month: 'long' })}</option>`).join('')}</select></div>
+   <div class="col-6 col-md-3"><label class="form-label">Leave year</label><select class="form-select" id="c_leaveYearMode">${[['FINANCIAL','Financial year'],['CALENDAR','Calendar year'],['JOINING','From joining date']].map(([v,l]) => `<option value="${v}" ${v === c.leaveYearMode ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+   <div class="col-6 col-md-3"><label class="form-label">Payroll cycle starts on day</label><input type="number" min="1" max="28" class="form-control" id="c_payrollStartDay" value="${esc(c.payrollStartDay)}"></div>
+   <div class="col-6 col-md-3"><label class="form-label">Timezone</label><input class="form-control" id="c_timezone" value="${esc(c.timezone)}"></div>
+  </div><div class="mt-3 text-end"><button class="ap-btn go" onclick="saveCompany()"><i class="bi bi-check2"></i> Save company</button></div></div>`;
+}
+async function saveCompany() {
+  const reason = await askReason(); if (!reason) return;
+  const b = { reason }; ['legalName','tradeName','pan','tan','gstin','cin','pfCode','esiCode','address','fyStartMonth','leaveYearMode','payrollStartDay','timezone'].forEach(k => b[k] = val('c_' + k));
+  try { await Api.post(H.company, b); SFA.toast('Saved'); } catch (e) { SFA.toast(e.message, false); }
+}
+function renderList() {
+  const t = tab();
+  document.getElementById('body').innerHTML = `<div class="ap-card d-flex align-items-center gap-2"><b>${ROWS.length} ${t.t.toLowerCase()}</b>
+    <label class="d-flex align-items-center gap-2 ms-auto"><input type="checkbox" class="form-check-input" onchange="selAll(this.checked)"> Select all</label></div>`
+  + (ROWS.map(r => `<div class="ap-card" style="cursor:pointer" onclick="edit(${r.id})"><div class="d-flex align-items-center gap-2">
+      <input type="checkbox" class="form-check-input" ${SEL.has(r.id) ? 'checked' : ''} onclick="event.stopPropagation()" onchange="sel(${r.id}, this.checked)">
+      <div class="flex-fill" style="min-width:0"><b>${esc(r.name)}</b> <span class="text-muted">${esc(r.code)}</span>${r.stateName ? ' · ' + esc(r.stateName) : ''}${r.city ? ' · ' + esc(r.city) : ''}
+        ${r.isActive ? '' : ' <span class="ap-badge bad">Off</span>'}</div><i class="bi bi-chevron-right text-muted"></i></div></div>`).join('') || '<div class="ap-card ap-empty"><i class="bi bi-inbox fs-1"></i><div>Nothing yet - tap Add</div></div>')
+  + `<div class="ap-bar ${SEL.size ? 'show' : ''}"><div class="info">${SEL.size} selected</div><button class="ap-btn danger" onclick="del()"><i class="bi bi-trash"></i> Delete</button></div>`;
+}
+const sel = (id, on) => { on ? SEL.add(id) : SEL.delete(id); renderList(); };
+const selAll = (on) => { SEL = on ? new Set(ROWS.map(r => r.id)) : new Set(); renderList(); };
+async function del() {
+  if (!confirm('Delete ' + SEL.size + ' item(s)? Items used by employees cannot be deleted - switch them off instead.')) return;
+  const reason = await askReason('Reason for deleting'); if (!reason) return;
+  try { await Api.post(H.masterDelete(TAB), { ids: [...SEL], reason }); SEL = new Set(); await go(TAB); SFA.toast('Deleted'); } catch (e) { SFA.toast(e.message, false); }
+}
+function addNew() { openForm({ isActive: true, sortOrder: 0, timezone: 'Asia/Kolkata' }); }
+function edit(id) { openForm(ROWS.find(r => r.id === id)); }
+let CUR = null;
+function openForm(r) {
+  CUR = r; const t = tab();
+  document.getElementById('shT').textContent = (r.id ? 'Edit ' : 'Add ') + t.t.toLowerCase().replace(/s$/, '');
+  document.getElementById('shB').innerHTML = '<div class="row g-3">' + t.f.map(([k, l, type]) => {
+    const v = r[k];
+    if (type === 'flag') return `<div class="col-12 col-md-6"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="f_${k}" ${v == null || v ? 'checked' : ''}><label class="form-check-label" for="f_${k}">${l}</label></div></div>`;
+    if (type === 'state') return `<div class="col-12 col-md-6"><label class="form-label">${l} <span class="text-muted">(PT / LWF depend on it)</span></label><select class="form-select" id="f_${k}"><option value="">- choose -</option>${STATES.map(s => `<option value="${s.id}" ${s.id == v ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select></div>`;
+    return `<div class="col-12 col-md-6"><label class="form-label">${l}</label><input class="form-control" id="f_${k}" type="${type === 'number' ? 'number' : 'text'}" value="${esc(v)}"></div>`;
+  }).join('') + '</div>';
+  document.getElementById('shF').innerHTML = '<button class="ap-btn light" data-bs-dismiss="offcanvas">Cancel</button><button class="ap-btn go" onclick="saveForm()"><i class="bi bi-check2"></i> Save</button>';
+  sheet('sh').show();
+}
+async function saveForm() {
+  const b = { id: CUR.id || null };
+  tab().f.forEach(([k, , type]) => b[k] = type === 'flag' ? chk('f_' + k) : val('f_' + k));
+  try { await Api.post(H.master(TAB), b); sheet('sh').hide(); await go(TAB); SFA.toast('Saved'); } catch (e) { SFA.toast(e.message, false); }
+}
+/* ---- employees ---- */
+async function loadLookups() { for (const k of ['branches','departments','grades','cost-centers','employee-types']) LK[k] = await Api.get(H.master(k)); }
+let EMPS = [];
+async function loadEmployees(q) {
+  EMPS = await Api.get(H.employees, { query: { q } });
+  document.getElementById('body').innerHTML = `<input class="form-control mb-2" placeholder="Search name or code" oninput="loadEmployees(this.value)" value="${esc(q)}">`
+   + EMPS.map(e => `<div class="ap-card" style="cursor:pointer" onclick="editEmp('${esc(e.empId)}')"><div class="d-flex align-items-center gap-2"><div class="flex-fill" style="min-width:0"><b>${esc(e.name)}</b> <span class="text-muted">${esc(e.empCode)}</span>
+     <div class="small text-muted">${[e.designation, e.branchName, e.departmentName, e.employeeTypeName].filter(Boolean).map(esc).join(' · ') || 'HR details not filled'}</div></div><i class="bi bi-chevron-right text-muted"></i></div></div>`).join('')
+   || '<div class="ap-card ap-empty">No employee found</div>';
+}
+function opts(list, cur, none) { return `<option value="">${none || '- none -'}</option>` + list.filter(x => x.isActive || x.id == cur).map(x => `<option value="${x.id}" ${x.id == cur ? 'selected' : ''}>${esc(x.name)}</option>`).join(''); }
+function editEmp(id) {
+  const e = EMPS.find(x => x.empId === id); CUR = e;
+  document.getElementById('shT').textContent = e.name + ' (' + e.empCode + ')';
+  const sel = (fid, l, list, cur) => `<div class="col-12 col-md-6"><label class="form-label">${l}</label><select class="form-select" id="${fid}">${opts(list, cur)}</select></div>`;
+  document.getElementById('shB').innerHTML = `<div class="row g-3">${sel('e_branchId','Branch',LK.branches,e.branchId)}${sel('e_departmentId','Department',LK.departments,e.departmentId)}${sel('e_gradeId','Grade',LK.grades,e.gradeId)}${sel('e_costCenterId','Cost centre',LK['cost-centers'],e.costCenterId)}${sel('e_employeeTypeId','Employee type',LK['employee-types'],e.employeeTypeId)}
+    <div class="col-12 col-md-6"><label class="form-label">Tax regime</label><select class="form-select" id="e_taxRegime"><option value="NEW" ${e.taxRegime === 'NEW' ? 'selected' : ''}>New regime</option><option value="OLD" ${e.taxRegime === 'OLD' ? 'selected' : ''}>Old regime</option></select></div>
+    <div class="col-6 col-md-4"><label class="form-label">Probation (months)</label><input type="number" class="form-control" id="e_probationMonths" value="${esc(e.probationMonths)}"></div>
+    <div class="col-6 col-md-4"><label class="form-label">Probation ends</label><input type="date" class="form-control" id="e_probationEndDate" value="${esc(e.probationEndDate)}"></div>
+    <div class="col-6 col-md-4"><label class="form-label">Notice (days)</label><input type="number" class="form-control" id="e_noticeDays" value="${esc(e.noticeDays)}"></div>
+    <div class="col-6 col-md-4"><label class="form-label">PF member since</label><input type="date" class="form-control" id="e_pfMemberSince" value="${esc(e.pfMemberSince)}"></div>
+    <div class="col-6 col-md-4"><div class="form-check form-switch mt-4"><input class="form-check-input" type="checkbox" id="e_prevPfMember" ${e.prevPfMember ? 'checked' : ''}><label class="form-check-label" for="e_prevPfMember">Was a PF member earlier</label></div></div>
+    <div class="col-6 col-md-4"><div class="form-check form-switch mt-4"><input class="form-check-input" type="checkbox" id="e_disabled" ${e.disabled ? 'checked' : ''}><label class="form-check-label" for="e_disabled">Person with disability (ESI limit)</label></div></div>
+    <div class="col-12"><div class="small text-muted">Manager: ${esc(e.manager) || '-'} · Joined: ${esc(e.joiningDate) || '-'}. Reporting manager is changed in the employee master.</div></div></div>`;
+  document.getElementById('shF').innerHTML = '<button class="ap-btn light" data-bs-dismiss="offcanvas">Cancel</button><button class="ap-btn go" onclick="saveEmp()"><i class="bi bi-check2"></i> Save</button>';
+  sheet('sh').show();
+}
+async function saveEmp() {
+  const reason = await askReason(); if (!reason) return;
+  const b = { reason }; ['branchId','departmentId','gradeId','costCenterId','employeeTypeId','taxRegime','probationMonths','probationEndDate','noticeDays','pfMemberSince'].forEach(k => b[k] = val('e_' + k));
+  b.prevPfMember = chk('e_prevPfMember'); b.disabled = chk('e_disabled');
+  try { await Api.post(H.employee(CUR.empId), b); sheet('sh').hide(); await loadEmployees(''); SFA.toast('Saved'); } catch (e) { SFA.toast(e.message, false); }
+}
+
+</script>
+</body>
+</html>

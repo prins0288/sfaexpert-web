@@ -14,7 +14,7 @@ import java.util.Map;
 /**
  * Issues and validates JWTs. The subject (sub) is the employee id (emp_id); the
  * login username, tenant id, role and a small profile snapshot (designation,
- * emp_level, state, district) ride along as custom claims, so every later
+ * hierarchy_level, state, district) ride along as custom claims, so every later
  * request can be routed and identified without re-reading the databases.
  */
 @Component
@@ -34,7 +34,7 @@ public class JwtUtil {
     /**
      * @param empId       becomes the subject (sub)
      * @param username    the login username (own claim, so sub can hold emp_id)
-     * @param extraClaims optional profile snapshot (designation, emp_level, state,
+     * @param extraClaims optional profile snapshot (designation, hierarchy_level, state,
      *                    district); null values are skipped to keep the token lean
      */
     public String generateToken(String empId, String username, String companyCode, String role,

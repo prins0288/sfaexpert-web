@@ -5,7 +5,7 @@ import in.opt.sfa.tenant.master.itemtype.dto.ItemTypeMasterDto;
 import in.opt.sfa.tenant.master.itemtype.entity.ItemTypeMaster;
 import in.opt.sfa.tenant.master.itemtype.mapper.ItemTypeMasterMapper;
 import in.opt.sfa.tenant.master.itemtype.repository.ItemTypeMasterRepository;
-import in.opt.sfa.tenant.master.employee.service.EmployeeNameResolver;
+import in.opt.sfa.tenant.master.empdetail.service.EmpNameResolver;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,9 +24,9 @@ public class ItemTypeMasterService {
 
     private final ItemTypeMasterRepository itemTypes;
     private final ItemTypeMasterMapper mapper;
-    private final EmployeeNameResolver employeeNames;
+    private final EmpNameResolver employeeNames;
 
-    public ItemTypeMasterService(ItemTypeMasterRepository itemTypes, ItemTypeMasterMapper mapper, EmployeeNameResolver employeeNames) {
+    public ItemTypeMasterService(ItemTypeMasterRepository itemTypes, ItemTypeMasterMapper mapper, EmpNameResolver employeeNames) {
         this.itemTypes = itemTypes;
         this.mapper = mapper;
         this.employeeNames = employeeNames;

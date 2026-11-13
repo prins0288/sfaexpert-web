@@ -23,7 +23,7 @@ public class AppUser {
     @Column(nullable = false, unique = true)
     private String username;
 
-    /** BCrypt-hashed password. */
+    /** Plain-text password (stored and compared as-is — no hashing; see AuthService). */
     @Column(nullable = false)
     private String password;
 

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>/* reverse-proxy sub-path support: make relative css/js resolve under the deploy prefix (e.g. /sfaexpert), "" locally */
+  (function(){try{var p=location.pathname,m=p.match(/^(.*?)\/u\/\d+(\/|$)/),c=m?m[1]:p.replace(/\/[^\/]*$/,'');document.write('<base href="'+(c||'')+'/">');}catch(e){}})();</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StarSFA &middot; My Leave</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css" rel="stylesheet" />
+  <link href="css/app.css" rel="stylesheet" />
+  <link href="css/app-ui.css" rel="stylesheet" />
+  <script>
+    /* Apply the saved theme (mode / layout / density / colours) BEFORE first
+       paint so there is no flash. theme.js re-applies from the server after. */
+    (function () {
+      try {
+        var d = document.documentElement, s = localStorage;
+        // theme is PER TENANT and several tenants can be signed in at once
+        // (/u/0, /u/1...), so these caches are scoped to the account slot —
+        // a shared key would paint the last-customised tenant's colours here.
+        var m = location.pathname.match(/\/u\/(\d+)(\/|$)/), q = '_u' + (m ? m[1] : '0');
+        d.setAttribute('data-theme', s.getItem('sfa_mode' + q) || 'light');
+        d.setAttribute('data-nav', s.getItem('sfa_nav' + q) || 'vertical');
+        d.setAttribute('data-density', s.getItem('sfa_density' + q) || 'comfortable');
+        var f = s.getItem('sfa_font' + q); if (f) d.style.setProperty('--sfa-font-scale', f);
+        var c = s.getItem('sfa_theme' + q);
+        if (c) { c = JSON.parse(c); var t = (c.resolved && c.resolved[c.mode]) || {};
+          for (var k in t) d.style.setProperty('--sfa-' + k, t[k]); }
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+<div id="app" data-page="myleave" data-title="My Leave"></div>
+<template id="pageContent">
+<div class="ap-app"><div class="ap-top"><div><h1 class="ap-title">My Leave</h1><div class="text-muted small">Balance, apply for leave, and approvals. A leave for today can also be taken from the DCR screen (work type Leave)</div></div><button class="ap-btn go" onclick="applyForm()"><i class="bi bi-plus-circle"></i> Apply leave</button></div>
+<div class="ap-seg" id="seg"><button data-k="m" class="active" onclick="go('m')">My leave</button><button data-k="a" onclick="go('a')">Approvals</button></div>
+<div id="body"></div><div class="offcanvas offcanvas-bottom ap-sheet" tabindex="-1" id="sh" data-bs-backdrop="true"><div class="offcanvas-header"><h5 class="offcanvas-title" id="shT"></h5><button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button></div><div class="offcanvas-body" id="shB"></div><div class="ap-sheet-foot" id="shF"></div></div></div>
+</template>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.colVis.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="js/core/session.js"></script>
+<script src="js/core/endpoints.js"></script>
+<script src="js/core/http.js"></script>
+<script src="js/core/theme.js"></script>
+<script src="js/core/settings.js"></script>
+<script src="js/core/i18n.js"></script>
+<script src="js/app.js"></script>
+<script src="js/core/uikit.js"></script>
+<script src="js/shell.js"></script>
+<script>
+
+const L = API.master.hr.leave;
+const esc = (v) => SFA.esc(v == null ? '' : v);
+const val = (id) => document.getElementById(id).value;
+const chk = (id) => document.getElementById(id).checked;
+let SHEET = null; const sheet = () => SHEET || (SHEET = new bootstrap.Offcanvas('#sh'));
+const fmtD = (d) => d ? new Date(String(d).slice(0, 10) + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+const num = (v) => Number(v).toString();
+
+let D = null, TAB = 'm', APR = [];
+const st = (s) => `<span class="ap-badge ${s === 'APPROVED' ? 'ok' : s === 'PENDING' ? 'wait' : 'bad'}">${s}</span>`;
+window.pageInit = async function () { await go('m'); };
+async function go(k) {
+  TAB = k; document.querySelectorAll('#seg button').forEach(b => b.classList.toggle('active', b.dataset.k === k));
+  try { if (k === 'm') { D = await Api.get(L.mine); renderM(); } else { APR = await Api.get(L.approvals, { query: { all: true } }); renderA(); } }
+  catch (e) { document.getElementById('body').innerHTML = '<div class="ap-card ap-empty">' + esc(e.message) + '</div>'; }
+}
+function renderM() {
+  document.getElementById('body').innerHTML = '<div class="row g-2 mb-2">' + D.balances.map(b => `<div class="col-6 col-md-3"><div class="ap-card text-center mb-0"><div class="small text-muted">${esc(b.name)}</div><div class="fs-3 fw-bold">${b.paid ? num(b.balance) : '-'}</div>
+    <div class="small text-muted">${b.paid ? 'earned ' + num(b.earned) + (Number(b.carried) ? ' + carried ' + num(b.carried) : '') + ' · taken ' + num(b.taken) : 'unpaid'}</div></div></div>`).join('') + '</div>'
+   + (D.applications.map(a => `<div class="ap-card"><div class="d-flex align-items-center gap-2"><div class="flex-fill"><b>${esc(a.typeName)}</b> ${st(a.status)} ${a.source === 'DCR' ? '<span class="ap-badge wait">via DCR</span>' : ''}
+     <div>${fmtD(a.fromDate)}${String(a.toDate).slice(0, 10) !== String(a.fromDate).slice(0, 10) ? ' → ' + fmtD(a.toDate) : ''} · ${num(a.days)} day(s)${Number(a.lwpDays) ? ' · ' + num(a.lwpDays) + ' unpaid' : ''}${a.dayPart !== 'FULL' ? ' · ' + a.dayPart.toLowerCase() + ' half' : ''}</div>
+     <div class="small text-muted">${esc(a.reason)}${a.remarks ? ' · ' + esc(a.remarks) : ''}${a.decidedByName ? ' · ' + esc(a.decidedByName) : ''}</div></div>
+     ${(a.status === 'PENDING' || a.status === 'APPROVED') && a.source !== 'DCR' ? `<button class="ap-btn light" onclick="cancel_(${a.id})">Cancel</button>` : ''}</div></div>`).join('') || '<div class="ap-card ap-empty"><i class="bi bi-calendar2-check fs-1"></i><div>No leave applied yet</div></div>');
+}
+function renderA() {
+  document.getElementById('body').innerHTML = APR.map(a => `<div class="ap-card"><div class="d-flex align-items-center gap-2"><div class="flex-fill"><b>${esc(a.empName)}</b> <span class="text-muted">${esc(a.empCode)}</span> ${st(a.status)}
+    <div>${esc(a.typeName)} · ${fmtD(a.fromDate)}${String(a.toDate).slice(0, 10) !== String(a.fromDate).slice(0, 10) ? ' → ' + fmtD(a.toDate) : ''} · ${num(a.days)} day(s)${Number(a.lwpDays) ? ' · ' + num(a.lwpDays) + ' unpaid' : ''}</div><div class="small text-muted">${esc(a.reason)}</div></div>
+    ${a.status === 'PENDING' ? `<div class="d-flex gap-1"><button class="ap-btn go" onclick="decide(${a.id}, true)">Approve</button><button class="ap-btn danger" onclick="decide(${a.id}, false)">Reject</button></div>` : ''}</div></div>`).join('') || '<div class="ap-card ap-empty"><i class="bi bi-inbox fs-1"></i><div>Nothing to approve</div></div>';
+}
+async function decide(id, ok) {
+  let remarks = null; if (!ok) { remarks = prompt('Reason for rejecting'); if (!remarks) return; }
+  try { await Api.post(ok ? L.approve(id) : L.reject(id), { remarks }); await go('a'); SFA.toast(ok ? 'Approved' : 'Rejected'); } catch (e) { SFA.toast(e.message, false); }
+}
+async function cancel_(id) { if (!confirm('Cancel this leave?')) return; try { await Api.post(L.cancel(id), {}); await go('m'); SFA.toast('Cancelled'); } catch (e) { SFA.toast(e.message, false); } }
+async function applyForm() {
+  if (!D) D = await Api.get(L.mine);
+  const today = new Date().toISOString().slice(0, 10);
+  document.getElementById('shT').textContent = 'Apply for leave';
+  document.getElementById('shB').innerHTML = `<div class="row g-3"><div class="col-12"><label class="form-label">Leave type</label><select class="form-select" id="a_type" onchange="prev()">${D.balances.map(b => `<option value="${b.typeId}">${esc(b.name)} (${b.paid ? num(b.balance) + ' left' : 'unpaid'})</option>`).join('')}</select></div>
+   <div class="col-6"><label class="form-label">From</label><input type="date" class="form-control" id="a_from" value="${today}" onchange="prev()"></div><div class="col-6"><label class="form-label">To</label><input type="date" class="form-control" id="a_to" value="${today}" onchange="prev()"></div>
+   <div class="col-12"><label class="form-label">Day</label><select class="form-select" id="a_part" onchange="prev()"><option value="FULL">Full day</option><option value="FIRST">First half</option><option value="SECOND">Second half</option></select></div>
+   <div class="col-12"><label class="form-label">Reason</label><textarea class="form-control" rows="2" id="a_reason" oninput="prev()"></textarea></div>
+   <div class="col-12"><div id="a_prev" class="small"></div></div></div>`;
+  document.getElementById('shF').innerHTML = '<button class="ap-btn light" data-bs-dismiss="offcanvas">Cancel</button><button class="ap-btn go" onclick="submitLeave()"><i class="bi bi-send"></i> Apply</button>';
+  sheet().show(); prev();
+}
+let T = null;
+function prev() { clearTimeout(T); T = setTimeout(async () => {
+  const el = document.getElementById('a_prev'); if (!el) return;
+  try {
+    const p = await Api.get(L.preview, { query: { typeId: val('a_type'), from: val('a_from'), to: val('a_to'), part: val('a_part'), reason: val('a_reason') } });
+    el.innerHTML = p.ok ? `<div class="alert alert-success py-2 mb-0"><i class="bi bi-check-circle"></i> ${num(p.days)} day(s) of leave${Number(p.lwpDays) ? ', of which <b>' + num(p.lwpDays) + ' unpaid</b> (balance over)' : ''}</div>` : `<div class="alert alert-danger py-2 mb-0">${p.errors.map(esc).join('<br>')}</div>`;
+  } catch (e) { el.innerHTML = '<div class="alert alert-danger py-2 mb-0">' + esc(e.message) + '</div>'; } }, 250); }
+async function submitLeave() {
+  try { await Api.post(L.apply, { leaveTypeId: val('a_type'), fromDate: val('a_from'), toDate: val('a_to'), dayPart: val('a_part'), reason: val('a_reason') }); sheet().hide(); await go('m'); SFA.toast('Leave applied'); } catch (e) { SFA.toast(e.message, false); }
+}
+
+</script>
+</body>
+</html>

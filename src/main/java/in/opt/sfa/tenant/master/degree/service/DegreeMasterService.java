@@ -5,7 +5,7 @@ import in.opt.sfa.tenant.master.degree.dto.DegreeMasterDto;
 import in.opt.sfa.tenant.master.degree.entity.DegreeMaster;
 import in.opt.sfa.tenant.master.degree.mapper.DegreeMasterMapper;
 import in.opt.sfa.tenant.master.degree.repository.DegreeMasterRepository;
-import in.opt.sfa.tenant.master.employee.service.EmployeeNameResolver;
+import in.opt.sfa.tenant.master.empdetail.service.EmpNameResolver;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,9 +24,9 @@ public class DegreeMasterService {
 
     private final DegreeMasterRepository degrees;
     private final DegreeMasterMapper mapper;
-    private final EmployeeNameResolver employeeNames;
+    private final EmpNameResolver employeeNames;
 
-    public DegreeMasterService(DegreeMasterRepository degrees, DegreeMasterMapper mapper, EmployeeNameResolver employeeNames) {
+    public DegreeMasterService(DegreeMasterRepository degrees, DegreeMasterMapper mapper, EmpNameResolver employeeNames) {
         this.degrees = degrees;
         this.mapper = mapper;
         this.employeeNames = employeeNames;

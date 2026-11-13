@@ -5,7 +5,7 @@ import in.opt.sfa.tenant.master.hqgroup.dto.HqGroupMasterDto;
 import in.opt.sfa.tenant.master.hqgroup.entity.HqGroupMaster;
 import in.opt.sfa.tenant.master.hqgroup.mapper.HqGroupMasterMapper;
 import in.opt.sfa.tenant.master.hqgroup.repository.HqGroupMasterRepository;
-import in.opt.sfa.tenant.master.employee.service.EmployeeNameResolver;
+import in.opt.sfa.tenant.master.empdetail.service.EmpNameResolver;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,9 +24,9 @@ public class HqGroupMasterService {
 
     private final HqGroupMasterRepository repo;
     private final HqGroupMasterMapper mapper;
-    private final EmployeeNameResolver employeeNames;
+    private final EmpNameResolver employeeNames;
 
-    public HqGroupMasterService(HqGroupMasterRepository repo, HqGroupMasterMapper mapper, EmployeeNameResolver employeeNames) {
+    public HqGroupMasterService(HqGroupMasterRepository repo, HqGroupMasterMapper mapper, EmpNameResolver employeeNames) {
         this.repo = repo;
         this.mapper = mapper;
         this.employeeNames = employeeNames;

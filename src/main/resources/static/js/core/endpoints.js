@@ -22,6 +22,7 @@
     ping: "/api/public/ping",
     dashboard: {
       counts: "/api/dashboard/counts",
+      overview: "/api/dashboard/overview",                               // scoped to the signed-in user (self / team / all)
     },
     settings: {
       get: "/api/settings",
@@ -44,6 +45,11 @@
       setLang: (lang) => "/api/i18n/lang?lang=" + encodeURIComponent(lang),
     },
 
+    files: {
+      // any file stored through FileUploadService (relative path from the table)
+      view: (path, download, name) => "/api/files?path=" + encodeURIComponent(path)
+        + (download ? "&download=true" : "") + (name ? "&name=" + encodeURIComponent(name) : ""),
+    },
     preferences: {
       screen: (screenKey) => `/api/preferences/${encodeURIComponent(screenKey)}`,   // GET layout, POST save, DELETE reset
     },
@@ -53,9 +59,9 @@
     permissionMaster: {
       list: "/api/master/permission-master",               // GET catalog, POST create/update a code
       save: "/api/master/permission-master",
-      targets: "/api/master/permission-master/targets",    // GET employees / designations / emp levels
+      targets: "/api/master/permission-master/targets",    // GET employees / designations / hierarchy levels
       assignments: "/api/master/permission-master/assignments",  // GET ?targetType=&targetValue=, POST upsert
-      deleteAssignment: (oid) => `/api/master/permission-master/assignments/${oid}`,
+      deleteAssignment: (id) => `/api/master/permission-master/assignments/${id}`,
     },
 
     menu: {
@@ -143,6 +149,12 @@
         saveMultiple: "/api/master/area/save-multiple",
         get: (oid) => `/api/master/area/${oid}`,
         status: (oid) => `/api/master/area/${oid}/status`,
+        placesConfig: "/api/master/area/places-config",               // Google Places key of this company (company_details.google_api_key)
+        options: "/api/master/area/options",                           // pick employee (admin) + flow
+        deleteRequest: (oid) => `/api/master/area/${oid}/delete-request`, // body { reason }
+        approve: (oid) => `/api/master/area/${oid}/approve`,              // the step it waits for
+        reject: (oid) => `/api/master/area/${oid}/reject`,                // body { reason }
+        approvals: (oid) => `/api/master/area/${oid}/approvals`,          // history
         template: "/api/master/area/template",
         upload: "/api/master/area/upload",
       },
@@ -185,13 +197,6 @@
         template: "/api/master/client/template",
         upload: "/api/master/client/upload",
       },
-      employee: {
-        base: "/api/master/employee",
-        list: "/api/master/employee",
-        save: "/api/master/employee",
-        get: (oid) => `/api/master/employee/${oid}`,
-        status: (oid) => `/api/master/employee/${oid}/status`,
-      },
       createEmployee: {
         base: "/api/master/create-employee",
         list: "/api/master/create-employee",
@@ -200,6 +205,14 @@
         status: (empId) => `/api/master/create-employee/${empId}/status`,
         template: "/api/master/create-employee/template",
         upload: "/api/master/create-employee/upload",
+        photo: (empId) => `/api/master/create-employee/${encodeURIComponent(empId)}/photo`,          // POST multipart file / DELETE
+        documents: (empId) => `/api/master/create-employee/${encodeURIComponent(empId)}/documents`,  // GET list / POST multipart
+        document: (empId, id) => `/api/master/create-employee/${encodeURIComponent(empId)}/documents/${id}`,  // DELETE
+        suggestLogin: "/api/master/create-employee/suggest-login",          // GET {username, password}
+        usernameAvailable: "/api/master/create-employee/username-available", // GET ?username=&empId=
+        profileOptions: "/api/master/create-employee/profile-options",       // GET relationships, blood groups, …
+        profile: (empId) => `/api/master/create-employee/${encodeURIComponent(empId)}/profile`,   // GET full profile
+        history: (empId) => `/api/master/create-employee/${encodeURIComponent(empId)}/history`,     // GET promotion / transfer timeline
       },
       categoryMaster: {
         base: "/api/master/category-master",
@@ -208,6 +221,165 @@
         saveMultiple: "/api/master/category-master/save-multiple",
         get: (oid) => `/api/master/category-master/${oid}`,
         status: (oid) => `/api/master/category-master/${oid}/status`,
+      },
+      brandMaster: {
+        base: "/api/master/brand-master",
+        list: "/api/master/brand-master",
+        save: "/api/master/brand-master",                  // multipart: data + image
+        saveMultiple: "/api/master/brand-master/save-multiple",
+        get: (id) => `/api/master/brand-master/${id}`,
+        status: (id) => `/api/master/brand-master/${id}/status`,
+      },
+      salutation: {
+        list: "/api/master/salutation",
+        save: "/api/master/salutation",
+        status: (id) => `/api/master/salutation/${id}/status`,   // ?active=
+      },
+      clientMaster: {
+        list: "/api/master/client-master",
+        save: "/api/master/client-master",
+        options: "/api/master/client-master/options",
+        nextCode: "/api/master/client-master/next-code",            // ?clientTypeId=
+        get: (id) => `/api/master/client-master/${id}`,
+        status: (id) => `/api/master/client-master/${id}/status`,   // ?active=
+        approve: (id) => `/api/master/client-master/${id}/approve`, // the step it waits for
+        reject: (id) => `/api/master/client-master/${id}/reject`,   // body { reason }
+        deleteRequest: (id) => `/api/master/client-master/${id}/delete-request`,
+        deleteDecision: (id) => `/api/master/client-master/${id}/delete-decision`,  // ?accept=
+        approvals: (id) => `/api/master/client-master/${id}/approvals`,           // history: who requested / approved / rejected
+        photo: (id) => `/api/master/client-master/${id}/photo`,
+        template: "/api/master/client-master/template",
+        upload: "/api/master/client-master/upload",
+      },
+      tourPlan: {
+        options: "/api/tp/options",                                    // day types, my areas, clients per kind, seniors / juniors
+        plan: "/api/tp/plan",                                          // ?year=&month=&empId=  a month's plan with days, holidays, approval trail
+        list: "/api/tp/list",                                          // ?year=&month=  submitted plans of the team / everyone
+        day: "/api/tp/day",                                            // POST plan a day / DELETE ?date= clear it
+        goal: "/api/tp/goal",                                          // POST {year, month, goal}
+        submit: "/api/tp/submit",                                      // POST {year, month}
+        approve: (id) => `/api/tp/${id}/approve`,
+        remove: (id) => `/api/tp/${id}/delete`,                       // body { reason } delete a whole plan (recorded)
+        deleted: "/api/tp/deleted",                                    // GET ?year=&month= who deleted what, when, why
+        unapprove: (id) => `/api/tp/${id}/unapprove`,                  // body { reason }  take it back to the employee
+        reject: (id) => `/api/tp/${id}/reject`,                        // body { reason }
+      },
+      hr: {
+        me: "/api/hr/me",                                              // my HR roles + permissions
+        company: "/api/hr/company",                                    // GET / POST legal details, FY start, leave-year mode, payroll cycle
+        states: "/api/hr/states",
+        master: (kind) => `/api/hr/${kind}`,                           // kind = branches | departments | grades | cost-centers | employee-types  (GET list / POST save)
+        masterDelete: (kind) => `/api/hr/${kind}/delete`,              // POST {ids, reason}
+        settings: "/api/hr/settings",                                  // GET catalogue with today's value / POST {key, value, effectiveFrom, reason}
+        settingHistory: "/api/hr/settings/history",                    // ?key=
+        matrix: "/api/hr/roles/matrix",
+        rolePerms: (id) => `/api/hr/roles/${id}/permissions`,          // POST {permissions, reason}
+        assignments: "/api/hr/roles/assignments",
+        empRoles: (empId) => `/api/hr/employees/${empId}/roles`,       // POST {roles, reason}
+        employees: "/api/hr/employees",                                // ?q=
+        employee: (empId) => `/api/hr/employees/${empId}`,             // GET / POST employment facts
+        leave: {
+          types: "/api/hr/leave/types", typesDelete: "/api/hr/leave/types/delete",   // leave master (policy) GET / POST save / POST {ids}
+          mine: "/api/hr/leave/mine",                                    // my balances + applications
+          preview: "/api/hr/leave/preview",                              // ?typeId=&from=&to=&part=&reason=  days + policy errors, nothing saved
+          apply: "/api/hr/leave/apply",
+          approvals: "/api/hr/leave/approvals",                          // ?all=true  my team's (admin: everyone's)
+          approve: (id) => `/api/hr/leave/${id}/approve`, reject: (id) => `/api/hr/leave/${id}/reject`, cancel: (id) => `/api/hr/leave/${id}/cancel`,
+          balances: "/api/hr/leave/balances", adjust: "/api/hr/leave/adjust",
+        },
+        salary: {
+          heads: "/api/hr/salary/heads", headsDelete: "/api/hr/salary/heads/delete",        // head master GET / POST save / POST {ids}
+          employees: "/api/hr/salary/employees",                         // ?q=  employees with their current gross
+          of: (empId) => `/api/hr/salary/employees/${empId}`,            // GET revisions + heads / POST {effectiveFrom, gross, values:[{headId,value}], reason}
+          preview: (empId) => `/api/hr/salary/employees/${empId}/preview`,
+        },
+        payroll: {
+          runs: "/api/hr/payroll/runs", run: (id) => `/api/hr/payroll/runs/${id}`, generate: "/api/hr/payroll/generate",   // POST {year, month}
+          approve: (id) => `/api/hr/payroll/runs/${id}/approve`, paid: (id) => `/api/hr/payroll/runs/${id}/paid`, removeRun: (id) => `/api/hr/payroll/runs/${id}/delete`,
+          slip: (id) => `/api/hr/payroll/slips/${id}`, mine: "/api/hr/payroll/mine",
+          lop: (id) => `/api/hr/payroll/slips/${id}/lop`, removeSlip: (id) => `/api/hr/payroll/slips/${id}/delete`, hold: (id) => `/api/hr/payroll/slips/${id}/hold`, release: (id) => `/api/hr/payroll/slips/${id}/release`,
+          holdConfig: "/api/hr/payroll/holds/config", holds: "/api/hr/payroll/holds", holdRelease: (id) => `/api/hr/payroll/holds/${id}/release`,
+          design: "/api/hr/payroll/slip-design",
+        },
+        mark: { employees: "/api/hr/mark/employees", workTypes: "/api/hr/mark/worktypes", submit: "/api/hr/mark" },   // admin marks attendance / leave: POST {mode, from, to, empIds, reason, leaveTypeId, dayPart, shortfallAsLwp}
+        audit: "/api/hr/audit",                                        // ?entity=&empId=&by=&from=&to=
+      },
+      marquee: {
+        mine: "/api/marquee/mine",                                   // the header messages for me, placeholders filled
+        config: "/api/marquee/config",                               // admin: placeholders + states / HQs / designations / employees
+        list: "/api/marquee",                                        // admin GET / POST (save)
+        remove: "/api/marquee/delete",                               // admin POST {ids}
+      },
+      holiday: {
+        config: "/api/holiday/config",                                 // weekly off + states / HQs / employees
+        list: "/api/holiday",                                          // ?year=  GET / POST (save)
+        assign: "/api/holiday/assign",                                 // POST {holidayIds, states, hqs, employees}
+        assignments: "/api/holiday/assignments",                       // GET report ?from&to&type&target
+        deleteAssignments: "/api/holiday/assignments/delete",          // POST {ids}
+        remove: "/api/holiday/delete",                                 // POST {ids}
+        weeklyOff: "/api/holiday/weekly-off",
+        weeklyRules: "/api/holiday/weekly-rules",                       // GET / POST (save)
+        weeklyRulesDelete: "/api/holiday/weekly-rules/delete",          // POST {ids}
+        weeklyTargetsDelete: "/api/holiday/weekly-rules/targets/delete", // POST {ids}                          // POST {days}
+      },
+      dcrSubmit: {
+        options: "/api/dcr/options",                                  // my tabs, clients, areas, items, expense types …
+        list: "/api/dcr",                                             // ?from=&to=&empId= (own / team / all)
+        get: (id) => `/api/dcr/${id}`,
+        del: (id) => `/api/dcr/${id}`,                                // DELETE: owner's draft / rejected DCR (admin: any)
+        tp: "/api/dcr/tp",                                           // ?date= what the approved tour plan lets the DCR offer
+        analysis: (clientId) => `/api/dcr/client-analysis/${clientId}`,  // Pre-Call Analysis of one of my clients
+        geoCheck: "/api/dcr/geo/check",                                // POST {clientId, lat, lng}  is the user at the client?
+        geoTags: (clientId) => `/api/dcr/geo/client/${clientId}/tags`,   // GET the places of a client (primary first) | POST {label, lat, lng} add one;  /{tagId}/primary  /{tagId}/delete
+        geoRetag: "/api/dcr/geo/retag",                                // POST {clientId, lat, lng, reason} ask to retag the client location; GET ?all= for the approver
+        geoRetagApprove: (id) => `/api/dcr/geo/retag/${id}/approve`, geoRetagReject: (id) => `/api/dcr/geo/retag/${id}/reject`,
+        geoMapConfig: "/api/dcr/geo/map-config",                       // Google key for the retag map
+        dayKind: "/api/dcr/day-kind",                                  // ?date=  holiday / weekly off for me, already submitted?, back-date limit
+        holidaySubmit: "/api/dcr/holiday-submit",                      // POST {date, confirmOld}
+        mine: "/api/dcr/mine",                                        // ?date=
+        start: "/api/dcr/start",                                      // POST: start my day (time in = now)
+        save: "/api/dcr",                                             // POST: create / replace my DCR (submit true|false)
+        approve: (id) => `/api/dcr/${id}/approve`,                    // body { remarks }
+        reject: (id) => `/api/dcr/${id}/reject`,                      // body { reason }
+        upload: "/api/dcr/upload",                                    // multipart file (+ kind=image|document) -> { path }
+        worktypes: "/api/dcr/worktypes",                              // GET all rows / POST one row (admin)
+        worktype: (id) => `/api/dcr/worktypes/${id}`,                 // DELETE
+        rules: "/api/dcr/rules",                                      // GET ?empId= (blank = master)
+        rulesSummary: "/api/dcr/rules/summary",                       // GET who has which value
+        ruleFor: (emp, code) => `/api/dcr/rules/employee/${encodeURIComponent(emp)}/${encodeURIComponent(code)}`,   // POST {value, enabled}: upsert for one employee
+        rule: (id) => `/api/dcr/rules/${id}`,                         // POST {value, enabled}
+        rulesApplyAll: "/api/dcr/rules/apply-all",                    // POST {code, value}
+      },
+      teamHierarchy: {
+        list: "/api/master/team-hierarchy",
+        setManager: (empId) => `/api/master/team-hierarchy/${encodeURIComponent(empId)}/manager`,   // POST { managerId, effectiveDate?, remarks? }
+      },
+      passwordReset: {
+        list: "/api/master/password-reset",
+        generate: "/api/master/password-reset/generate",
+        reset: (empId) => `/api/master/password-reset/${encodeURIComponent(empId)}`,
+      },
+      itemMaster: {
+        list: "/api/master/item-master",
+        save: "/api/master/item-master",                   // multipart: data + image
+        get: (id) => `/api/master/item-master/${id}`,
+        status: (id) => `/api/master/item-master/${id}/status`,
+        molecules: "/api/master/item-master/molecules",
+        nextCode: "/api/master/item-master/next-code",     // ?itemTypeId= -> { itemCode: "PD03" }
+        sampleCandidates: "/api/master/item-master/sample-candidates",
+        createSamples: "/api/master/item-master/create-samples",
+        rate: (id) => `/api/master/item-master/${id}/rate`,
+        template: "/api/master/item-master/template",
+        upload: "/api/master/item-master/upload",
+      },
+      designationMaster: {
+        base: "/api/master/designation-master",
+        list: "/api/master/designation-master",
+        save: "/api/master/designation-master",
+        saveMultiple: "/api/master/designation-master/save-multiple",
+        options: "/api/master/designation-master/options",          // categories + role ranges
+        get: (id) => `/api/master/designation-master/${id}`,
+        status: (id) => `/api/master/designation-master/${id}/status`,
       },
       degreeMaster: {
         base: "/api/master/degree-master",
@@ -341,6 +513,10 @@
 
     report: {
       dcr: "/api/report/dcr",
+      inventory: "/api/inventory",                                   // /config (GET, POST) /parties?empId= /list /entry?empId&partyId&month&year /save /upload
+      seniorClients: "/api/dcr/senior-clients",                      // GET ?empId= | GET /candidates?empId= | POST {empId, clientIds[], geoEnabled} | POST /{id}/geo {enabled} | POST /delete {ids}
+      dcrPermissions: "/api/dcr/permissions",                        // GET ?type=&empId=&expired= | POST {type, empIds, dcrFrom, dcrTo, allowFrom, allowTo, reason} | POST /delete {ids}
+      attendance: "/api/report/attendance",                          // /filters  /sheet?month= | from & to ...  /rules (GET / POST) /rules/delete
     },
 
     reportActivity: {

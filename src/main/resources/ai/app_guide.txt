@@ -1,0 +1,57 @@
+SFAExpert (StarSFA) - application guide. This is everything the assistant knows about the application. Menu paths are written as Menu > Sub-menu > Page.
+Top menu groups: Masters (Master Entry), Dashboard, Inventory, Utilities, Sales, Requests, Updations, Location, Mail, AI, Reports, Administration. A user sees only the pages their role / menu settings allow.
+Roles come from the designation level: Super Admin, Admin, Manager, User (field employee). HR roles: Super Admin, HR Admin, Payroll Approver, Manager, Employee (Masters > Master Entry > HR Roles & Access).
+
+== HOME / DASHBOARD ==
+Dashboard (home) shows tiles for the signed-in level: a field user sees only own data, a manager sees the team plus self, an admin sees everyone. Tiles open the related report (DCR Report, Areas, Clients, Products).
+"To approve" links on it open DCR approval and Tour Plan approval.
+
+== MASTER ENTRY (Masters > Master Entry) ==
+Area (Google place auto-complete), Client Master, Item Master, Holiday Master, DCR Tabs (work types & tabs), DCR Rules, Marquee Message, Password Reset, Team Hierarchy, Create Employee, HR Setup, HR Settings, HR Roles & Access, HR Audit Log, Leave Master, Salary Head Master, Employee Salary, Payroll, Salary Hold, Salary Slip Design, Mark Attendance / Leave, Client Retag Approval.
+Marquee Message: scrolling header message (HTML allowed) with placeholders {name} {empCode} {designation} {hq} {state} {manager} {date}, for everyone or chosen states / HQs / designations / employees.
+
+== DCR (Daily Call Report) - Sales > DCR ==
+Flow: choose date > Start Day (work type, start area, travel mode, remarks; time in is captured) > Add visit (Doctor / Chemist / Stockist check-in, unlisted check-in, joint working, expense) > check-in / check-out each client with samples, inputs, POB > Day End > Submit.
+Work types and tabs come from DCR Tabs (Masters > Master Entry > DCR Tabs), per employee. Field work needs area and visits; types like Attendance, Camp, Transit, Training are non-field; LEAVE applies a leave.
+DCR can be filled up to the back-date limit (backDays). A submitted DCR cannot be changed; admin can delete. Manager / admin approve or reject (Sales > DCR > DCR Approval, or the DCR page with view=approval).
+Rules (Masters > Master Entry > DCR Rules, master and employee-wise): DAY_START_STOP_BEFORE_TIME and DAY_START_TIME (earliest / latest time to start the day), DAY_END_TIME (latest time to end / submit the day, today only), DCR_BETWEEN_TIME (check-in / check-out window), CHECKOUT (all calls must be checked out), DCR_Remarks (remarks compulsory), travel mode and meter-reading rules, UNLISTED_* rules, TP_VALIDATE_FILTER (day only from an area of the approved tour plan and only planned clients), TP_SUBMIT_CHECK (tour plan of the month must be submitted and approved before the DCR can be submitted), TP_VALIDATION (a day of month e.g. 25: from that day the NEXT month's tour plan must be submitted; its approval is not checked), GEO_FENCING_ALLOW and GEO_FENCING_DISTANCE.
+Holiday / weekly off DCR: a MySQL job runs every day at 8 PM and puts a submitted HOLIDAY / WEEKLY_OFF DCR on every employee whose day is a holiday / weekly off as set in Holiday Master. If a holiday was assigned later, the DCR page shows "Submit Holiday DCR" for that past date (a date beyond the back-date limit asks for confirmation). Advance dates are blocked. If someone works on a holiday, Start Day replaces the automatic row.
+Pre-Call Analysis: on the client list inside the DCR, shows client facts, month-wise visits, samples / inputs.
+
+== GEO FENCING ==
+When rule GEO_FENCING_ALLOW is TRUE the current location is captured at Start Day and at every client / unlisted check-in and stored with latitude, longitude and address (day start in the DCR, check-ins in the client rows). A listed client check-in is allowed only within GEO_FENCING_DISTANCE metres of the client's tagged location (Client Master latitude / longitude, tagged flag). Too far: the user sees how far the client is, nearby clients with distances, Directions (only for tagged clients) and Retag. If the location cannot be fetched the user is told to turn on GPS, allow location access and open Google Maps, then try again. An untagged client cannot be checked, so check-in is allowed. Retag: the user picks the right place on the map and sends it; manager / admin approve it at Masters > Master Entry > Client Retag Approval; after approval the client's tag changes.
+
+== TOUR PLAN - Sales > Tour Plan ==
+One plan per employee per month: plan each day (areas, clients, retailers, parties, visit-with, area type), set the month goal, Submit. Flow: AUTO / MANAGER / ADMIN / MANAGER then ADMIN approval. Manager / admin can edit a day while approving, un-approve (back to the employee for edit), or delete the whole plan (who / when / why is recorded). Days changed by approver show in a different colour with a before / after history. Approval: Sales > Tour Plan Approval. Holidays and weekly offs show on the calendar (Holiday Master).
+
+== HOLIDAY MASTER (Masters > Master Entry > Holiday Master) ==
+Holidays (date, name) assigned to states / HQs / employees (none = everyone), weekly-off days of the company, and weekly-off rules (weekdays + which week of the month, e.g. 3rd Saturday, 2nd & 4th Saturday, Saturday + Sunday) per state / HQ / employee. Multiple delete is available.
+
+== LEAVE ==
+Leave Master (Masters > Master Entry > Leave Master): leave types and their policy - paid / unpaid, days per year, accrual (whole year upfront or monthly), carry-forward, half day, max days at a time, max per month, notice days, back-date days, how far ahead, reason compulsory, sandwich rule (weekly offs / holidays between leave days count), allow when balance is over (extra days become loss of pay), auto-approve, eligible after N months. Defaults: CL, SL, PL, LWP.
+Apply: (1) on the DCR - Start Day with work type LEAVE (leave type, full / half day, till date, reason); (2) Sales > DCR group > My Leave > Apply leave (live preview). The policy is checked; balance, notice, back-date, overlap etc. can block it.
+Approve: My Leave > Approvals (manager: team, admin: everyone). Nobody approves their own leave. On approval an approved LEAVE DCR is made for every working day of the leave (weekly offs / holidays are skipped); reject / cancel removes them.
+Admin can mark leave for several employees at once: Mark Attendance / Leave > Leave tab (advance dates are blocked).
+Leave balance = earned so far + carried + adjustments - taken (pending counts as taken). Leave year follows the company setting (financial / calendar year).
+
+== ATTENDANCE ==
+Attendance for salary comes from the DCR: a working day with a submitted / approved DCR is present; a working day with no submitted DCR and no leave is absent; weekly off / holiday is never absent; paid leave is not deducted; unpaid leave (LWP) and absent days are.
+Admin marks attendance for several employees: Masters > Master Entry > Mark Attendance / Leave > Attendance tab: choose the work type (from the DCR work type master), dates, reason, employees. Holidays and days that already have a DCR are skipped; each result row says why.
+
+== HR SETUP (Masters > Master Entry > HR Setup) ==
+Company (legal name, PAN, TAN, PF / ESI code, financial year start, leave-year mode, payroll start day), Branches (with state - PT / LWF depend on it), Departments, Grades, Cost centres, Employee types (PF / ESI / leave / comp-off / probation flags) and Employees (branch, department, grade, type, tax regime, probation, notice, PF member since). HR Settings: effective-dated rates (PF ceiling and rates, ESI limit and rates, PT annual cap, wage rule, rounding, maker-checker, "Attendance from the DCR", "Salary needs at least one DCR in the month"). A change has a date and a reason and the old value stays in history. Statutory values must be verified with a CA. HR Audit Log shows who changed what and why.
+HR Roles & Access: Permission matrix (what each role may do) and People (give a person an extra role such as Payroll Approver).
+
+== SALARY / PAYROLL ==
+Set-up once: Salary Head Master (earnings / deductions; each head: fixed amount, percent of another head or gross, or balance; "Deduct for absent / unpaid-leave (LOP) days"; counts in PF wage; counts in ESI wage; taxable; show in slip), then Employee Salary (gross and head values from a date; a month uses the salary that starts on or before its last day; a preview of a full month and the 50% wage-rule warning are shown), Salary Slip Design (title, colour, notes, logo from Company Profile, address, attendance, PAN / UAN / PF / ESI numbers, bank last 4 digits, employer contribution, net pay in words, YTD column on / off).
+Month end: Payroll > pick month > Generate. Slips are made only for employees with a salary effective in that month and (rule) at least one submitted DCR in the month. Loss of pay = absent days + unpaid leave + days before joining / after last working day. A head marked "deduct for LOP" is cut by (amount / days in month x LOP days). PF (on PF wage up to the ceiling) and ESI (if gross is within the limit, rounded up) are worked out from HR Settings. Professional tax is a fixed deduction head. Net pay never goes below zero.
+On the month: LOP button (fix loss-of-pay days with a reason), Hold / Release one salary, dustbin (delete one slip), Delete month, Slip (printable A4 payslip, Print / Save as PDF).
+Approve: a Payroll Approver other than the person who generated it (maker-checker); only a Super Admin can approve a month they generated, with a reason (audited). Employees see a slip only after it is approved and not on hold: Sales > DCR group > My Salary Slip. Generate again on an approved month adds only the employees who have no slip yet; those slips need their own approval. Mark paid when all slips are approved. A paid month and its slips cannot be deleted; an approved one can (with a reason).
+Salary Hold (Masters > Master Entry > Salary Hold): hold salary of chosen states / HQs / designations / employees from a month to a month (or until released); matching slips are put on hold when the month is generated; release a slip on the Payroll page.
+Late-added slips: set the salary or get the DCR submitted, then Generate again.
+
+== REPORTS ==
+DCR Report (Reports > DCR Report): per employee per day for a period, with Present / Absent / Holiday / Weekly off / Leave status, filters by state / HQ / designation / employee, KPIs, Excel export, and a day view (report/dcr-day) with every call, expense and joint working. Absent shows when a working day has no DCR. Scope follows the login level (self / team / all).
+
+== COMMON PROBLEMS ==
+A page opens blank or says Api is not defined: it was opened without the account slot (/u/0/...); open it from the menu. A menu is missing: the migration was not run or the user must sign out and in. A salary slip is not visible to an employee: the month is not approved, the slip is on hold, or no salary / DCR exists for that month. Leave cannot be applied: read the policy message (balance, notice, back-date, overlap). Day cannot start / submit: check the DCR rules above (time limits, tour plan checks, location).

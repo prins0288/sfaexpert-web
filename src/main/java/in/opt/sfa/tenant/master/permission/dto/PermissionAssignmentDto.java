@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 public class PermissionAssignmentDto {
     private Long id;
     private PermissionTargetType targetType;
-    /** emp_id, designation_code, or emp_level (as a string) depending on targetType. */
+    /** emp_id, designation id, or hierarchy level (as a string) depending on targetType. */
     private String targetValue;
     private String permissionCode;
     private Boolean allowed;
