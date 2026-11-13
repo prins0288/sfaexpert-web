@@ -93,7 +93,7 @@
   window.pageInit = async function () { try { CFG = await Api.get(EP + '/config'); draw(); } catch (e) { SFA.toast(e.message, false); } };
   function draw() {
     document.querySelector('#fieldT tbody').innerHTML = CFG.fields.map((f, i) => {
-      const fixed = f.role !== 'NORMAL' || f.core, noMand = f.role !== 'NORMAL';
+      const fixed = f.role !== 'NORMAL', noMand = f.role !== 'NORMAL';   // only Sale / Closing / Rate / Value have a fixed place in the closing; every other field (core ones too) can be + / - / information only
       return `<tr><td>${i + 1}</td><td><code>${esc(f.code)}</code>${f.role === 'VALUE' ? ' <span class="badge bg-info">auto</span>' : f.role !== 'NORMAL' ? ' <span class="badge bg-secondary">' + esc(f.role.toLowerCase()) + '</span>' : ''}${f.builtin ? '' : ' <span class="badge bg-success">own</span>'}${f.core ? '' : ''}</td>
       <td><input class="form-control form-control-sm" data-k="label" data-i="${i}" value="${esc(f.label)}" maxlength="60"></td>
       <td><input class="form-control form-control-sm" data-k="short" data-i="${i}" value="${esc(f.short)}" maxlength="10"></td>

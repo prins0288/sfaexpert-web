@@ -90,7 +90,7 @@ public class InventoryService {
                 String role = (String) cur.get(0).get("field_role");
                 boolean core = flag(cur.get(0).get("is_core")), fixedRole = !"NORMAL".equals(role);   // sale / closing / rate / value: the role decides the sign and they can never be mandatory; a core field is always shown
                 jdbc.update("UPDATE inventory_field_master SET label = ?, short_code = COALESCE(?, short_code), is_enabled = ?, is_mandatory = ?, sign_op = ?, sort_order = ?, updated_by = ?, updated_at = NOW() WHERE field_code = ?",
-                        label, shortCode, core || flag(f.get("enabled")) ? 1 : 0, !fixedRole && flag(f.get("mandatory")) ? 1 : 0, fixedRole ? ("SALE".equals(role) ? -1 : 0) : (core ? ("FREE".equals(code) ? -1 : 1) : sign), f.get("sortOrder") == null ? 100 : Integer.parseInt(f.get("sortOrder").toString()), me, code);
+                        label, shortCode, core || flag(f.get("enabled")) ? 1 : 0, !fixedRole && flag(f.get("mandatory")) ? 1 : 0, fixedRole ? ("SALE".equals(role) ? -1 : 0) : sign, f.get("sortOrder") == null ? 100 : Integer.parseInt(f.get("sortOrder").toString()), me, code);
             }
         }
         if (b.get("settings") instanceof Map<?, ?> s) {
