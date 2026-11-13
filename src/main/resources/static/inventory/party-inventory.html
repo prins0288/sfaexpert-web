@@ -184,7 +184,7 @@
   }
   function recalc(i) {
     const c = calcRow(i), r = VALS[i];
-    const lockOn = E.settings.SALE_CLOSING_LOCK === 'Y' && c.sf && c.cf;
+    const lockOn = E.settings.SALE_CLOSING_CALC === 'Y' && E.settings.SALE_CLOSING_LOCK === 'Y' && c.sf && c.cf;   // nothing is calculated when the calculation is OFF, so there is nothing to lock
     const sTyped = c.sf && r[c.sf.code] !== '', cTyped = c.cf && r[c.cf.code] !== '';
     [c.sf, c.cf].filter(Boolean).forEach(f => {
       const el = document.getElementById('v_' + i + '_' + f.code); if (!el) return;
