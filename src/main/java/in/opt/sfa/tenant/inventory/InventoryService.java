@@ -17,8 +17,8 @@ import java.util.*;
  * Stock &amp; Sales of a party / stockist, month wise: party_sales_parent (one row per party per month - a second submit UPDATES it, never a duplicate)
  * and party_sales_child (one row per item). The company decides the fields in Inventory Master (inventory_field_master): which are shown, mandatory,
  * added or subtracted in the closing (sign), and it can add its own fields (kept in extra_json).
- * Closing = sum of (sign x value) of the shown fields (the Sale field is subtracted). Only Sale typed: Closing is calculated; only Closing typed: Sale is calculated;
- * both typed: no formula (setting SALE_CLOSING_CALC). Stock value = Closing x the rate in use (RATE_SHOWN) - the item rate is taken from the item_rate column chosen in RATE_BASIS (PTS / PTR / MRP ...).
+ * Closing = sum of (sign x value) of the shown fields (the Sale field is subtracted). Setting SALE_CLOSING_MODE: MANUAL = the user types both (nothing is calculated),
+ * CLOSING = the user types the Closing and the Sale is calculated, SALE = the user types the Sale and the Closing is calculated. Stock value = Closing x the rate in use (RATE_SHOWN) - the item rate is taken from the item_rate column chosen in RATE_BASIS (PTS / PTR / MRP ...).
  */
 @Service
 public class InventoryService {
@@ -37,7 +37,7 @@ public class InventoryService {
     public InventoryService(JdbcTemplate jdbc, TeamScope scope) { this.jdbc = jdbc; this.scope = scope; }
 
     // ------------------------------------------------------------------ master (fields + settings)
-    private static final Map<String, String> SETTING_DEFAULTS = Map.of("RATE_SHOWN", "SPECIAL", "FILE_UPLOAD", "N", "FILE_MANDATORY", "N", "SALE_CLOSING_CALC", "Y", "RATE_BASIS", "PTS", "OPENING_EDITABLE", "N", "SALE_CLOSING_LOCK", "Y");
+    private static final Map<String, String> SETTING_DEFAULTS = Map.of("RATE_SHOWN", "SPECIAL", "FILE_UPLOAD", "N", "FILE_MANDATORY", "N", "SALE_CLOSING_MODE", "SALE", "RATE_BASIS", "PTS", "OPENING_EDITABLE", "N");
 
     public List<Field> fields() {
         List<Field> l = new ArrayList<>();
@@ -98,8 +98,9 @@ public class InventoryService {
                 String k = String.valueOf(e.getKey()), v = String.valueOf(e.getValue());
                 if (!SETTING_DEFAULTS.containsKey(k)) continue;
                 if ("RATE_SHOWN".equals(k) && !List.of("SPECIAL", "ITEM").contains(v)) throw new IllegalArgumentException("Rate shown must be SPECIAL or ITEM");
+                if ("SALE_CLOSING_MODE".equals(k) && !List.of("MANUAL", "CLOSING", "SALE").contains(v)) throw new IllegalArgumentException("Sale / Closing mode must be MANUAL, CLOSING or SALE");
                 if ("RATE_BASIS".equals(k) && !BASIS.containsKey(v)) throw new IllegalArgumentException("Rate basis must be one of " + BASIS.keySet());
-                if (!List.of("RATE_SHOWN", "RATE_BASIS").contains(k) && !List.of("Y", "N").contains(v)) throw new IllegalArgumentException(k + " must be Y or N");
+                if (!List.of("RATE_SHOWN", "RATE_BASIS", "SALE_CLOSING_MODE").contains(k) && !List.of("Y", "N").contains(v)) throw new IllegalArgumentException(k + " must be Y or N");
                 jdbc.update("INSERT INTO inventory_setting (setting_key, setting_value, updated_by, updated_at) VALUES (?,?,?,NOW()) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_by = VALUES(updated_by), updated_at = NOW()", k, v, me);
             }
         }
@@ -243,7 +244,7 @@ public class InventoryService {
         List<Field> fields = fields();
         Field sale = fields.stream().filter(f -> "SALE".equals(f.role()) && f.enabled()).findFirst().orElse(null), closingF = fields.stream().filter(f -> "CLOSING".equals(f.role()) && f.enabled()).findFirst().orElse(null);
         List<Field> typed = fields.stream().filter(f -> f.enabled() && !"VALUE".equals(f.role())).toList();
-        boolean calcOn = "Y".equals(st.get("SALE_CLOSING_CALC"));
+        String mode = st.get("SALE_CLOSING_MODE");
 
         List<Map<String, Object>> existing = jdbc.queryForList("SELECT id, file_path, file_name, rate_basis FROM party_sales_parent WHERE party_id = ? AND sale_month = ? AND sale_year = ?", partyId, month, year);
         String filePath = b.get("filePath") == null || b.get("filePath").toString().isBlank() ? null : b.get("filePath").toString(), fileName = b.get("fileName") == null ? null : b.get("fileName").toString();
@@ -267,11 +268,12 @@ public class InventoryService {
             BigDecimal base = BigDecimal.ZERO;   // closing = base - sale
             for (Field f : typed) if ("NORMAL".equals(f.role()) && f.sign() != 0) base = base.add(nz(v.get(f.code())).multiply(BigDecimal.valueOf(f.sign())));
             BigDecimal s = sale == null ? null : v.get(sale.code()), c = closingF == null ? null : v.get(closingF.code()); String calc = null;
-            if (calcOn && !(s != null && c != null)) {   // both typed: no formula
-                if (s != null) { c = base.subtract(s); calc = "C"; }
-                else if (c != null && sale != null) { s = base.subtract(c); calc = "S"; if (s.signum() < 0) throw new IllegalArgumentException("Closing of " + name + " is more than the stock allows (" + sale.label() + " would be " + s.stripTrailingZeros().toPlainString() + ")"); }
-                else if (c == null) { c = base; calc = "C"; }
-            }
+            if ("CLOSING".equals(mode) && closingF != null) {   // the user types the Closing: the Sale is calculated
+                if (c == null) throw new IllegalArgumentException("Enter the " + closingF.label() + " of " + name);
+                if (sale != null) { s = base.subtract(c); calc = "S"; if (s.signum() < 0) throw new IllegalArgumentException(closingF.label() + " of " + name + " is more than the stock allows (" + sale.label() + " would be " + s.stripTrailingZeros().toPlainString() + ")"); }
+            } else if ("SALE".equals(mode)) {   // the user types the Sale: the Closing is calculated
+                c = base.subtract(nz(s)); calc = "C";
+            }                                    // MANUAL: both typed by the user, no formula
             if (c == null) c = BigDecimal.ZERO;
             if (c.signum() < 0) throw new IllegalArgumentException("Closing of " + name + " is negative (" + c.stripTrailingZeros().toPlainString() + ") - check the quantities");
             if (sale != null) v.put(sale.code(), s);

@@ -161,7 +161,7 @@
     E.filePath = E.parent && E.parent.filePath; E.fileName = E.parent && E.parent.fileName;
     E.basis = (E.parent && E.parent.rateBasis) || E.settings.RATE_BASIS;
     const plus = COLS().filter(f => f.role === 'NORMAL' && f.sign > 0).map(f => f.label), minus = COLS().filter(f => f.role === 'NORMAL' && f.sign < 0).map(f => f.label), sf = roleF('SALE'), cf = roleF('CLOSING');
-    document.getElementById('eFormula').textContent = E.settings.SALE_CLOSING_CALC === 'Y' && cf ? (T('inv.closingWord', 'Closing') + ' = (' + plus.join(' + ') + ')' + (sf || minus.length ? ' - (' + [sf ? sf.label : null].concat(minus).filter(Boolean).join(' + ') + ')' : '') + '. ' + (sf ? T('inv.eitherOr', 'Type the Sale and the Closing is calculated, or type the Closing and the Sale is calculated.') : '')) : '';
+    document.getElementById('eFormula').textContent = E.settings.SALE_CLOSING_MODE !== 'MANUAL' && cf ? (T('inv.closingWord', 'Closing') + ' = (' + plus.join(' + ') + ')' + (sf || minus.length ? ' - (' + [sf ? sf.label : null].concat(minus).filter(Boolean).join(' + ') + ')' : '') + '. ' + (E.settings.SALE_CLOSING_MODE === 'CLOSING' ? T('inv.typeClosing', 'Type the Closing; the Sale is calculated.') : T('inv.typeSale', 'Type the Sale; the Closing is calculated.'))) : '';
     drawGrid(); drawFile(); MODAL.show();
   }
   function drawGrid() {
@@ -173,27 +173,25 @@
     E.items.forEach((_, i) => recalc(i)); totals();
   }
   function vIn(i, code, v) { VALS[i][code] = v; recalc(i); totals(); }
-  // the calculation of one row (the server does the same on save)
+  // the calculation of one row (the server does the same on save). Mode: SALE = the user types the Sale, the Closing is calculated; CLOSING = the user types the Closing, the Sale is calculated; MANUAL = both typed, nothing calculated.
   function calcRow(i) {
-    const r = VALS[i], n = (c) => (c == null || r[c] === '' || r[c] == null ? null : Number(r[c])), cols = COLS(), sf = roleF('SALE'), cf = roleF('CLOSING'), rf = roleF('RATE');
+    const r = VALS[i], n = (c) => (c == null || r[c] === '' || r[c] == null ? null : Number(r[c])), cols = COLS(), sf = roleF('SALE'), cf = roleF('CLOSING'), rf = roleF('RATE'), mode = E.settings.SALE_CLOSING_MODE;
     let base = 0; cols.forEach(f => { if (f.role === 'NORMAL' && f.sign) base += f.sign * (n(f.code) || 0); });
-    let S = sf ? n(sf.code) : null, C = cf ? n(cf.code) : null, hint = null; const any = cols.some(f => n(f.code) != null);
-    if (E.settings.SALE_CLOSING_CALC === 'Y' && !(S != null && C != null) && any) { if (S != null) { C = base - S; hint = cf ? cf.code : null; } else if (C != null && sf) { S = base - C; hint = sf.code; } else if (C == null) { C = base; hint = cf ? cf.code : null; } }
+    const any = cols.some(f => n(f.code) != null && !(mode === 'CLOSING' && sf && f.code === sf.code) && !(mode === 'SALE' && cf && f.code === cf.code));
+    let S = sf ? n(sf.code) : null, C = cf ? n(cf.code) : null, auto = null;
+    if (mode === 'SALE' && cf) { C = any ? base - (S || 0) : null; auto = cf.code; }
+    else if (mode === 'CLOSING' && sf && cf) { S = C != null ? base - C : null; auto = sf.code; }
     const sp = rf ? n(rf.code) : null, rate = E.settings.RATE_SHOWN === 'SPECIAL' && sp > 0 ? sp : Number(E.items[i].rate);
-    return { S, C, hint, value: (C || 0) * rate, any, bad: (C != null && C < 0) || (S != null && S < 0), sf, cf };
+    return { S, C, auto, value: (C || 0) * rate, any, bad: (C != null && C < 0) || (S != null && S < 0), sf, cf };
   }
   function recalc(i) {
-    const c = calcRow(i), r = VALS[i];
-    const lockOn = E.settings.SALE_CLOSING_CALC === 'Y' && E.settings.SALE_CLOSING_LOCK === 'Y' && c.sf && c.cf;   // nothing is calculated when the calculation is OFF, so there is nothing to lock
-    const sTyped = c.sf && r[c.sf.code] !== '', cTyped = c.cf && r[c.cf.code] !== '';
+    const c = calcRow(i);
     [c.sf, c.cf].filter(Boolean).forEach(f => {
       const el = document.getElementById('v_' + i + '_' + f.code); if (!el) return;
-      const isSale = f.role === 'SALE', typed = isSale ? sTyped : cTyped, otherTyped = isSale ? cTyped : sTyped;
-      const locked = lockOn && otherTyped && !typed;   // the one typed decides: the other is read only and shows the calculation
-      el.readOnly = locked; el.tabIndex = locked ? -1 : 0; el.style.background = locked ? '#eef1f4' : '';
-      if (locked) { const v = isSale ? c.S : c.C; el.value = v == null ? '' : String(Math.round(v * 100) / 100); el.placeholder = ''; }
-      else { if (el.value !== r[f.code]) el.value = r[f.code]; el.placeholder = c.hint === f.code ? '= ' + (f.role === 'CLOSING' ? c.C : c.S) : ''; }
-      el.classList.toggle('bad', c.bad && (locked || c.hint === f.code || el.value !== ''));
+      const isAuto = c.auto === f.code;   // the calculated field is read only and shows the result; the others are typed
+      el.readOnly = isAuto; el.tabIndex = isAuto ? -1 : 0; el.style.background = isAuto ? '#eef1f4' : '';
+      if (isAuto) { const v = f.role === 'CLOSING' ? c.C : c.S; el.value = v == null ? '' : String(Math.round(v * 100) / 100); VALS[i][f.code] = ''; }
+      el.classList.toggle('bad', c.bad && (isAuto || el.value !== ''));
     });
     const sv = document.getElementById('sv_' + i); if (sv) sv.textContent = c.any ? money(c.value) : '';
   }

@@ -24,7 +24,7 @@ INSERT IGNORE INTO inventory_field_master (field_code, label, short_code, sign_o
 CREATE TABLE IF NOT EXISTS inventory_setting (
   setting_key VARCHAR(30) NOT NULL, setting_value VARCHAR(60) NOT NULL, updated_by VARCHAR(40) NULL, updated_at DATETIME NULL,
   PRIMARY KEY (setting_key)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='RATE_SHOWN = SPECIAL (special rate when entered, else item rate) | ITEM (always the item rate); FILE_UPLOAD = Y | N; FILE_MANDATORY = Y | N; RATE_BASIS = PTS | PTR | MRP | PURCHASE_RATE (the column of item_rate the stock is submitted on); SALE_CLOSING_CALC = Y | N (only Sale typed: closing is calculated; only Closing typed: sale is calculated; both typed: no formula)';
-INSERT IGNORE INTO inventory_setting (setting_key, setting_value) VALUES ('RATE_SHOWN','SPECIAL'),('FILE_UPLOAD','N'),('FILE_MANDATORY','N'),('SALE_CLOSING_CALC','Y'),('RATE_BASIS','PTS');
+INSERT IGNORE INTO inventory_setting (setting_key, setting_value) VALUES ('RATE_SHOWN','SPECIAL'),('FILE_UPLOAD','N'),('FILE_MANDATORY','N'),('SALE_CLOSING_CALC','Y'),('SALE_CLOSING_MODE','SALE'),('RATE_BASIS','PTS');
 
 CREATE TABLE IF NOT EXISTS party_sales_parent (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -86,7 +86,7 @@ INSERT IGNORE INTO inventory_field_master (field_code, label, is_auto, sort_orde
 CREATE TABLE IF NOT EXISTS inventory_setting (
   setting_key VARCHAR(30) NOT NULL, setting_value VARCHAR(60) NOT NULL, updated_by VARCHAR(40) NULL, updated_at DATETIME NULL,
   PRIMARY KEY (setting_key)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='RATE_SHOWN = SPECIAL (special rate when entered, else item rate) | ITEM (always the item rate); FILE_UPLOAD = Y | N; FILE_MANDATORY = Y | N; RATE_BASIS = PTS | PTR | MRP | PURCHASE_RATE (the column of item_rate the stock is submitted on); SALE_CLOSING_CALC = Y | N (only Sale typed: closing is calculated; only Closing typed: sale is calculated; both typed: no formula)';
-INSERT IGNORE INTO inventory_setting (setting_key, setting_value) VALUES ('RATE_SHOWN','SPECIAL'),('FILE_UPLOAD','N'),('FILE_MANDATORY','N'),('SALE_CLOSING_CALC','Y'),('RATE_BASIS','PTS');
+INSERT IGNORE INTO inventory_setting (setting_key, setting_value) VALUES ('RATE_SHOWN','SPECIAL'),('FILE_UPLOAD','N'),('FILE_MANDATORY','N'),('SALE_CLOSING_CALC','Y'),('SALE_CLOSING_MODE','SALE'),('RATE_BASIS','PTS');
 
 CREATE TABLE IF NOT EXISTS party_sales_parent (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -148,7 +148,7 @@ INSERT IGNORE INTO inventory_field_master (field_code, label, is_auto, sort_orde
 CREATE TABLE IF NOT EXISTS inventory_setting (
   setting_key VARCHAR(30) NOT NULL, setting_value VARCHAR(60) NOT NULL, updated_by VARCHAR(40) NULL, updated_at DATETIME NULL,
   PRIMARY KEY (setting_key)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='RATE_SHOWN = SPECIAL (special rate when entered, else item rate) | ITEM (always the item rate); FILE_UPLOAD = Y | N; FILE_MANDATORY = Y | N; RATE_BASIS = PTS | PTR | MRP | PURCHASE_RATE (the column of item_rate the stock is submitted on); SALE_CLOSING_CALC = Y | N (only Sale typed: closing is calculated; only Closing typed: sale is calculated; both typed: no formula)';
-INSERT IGNORE INTO inventory_setting (setting_key, setting_value) VALUES ('RATE_SHOWN','SPECIAL'),('FILE_UPLOAD','N'),('FILE_MANDATORY','N'),('SALE_CLOSING_CALC','Y'),('RATE_BASIS','PTS');
+INSERT IGNORE INTO inventory_setting (setting_key, setting_value) VALUES ('RATE_SHOWN','SPECIAL'),('FILE_UPLOAD','N'),('FILE_MANDATORY','N'),('SALE_CLOSING_CALC','Y'),('SALE_CLOSING_MODE','SALE'),('RATE_BASIS','PTS');
 
 CREATE TABLE IF NOT EXISTS party_sales_parent (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -210,7 +210,7 @@ INSERT IGNORE INTO inventory_field_master (field_code, label, is_auto, sort_orde
 CREATE TABLE IF NOT EXISTS inventory_setting (
   setting_key VARCHAR(30) NOT NULL, setting_value VARCHAR(60) NOT NULL, updated_by VARCHAR(40) NULL, updated_at DATETIME NULL,
   PRIMARY KEY (setting_key)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='RATE_SHOWN = SPECIAL (special rate when entered, else item rate) | ITEM (always the item rate); FILE_UPLOAD = Y | N; FILE_MANDATORY = Y | N; RATE_BASIS = PTS | PTR | MRP | PURCHASE_RATE (the column of item_rate the stock is submitted on); SALE_CLOSING_CALC = Y | N (only Sale typed: closing is calculated; only Closing typed: sale is calculated; both typed: no formula)';
-INSERT IGNORE INTO inventory_setting (setting_key, setting_value) VALUES ('RATE_SHOWN','SPECIAL'),('FILE_UPLOAD','N'),('FILE_MANDATORY','N'),('SALE_CLOSING_CALC','Y'),('RATE_BASIS','PTS');
+INSERT IGNORE INTO inventory_setting (setting_key, setting_value) VALUES ('RATE_SHOWN','SPECIAL'),('FILE_UPLOAD','N'),('FILE_MANDATORY','N'),('SALE_CLOSING_CALC','Y'),('SALE_CLOSING_MODE','SALE'),('RATE_BASIS','PTS');
 
 CREATE TABLE IF NOT EXISTS party_sales_parent (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,

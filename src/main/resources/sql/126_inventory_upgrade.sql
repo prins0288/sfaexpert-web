@@ -66,7 +66,7 @@ INSERT IGNORE INTO inventory_field_master (field_code, label, short_code, sign_o
  ('SPECIAL_RATE','Spl. Rate','SR',0,'RATE',1,0,10),('OPENING','Opening Quantity','O',1,'NORMAL',1,1,20),('PRIMARY','Purchase Quantity','P',1,'NORMAL',1,1,30),('SECONDARY','Sale','S',-1,'SALE',1,1,40),('FREE','Free Goods','FG',-1,'NORMAL',1,1,50),
  ('RETURN_RETAILER','Return from Retailer','RGFR',1,'NORMAL',1,0,60),('RETURN_CONSIGNEE','Return to Consignee','RGTCSA',-1,'NORMAL',1,0,70),('EXPIRY_RETAILER','Expiry from Retailer','EGFR',1,'NORMAL',1,0,80),('EXPIRY_CONSIGNEE','Expiry to Consignee','EGRTCSA',-1,'NORMAL',1,0,90),
  ('CLOSING','Closing Quantity','C',0,'CLOSING',1,1,100),('STOCK_VALUE','Stock Value','SV',0,'VALUE',1,1,110);
-INSERT IGNORE INTO inventory_setting (setting_key, setting_value) VALUES ('RATE_SHOWN','SPECIAL'),('FILE_UPLOAD','N'),('FILE_MANDATORY','N'),('SALE_CLOSING_CALC','Y'),('RATE_BASIS','PTS'),('OPENING_EDITABLE','N'),('SALE_CLOSING_LOCK','Y');
+INSERT IGNORE INTO inventory_setting (setting_key, setting_value) VALUES ('RATE_SHOWN','SPECIAL'),('FILE_UPLOAD','N'),('FILE_MANDATORY','N'),('SALE_CLOSING_CALC','Y'),('SALE_CLOSING_MODE','SALE'),('RATE_BASIS','PTS'),('OPENING_EDITABLE','N'),('SALE_CLOSING_LOCK','Y');
 
 USE globex_db;
 
@@ -134,7 +134,7 @@ INSERT IGNORE INTO inventory_field_master (field_code, label, short_code, sign_o
  ('SPECIAL_RATE','Spl. Rate','SR',0,'RATE',1,0,10),('OPENING','Opening Quantity','O',1,'NORMAL',1,1,20),('PRIMARY','Purchase Quantity','P',1,'NORMAL',1,1,30),('SECONDARY','Sale','S',-1,'SALE',1,1,40),('FREE','Free Goods','FG',-1,'NORMAL',1,1,50),
  ('RETURN_RETAILER','Return from Retailer','RGFR',1,'NORMAL',1,0,60),('RETURN_CONSIGNEE','Return to Consignee','RGTCSA',-1,'NORMAL',1,0,70),('EXPIRY_RETAILER','Expiry from Retailer','EGFR',1,'NORMAL',1,0,80),('EXPIRY_CONSIGNEE','Expiry to Consignee','EGRTCSA',-1,'NORMAL',1,0,90),
  ('CLOSING','Closing Quantity','C',0,'CLOSING',1,1,100),('STOCK_VALUE','Stock Value','SV',0,'VALUE',1,1,110);
-INSERT IGNORE INTO inventory_setting (setting_key, setting_value) VALUES ('RATE_SHOWN','SPECIAL'),('FILE_UPLOAD','N'),('FILE_MANDATORY','N'),('SALE_CLOSING_CALC','Y'),('RATE_BASIS','PTS'),('OPENING_EDITABLE','N'),('SALE_CLOSING_LOCK','Y');
+INSERT IGNORE INTO inventory_setting (setting_key, setting_value) VALUES ('RATE_SHOWN','SPECIAL'),('FILE_UPLOAD','N'),('FILE_MANDATORY','N'),('SALE_CLOSING_CALC','Y'),('SALE_CLOSING_MODE','SALE'),('RATE_BASIS','PTS'),('OPENING_EDITABLE','N'),('SALE_CLOSING_LOCK','Y');
 
 USE initech_db;
 
@@ -202,7 +202,7 @@ INSERT IGNORE INTO inventory_field_master (field_code, label, short_code, sign_o
  ('SPECIAL_RATE','Spl. Rate','SR',0,'RATE',1,0,10),('OPENING','Opening Quantity','O',1,'NORMAL',1,1,20),('PRIMARY','Purchase Quantity','P',1,'NORMAL',1,1,30),('SECONDARY','Sale','S',-1,'SALE',1,1,40),('FREE','Free Goods','FG',-1,'NORMAL',1,1,50),
  ('RETURN_RETAILER','Return from Retailer','RGFR',1,'NORMAL',1,0,60),('RETURN_CONSIGNEE','Return to Consignee','RGTCSA',-1,'NORMAL',1,0,70),('EXPIRY_RETAILER','Expiry from Retailer','EGFR',1,'NORMAL',1,0,80),('EXPIRY_CONSIGNEE','Expiry to Consignee','EGRTCSA',-1,'NORMAL',1,0,90),
  ('CLOSING','Closing Quantity','C',0,'CLOSING',1,1,100),('STOCK_VALUE','Stock Value','SV',0,'VALUE',1,1,110);
-INSERT IGNORE INTO inventory_setting (setting_key, setting_value) VALUES ('RATE_SHOWN','SPECIAL'),('FILE_UPLOAD','N'),('FILE_MANDATORY','N'),('SALE_CLOSING_CALC','Y'),('RATE_BASIS','PTS'),('OPENING_EDITABLE','N'),('SALE_CLOSING_LOCK','Y');
+INSERT IGNORE INTO inventory_setting (setting_key, setting_value) VALUES ('RATE_SHOWN','SPECIAL'),('FILE_UPLOAD','N'),('FILE_MANDATORY','N'),('SALE_CLOSING_CALC','Y'),('SALE_CLOSING_MODE','SALE'),('RATE_BASIS','PTS'),('OPENING_EDITABLE','N'),('SALE_CLOSING_LOCK','Y');
 
 USE sfa_demo;
 
@@ -270,4 +270,4 @@ INSERT IGNORE INTO inventory_field_master (field_code, label, short_code, sign_o
  ('SPECIAL_RATE','Spl. Rate','SR',0,'RATE',1,0,10),('OPENING','Opening Quantity','O',1,'NORMAL',1,1,20),('PRIMARY','Purchase Quantity','P',1,'NORMAL',1,1,30),('SECONDARY','Sale','S',-1,'SALE',1,1,40),('FREE','Free Goods','FG',-1,'NORMAL',1,1,50),
  ('RETURN_RETAILER','Return from Retailer','RGFR',1,'NORMAL',1,0,60),('RETURN_CONSIGNEE','Return to Consignee','RGTCSA',-1,'NORMAL',1,0,70),('EXPIRY_RETAILER','Expiry from Retailer','EGFR',1,'NORMAL',1,0,80),('EXPIRY_CONSIGNEE','Expiry to Consignee','EGRTCSA',-1,'NORMAL',1,0,90),
  ('CLOSING','Closing Quantity','C',0,'CLOSING',1,1,100),('STOCK_VALUE','Stock Value','SV',0,'VALUE',1,1,110);
-INSERT IGNORE INTO inventory_setting (setting_key, setting_value) VALUES ('RATE_SHOWN','SPECIAL'),('FILE_UPLOAD','N'),('FILE_MANDATORY','N'),('SALE_CLOSING_CALC','Y'),('RATE_BASIS','PTS'),('OPENING_EDITABLE','N'),('SALE_CLOSING_LOCK','Y');
+INSERT IGNORE INTO inventory_setting (setting_key, setting_value) VALUES ('RATE_SHOWN','SPECIAL'),('FILE_UPLOAD','N'),('FILE_MANDATORY','N'),('SALE_CLOSING_CALC','Y'),('SALE_CLOSING_MODE','SALE'),('RATE_BASIS','PTS'),('OPENING_EDITABLE','N'),('SALE_CLOSING_LOCK','Y');
