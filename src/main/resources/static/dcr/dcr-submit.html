@@ -424,7 +424,6 @@
       ${working ? field('Starting from (area)', `<select class="form-select" data-no-search onchange="ST.startAreaId=this.value;areaTypeShow()">${opts(startAreas(), ST.startAreaId, 'Select area')}</select><div class="small mt-1" id="stAreaType"></div>`) : ''}
       ${working ? tmField(`<select class="form-select" data-no-search onchange="ST.travelMode=this.value">${opts(OPT.travelModes, ST.travelMode, 'Select')}</select>`) + meterField() : ''}
       ${ST.workType === 'LEAVE' ? leaveFields() : ''}
-      ${today ? '' : field('Time in (earlier day)', inp('timeIn', 'time'), 'col-6')}
       ${field(ST.workType === 'LEAVE' ? 'Reason for leave' : 'Remarks', `<textarea class="form-control" rows="2" oninput="ST.remarks=this.value">${esc(ST.remarks)}</textarea>`)}</div>
       <div class="small text-muted mt-3"><i class="bi bi-clock"></i> ${today ? 'Your time in is captured when you tap Start Day.' : 'Enter the time your day started.'}</div>`,
       '<button class="btn btn-light" onclick="sheetClose()">Cancel</button><button class="dcr-start-btn flex-fill" onclick="dcrStart()"' + (tpBlocked() ? ' disabled' : '') + '><i class="bi bi-play-circle"></i> Start Day</button>');

@@ -424,8 +424,7 @@ public class DcrService {
         if (jdbc.queryForObject("SELECT COUNT(*) FROM dcr_parent_summary WHERE emp_id = ? AND dcr_date = ?", Integer.class, me, date) > 0) {
             throw new IllegalStateException("Your day is already started");
         }
-        LocalTime timeIn = date.equals(today) ? LocalTime.now().withSecond(0).withNano(0) : time(f.getTimeIn(), "Time in");
-        if (timeIn == null) throw new IllegalStateException("Enter the time your day started");
+        LocalTime timeIn = LocalTime.now().withSecond(0).withNano(0);   // never typed: the time of the button click (an earlier day too)
         boolean working = worktypes.isFieldWork(me, workType);
         boolean leaveDay = "LEAVE".equals(workType);
         LocalDate leaveTo = date;
@@ -600,7 +599,7 @@ public class DcrService {
         // time in is fixed when the day starts; time out is stamped on submit (a past day: as typed)
         LocalTime tin = existing.get(0).get("time_in") == null ? null : LocalTime.parse(existing.get(0).get("time_in").toString());
         LocalTime tout = existing.get(0).get("time_out") == null ? null : LocalTime.parse(existing.get(0).get("time_out").toString());
-        if (f.isSubmit() && tout == null) tout = date.equals(today) ? LocalTime.now().withSecond(0).withNano(0) : time(f.getTimeOut(), "Time out");
+        if (f.isSubmit() && tout == null) tout = LocalTime.now().withSecond(0).withNano(0);   // never typed: the time of the Submit / End Day click
         if (tin != null && tout != null && tout.isBefore(tin) && date.equals(today)) tout = tin;
         if (f.isSubmit() && tin != null && tout != null && tout.isBefore(tin) && DcrRuleService.bool(rl, "DAYEND_BEFORE_DAYSTART_VALIDATION", false)) {
             throw new IllegalStateException("Day end time cannot be before the day start time (" + tin + ")");

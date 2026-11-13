@@ -30,6 +30,9 @@ Reference pages: `report/dcr-report.html` (summary + date-wise report) and `mast
 * **Filters** follow the login level (self / team / all via `TeamScope`), cascading state > HQ > designation > employee, Reset + Show buttons; a server-side "Full Excel" export where the report has more columns than the screen.
 * Never show `empId`; employee code or name only. Everything checked at phone and desktop width.
 
+## DCR: time is never asked
+* Day start, day end / final submit, client check-in and check-out take the time **automatically from the click** (server clock). Never add a time input to the DCR; this holds for an earlier (back-dated) day too - the time of the click is used.
+
 ## Database / migrations
 * Numbered idempotent SQL in `src/main/resources/sql/NN_name.sql`, one block per tenant DB (`USE acme_db; ...`), guarded with `information_schema` + prepared statements; safe to re-run. Next number: check the highest existing file.
 * `ddl-auto: validate`: every entity column needs a migration. New code mostly uses `JdbcTemplate`.
