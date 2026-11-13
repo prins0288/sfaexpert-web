@@ -17,7 +17,7 @@ public class RouteAreaMap {
     @Column(name = "route_oid")
     private Long routeOid;
 
-    @Column(name = "area_oid")
+    @Column(name = "area_id")
     private Long areaOid;
 
     @Column(name = "visit_sequence")
@@ -32,9 +32,9 @@ public class RouteAreaMap {
     @Formula("(select r.route_code from route r where r.oid = route_oid)")
     private String routeCode;
 
-    @Formula("(select a.area_name from area_master a where a.id = area_oid)")
+    @Formula("(select a.area_name from area_master a where a.id = area_id)")
     private String areaName;
 
-    @Formula("(select a.area_code from area_master a where a.id = area_oid)")
+    @Formula("(select a.area_code from area_master a where a.id = area_id)")
     private String areaCode;
 }
