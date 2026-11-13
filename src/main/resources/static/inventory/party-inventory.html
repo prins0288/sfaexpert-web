@@ -176,8 +176,18 @@
     return { S, C, hint, value: (C || 0) * rate, any, bad: (C != null && C < 0) || (S != null && S < 0), sf, cf };
   }
   function recalc(i) {
-    const c = calcRow(i);
-    [c.sf, c.cf].filter(Boolean).forEach(f => { const el = document.getElementById('v_' + i + '_' + f.code); if (!el) return; el.placeholder = c.hint === f.code ? '= ' + (f.role === 'CLOSING' ? c.C : c.S) : ''; el.classList.toggle('bad', c.bad && (c.hint === f.code || el.value !== '')); });
+    const c = calcRow(i), r = VALS[i];
+    const lockOn = E.settings.SALE_CLOSING_LOCK === 'Y' && c.sf && c.cf;
+    const sTyped = c.sf && r[c.sf.code] !== '', cTyped = c.cf && r[c.cf.code] !== '';
+    [c.sf, c.cf].filter(Boolean).forEach(f => {
+      const el = document.getElementById('v_' + i + '_' + f.code); if (!el) return;
+      const isSale = f.role === 'SALE', typed = isSale ? sTyped : cTyped, otherTyped = isSale ? cTyped : sTyped;
+      const locked = lockOn && otherTyped && !typed;   // the one typed decides: the other is read only and shows the calculation
+      el.readOnly = locked; el.tabIndex = locked ? -1 : 0; el.style.background = locked ? '#eef1f4' : '';
+      if (locked) { const v = isSale ? c.S : c.C; el.value = v == null ? '' : String(Math.round(v * 100) / 100); el.placeholder = ''; }
+      else { if (el.value !== r[f.code]) el.value = r[f.code]; el.placeholder = c.hint === f.code ? '= ' + (f.role === 'CLOSING' ? c.C : c.S) : ''; }
+      el.classList.toggle('bad', c.bad && (locked || c.hint === f.code || el.value !== ''));
+    });
     const sv = document.getElementById('sv_' + i); if (sv) sv.textContent = c.any ? money(c.value) : '';
   }
   function totals() { let n = 0, v = 0; E.items.forEach((_, i) => { const c = calcRow(i); if (c.any) { n++; v += c.value; } }); document.getElementById('eTotal').textContent = n + ' ' + T('inv.items', 'Items') + ' · ' + T('inv.stockValue', 'Stock value') + ' ' + money(v); }

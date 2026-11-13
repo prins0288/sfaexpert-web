@@ -37,7 +37,7 @@ public class InventoryService {
     public InventoryService(JdbcTemplate jdbc, TeamScope scope) { this.jdbc = jdbc; this.scope = scope; }
 
     // ------------------------------------------------------------------ master (fields + settings)
-    private static final Map<String, String> SETTING_DEFAULTS = Map.of("RATE_SHOWN", "SPECIAL", "FILE_UPLOAD", "N", "FILE_MANDATORY", "N", "SALE_CLOSING_CALC", "Y", "RATE_BASIS", "PTS", "OPENING_EDITABLE", "N");
+    private static final Map<String, String> SETTING_DEFAULTS = Map.of("RATE_SHOWN", "SPECIAL", "FILE_UPLOAD", "N", "FILE_MANDATORY", "N", "SALE_CLOSING_CALC", "Y", "RATE_BASIS", "PTS", "OPENING_EDITABLE", "N", "SALE_CLOSING_LOCK", "Y");
 
     public List<Field> fields() {
         List<Field> l = new ArrayList<>();
