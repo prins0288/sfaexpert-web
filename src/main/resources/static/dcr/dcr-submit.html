@@ -538,7 +538,7 @@
   function paneCalls(tab, kind) {
     const list = kind === 'v' ? ST.visits.map((c, i) => [c, i]).filter(x => x[0].worktypeCode === tab.code) : ST.unlisted.map((c, i) => [c, i]);
     const cards = list.map(([c, i]) => {
-      const name = kind === 'v' ? c.clientName : c.clientName, sub = kind === 'v' ? [c.clientCode, c.clientTypeName].filter(Boolean).join(' · ') : (c.mobile || 'Unlisted');
+      const name = kind === 'v' ? c.clientName : c.clientName, sub = kind === 'v' ? [c.clientCode, c.clientTypeName, (OPT.clients.find(x => x.id === c.clientId) || {}).ownerId !== OPT.me ? ((OPT.clients.find(x => x.id === c.clientId) || {}).ownerName || '') : ''].filter(Boolean).join(' · ') : (c.mobile || 'Unlisted');
       const pob = callPob(c), nItems = (c.items || []).length;
       return `<div class="card-lite dcr-visit" onclick="editCall('${kind}',${i})"><div class="ava">${esc(initials(name))}</div>
         <div class="meta"><b>${esc(name)}</b><small class="text-muted">${esc(sub)}${c.inTime ? ' · ' + esc(c.inTime) + (c.outTime ? '–' + esc(c.outTime) : '') : ''}</small>
@@ -577,7 +577,7 @@
       return `<div class="cl-card ${vis ? 'visited' : ''}" onclick="${vis ? 'visitedNote()' : `addClient(${c.id})`}"><div class="flex-fill" style="min-width:0">
         <div><span class="cl-name">${esc(c.name)}</span>${c.category ? ` <span class="text-muted">- [${esc(c.category)}]</span>` : ''}${vis ? `<span class="cl-badge">${today ? 'VISITED TODAY' : 'VISITED'}</span>` : ''}</div>
         <div class="cl-sub">${esc([c.speciality, c.areaName].filter(Boolean).join(' · ') || c.clientTypeName || '')}</div>
-        <div class="small text-muted">Code ${esc(c.code)}${c.category ? ' · Cat ' + esc(c.category) : ''} · Visits ${Number(c.visits || 0)}</div>
+        <div class="small text-muted">Code ${esc(c.code)}${c.category ? ' · Cat ' + esc(c.category) : ''} · Visits ${Number(c.visits || 0)}${c.ownerId && c.ownerId !== OPT.me && c.ownerName ? ' · <b>of ' + esc(c.ownerName) + '</b>' : ''}</div>
         <div class="small cl-sub"><i class="bi bi-clock-history"></i> Last visit: ${esc(fmtDay(c.lastVisit))}</div>
         <button type="button" class="pca-btn" onclick="event.stopPropagation();preCall(${c.id})"><i class="bi bi-graph-up-arrow"></i> Pre-Call Analysis</button></div>${c.tagged && c.lat != null ? `<button type="button" class="btn btn-outline-primary btn-sm rounded-circle me-1" title="Directions to the client" style="width:2.2rem;height:2.2rem;padding:0" onclick="event.stopPropagation();openDir(${c.id})"><i class="bi bi-sign-turn-right-fill"></i></button>` : ''}<i class="bi bi-person cl-ico"></i></div>`; }).join('')
       || '<div class="dcr-empty">No client found</div>';
