@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import in.opt.sfa.common.repository.CompanyDetailsRepository;
 import in.opt.sfa.exception.ForbiddenException;
+import in.opt.sfa.security.Authz;
 import in.opt.sfa.tenant.context.TenantContext;
 import in.opt.sfa.tenant.dcr.submit.service.DcrRuleService;
 import in.opt.sfa.tenant.team.TeamScope;
@@ -73,24 +74,90 @@ public class GeoService {
         out.put("geo", geo);
         if (!geo) { out.put("ok", true); out.put("code", "OK"); return out; }
         if (!GeoCalc.validLatLng(lat, lng)) { out.put("ok", false); out.put("code", "NO_LOCATION"); out.put("message", NO_LOCATION); return out; }
-        Map<String, Object> c = jdbc.queryForList("SELECT CONCAT(COALESCE(CONCAT(salutation, ' '), ''), client_name) AS name, latitude, longitude, has_geo_tag, gps_address FROM client_master WHERE id = ?", clientId).stream().findFirst()
+        Map<String, Object> c = jdbc.queryForList("SELECT CONCAT(COALESCE(CONCAT(salutation, ' '), ''), client_name) AS name FROM client_master WHERE id = ?", clientId).stream().findFirst()
                 .orElseThrow(() -> new IllegalStateException("Client not found"));
-        boolean tagged = flag(c.get("has_geo_tag")) && c.get("latitude") != null && c.get("longitude") != null;
+        List<Map<String, Object>> places = places(clientId);   // the primary place and the other places the client sits at
+        boolean tagged = !places.isEmpty();
         out.put("tagged", tagged); out.put("clientName", c.get("name")); out.put("fenceM", fenceM(empId));
         if (!tagged) {
             out.put("ok", true); out.put("code", "NOT_TAGGED");
             out.put("message", "The location of " + c.get("name") + " is not tagged yet, so it cannot be checked. Check-in is allowed - please tag the client's location.");
             return out;
         }
-        long d = GeoCalc.distanceM(lat, lng, dbl(c.get("latitude")), dbl(c.get("longitude")));
-        out.put("distanceM", d); out.put("prettyDistance", GeoCalc.pretty(d)); out.put("clientLat", c.get("latitude")); out.put("clientLng", c.get("longitude")); out.put("clientAddress", c.get("gps_address"));
         int fence = fenceM(empId);
-        if (fence <= 0 || d <= fence) { out.put("ok", true); out.put("code", "OK"); return out; }
+        Map<String, Object> best = null;
+        for (Map<String, Object> pl : places) {
+            long dm = GeoCalc.distanceM(lat, lng, dbl(pl.get("latitude")), dbl(pl.get("longitude")));
+            pl.put("distanceM", dm); pl.put("prettyDistance", GeoCalc.pretty(dm)); pl.put("within", fence <= 0 || dm <= fence);
+            if (best == null || dm < ((Number) best.get("distanceM")).longValue()) best = pl;
+        }
+        long d = ((Number) best.get("distanceM")).longValue();
+        out.put("places", places); out.put("nearestPlace", best.get("label"));
+        out.put("distanceM", d); out.put("prettyDistance", GeoCalc.pretty(d)); out.put("clientLat", best.get("latitude")); out.put("clientLng", best.get("longitude")); out.put("clientAddress", best.get("address"));
+        if (fence <= 0 || d <= fence) { out.put("ok", true); out.put("code", "OK"); out.put("matchedPlace", best.get("label")); return out; }
         out.put("ok", false); out.put("code", "TOO_FAR");
-        out.put("message", "You are far away from " + c.get("name") + ": " + GeoCalc.pretty(d) + " from the client's tagged location. A check-in is allowed only within " + GeoCalc.pretty(fence) + ". Go to the client, or if the client's tag is wrong, retag it.");
+        out.put("message", "You are far away from " + c.get("name") + ": " + GeoCalc.pretty(d) + " from the nearest tagged place" + (places.size() > 1 ? " (" + best.get("label") + ", one of " + places.size() + " places of this client)" : "")
+                + ". A check-in is allowed only within " + GeoCalc.pretty(fence) + " of a tagged place. Go to the client, or if the client sits at a new place, retag it.");
         out.put("nearby", nearby(empId, lat, lng, fence));
         out.put("retagPending", jdbc.queryForObject("SELECT COUNT(*) FROM client_retag_request WHERE client_id = ? AND requested_by = ? AND status = 'PENDING'", Integer.class, clientId, empId) > 0);
         return out;
+    }
+
+    // ---- the places of a client: the primary one (client_master) + the others (client_geo_tag) -----------------------------------------------
+    /** {id (0 = primary), label, latitude, longitude, address, primary}; the primary first. Empty when the client is not tagged at all. */
+    public List<Map<String, Object>> places(long clientId) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> c : jdbc.queryForList("SELECT latitude, longitude, gps_address, has_geo_tag FROM client_master WHERE id = ?", clientId)) {
+            if (flag(c.get("has_geo_tag")) && c.get("latitude") != null && c.get("longitude") != null) {
+                Map<String, Object> m = new LinkedHashMap<>(); m.put("id", 0L); m.put("label", "Primary"); m.put("latitude", c.get("latitude")); m.put("longitude", c.get("longitude")); m.put("address", c.get("gps_address")); m.put("primary", true);
+                out.add(m);
+            }
+        }
+        try {
+            for (Map<String, Object> t : jdbc.queryForList("SELECT id, label, latitude, longitude, address FROM client_geo_tag WHERE client_id = ? AND is_active = 1 ORDER BY id", clientId)) {
+                Map<String, Object> m = new LinkedHashMap<>(); m.put("id", t.get("id")); m.put("label", t.get("label") == null || t.get("label").toString().isBlank() ? "Place " + (out.size() + 1) : t.get("label")); m.put("latitude", t.get("latitude")); m.put("longitude", t.get("longitude")); m.put("address", t.get("address")); m.put("primary", false);
+                out.add(m);
+            }
+        } catch (org.springframework.dao.DataAccessException e) { /* migration 122 not run yet: only the primary place */ }
+        return out;
+    }
+
+    @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
+    public List<Map<String, Object>> tags(long clientId) { Authz.requireRole("ADMIN", "MANAGER"); return places(clientId); }
+
+    /** Add a place; a client that has no primary place yet gets it as the primary. */
+    @Transactional(transactionManager = "tenantTransactionManager")
+    public Map<String, Object> addTag(long clientId, String label, Double lat, Double lng) {
+        Authz.requireRole("ADMIN", "MANAGER");
+        if (!GeoCalc.validLatLng(lat, lng)) throw new IllegalStateException("Give a valid latitude and longitude");
+        if (jdbc.queryForObject("SELECT COUNT(*) FROM client_master WHERE id = ?", Integer.class, clientId) == 0) throw new IllegalStateException("Client not found");
+        String addr = reverse(lat, lng);
+        if (places(clientId).isEmpty()) {
+            jdbc.update("UPDATE client_master SET latitude = ?, longitude = ?, gps_address = ?, has_geo_tag = 1, tagged_at = NOW(), tagged_by = ? WHERE id = ?", BigDecimal.valueOf(lat), BigDecimal.valueOf(lng), addr, me(), clientId);
+        } else {
+            jdbc.update("INSERT INTO client_geo_tag (client_id, label, latitude, longitude, address, created_by) VALUES (?,?,?,?,?,?)", clientId, label == null || label.isBlank() ? null : label.trim(), BigDecimal.valueOf(lat), BigDecimal.valueOf(lng), addr, me());
+        }
+        return Map.of("ok", true);
+    }
+
+    /** Make another place the primary: it moves into client_master and the old primary becomes one of the other places. */
+    @Transactional(transactionManager = "tenantTransactionManager")
+    public Map<String, Object> makePrimary(long clientId, long tagId) {
+        Authz.requireRole("ADMIN", "MANAGER");
+        Map<String, Object> t = jdbc.queryForList("SELECT * FROM client_geo_tag WHERE id = ? AND client_id = ? AND is_active = 1", tagId, clientId).stream().findFirst().orElseThrow(() -> new IllegalStateException("Place not found"));
+        Map<String, Object> c = jdbc.queryForList("SELECT latitude, longitude, gps_address, has_geo_tag FROM client_master WHERE id = ?", clientId).stream().findFirst().orElseThrow(() -> new IllegalStateException("Client not found"));
+        if (flag(c.get("has_geo_tag")) && c.get("latitude") != null)
+            jdbc.update("INSERT INTO client_geo_tag (client_id, label, latitude, longitude, address, created_by) VALUES (?,?,?,?,?,?)", clientId, "Earlier primary", c.get("latitude"), c.get("longitude"), c.get("gps_address"), me());
+        jdbc.update("UPDATE client_master SET latitude = ?, longitude = ?, gps_address = ?, has_geo_tag = 1, tagged_at = NOW(), tagged_by = ? WHERE id = ?", t.get("latitude"), t.get("longitude"), t.get("address"), me(), clientId);
+        jdbc.update("DELETE FROM client_geo_tag WHERE id = ?", tagId);
+        return Map.of("ok", true);
+    }
+
+    @Transactional(transactionManager = "tenantTransactionManager")
+    public Map<String, Object> removeTag(long clientId, long tagId) {
+        Authz.requireRole("ADMIN", "MANAGER");
+        if (tagId == 0) throw new IllegalStateException("The primary place cannot be removed - make another place the primary first");
+        return Map.of("ok", true, "removed", jdbc.update("DELETE FROM client_geo_tag WHERE id = ? AND client_id = ?", tagId, clientId));
     }
 
     /** The user's own tagged clients nearest to a position: which client is how far (the user may be standing at another client). */
@@ -110,10 +177,11 @@ public class GeoService {
         return out;
     }
 
-    /** The distance of a position from a client's tag (null when the client is not tagged). */
+    /** The distance of a position from the nearest tagged place of a client (null when the client is not tagged). */
     public Long distanceToClient(long clientId, double lat, double lng) {
-        List<Map<String, Object>> r = jdbc.queryForList("SELECT latitude, longitude FROM client_master WHERE id = ? AND has_geo_tag = 1 AND latitude IS NOT NULL AND longitude IS NOT NULL", clientId);
-        return r.isEmpty() ? null : GeoCalc.distanceM(lat, lng, dbl(r.get(0).get("latitude")), dbl(r.get(0).get("longitude")));
+        Long best = null;
+        for (Map<String, Object> pl : places(clientId)) { long dm = GeoCalc.distanceM(lat, lng, dbl(pl.get("latitude")), dbl(pl.get("longitude"))); if (best == null || dm < best) best = dm; }
+        return best;
     }
 
     private static boolean flag(Object o) { return o instanceof Boolean b ? b : o instanceof Number n && n.intValue() == 1; }
@@ -158,7 +226,11 @@ public class GeoService {
         if (!"PENDING".equals(r.get("status"))) throw new IllegalStateException("Already " + r.get("status").toString().toLowerCase());
         if (!approve && (remarks == null || remarks.isBlank())) throw new IllegalArgumentException("Please give a reason for rejecting");
         jdbc.update("UPDATE client_retag_request SET status = ?, decided_by = ?, decided_at = NOW(), decision_remarks = ? WHERE id = ?", approve ? "APPROVED" : "REJECTED", me(), remarks, id);
-        if (approve) jdbc.update("UPDATE client_master SET latitude = ?, longitude = ?, gps_address = ?, has_geo_tag = 1, tagged_at = NOW(), tagged_by = ? WHERE id = ?", r.get("new_lat"), r.get("new_lng"), r.get("new_address"), r.get("requested_by"), r.get("client_id"));
+        if (approve) {   // the new place is added; a client that was not tagged gets it as the primary, otherwise the primary stays and the new one is another place of the client
+            long cid = ((Number) r.get("client_id")).longValue();
+            if (places(cid).isEmpty()) jdbc.update("UPDATE client_master SET latitude = ?, longitude = ?, gps_address = ?, has_geo_tag = 1, tagged_at = NOW(), tagged_by = ? WHERE id = ?", r.get("new_lat"), r.get("new_lng"), r.get("new_address"), r.get("requested_by"), cid);
+            else jdbc.update("INSERT INTO client_geo_tag (client_id, label, latitude, longitude, address, created_by) VALUES (?,?,?,?,?,?)", cid, "Retagged", r.get("new_lat"), r.get("new_lng"), r.get("new_address"), r.get("requested_by"));
+        }
     }
 
     /** The key for the map picker (Google Maps JavaScript), same company key as the area auto-complete. */

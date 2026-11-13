@@ -25,6 +25,12 @@ public class GeoController {
     public Map<String, Object> check(@RequestBody Map<String, Object> b) { return geo.checkListed(TeamScope.me(), Long.parseLong(s(b, "clientId")), d(b, "lat"), d(b, "lng")); }
     @PostMapping("/retag")
     public Map<String, Object> retag(@RequestBody Map<String, Object> b) { return geo.requestRetag(Long.parseLong(s(b, "clientId")), d(b, "lat"), d(b, "lng"), s(b, "reason")); }
+    // ---- the places of a client (primary + others) ----
+    @GetMapping("/client/{clientId}/tags") public List<Map<String, Object>> tags(@PathVariable long clientId) { return geo.tags(clientId); }
+    @PostMapping("/client/{clientId}/tags")
+    public Map<String, Object> addTag(@PathVariable long clientId, @RequestBody Map<String, Object> b) { return geo.addTag(clientId, s(b, "label"), d(b, "lat"), d(b, "lng")); }
+    @PostMapping("/client/{clientId}/tags/{tagId}/primary") public Map<String, Object> primary(@PathVariable long clientId, @PathVariable long tagId) { return geo.makePrimary(clientId, tagId); }
+    @PostMapping("/client/{clientId}/tags/{tagId}/delete") public Map<String, Object> removeTag(@PathVariable long clientId, @PathVariable long tagId) { return geo.removeTag(clientId, tagId); }
     @GetMapping("/retag") public List<Map<String, Object>> list(@RequestParam(defaultValue = "false") boolean all) { return geo.toApprove(all); }
     @PostMapping("/retag/{id}/approve") public Map<String, Object> approve(@PathVariable long id, @RequestBody(required = false) Map<String, Object> b) { geo.decide(id, true, s(b, "remarks")); return Map.of("ok", true); }
     @PostMapping("/retag/{id}/reject") public Map<String, Object> reject(@PathVariable long id, @RequestBody(required = false) Map<String, Object> b) { geo.decide(id, false, s(b, "remarks")); return Map.of("ok", true); }

@@ -330,6 +330,7 @@
         tp: "/api/dcr/tp",                                           // ?date= what the approved tour plan lets the DCR offer
         analysis: (clientId) => `/api/dcr/client-analysis/${clientId}`,  // Pre-Call Analysis of one of my clients
         geoCheck: "/api/dcr/geo/check",                                // POST {clientId, lat, lng}  is the user at the client?
+        geoTags: (clientId) => `/api/dcr/geo/client/${clientId}/tags`,   // GET the places of a client (primary first) | POST {label, lat, lng} add one;  /{tagId}/primary  /{tagId}/delete
         geoRetag: "/api/dcr/geo/retag",                                // POST {clientId, lat, lng, reason} ask to retag the client location; GET ?all= for the approver
         geoRetagApprove: (id) => `/api/dcr/geo/retag/${id}/approve`, geoRetagReject: (id) => `/api/dcr/geo/retag/${id}/reject`,
         geoMapConfig: "/api/dcr/geo/map-config",                       // Google key for the retag map
