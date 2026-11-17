@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>/* reverse-proxy sub-path support: make relative css/js resolve under the deploy prefix (e.g. /sfaexpert), "" locally */
+  (function(){try{var p=location.pathname,m=p.match(/^(.*?)\/u\/\d+(\/|$)/),c=m?m[1]:p.replace(/\/[^\/]*$/,'');document.write('<base href="'+(c||'')+'/">');}catch(e){}})();</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StarSFA &middot; Expense Statement</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css" rel="stylesheet" />
+  <link href="css/app.css" rel="stylesheet" />
+  <link href="css/app-ui.css" rel="stylesheet" />
+  <script>
+    /* Apply the saved theme (mode / layout / density / colours) BEFORE first
+       paint so there is no flash. theme.js re-applies from the server after. */
+    (function () {
+      try {
+        var d = document.documentElement, s = localStorage;
+        // theme is PER TENANT and several tenants can be signed in at once
+        // (/u/0, /u/1...), so these caches are scoped to the account slot —
+        // a shared key would paint the last-customised tenant's colours here.
+        var m = location.pathname.match(/\/u\/(\d+)(\/|$)/), q = '_u' + (m ? m[1] : '0');
+        d.setAttribute('data-theme', s.getItem('sfa_mode' + q) || 'light');
+        d.setAttribute('data-nav', s.getItem('sfa_nav' + q) || 'vertical');
+        d.setAttribute('data-density', s.getItem('sfa_density' + q) || 'comfortable');
+        var f = s.getItem('sfa_font' + q); if (f) d.style.setProperty('--sfa-font-scale', f);
+        var c = s.getItem('sfa_theme' + q);
+        if (c) { c = JSON.parse(c); var t = (c.resolved && c.resolved[c.mode]) || {};
+          for (var k in t) d.style.setProperty('--sfa-' + k, t[k]); }
+      } catch (e) {}
+    })();
+  </script>
+<style>
+  .rp-kpis { display: flex; flex-wrap: wrap; gap: .5rem; margin: 0 0 .6rem; } .rp-kpi { background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-left: 3px solid var(--bs-primary); border-radius: .4rem; padding: .35rem .8rem; min-width: 7.5rem; flex: 1 1 7.5rem; }
+  .rp-kpi small { color: var(--bs-secondary-color); display: block; font-size: .68rem; text-transform: uppercase; letter-spacing: .04em; } .rp-kpi b { font-size: 1.05rem; } .rp-kpi.ok { border-left-color: #198754; } .rp-kpi.warn { border-left-color: #fd7e14; }
+  .rp-filters .form-label { font-size: .72rem; font-weight: 600; color: var(--bs-secondary-color); margin-bottom: .1rem; }
+  .ex-wrap { max-height: calc(100vh - 330px); min-height: 280px; overflow: auto; border: 1px solid var(--bs-border-color); border-radius: .4rem; }
+  table.ex { border-collapse: separate; border-spacing: 0; font-size: .78rem; width: max-content; min-width: 100%; }
+  table.ex th, table.ex td { border-right: 1px solid var(--bs-border-color); border-bottom: 1px solid var(--bs-border-color); padding: .25rem .4rem; vertical-align: middle; }
+  table.ex thead th { background: #0a5a78; color: #fff; position: sticky; top: 0; z-index: 3; text-align: center; white-space: nowrap; }
+  table.ex td.n { text-align: right; font-variant-numeric: tabular-nums; } table.ex td.route { min-width: 260px; } table.ex input { width: 5.4rem; text-align: right; } table.ex input.rm { width: 9rem; text-align: left; } table.ex input.bl { width: 3.6rem; }
+  table.ex tr.lv-U td { background: #d6e9ff; } table.ex tr.lv-M td { background: #ffe2a8; } table.ex tr.lv-A td { background: #e6d0ff; } table.ex tr.off td { color: var(--bs-secondary-color); background: var(--bs-tertiary-bg); }
+  table.ex tfoot td { position: sticky; bottom: 0; background: #e7f0f4; font-weight: 700; z-index: 3; }
+  .lg { display: inline-flex; align-items: center; gap: .3rem; font-size: .75rem; margin-right: .8rem; } .lg i { width: 1rem; height: 1rem; display: inline-block; border: 1px solid #0003; border-radius: .2rem; }
+  .flow { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; font-size: .78rem; } .flow span { padding: .15rem .6rem; border-radius: 1rem; background: var(--bs-tertiary-bg); } .flow span.on { background: #198754; color: #fff; } .flow span.cur { background: #fd7e14; color: #fff; }
+  tr.rp-click { cursor: pointer; }
+</style>
+</head>
+<body>
+<div id="app" data-page="expensestatement" data-title="Expense Statement"></div>
+<template id="pageContent">
+<div class="card mb-2">
+  <div class="card-header d-flex align-items-center flex-wrap gap-2"><span><i class="bi bi-receipt"></i> <span data-i18n="exp.title">Expense Statement</span></span><small class="text-muted" id="rpSub"></small>
+    <div class="card-tools ms-auto d-flex gap-2 flex-wrap"><button class="btn btn-sm sfa-btn-outline" id="rpFBtn" onclick="rpFToggle()"><i class="bi bi-sliders"></i> <span data-i18n="rep.filters">Filters</span></button>
+      <button class="btn btn-sm sfa-btn-outline" data-bs-toggle="modal" data-bs-target="#activityModal"><i class="bi bi-clock-history"></i> <span data-i18n="rep.recent">Recent</span></button></div></div>
+  <div class="card-body rp-filters" id="rpFBody"><div class="row g-2 align-items-end">
+    <div class="col-6 col-md-2"><label class="form-label" data-i18n="rep.month">Month</label><select class="form-select form-select-sm" id="f_month"></select></div>
+    <div class="col-6 col-md-1"><label class="form-label" data-i18n="inv.year">Year</label><select class="form-select form-select-sm" id="f_year"></select></div>
+    <div class="col-12 col-md-4"><label class="form-label" data-i18n="entity.employee">Employee</label><select class="form-select form-select-sm" id="f_emp"></select></div>
+    <div class="col-auto ms-md-auto"><button class="btn btn-sm btn-primary" onclick="rpGo()"><i class="bi bi-search"></i> <span data-i18n="rep.show">Show</span></button></div></div></div>
+</div>
+<ul class="nav nav-pills mb-2" id="tabs"><li class="nav-item"><button class="nav-link active" data-v="stmt" onclick="tab('stmt')"><i class="bi bi-table"></i> <span data-i18n="exp.statement">Statement</span></button></li>
+  <li class="nav-item"><button class="nav-link" data-v="list" onclick="tab('list')"><i class="bi bi-people"></i> <span data-i18n="exp.team">Statements</span> <span class="badge bg-danger d-none" id="pendBadge"></span></button></li></ul>
+<div id="vStmt"><div id="stBar"></div><div class="rp-kpis" id="rpKpis"></div><div class="mb-2" id="legend"></div><div class="ex-wrap" id="exWrap"></div></div>
+<div id="vList" class="d-none"><div class="card"><div class="card-body"><div class="row g-2 mb-2"><div class="col-6 col-md-2"><select class="form-select form-select-sm" id="l_status" onchange="listLoad()"><option value="">All</option><option value="SUBMITTED">Submitted</option><option value="MGR_APPROVED">Manager approved</option><option value="APPROVED">Approved</option><option value="REJECTED">Rejected</option><option value="DRAFT">Draft</option></select></div></div><div id="lstWrap"></div></div></div></div>
+
+<div class="modal fade" id="histModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-sm-down"><div class="modal-content">
+  <div class="modal-header sfa-modal"><h5 class="modal-title"><i class="bi bi-clock-history"></i> <span data-i18n="exp.history">History of changes</span> <small id="hDate" class="text-muted"></small></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body" id="histBody"></div><div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal" data-i18n="common.close">Close</button></div></div></div></div>
+<div class="modal fade" id="activityModal" tabindex="-1"><div class="modal-dialog modal-dialog-scrollable modal-fullscreen-sm-down"><div class="modal-content">
+  <div class="modal-header sfa-modal"><h5 class="modal-title"><i class="bi bi-clock-history"></i> <span data-i18n="rep.recentSearches">Recent searches</span></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body"><div id="activityList"></div></div><div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal" data-i18n="common.close">Close</button></div></div></div></div>
+</template>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.colVis.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="js/core/session.js"></script>
+<script src="js/core/endpoints.js"></script>
+<script src="js/core/http.js"></script>
+<script src="js/core/theme.js"></script>
+<script src="js/core/settings.js"></script>
+<script src="js/core/i18n.js"></script>
+<script src="js/app.js"></script>
+<script src="js/core/uikit.js"></script>
+<script src="js/core/activity.js"></script>
+<script src="js/shell.js"></script>
+<script>
+  const T = (k, en) => (window.I18n ? I18n.t(k, en) : en);
+  const REPORT_KEY = 'expensestatement', REPORT_LABEL = 'Expense Statement', EP = API.report.expense, FEP = API.report.attendance;
+  const esc = (v) => SFA.esc(v == null ? '' : v);
+  const loc = () => (window.I18n && I18n.lang === 'hi' ? 'hi-IN' : 'en-GB');
+  const num = (v) => Number(v || 0).toLocaleString(loc(), { maximumFractionDigits: 2 });
+  const MONTHS = [...Array(12)].map((_, i) => new Date(2024, i, 1).toLocaleDateString('en-GB', { month: 'long' }));
+  const ST_NAME = { DRAFT: ['Draft', 'secondary'], SUBMITTED: ['Submitted', 'info'], MGR_APPROVED: ['Manager approved', 'primary'], APPROVED: ['Approved', 'success'], REJECTED: ['Rejected', 'danger'] };
+  const LV = { U: 'Changed by the employee', M: 'Changed by the manager', A: 'Changed by the admin' };
+  let FIL = null, ME = null, D = null, PEND = {}, ACT = null, HM = null, LASTLANG = window.I18n ? I18n.lang : 'en', ROWS = [];
+  if (window.I18n) I18n.onChange(() => { if (I18n.lang !== LASTLANG) { LASTLANG = I18n.lang; draw(); } });
+
+  window.pageInit = async function () {
+    ACT = new bootstrap.Modal('#activityModal'); HM = new bootstrap.Modal('#histModal');
+    document.getElementById('activityModal').addEventListener('shown.bs.modal', () => Activity.renderInto('activityList', REPORT_KEY, applyActivity));
+    const now = new Date(); let pm = now.getMonth(), py = now.getFullYear(); if (pm === 0) { pm = 12; py--; }   // the statement is of the month that has just ended
+    document.getElementById('f_month').innerHTML = MONTHS.map((m, i) => `<option value="${i + 1}">${m}</option>`).join(''); document.getElementById('f_month').value = now.getDate() > 0 ? now.getMonth() + 1 : pm;
+    document.getElementById('f_year').innerHTML = [0, 1, 2].map(k => `<option>${now.getFullYear() - k}</option>`).join('');
+    try {
+      ME = (await Api.get(API.profile.get)).empId; FIL = await Api.get(FEP + '/filters');
+      document.getElementById('f_emp').innerHTML = FIL.employees.map(e => `<option value="${esc(e.id)}" ${e.id === ME ? 'selected' : ''}>${esc(e.name)}</option>`).join('');
+      await rpGo(); pending();
+    } catch (e) { SFA.toast(e.message, false); }
+  };
+  const q = () => ({ empId: document.getElementById('f_emp').value, month: document.getElementById('f_month').value, year: document.getElementById('f_year').value });
+  function rpFToggle(close) { const b = document.getElementById('rpFBody'), hide = close === true ? true : !b.classList.contains('d-none'); b.classList.toggle('d-none', hide); document.getElementById('rpFBtn').classList.toggle('active', !hide); if (!hide) window.scrollTo(0, 0); }
+  function tab(v) { document.querySelectorAll('#tabs .nav-link').forEach(b => b.classList.toggle('active', b.dataset.v === v)); document.getElementById('vStmt').classList.toggle('d-none', v !== 'stmt'); document.getElementById('vList').classList.toggle('d-none', v !== 'list'); if (v === 'list') listLoad(); }
+  function applyActivity(f) { document.getElementById('f_month').value = f.month; document.getElementById('f_year').value = f.year; if (f.emp) document.getElementById('f_emp').value = f.emp; rpGo(); if (ACT) ACT.hide(); }
+  async function pending() { try { const l = await Api.get(EP + '/list', { query: { status: 'SUBMITTED' }, noLoader: true }); const k = l.filter(r => r.canApprove).length, m = await Api.get(EP + '/list', { query: { status: 'MGR_APPROVED' }, noLoader: true }); const k2 = m.filter(r => r.canApprove).length; const b = document.getElementById('pendBadge'); b.textContent = k + k2; b.classList.toggle('d-none', !(k + k2)); } catch (e) { } }
+
+  async function rpGo() {
+    PEND = {};
+    try {
+      const r = await Api.get(EP + '/find', { query: q() });
+      D = r.exists ? r : null;
+      document.getElementById('rpSub').textContent = MONTHS[q().month - 1] + ' ' + q().year;
+      draw(); rpFToggle(true); window.scrollTo(0, 0); Activity.record(REPORT_KEY, REPORT_LABEL, { month: q().month, year: q().year, emp: q().empId }, MONTHS[q().month - 1] + ' ' + q().year);
+    } catch (e) { SFA.toast(e.message, false); }
+  }
+  async function build(refresh) {
+    try { await Api.post(EP + '/generate', Object.assign(q(), { refresh: !!refresh })); SFA.toast(refresh ? T('exp.refreshed', 'Refreshed from the DCR') : T('exp.built', 'Statement built from the DCR'), true); await rpGo(); } catch (e) { SFA.toast(e.message, false); }
+  }
+  const stTag = (s) => { const x = ST_NAME[s] || [s, 'secondary']; return `<span class="badge bg-${x[1]}">${T('exp.st.' + s.toLowerCase(), x[0])}</span>`; };
+  const ago = (d) => d ? String(d).replace('T', ' ').substring(0, 16) : '';
+
+  function draw() {
+    const bar = document.getElementById('stBar'), wrap = document.getElementById('exWrap');
+    if (!D) {
+      const mine = q().empId === ME;
+      bar.innerHTML = ''; document.getElementById('rpKpis').innerHTML = ''; document.getElementById('legend').innerHTML = '';
+      wrap.innerHTML = `<div class="text-center text-muted py-5"><i class="bi bi-receipt fs-2 d-block mb-2"></i>${T('exp.notBuilt', 'No statement for this month yet')}${mine ? `<div class="mt-3"><button class="btn btn-primary" onclick="build(false)"><i class="bi bi-magic"></i> ${T('exp.build', 'Build from my DCR')}</button></div>` : ''}</div>`; return;
+    }
+    const s = D.statement, p = D.perms, cols = D.headCols, edit = p.canEdit;
+    const steps = [['SUBMITTED', T('exp.submitted', 'Submitted by the employee')], ['MGR_APPROVED', T('exp.mgrApproved', 'Approved by the manager')], ['APPROVED', T('exp.adminApproved', 'Approved by the admin')]];
+    const order = ['DRAFT', 'REJECTED', 'SUBMITTED', 'MGR_APPROVED', 'APPROVED'], cur = order.indexOf(s.status);
+    bar.innerHTML = `<div class="card mb-2"><div class="card-body py-2 d-flex flex-wrap align-items-center gap-3"><div><b>${esc(s.empName)}</b> <small class="text-muted">${esc(s.empCode)}</small> ${stTag(s.status)}</div>
+      <div class="flow">${steps.map((x, i) => `<span class="${cur >= 2 + i ? 'on' : (cur === 1 + i && i < 2 ? 'cur' : '')}">${i + 1}. ${esc(x[1])}${i === 0 && s.submittedAt ? ' · ' + ago(s.submittedAt) : ''}${i === 1 && s.mgrBy ? ' · ' + esc(s.mgrBy) : ''}${i === 2 && s.adminBy ? ' · ' + esc(s.adminBy) : ''}</span>`).join('<i class="bi bi-arrow-right text-muted"></i>')}</div>
+      ${s.status === 'REJECTED' ? `<div class="text-danger small"><i class="bi bi-x-circle"></i> ${T('exp.rejectedBy', 'Rejected by')} ${esc(s.rejectedBy)}: ${esc(s.rejectReason)}</div>` : ''}
+      <div class="ms-auto d-flex gap-2 flex-wrap">${p.canRefresh ? `<button class="btn btn-sm btn-outline-secondary" onclick="build(true)"><i class="bi bi-arrow-repeat"></i> ${T('exp.refresh', 'Refresh from DCR')}</button>` : ''}
+        ${edit ? `<button class="btn btn-sm btn-warning" onclick="saveAll()"><i class="bi bi-save"></i> ${T('exp.saveChanges', 'Save changes')} <span class="badge bg-dark" id="pcnt">0</span></button>` : ''}
+        ${p.canSubmit ? `<button class="btn btn-sm btn-primary" onclick="act('submit')"><i class="bi bi-send"></i> ${T('exp.submit', 'Submit')}</button>` : ''}
+        ${p.canApprove ? `<button class="btn btn-sm btn-success" onclick="act('approve')"><i class="bi bi-check2-circle"></i> ${p.approveAs === 'A' ? T('exp.approveAdmin', 'Approve (admin)') : T('exp.approveMgr', 'Approve (manager)')}</button>` : ''}
+        ${p.canReject ? `<button class="btn btn-sm btn-outline-danger" onclick="reject()"><i class="bi bi-x-circle"></i> ${T('exp.reject', 'Reject')}</button>` : ''}</div></div></div>`;
+    const sum = (f) => D.days.reduce((a, d) => a + Number(f(d) || 0), 0);
+    const workDays = D.days.filter(d => d.route && !/^(Holiday|Weekly off|Leave)$/.test(d.route)).length, headSum = D.days.reduce((a, d) => a + Object.values(d.heads).reduce((x, y) => x + Number(y), 0), 0), edited = D.days.filter(d => d.editedLevel).length;
+    const kp = (l, v, c) => `<div class="rp-kpi ${c || ''}"><small>${l}</small><b>${v}</b></div>`;
+    document.getElementById('rpKpis').innerHTML = kp(T('exp.total', 'Total expense'), num(s.total), 'ok') + kp(T('exp.workDays', 'Working days'), workDays) + kp('Km', num(sum(d => d.km))) + kp('DA', num(sum(d => d.da))) + kp(T('exp.travelExp', 'Travel expense'), num(sum(d => d.travelExp))) + kp(T('exp.otherExp', 'Other expense'), num(headSum)) + kp(T('exp.editedRows', 'Changed rows'), edited, edited ? 'warn' : '');
+    const inp = (d, k, cls) => edit ? `<input class="form-control form-control-sm ${cls || ''}" type="number" min="0" step="any" value="${d[k]}" onchange="pend(${d.id},'${k}',this.value)">` : num(d[k]);
+    wrap.innerHTML = `<table class="ex"><thead><tr><th>${T('exp.date', 'Date')}</th><th>${T('exp.dayType', 'Day type')}</th><th>${T('exp.tpArea', 'TP area')}</th><th>${T('exp.route', 'Route')}</th><th>${T('exp.visits', 'Client visit')}</th><th>${T('exp.stay', 'Stay')}</th><th>Km</th><th>${T('exp.fare', 'Fare')}</th><th>DA</th><th>${T('exp.travelExp', 'Travel expense')}</th>${cols.map(c => `<th>${esc(c.name)}</th>`).join('')}<th>${T('exp.bills', 'Bills')}</th><th>${T('exp.remark', 'Remark')}</th><th>${T('exp.rowTotal', 'Total')}</th><th>${T('exp.workWith', 'Work with')}</th><th></th></tr></thead><tbody>
+      ${D.days.map(d => { const off = !d.route || /^(Holiday|Weekly off|Leave)$/.test(d.route), can = edit && !off; return `<tr class="${d.editedLevel ? 'lv-' + d.editedLevel : (off ? 'off' : '')}" title="${d.editedLevel ? esc(LV[d.editedLevel] + ' - ' + (d.editedBy || '') + ' ' + ago(d.editedAt)) : ''}"><td>${d.date.substring(8, 10)}-${d.date.substring(5, 7)}</td><td>${esc(d.dayType)}</td><td>${esc(d.tpArea)}</td><td class="route">${esc(d.route)}</td><td class="n">${d.visits || ''}</td><td>${d.stayArea ? 'Yes (' + esc(d.stayArea) + ')' : (off ? '' : 'No')}</td>
+        <td class="n">${can ? inp(d, 'km') : num(d.km)}</td><td class="n">${can ? inp(d, 'fare') : num(d.fare)}</td><td class="n">${can ? inp(d, 'da') : num(d.da)}</td><td class="n">${can ? inp(d, 'travelExp') : num(d.travelExp)}</td>
+        ${cols.map(c => `<td class="n">${can ? `<input class="form-control form-control-sm" type="number" min="0" step="any" value="${d.heads[c.id] || 0}" onchange="pendHead(${d.id},${c.id},this.value)">` : num(d.heads[c.id])}</td>`).join('')}
+        <td class="n">${can ? `<input class="form-control form-control-sm bl" type="number" min="0" value="${d.bills}" onchange="pend(${d.id},'bills',this.value)">` : d.bills}</td><td>${can ? `<input class="form-control form-control-sm rm" maxlength="250" value="${esc(d.remark)}" onchange="pend(${d.id},'remark',this.value)">` : esc(d.remark)}</td>
+        <td class="n"><b>${num(d.total)}</b></td><td>${esc(d.workWith)}</td><td><button class="btn btn-sm btn-outline-secondary py-0" title="${T('exp.history', 'History')}" onclick="hist(${d.id},'${d.date}')"><i class="bi bi-clock-history"></i></button></td></tr>`; }).join('')}</tbody>
+      <tfoot><tr><td colspan="6">${T('exp.total', 'Total')}</td><td class="n">${num(sum(d => d.km))}</td><td class="n">${num(sum(d => d.fare))}</td><td class="n">${num(sum(d => d.da))}</td><td class="n">${num(sum(d => d.travelExp))}</td>${cols.map(c => `<td class="n">${num(sum(d => d.heads[c.id]))}</td>`).join('')}<td class="n">${sum(d => d.bills)}</td><td></td><td class="n">${num(s.total)}</td><td colspan="2"></td></tr></tfoot></table>`;
+    document.getElementById('legend').innerHTML = `<b class="small">${T('exp.colours', 'Row colours')}:</b> <span class="lg"><i style="background:#fff"></i>${T('exp.asCalc', 'As calculated from the DCR')}</span>` + D.legend.map(l => `<span class="lg"><i style="background:${{ U: '#d6e9ff', M: '#ffe2a8', A: '#e6d0ff' }[l.level]}"></i>${T('exp.lv.' + l.level, l.name)}</span>`).join('') + `<span class="lg text-muted">${T('exp.legendHelp', 'Hover a coloured row to see who changed it; the clock icon shows every change with the reason.')}</span>`;
+    pcount();
+  }
+  // changes of the rows are collected and saved together (the manager / admin give one reason)
+  function pend(id, k, v) { (PEND[id] = PEND[id] || { heads: {} })[k] = v; pcount(); }
+  function pendHead(id, hid, v) { (PEND[id] = PEND[id] || { heads: {} }).heads[hid] = v; pcount(); }
+  const pcount = () => { const el = document.getElementById('pcnt'); if (el) el.textContent = Object.keys(PEND).length; };
+  async function saveAll() {
+    const ids = Object.keys(PEND); if (!ids.length) { SFA.toast(T('exp.nothing', 'Nothing changed'), false); return; }
+    let reason = null; if (D.perms.level !== 'U') { reason = prompt(T('exp.reasonAsk', 'Reason of the change (shown in the history)')); if (!reason || !reason.trim()) { SFA.toast(T('exp.reasonNeeded', 'Give the reason of the change'), false); return; } }
+    try { for (const id of ids) await Api.post(EP + '/day/' + id, Object.assign({}, PEND[id], { reason })); SFA.toast(T('exp.changesSaved', 'Changes saved'), true); await rpGo(); } catch (e) { SFA.toast(e.message, false); }
+  }
+  async function act(a) {
+    if (Object.keys(PEND).length && !confirm(T('exp.unsaved', 'There are unsaved changes. Continue without saving them?'))) return;
+    try { await Api.post(EP + '/' + D.statement.id + '/' + a, {}); SFA.toast(T('exp.done', 'Done'), true); await rpGo(); pending(); } catch (e) { SFA.toast(e.message, false); }
+  }
+  async function reject() { const r = prompt(T('exp.rejectAsk', 'Reason of the rejection')); if (!r || !r.trim()) return; try { await Api.post(EP + '/' + D.statement.id + '/reject', { reason: r }); SFA.toast(T('exp.done', 'Done'), true); await rpGo(); pending(); } catch (e) { SFA.toast(e.message, false); } }
+  async function hist(dayId, date) {
+    try {
+      const l = await Api.get(EP + '/' + D.statement.id + '/history', { query: { dayId } });
+      document.getElementById('hDate').textContent = date.substring(8, 10) + '-' + date.substring(5, 7) + '-' + date.substring(0, 4);
+      document.getElementById('histBody').innerHTML = l.length ? `<table class="table table-sm"><thead><tr><th>${T('exp.when', 'When')}</th><th>${T('exp.field', 'Field')}</th><th class="text-end">${T('exp.old', 'Old')}</th><th class="text-end">${T('exp.new', 'New')}</th><th>${T('exp.by', 'By')}</th><th>${T('exp.reason', 'Reason')}</th></tr></thead><tbody>${l.map(x => `<tr class="lv-${x.level}" style="background:${{ U: '#d6e9ff', M: '#ffe2a8', A: '#e6d0ff' }[x.level]}"><td>${ago(x.changedAt)}</td><td>${esc(x.field.replace('head:', ''))}</td><td class="text-end">${esc(x.oldValue)}</td><td class="text-end"><b>${esc(x.newValue)}</b></td><td>${esc(x.changedBy)} <small>(${T('exp.lv.' + x.level, LV[x.level])})</small></td><td>${esc(x.reason)}</td></tr>`).join('')}</tbody></table>` : `<div class="text-muted text-center py-4">${T('exp.noChange', 'This row was never changed')}</div>`;
+      HM.show();
+    } catch (e) { SFA.toast(e.message, false); }
+  }
+
+  // ------------------------------------------------------------------ the statements of the team (approval list)
+  async function listLoad() {
+    try { ROWS = await Api.get(EP + '/list', { query: { status: document.getElementById('l_status').value || undefined, month: q().month, year: q().year } }); } catch (e) { SFA.toast(e.message, false); return; }
+    const w = document.getElementById('lstWrap'); if (window.jQuery && $.fn.DataTable.isDataTable('#lstT')) $('#lstT').DataTable().destroy();
+    if (!ROWS.length) { w.innerHTML = `<div class="text-center text-muted py-4">${T('rep.nothing', 'Nothing found for these filters')}</div>`; return; }
+    w.innerHTML = `<table id="lstT" data-screen-key="EXPENSE_STATEMENTS" class="table table-striped table-bordered nowrap" style="width:100%"><thead><tr><th>${T('common.sno', 'S.No')}</th><th data-field="employee">${T('entity.employee', 'Employee')}</th><th data-field="period">${T('inv.period', 'Month / Year')}</th><th data-field="total" class="text-end">${T('exp.total', 'Total')}</th><th data-field="status">${T('common.status', 'Status')}</th><th data-field="submitted">${T('exp.submittedOn', 'Submitted')}</th><th data-field="manager">${T('exp.mgr', 'Manager')}</th><th data-field="admin">${T('exp.adm', 'Admin')}</th></tr></thead><tbody>
+      ${ROWS.map((r, i) => `<tr class="rp-click" onclick="openRow(${i})"><td>${i + 1}</td><td><b>${esc(r.empName)}</b> <small class="text-muted">${esc(r.empCode)}</small></td><td data-order="${r.year * 100 + r.month}">${MONTHS[r.month - 1]} ${r.year}</td><td class="text-end">${num(r.total)}</td><td>${stTag(r.status)}${r.canApprove ? ' <span class="badge bg-warning text-dark">' + T('exp.yourTurn', 'your turn') + '</span>' : ''}</td><td>${ago(r.submittedAt)}</td><td>${esc(r.mgrBy)}</td><td>${esc(r.adminBy)}</td></tr>`).join('')}</tbody></table>`;
+    sfaDataTable('#lstT', { order: [[2, 'desc']] });
+  }
+  function openRow(i) { const r = ROWS[i]; document.getElementById('f_emp').value = r.empId; document.getElementById('f_month').value = r.month; document.getElementById('f_year').value = r.year; tab('stmt'); rpGo(); }
+</script>
+</body>
+</html>
