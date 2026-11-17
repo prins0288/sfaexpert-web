@@ -1,0 +1,1189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>/* reverse-proxy sub-path support: make relative css/js resolve under the deploy prefix (e.g. /sfaexpert), "" locally */
+  (function(){try{var p=location.pathname,m=p.match(/^(.*?)\/u\/\d+(\/|$)/),c=m?m[1]:p.replace(/\/[^\/]*$/,'');document.write('<base href="'+(c||'')+'/">');}catch(e){}})();</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StarSFA &middot; DCR</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css" rel="stylesheet" />
+  <link href="css/app.css" rel="stylesheet" />
+  <script>
+    /* Apply the saved theme (mode / layout / density / colours) BEFORE first
+       paint so there is no flash. theme.js re-applies from the server after. */
+    (function () {
+      try {
+        var d = document.documentElement, s = localStorage;
+        // theme is PER TENANT and several tenants can be signed in at once
+        // (/u/0, /u/1...), so these caches are scoped to the account slot —
+        // a shared key would paint the last-customised tenant's colours here.
+        var m = location.pathname.match(/\/u\/(\d+)(\/|$)/), q = '_u' + (m ? m[1] : '0');
+        d.setAttribute('data-theme', s.getItem('sfa_mode' + q) || 'light');
+        d.setAttribute('data-nav', s.getItem('sfa_nav' + q) || 'vertical');
+        d.setAttribute('data-density', s.getItem('sfa_density' + q) || 'comfortable');
+        var f = s.getItem('sfa_font' + q); if (f) d.style.setProperty('--sfa-font-scale', f);
+        var c = s.getItem('sfa_theme' + q);
+        if (c) { c = JSON.parse(c); var t = (c.resolved && c.resolved[c.mode]) || {};
+          for (var k in t) d.style.setProperty('--sfa-' + k, t[k]); }
+      } catch (e) {}
+    })();
+  </script>
+<style>
+  .dcr-app { max-width: 760px; margin: 0 auto; padding-bottom: 5.5rem; }
+  .card-lite { background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: 1rem; padding: .85rem 1rem; margin-bottom: .75rem; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+  .dcr-top { display: flex; justify-content: space-between; align-items: flex-start; gap: .75rem; margin-bottom: .85rem; }
+  .dcr-title { font-size: 1.7rem; font-weight: 800; line-height: 1.1; }
+  .dcr-histlink { font-weight: 700; color: var(--bs-primary); text-decoration: none; white-space: nowrap; padding-top: .35rem; }
+  .dcr-top-right { display: flex; flex-direction: column; align-items: flex-end; gap: .35rem; flex: 0 0 auto; }
+  .dcr-top-btns { display: flex; gap: .35rem; }
+  .dcr-mini { border: 1px solid var(--bs-border-color); background: var(--bs-body-bg); color: var(--bs-body-color); border-radius: 999px; padding: .22rem .65rem; font-size: .78rem; font-weight: 700; white-space: nowrap; line-height: 1.3; }
+  .dcr-mini-go { background: #d9441a; border-color: #d9441a; color: #fff; }
+  .dcr-mini:active { transform: scale(.96); }
+  .dcr-top .dcr-histlink { padding-top: 0; font-size: .85rem; }
+  .min-w-0 { min-width: 0; }
+  .dcr-start-btn { background: #d9441a; border: 0; color: #fff; border-radius: 999px; padding: .75rem 1.25rem; font-weight: 700; white-space: nowrap; box-shadow: 0 4px 12px rgba(217,68,26,.35); }
+  .dcr-start-btn:active { transform: scale(.97); }
+  .dcr-seg { display: flex; background: var(--bs-tertiary-bg); border-radius: 999px; padding: .25rem; margin-bottom: .75rem; }
+  .dcr-seg button { flex: 1; border: 0; background: transparent; padding: .5rem; border-radius: 999px; font-weight: 600; color: var(--bs-secondary-color); display: flex; align-items: center; justify-content: center; gap: .4rem; }
+  .dcr-seg button.active { background: var(--bs-body-bg); color: var(--bs-primary); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+  .dcr-badge { background: #dc3545; color: #fff; border-radius: 999px; font-size: .7rem; padding: 0 .4rem; }
+  .dcr-date { max-width: 11rem; font-weight: 600; border-radius: 999px; text-align: center; }
+  .dcr-tabs { display: flex; gap: .5rem; overflow-x: auto; padding: .1rem .1rem .6rem; scrollbar-width: none; position: sticky; top: 0; z-index: 5; background: var(--bs-body-bg); }
+  .dcr-tabs::-webkit-scrollbar { display: none; }
+  .dcr-tabs button { flex: 0 0 auto; border: 1px solid var(--bs-border-color); background: var(--bs-body-bg); border-radius: 999px; padding: .45rem .95rem; font-weight: 600; font-size: .9rem; white-space: nowrap; color: var(--bs-body-color); }
+  .dcr-tabs button.active { background: var(--bs-primary); border-color: var(--bs-primary); color: #fff; }
+  .dcr-tabs .n { background: rgba(0,0,0,.12); border-radius: 999px; padding: 0 .45rem; margin-left: .35rem; font-size: .75rem; }
+  .dcr-tabs button.active .n { background: rgba(255,255,255,.3); }
+  .dcr-pane .form-label { font-size: .8rem; font-weight: 600; color: var(--bs-secondary-color); margin-bottom: .2rem; }
+  .dcr-pane .form-control, .dcr-pane .form-select, .dcr-sheet .form-control, .dcr-sheet .form-select { border-radius: .75rem; min-height: 2.8rem; }
+  .dcr-chips { display: flex; flex-wrap: wrap; gap: .4rem; }
+  .dcr-chip { border: 1px solid var(--bs-border-color); border-radius: 999px; padding: .4rem .85rem; background: var(--bs-body-bg); font-size: .9rem; }
+  .dcr-chips-scroll { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: thin; padding-bottom: .35rem; scroll-snap-type: x proximity; }
+  .dcr-chips-scroll .dcr-chip { flex: 0 0 auto; white-space: nowrap; scroll-snap-align: start; }
+  .dcr-chip.on { background: var(--bs-primary-bg-subtle); border-color: var(--bs-primary); color: var(--bs-primary); font-weight: 600; }
+  .dcr-visit { display: flex; gap: .75rem; align-items: center; cursor: pointer; }
+  .dcr-visit .ava { width: 2.6rem; height: 2.6rem; border-radius: 50%; background: var(--bs-primary-bg-subtle); color: var(--bs-primary); display: flex; align-items: center; justify-content: center; font-weight: 700; flex: 0 0 auto; }
+  .dcr-visit .meta { min-width: 0; flex: 1; }
+  .dcr-visit .meta b, .dcr-visit .meta small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dcr-addvisit { width: 100%; border: 0; background: #d9441a; color: #fff; border-radius: 999px; padding: .85rem 1rem; font-weight: 700; font-size: 1.05rem; box-shadow: 0 4px 12px rgba(217,68,26,.35); margin-bottom: .75rem; }
+  .dcr-kinds { display: grid; grid-template-columns: repeat(2, 1fr); gap: .6rem; max-height: 62vh; overflow-y: auto; padding: .1rem; }
+  .dcr-kind { border: 1px solid var(--bs-border-color); border-radius: 1rem; background: var(--bs-body-bg); padding: 1rem .6rem; text-align: center; font-weight: 600; display: flex; flex-direction: column; align-items: center; gap: .4rem; }
+  .dcr-kind i { font-size: 1.7rem; color: var(--bs-primary); }
+  .dcr-kind:active { background: var(--bs-tertiary-bg); }
+  .dcr-kind small { font-weight: 400; color: var(--bs-secondary-color); }
+  .dcr-rows { border: 1px solid var(--bs-border-color); border-radius: 1rem; overflow: hidden; }
+  .dcr-row { width: 100%; display: flex; align-items: center; gap: .8rem; background: var(--bs-body-bg); border: 0; border-bottom: 1px solid var(--bs-border-color); padding: .85rem 1rem; }
+  .dcr-row:last-child { border-bottom: 0; } .dcr-row > i:first-child { font-size: 1.3rem; color: var(--bs-primary); }
+  .dcr-step { display: flex; align-items: center; gap: .6rem; } .dcr-step b { min-width: 1.6rem; text-align: center; }
+  .dcr-step button { width: 2.1rem; height: 2.1rem; border-radius: 50%; border: 1px solid var(--bs-border-color); background: var(--bs-body-bg); font-size: 1.2rem; line-height: 1; }
+  .dcr-step button:active { background: var(--bs-tertiary-bg); }
+  .dcr-panel-done { position: sticky; bottom: 0; padding: .75rem 0 .25rem; background: var(--bs-body-bg); margin-top: .5rem; }
+  .cl-card { display: flex; gap: .6rem; align-items: center; background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: 1.1rem; padding: .85rem 1rem; margin-bottom: .7rem; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+  .cl-card .cl-name { font-weight: 800; font-size: 1.02rem; }
+  .cl-card .cl-sub { color: var(--bs-primary); font-weight: 600; }
+  .cl-card .cl-badge { font-size: .68rem; font-weight: 800; letter-spacing: .03em; border-radius: .5rem; padding: .15rem .5rem; background: var(--bs-primary-bg-subtle); color: var(--bs-primary); white-space: nowrap; margin-left: .35rem; }
+  .cl-card.visited { background: var(--bs-tertiary-bg); opacity: .62; cursor: default; }
+  .cl-card.visited .cl-badge { background: var(--bs-secondary-bg); color: var(--bs-secondary-color); }
+  .cl-card .cl-ico { font-size: 1.5rem; color: var(--bs-secondary-color); }
+  .pca-btn { width: 100%; border: 0; border-radius: .9rem; background: #ece9fb; color: #5b3fd0; font-weight: 700; padding: .55rem; margin-top: .55rem; }
+  .pca-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+  .pca-grid > div { background: var(--bs-tertiary-bg); border-radius: .8rem; padding: .55rem .75rem; }
+  .pca-grid small { display: block; color: var(--bs-secondary-color); font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; }
+  .pca-grid b { word-break: break-word; }
+  .pca-month { border: 1px solid var(--bs-border-color); border-radius: 1rem; padding: .7rem .9rem; margin-bottom: .6rem; }
+  .pca-month .vd { color: var(--bs-danger); font-weight: 600; } .pca-month .by { color: var(--bs-success); }
+  .dcr-add { width: 100%; border: 2px dashed var(--bs-border-color); background: transparent; border-radius: 1rem; padding: .85rem; font-weight: 600; color: var(--bs-primary); }
+  .dcr-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: flex; gap: .6rem; align-items: center; padding: .65rem 1rem calc(.65rem + env(safe-area-inset-bottom)); background: var(--bs-body-bg); border-top: 1px solid var(--bs-border-color); box-shadow: 0 -4px 14px rgba(0,0,0,.08); }
+  .dcr-bar .btn { border-radius: 999px; padding: .55rem 1.1rem; font-weight: 600; }
+  .dcr-bar-sum { flex: 1; font-size: .8rem; line-height: 1.2; color: var(--bs-secondary-color); }
+  .dcr-bar-sum b { color: var(--bs-body-color); }
+  @media (min-width: 992px) { .dcr-bar { left: 250px; } }
+  .dcr-sheet { height: 92vh !important; max-width: 760px; margin: 0 auto; border-radius: 1.25rem 1.25rem 0 0; }
+  .dcr-sheet .offcanvas-body { padding-bottom: 6rem; }
+  .dcr-sheet-foot { position: absolute; left: 0; right: 0; bottom: 0; padding: .7rem 1rem calc(.7rem + env(safe-area-inset-bottom)); background: var(--bs-body-bg); border-top: 1px solid var(--bs-border-color); display: flex; gap: .6rem; }
+  .dcr-sheet-foot .btn { flex: 1; border-radius: 999px; font-weight: 600; padding: .6rem; }
+  .dcr-sec { font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; color: var(--bs-secondary-color); font-weight: 700; margin: 1rem 0 .4rem; }
+  .dcr-item { background: var(--bs-tertiary-bg); border-radius: .85rem; padding: .65rem; margin-bottom: .5rem; }
+  .dcr-pick { max-height: 55vh; overflow-y: auto; }
+  .dcr-pick .row-i { display: flex; align-items: center; gap: .7rem; padding: .7rem .5rem; border-bottom: 1px solid var(--bs-border-color); cursor: pointer; }
+  .dcr-pick .row-i:active { background: var(--bs-tertiary-bg); }
+  .dcr-empty { text-align: center; color: var(--bs-secondary-color); padding: 1.5rem .5rem; }
+  .dcr-readonly input, .dcr-readonly select, .dcr-readonly textarea, .dcr-readonly .dcr-add { pointer-events: none; opacity: .7; }
+  /* ===== Desktop / web look (>=992px): wide page, underline tabs, side-panel editor, inline action bar.
+         Below this width everything above stays the phone-app look. ===== */
+  @media (min-width: 992px) {
+    .dcr-app { max-width: 1120px; padding-bottom: 1.5rem; }
+    .card-lite { border-radius: .5rem; box-shadow: none; padding: 1rem 1.25rem; }
+    .dcr-title { font-size: 1.4rem; font-weight: 700; }
+    .dcr-top { align-items: center; padding-bottom: .75rem; border-bottom: 1px solid var(--bs-border-color); }
+    .dcr-start-btn { border-radius: .4rem; padding: .5rem 1.1rem; box-shadow: none; }
+    .dcr-histlink { padding-top: 0; }
+    .dcr-mini { border-radius: .4rem; }
+    .dcr-seg { display: inline-flex; border-radius: .5rem; }
+    .dcr-seg button { border-radius: .4rem; padding: .4rem 1.1rem; }
+    .dcr-date { border-radius: .4rem; max-width: 12rem; }
+    .dcr-tabs { gap: 0; border-bottom: 1px solid var(--bs-border-color); padding: 0; position: static; margin-bottom: 1rem; }
+    .dcr-tabs button { border: 0; border-bottom: 3px solid transparent; border-radius: 0; background: transparent; padding: .65rem 1.1rem; }
+    .dcr-tabs button.active { background: transparent; color: var(--bs-primary); border-bottom-color: var(--bs-primary); }
+    .dcr-tabs button.active .n { background: var(--bs-primary-bg-subtle); }
+    .dcr-pane .form-control, .dcr-pane .form-select, .dcr-sheet .form-control, .dcr-sheet .form-select { border-radius: .4rem; min-height: 2.4rem; }
+    .dcr-chip { border-radius: .4rem; }
+    .dcr-kinds { grid-template-columns: repeat(3, 1fr); }
+    .dcr-kind { border-radius: .5rem; }
+    .dcr-addvisit { width: auto; border-radius: .4rem; padding: .5rem 1.4rem; box-shadow: none; }
+    .dcr-add { border-radius: .5rem; width: auto; padding: .5rem 1.25rem; }
+    .dcr-visit { padding: .1rem 0; }
+    .dcr-visit:hover { background: var(--bs-tertiary-bg); }
+    #dcrBar { position: sticky; bottom: 0; left: auto; right: auto; border: 1px solid var(--bs-border-color); border-radius: .5rem; box-shadow: 0 -2px 10px rgba(0,0,0,.06); margin-top: 1rem; }
+    #dcrBar .btn { border-radius: .4rem; }
+    /* editor opens as a right-hand side panel instead of a phone bottom sheet */
+    .dcr-sheet.offcanvas-bottom { top: 0; bottom: 0; left: auto; right: 0; width: 560px; max-width: 100%; height: 100vh !important; max-height: none; border-radius: 0; border-top: 0; transform: translateX(100%); }
+    .dcr-sheet.offcanvas-bottom.showing, .dcr-sheet.offcanvas-bottom.show:not(.hiding) { transform: none; }
+    .dcr-sheet-foot .btn { border-radius: .4rem; flex: 0 1 auto; min-width: 8rem; }
+    .dcr-sheet-foot { justify-content: flex-end; }
+  }
+  @media (max-width: 575px) { .dcr-date { max-width: 9rem; } }
+</style>
+</head>
+<body>
+<div id="app" data-page="dcrsubmit" data-title="Daily Call Report"></div>
+<template id="pageContent">
+<div class="dcr-app">
+
+  <!-- header like the phone app: title + who, DCR History link -->
+  <div class="dcr-top">
+    <div class="min-w-0"><div class="dcr-title" id="dcrTitle">DCR</div><div class="text-muted small" id="dcrWho"></div></div>
+    <div class="dcr-top-right">
+      <div class="dcr-top-btns">
+        <button class="dcr-mini d-none" id="dcrDayEndBtn" onclick="dcrGoDayEnd()" title="Day end details (stay, meter end…)"><i class="bi bi-moon"></i> Day End</button>
+        <button class="dcr-mini dcr-mini-go d-none" id="dcrFinalBtn" onclick="dcrSave(true)" title="Ends your day - the day-end time is captured automatically"><i class="bi bi-check2-circle"></i> Final Submit</button>
+      </div>
+      <a href="javascript:void(0)" class="dcr-histlink" id="dcrHistLink" onclick="dcrView(VIEW === 'form' ? 'list' : 'form')"><i class="bi bi-clock-history"></i> <span id="dcrHistTxt">DCR History</span><span class="dcr-badge d-none" id="dcrPendingBadge"></span></a>
+    </div>
+  </div>
+
+  <!-- ================= FORM ================= -->
+  <div id="dcrForm">
+    <div class="dcr-head card-lite">
+      <div class="d-flex align-items-center gap-2">
+        <button class="btn btn-light btn-sm rounded-circle" onclick="dcrShiftDay(-1)" title="Previous day"><i class="bi bi-chevron-left"></i></button>
+        <input type="date" class="form-control dcr-date" id="dcrDate" onchange="dcrDateChanged()" />
+        <button class="btn btn-light btn-sm rounded-circle" onclick="dcrShiftDay(1)" title="Next day"><i class="bi bi-chevron-right"></i></button>
+        <span id="dcrStatus" class="ms-auto"></span>
+      </div>
+      <div class="small mt-2 d-none" id="dcrReject"></div>
+    </div>
+
+    <div class="dcr-tabs" id="dcrTabs"></div>
+    <div id="dcrPane" class="dcr-pane"></div>
+    <div class="dcr-spacer"></div>
+  </div>
+
+  <!-- ================= HISTORY ================= -->
+  <div id="dcrList" class="d-none">
+    <div class="card-lite d-flex gap-2 flex-wrap align-items-center">
+      <select class="form-select form-select-sm w-auto" id="hRange" data-no-search onchange="dcrLoadList()">
+        <option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option>
+      </select>
+      <select class="form-select form-select-sm w-auto" id="hStatus" data-no-search onchange="dcrRenderList()">
+        <option value="">All</option><option value="mine">Waiting for my approval</option><option value="0">Draft</option><option value="1">Submitted</option><option value="2">Approved</option><option value="3">Rejected</option>
+      </select>
+      <input class="form-control form-control-sm w-auto flex-grow-1" id="hSearch" placeholder="Search employee…" oninput="dcrRenderList()" />
+    </div>
+    <div id="hRows" class="mt-2"></div>
+  </div>
+
+  <div class="text-center text-muted small mt-3 mb-5" id="dcrVer">DCR page build 09-Nov-2026 · G</div>
+
+  <!-- bottom action bar (form only) -->
+  <div class="dcr-bar" id="dcrBar">
+    <div class="dcr-bar-sum" id="dcrSum"></div>
+    <button class="btn btn-outline-secondary" id="dcrDraftBtn" onclick="dcrSave(false)"><i class="bi bi-save"></i> Draft</button>
+    <button class="btn btn-primary" id="dcrSubmitBtn" onclick="dcrSave(true)"><i class="bi bi-send-check"></i> Submit</button>
+  </div>
+</div>
+
+<!-- bottom sheet (call / expense / detail editors) -->
+<div class="offcanvas offcanvas-bottom dcr-sheet" tabindex="-1" id="dcrSheet" data-bs-backdrop="static">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title" id="sheetTitle"></h5>
+    <button type="button" class="btn-close" onclick="sheetX()"></button>
+  </div>
+  <div class="offcanvas-body" id="sheetBody"></div>
+  <div class="dcr-sheet-foot" id="sheetFoot"></div>
+</div>
+</template>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.colVis.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="js/core/session.js"></script>
+<script src="js/core/endpoints.js"></script>
+<script src="js/core/http.js"></script>
+<script src="js/core/theme.js"></script>
+<script src="js/core/settings.js"></script>
+<script src="js/core/i18n.js"></script>
+<script src="js/app.js"></script>
+<script src="js/core/uikit.js"></script>
+<script src="js/shell.js"></script>
+<script>
+  const EP = API.master.dcrSubmit;
+  const esc = (v) => SFA.esc(v == null ? '' : v);
+  const pad = (n) => String(n).padStart(2, '0');
+  const todayStr = () => { const d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
+  const nowHm = () => { const d = new Date(); return pad(d.getHours()) + ':' + pad(d.getMinutes()); };
+  const nowDt = () => todayStr() + 'T' + nowHm();
+  const initials = (n) => (n || '?').replace(/^(Dr\.?|Mr\.?|Mrs\.?|Ms\.?)\s+/i, '').split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+  const money = (v) => (Number(v || 0)).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+  const STATUS = [['Draft', 'secondary'], ['Submitted', 'info'], ['Approved', 'success'], ['Rejected', 'danger']];
+  const stBadge = (s) => s == null ? '<span class="badge bg-light text-dark border">New</span>' : `<span class="badge bg-${STATUS[s][1]}${s === 1 ? ' text-dark' : ''}">${STATUS[s][0]}</span>`;
+
+  let DK = null, TPF = null, OPT = null, ST = null, CUR = 'day', VIEW = 'form', SHEET = null, EDIT = null, ROWS = [], KEYSEQ = 0, SHEET_ON_CLOSE = null;
+
+  const blank = (date) => ({ dcrId: null, dcrDate: date, workType: defaultWork(), startAreaId: '', workingAreaId: '', timeIn: '', timeOut: '', travelMode: '', meterStart: '', meterEnd: '',
+    remarks: '', dayEndAreaId: '', dayEndAt: '', dayEndRemarks: '', stayAreaId: '', stayHotel: '', jointWith: [], visits: [], unlisted: [], expenses: [], status: null, canEdit: true });
+
+  window.pageInit = async function () {
+    SHEET = new bootstrap.Offcanvas('#dcrSheet');
+    const dd = document.getElementById('dcrDate'); dd.max = todayStr(); dd.value = todayStr();   // today by default, even before the data arrives
+    try {
+      OPT = await Api.get(EP.options);
+      if (!OPT) throw new Error('The DCR form could not load its data - refresh the page; if it persists, ask your administrator.');
+      document.getElementById('dcrWho').textContent = [OPT.meName, OPT.meDesignation, OPT.meHq].filter(Boolean).join(' · ');
+      const d = document.getElementById('dcrDate');
+      d.max = todayStr(); d.value = todayStr();
+      await loadDay();
+      pendingBadge();
+      if (/[?&]view=approval/.test(location.search)) { document.getElementById('hStatus').value = 'mine'; dcrView('list'); }   // menu "DCR Approval": the DCRs waiting for me
+    } catch (e) { SFA.toast(e.message, false); }
+  };
+
+  // ============================================================== day load / header
+  async function loadDay() {
+    const date = document.getElementById('dcrDate').value || todayStr();
+    const d = await Api.get(EP.mine, { query: { date } });
+    ST = d && d.dcrId ? fromDto(d) : blank(date);   // no DCR yet: the API answers with an empty envelope
+    DK = null; if (!(d && d.dcrId)) { try { DK = await Api.get(EP.dayKind, { query: { date }, noLoader: true }); } catch (e) { DK = null; } }   // holiday / weekly off as set in Holiday Master
+    try { TPF = await Api.get(EP.tp, { query: { date }, noLoader: true }); } catch (e) { TPF = null; }   // what the approved tour plan lets this date offer
+    if (!tabList().some(t => t.code === CUR)) CUR = 'day';
+    render();
+  }
+  function dcrDateChanged() { loadDay().catch(e => SFA.toast(e.message, false)); }
+  function dcrShiftDay(n) {
+    const el = document.getElementById('dcrDate'), d = new Date((el.value || todayStr()) + 'T00:00:00');
+    d.setDate(d.getDate() + n);
+    const v = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+    if (v > todayStr()) return;
+    el.value = v; dcrDateChanged();
+  }
+  function fromDto(d) {
+    const x = JSON.parse(JSON.stringify(d));
+    ['startAreaId', 'workingAreaId', 'dayEndAreaId', 'stayAreaId'].forEach(k => { if (x[k] == null) x[k] = ''; });
+    ['timeIn', 'timeOut', 'travelMode', 'meterStart', 'meterEnd', 'meterStartImage', 'meterEndImage', 'remarks', 'dayEndAt', 'dayEndRemarks', 'stayHotel'].forEach(k => { if (x[k] == null) x[k] = ''; });
+    x.unlisted.forEach(u => { u.key = u.key || ('n' + (++KEYSEQ)); });
+    return x;
+  }
+  function dcrView(v) {
+    VIEW = v;
+    document.getElementById('dcrHistTxt').textContent = v === 'form' ? 'DCR History' : 'My DCR';
+    document.getElementById('dcrTitle').textContent = v === 'form' ? 'DCR' : 'DCR History';
+    document.getElementById('dcrForm').classList.toggle('d-none', v !== 'form');
+    document.getElementById('dcrList').classList.toggle('d-none', v !== 'list');
+    document.getElementById('dcrBar').classList.toggle('d-none', v !== 'form' || !started());
+    headBtns(v === 'form' && started() && !!(ST && ST.canEdit));
+    if (v === 'list') dcrLoadList();
+  }
+
+  // ============================================================== tabs / panes
+  function headBtns(show) {
+    document.getElementById('dcrFinalBtn').classList.toggle('d-none', !show);
+    document.getElementById('dcrDayEndBtn').classList.toggle('d-none', !(show && OPT && OPT.tabs.some(t => t.form === 'DAYEND') && isField(ST.workType)));
+  }
+  function dcrGoDayEnd() { const t = OPT.tabs.find(x => x.form === 'DAYEND'); if (t) dcrTab(t.code); }
+  function tabList() {
+    const t = [{ code: 'day', name: 'Day', form: 'DAY' }];
+    if (!started()) return t;   // nothing else until the day is started
+    if (ST && isField(ST.workType)) OPT.tabs.forEach(x => t.push({ code: x.code, name: x.name, form: x.form, clientTypeId: x.clientTypeId, subForms: x.subForms }));
+    t.push({ code: 'review', name: 'Review', form: 'REVIEW' });
+    return t;
+  }
+  const started = () => !!(ST && ST.dcrId);
+  const isOpen = (c) => !!c.inTime && !c.outTime && !c.refused;
+  const tabCount = (t) => t.form === 'CHECKIN' ? ST.visits.filter(v => v.worktypeCode === t.code).length : t.form === 'UNLISTED' ? ST.unlisted.length
+    : t.form === 'EXPENSE' ? ST.expenses.length : t.form === 'JOINT' ? ST.jointWith.length : 0;
+
+  function render() {
+    document.getElementById('dcrStatus').innerHTML = stBadge(ST.status);
+    const rj = document.getElementById('dcrReject');
+    if (ST.status === 3) { rj.className = 'small mt-2 text-danger'; rj.innerHTML = '<i class="bi bi-x-circle"></i> Rejected' + (ST.approvedByName ? ' by ' + esc(ST.approvedByName) : '') + ': ' + esc(ST.approvalRemarks || '') + ' — correct it and submit again.'; }
+    else if (ST.status === 2) { rj.className = 'small mt-2 text-success'; rj.innerHTML = '<i class="bi bi-patch-check"></i> Approved' + (ST.approvedByName ? ' by ' + esc(ST.approvedByName) : '') + '.'; }
+    else rj.className = 'small mt-2 d-none';
+    const tabs = tabList();
+    document.getElementById('dcrTabs').innerHTML = tabs.map(t => { const n = tabCount(t);
+      return `<button class="${t.code === CUR ? 'active' : ''}" onclick="dcrTab('${esc(t.code)}')">${esc(t.name)}${n ? `<span class="n">${n}</span>` : ''}</button>`; }).join('');
+    const tab = tabs.find(t => t.code === CUR) || tabs[0];
+    const pane = document.getElementById('dcrPane');
+    pane.innerHTML = tab.form === 'DAY' ? paneDay() : tab.form === 'CHECKIN' ? paneCalls(tab, 'v') : tab.form === 'UNLISTED' ? paneCalls(tab, 'u')
+      : tab.form === 'JOINT' ? paneJoint() : tab.form === 'EXPENSE' ? paneExpense() : tab.form === 'DAYEND' ? paneDayEnd() : paneReview();
+    if (started() && tab.form !== 'DAY') pane.insertAdjacentHTML('afterbegin', `<button class="btn btn-link px-0 mb-2" onclick="dcrTab('day')"><i class="bi bi-chevron-left"></i> Back</button><div class="fs-5 fw-bold mb-2">${esc(tab.name)}</div>`);
+    pane.classList.toggle('dcr-readonly', !ST.canEdit);
+    document.getElementById('dcrTabs').classList.add('d-none');   // the home page + Add visit replace the tab strip
+    document.getElementById('dcrBar').classList.toggle('d-none', VIEW !== 'form' || !started());
+    summary();
+  }
+  function dcrTab(code) { CUR = code; render(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+
+  function summary() {
+    const pob = ST.visits.concat(ST.unlisted).reduce((s, c) => s + callPob(c), 0), exp = ST.expenses.reduce((s, e) => s + Number(e.amount || 0), 0);
+    document.getElementById('dcrSum').innerHTML = `<b>${ST.visits.length + ST.unlisted.length}</b> calls · POB <b>₹${money(pob)}</b><br>Expense <b>₹${money(exp)}</b>`;
+    const ro = !ST.canEdit;
+    headBtns(!(ro || !started() || VIEW !== 'form'));
+    document.getElementById('dcrDraftBtn').disabled = ro; document.getElementById('dcrSubmitBtn').disabled = ro;
+    document.getElementById('dcrSubmitBtn').innerHTML = ST.status === 3 ? '<i class="bi bi-send-check"></i> <span class="t">Resubmit</span>' : (RULE('FINAL_SUBMIT_REQUIRED', true) ? '<i class="bi bi-send-check"></i> <span class="t">Submit</span>' : '<i class="bi bi-moon"></i> <span class="t">End Day</span>');
+  }
+  const callPob = (c) => { const s = (c.items || []).reduce((a, i) => a + Number(i.pobQty || 0) * Number(i.rate || 0), 0); return s > 0 ? s : Number(c.pobValue || 0); };
+
+  const opts = (list, sel, ph) => `<option value="">${ph || '--'}</option>` + list.map(o => { const v = o.id != null ? o.id : o, l = o.name != null ? o.name : o;
+    return `<option value="${esc(v)}"${String(v) === String(sel) ? ' selected' : ''}>${esc(l)}</option>`; }).join('');
+  const field = (label, html, cls) => `<div class="${cls || 'col-12'}"><label class="form-label">${label}</label>${html}</div>`;
+  const inp = (key, type, extra) => `<input class="form-control" type="${type || 'text'}" value="${esc(ST[key])}" oninput="ST.${key}=this.value" ${extra || ''} />`;
+
+  const RULE = (code, dflt) => { const v = ((OPT && OPT.rules) || {})[code]; return v == null || v === '' ? dflt : /^(true|1|y)$/i.test(v); };
+  const tmField = (sel) => RULE('DAY_START_TRAVEL_MODE_VISIBLITY', true) ? field('Travel mode' + (RULE('DAY_START_TRAVEL_MODE_MANDATORY', false) ? ' *' : ''), sel, 'col-6') : '';
+  const meterField = () => RULE('METER_READING_DAYSTART_VISIBLITY', true) ? field('Meter reading (km)' + (RULE('METER_READING_DAYSTART', false) ? ' *' : ''), inp('meterStart', 'number', 'inputmode="decimal" step="any"')
+    + `<div class="mt-2">${ST.meterStartImage ? `<div class="mb-1">${SFAFiles.thumb(ST.meterStartImage, null, { name: 'meter' })}</div>` : ''}${photoBtns("r=>{ST.meterStartImage=r.path;startSheet()}")}</div>`) : '';
+  const isField = (c) => { const w = (OPT.workTypes || []).find(x => x.code === c); return !!(w && w.fieldWork); };
+  const defaultWork = () => { const w = (OPT && OPT.workTypes) || []; return (w.find(x => x.fieldWork) || w[0] || {}).code || ''; };
+  const wtName = (c) => { const w = (OPT.workTypes || []).find(x => x.code === c); return w ? w.name : c; };
+  function paneDay() {
+    const working = isField(ST.workType), today = ST.dcrDate === todayStr();
+    if (!started() && DK && DK.kind && (DK.submitted || DK.canSubmit)) return holidayCard();
+    if (!started()) {
+      const when = today ? 'Today: ' : 'Date: ', dt = new Date(ST.dcrDate + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
+      return `<div class="card-lite d-flex align-items-center gap-3"><div class="flex-fill"><div class="fs-5 fw-bold">Day not started</div>
+          <div class="text-muted">${when}${esc(dt)}</div><div class="text-muted">Start your day first.</div></div>
+          <button class="dcr-start-btn" onclick="startSheet()"><i class="bi bi-play-circle"></i> Start Day</button></div>
+        <div class="small text-muted text-center mt-3">Client check-in, expense and the other tabs open once your day is started.</div>`;
+    }
+    return `${working && ST.canEdit ? '<button class="dcr-addvisit" onclick="addVisitSheet()"><i class="bi bi-plus-circle"></i> Add visit</button>' : ''}
+      ${working ? visitSummary() + expenseSummary() + jointSummary() : ''}
+      ${daySummary()}
+      ${ST.canEdit ? `<button class="btn btn-outline-danger w-100 mt-1" onclick="dcrDelete(${ST.dcrId})"><i class="bi bi-trash"></i> Delete this DCR</button>` : ''}`;
+  }
+  // what was chosen when the day was started - read-only history (remarks only stays editable while empty: the submit rule may need it)
+  function daySummary() {
+    const area = (OPT.areas.find(a => String(a.id) === String(ST.startAreaId)) || {}).name, tm = ST.travelMode;
+    const row = (l, v) => v ? `<div class="d-flex justify-content-between py-1 border-bottom"><span class="text-muted">${l}</span><b class="text-end ms-3">${esc(v)}</b></div>` : '';
+    const rem = ST.remarks ? row('Remarks', ST.remarks)
+      : (ST.canEdit ? `<div class="pt-2">${field('Remarks' + (RULE('DCR_Remarks', false) ? ' *' : ''), `<textarea class="form-control" rows="2" oninput="ST.remarks=this.value"></textarea>`)}</div>` : '');
+    return `<div class="dcr-sec mt-0">Day start summary</div><div class="card-lite">
+      ${row('Day type', wtName(ST.workType))}${row('Started at', ST.timeIn)}${isField(ST.workType) ? row('Started from', area) + row('Area type', areaTypeOf(ST.startAreaId)) + row('Travel mode', tm) + (ST.meterStart ? row('Meter start', ST.meterStart + ' km') : '') : ''}${rem}</div>`;
+  }
+  // a holiday / weekly off (as set in Holiday Master): submitted automatically at 8 PM; here it can be submitted back-dated (e.g. assigned later)
+  function holidayCard() {
+    const dt = new Date(ST.dcrDate + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' }), hol = DK.name !== 'Weekly off';
+    if (DK.submitted) return `<div class="card-lite d-flex align-items-center gap-3"><i class="bi bi-check-circle-fill text-success fs-1"></i><div class="flex-fill"><div class="fs-5 fw-bold">${esc(DK.name)} - DCR submitted</div><div class="text-muted">${esc(dt)}</div>
+      <div class="small text-muted">Submitted automatically, nothing more to do. If you worked this day, tap Start Day.</div></div><button class="btn btn-outline-primary btn-sm" onclick="startSheet()">Start Day</button></div>`;
+    return `<div class="card-lite"><div class="d-flex align-items-center gap-3"><i class="bi ${hol ? 'bi-balloon-heart-fill' : 'bi-cup-hot-fill'} text-warning fs-1"></i><div class="flex-fill"><div class="fs-5 fw-bold">${esc(DK.name)}</div><div class="text-muted">${esc(dt)}</div>
+      <div class="small text-muted">${hol ? 'This is a holiday' : 'This is your weekly off'} as per Holiday Master. No DCR work is needed - submit it so your attendance is complete.</div></div></div>
+      <button class="btn btn-success w-100 mt-3" onclick="holidaySubmit()"><i class="bi bi-send-check"></i> Submit ${hol ? 'Holiday' : 'Weekly Off'} DCR</button>
+      <button class="btn btn-link w-100 mt-1" onclick="startSheet()">I worked this day - Start Day</button></div>`;
+  }
+  async function holidaySubmit(confirmOld) {
+    try {
+      const r = await Api.post(EP.holidaySubmit, { date: ST.dcrDate, confirmOld: !!confirmOld });
+      SFA.toast(r.name + ' DCR submitted for ' + Settings.formatDate(r.date) + (r.late ? ' (late)' : ''), true); await loadDay();
+    } catch (e) {
+      if (String(e.message).startsWith('DATE_EXCEEDED:')) { if (confirm(String(e.message).slice(14).trim())) return holidaySubmit(true); return; }   // beyond the back-date limit: ask first
+      SFA.toast(e.message, false);
+    }
+  }
+  async function dcrDelete(id) {
+    if (!confirm('Delete this DCR with all its visits and expenses? This cannot be undone.')) return;
+    try {
+      await Api.del(EP.del(id)); SFA.toast('DCR deleted', true);
+      if (VIEW === 'list') { dcrLoadList(); sheetClose(); } else { await loadDay(); }
+      pendingBadge();
+    } catch (e) { SFA.toast(e.message, false); }
+  }
+  function startSheet() {
+    const working = isField(ST.workType), today = ST.dcrDate === todayStr();
+    if (working && !ST.startAreaId) { const hm = startAreas().find(a => a.home); if (hm) { ST.startAreaId = hm.id; setTimeout(areaTypeShow, 0); } }   // the starting point (home area) is pre-selected
+    const wt = `<select class="form-select" data-no-search onchange="ST.workType=this.value;startSheet()">${opts(OPT.workTypes.map(w => ({ id: w.code, name: w.name })), ST.workType)}</select>`;
+    sheetOpen('Start your day', `<div class="row g-3">${field('Work type', wt)}
+      ${working ? tpNote() : ''}
+      ${working ? field('Starting from (area)', `<select class="form-select" data-no-search onchange="ST.startAreaId=this.value;areaTypeShow()">${opts(startAreas(), ST.startAreaId, 'Select area')}</select><div class="small mt-1" id="stAreaType"></div>`) : ''}
+      ${working ? tmField(`<select class="form-select" data-no-search onchange="ST.travelMode=this.value">${opts(OPT.travelModes, ST.travelMode, 'Select')}</select>`) + meterField() : ''}
+      ${ST.workType === 'LEAVE' ? leaveFields() : ''}
+      ${field(ST.workType === 'LEAVE' ? 'Reason for leave' : 'Remarks', `<textarea class="form-control" rows="2" oninput="ST.remarks=this.value">${esc(ST.remarks)}</textarea>`)}</div>
+      <div class="small text-muted mt-3"><i class="bi bi-clock"></i> ${today ? 'Your time in is captured when you tap Start Day.' : 'Enter the time your day started.'}</div>`,
+      '<button class="btn btn-light" onclick="sheetClose()">Cancel</button><button class="dcr-start-btn flex-fill" onclick="dcrStart()"' + (tpBlocked() ? ' disabled' : '') + '><i class="bi bi-play-circle"></i> Start Day</button>');
+    areaTypeShow();
+  }
+  // leave: the type, day part and last day come from the leave master (policy checked on the server when you tap Start Day)
+  const lvTypes = () => (OPT && OPT.leaveTypes) || [];
+  function leaveFields() {
+    const lt = lvTypes().find(x => String(x.typeId) === String(ST.leaveTypeId));
+    if (!ST.leaveTypeId && lvTypes().length) ST.leaveTypeId = lvTypes()[0].typeId;
+    const cur = lvTypes().find(x => String(x.typeId) === String(ST.leaveTypeId)) || {};
+    const typeSel = `<select class="form-select" data-no-search onchange="ST.leaveTypeId=this.value;startSheet()">${lvTypes().map(x => `<option value="${x.typeId}" ${String(x.typeId) === String(ST.leaveTypeId) ? 'selected' : ''}>${esc(x.name)} (${x.paid ? Number(x.balance) + ' left' : 'unpaid'})</option>`).join('')}</select>`;
+    const part = `<select class="form-select" data-no-search onchange="ST.leaveDayPart=this.value;startSheet()"><option value="FULL" ${ST.leaveDayPart !== 'FIRST' && ST.leaveDayPart !== 'SECOND' ? 'selected' : ''}>Full day</option>${cur.allowHalfDay ? `<option value="FIRST" ${ST.leaveDayPart === 'FIRST' ? 'selected' : ''}>First half</option><option value="SECOND" ${ST.leaveDayPart === 'SECOND' ? 'selected' : ''}>Second half</option>` : ''}</select>`;
+    const half = ST.leaveDayPart === 'FIRST' || ST.leaveDayPart === 'SECOND';
+    return field('Leave type', typeSel) + field('Day', part, 'col-6') + (half ? '' : field('Till date (for more days)', `<input type="date" class="form-control" min="${ST.dcrDate}" value="${esc(ST.leaveToDate || '')}" onchange="ST.leaveToDate=this.value">`, 'col-6'))
+      + '<div class="col-12"><div class="alert alert-info py-2 small mb-0"><i class="bi bi-info-circle"></i> Leave is checked against the leave policy (balance, notice, limits) and goes to your manager for approval.</div></div>';
+  }
+  // tour plan rule (TP_VALIDATE_FILTER): only the planned areas / clients, and no start without an approved plan
+  const tpOn = () => !!(TPF && TPF.enabled);
+  const tpBlocked = () => tpOn() && !TPF.planned && isField(ST.workType);
+  const startAreas = () => tpOn() && TPF.planned ? OPT.areas.filter(a => TPF.areaIds.includes(a.id)) : (tpBlocked() ? [] : OPT.areas);
+  const tpNote = () => !tpOn() ? '' : TPF.planned ? '<div class="col-12"><div class="alert alert-info py-2 small mb-0"><i class="bi bi-calendar-check"></i> Following your approved tour plan: only the planned areas and clients are offered.</div></div>'
+    : '<div class="col-12"><div class="alert alert-warning py-2 small mb-0"><i class="bi bi-calendar-x"></i> There is no approved tour plan for this date, so a field day cannot start. Submit / get your Tour Plan approved first.</div></div>';
+  // the area's type (HQ / EX / OUT ...) comes from area_master and shows under the area
+  const areaTypeOf = (id) => ((OPT.areas.find(a => String(a.id) === String(id)) || {}).areaType) || '';
+  function areaTypeShow() {
+    const el = document.getElementById('stAreaType'); if (!el) return;
+    const t = areaTypeOf(ST.startAreaId); el.innerHTML = t ? `<span class="badge bg-primary-subtle text-primary-emphasis">Area type: ${esc(t)}</span>` : '';
+  }
+  async function dcrStart() {
+    let sp = null;
+    if (geoOn() && isField(ST.workType)) { sp = await getPos(); if (!sp) return geoLocHelp(dcrStart); }   // location check ON: the day starts only with a position
+    else if (isField(ST.workType)) sp = await getPos();   // otherwise the position is kept when it can be had
+    try {
+      const d = await Api.post(EP.start, { startLat: sp ? sp.lat : null, startLng: sp ? sp.lng : null, dcrDate: ST.dcrDate, workType: ST.workType, startAreaId: n(ST.startAreaId), travelMode: s(ST.travelMode), meterStart: n(ST.meterStart), meterStartImage: s(ST.meterStartImage), remarks: s(ST.remarks), timeIn: s(ST.timeIn), leaveTypeId: ST.workType === 'LEAVE' ? n(ST.leaveTypeId) : null, leaveToDate: ST.workType === 'LEAVE' ? s(ST.leaveToDate) : null, leaveDayPart: ST.workType === 'LEAVE' ? (ST.leaveDayPart || 'FULL') : null });
+      ST = fromDto(d); CUR = 'day'; sheetClose(); render();
+      SFA.toast('Day started at ' + ST.timeIn, true);
+    } catch (e) { if (String(e.message).startsWith('NO_LOCATION')) return geoLocHelp(dcrStart); SFA.toast(e.message, false); }
+  }
+  function setWork(w) { if (!ST.canEdit || started()) return; ST.workType = w; render(); }
+
+
+  // ---- "Add visit": what are you doing now? (one card per tab the table gives this user)
+  function addVisitSheet() {
+    const cards = OPT.tabs.map(t => `<button class="dcr-kind" onclick="chooseKind('${esc(t.code)}')"><i class="bi bi-${esc(t.icon || 'journal')}"></i>${esc(t.name)}
+      ${tabCount(t) ? `<small>${tabCount(t)} added</small>` : ''}</button>`).join('');
+    sheetOpen('What are you doing now?', `<div class="dcr-kinds">${cards || '<div class="dcr-empty">Nothing is enabled for you</div>'}</div>`, '<button class="btn btn-light" onclick="sheetClose()">Close</button>');
+  }
+  function chooseKind(code) {
+    const t = OPT.tabs.find(x => x.code === code);
+    if (t.form === 'CHECKIN') return pickClient(code);
+    if (t.form === 'UNLISTED') return newUnlisted(code);
+    if (t.form === 'EXPENSE') return editExpense(-1);
+    CUR = code; sheetClose(); render();   // joint working / day end are plain tabs
+  }
+  function expenseSummary() {
+    if (!ST.expenses.length) return '';
+    return '<div class="dcr-sec mt-0">Expenses</div>' + ST.expenses.map((e, i) => { const t = OPT.expenseTypes.find(x => x.id === e.expenseId);
+      return `<div class="card-lite dcr-visit" onclick="editExpense(${i})"><div class="ava"><i class="bi bi-receipt"></i></div>
+        <div class="meta"><b>${esc(t ? t.name : 'Expense')}</b><small class="text-muted">${esc(e.description || ' ')}</small></div><b>₹${money(e.amount)}</b></div>`; }).join('');
+  }
+  function jointSummary() {
+    if (!ST.jointWith.length) return '';
+    return `<div class="dcr-sec mt-0">Joint working</div><div class="card-lite">${ST.jointWith.map(id => esc(jname(id))).join(', ')}</div>`;
+  }
+  // client facts of a call, all from the masters: type, area, category, speciality
+  function callInfo(k, c) {
+    const nm = (list, id) => ((list || []).find(x => String(x.id) === String(id)) || {}).name;
+    if (k === 'v') { const m = OPT.clients.find(x => x.id === c.clientId) || {}; return { type: c.clientTypeName || m.clientTypeName, area: m.areaName || nm(OPT.areas, c.areaId), category: m.category, speciality: m.speciality, code: c.clientCode }; }
+    return { type: nm(OPT.clientTypes, c.clientTypeId), area: nm(OPT.areas, c.areaId), category: nm(OPT.categories, c.categoryId), speciality: nm(OPT.specialities, c.specialityId), code: c.mobile };
+  }
+  function visitSummary() {
+    const rows = ST.visits.map((c, i) => ['v', i, c]).concat(ST.unlisted.map((c, i) => ['u', i, c])).filter(x => x[2].inTime);
+    if (!rows.length) return '';
+    return '<div class="dcr-sec mt-0">Visit summary</div>' + rows.map(([k, i, c]) => { const f = callInfo(k, c);
+      return `<div class="card-lite dcr-visit" onclick="callOpen('${k}',${i})"><div class="ava">${esc(initials(c.clientName))}</div>
+      <div class="meta"><b>${esc(c.clientName)}${k === 'u' ? ' <small class="text-muted">(Unlisted)</small>' : ''}</b>
+        <small class="text-muted">${esc([f.type, f.area].filter(Boolean).join(' · '))}</small>
+        <small class="text-muted">${esc([f.category, f.speciality].filter(Boolean).join(' · '))}</small>
+        <small class="text-muted"><i class="bi bi-clock"></i> ${esc(c.inTime)}${c.outTime ? ' – ' + esc(c.outTime) : ''}</small></div>
+      ${isOpen(c) ? '<span class="badge bg-success">Checked in</span>' : c.refused ? '<span class="badge bg-warning text-dark">Refused</span>' : '<span class="badge bg-success-subtle text-success-emphasis border">Visited</span>'}</div>`; }).join('');
+  }
+  // a call still open goes straight to its check-out screen; a finished one opens its full details
+  function callOpen(k, i) { const c = (k === 'v' ? ST.visits : ST.unlisted)[i]; (isOpen(c) && ST.canEdit) ? editCall(k, i) : callDetail(k, i); }
+  function callDetail(k, i) {
+    const c = (k === 'v' ? ST.visits : ST.unlisted)[i], f = callInfo(k, c), nm = (list, id) => ((list || []).find(x => String(x.id) === String(id)) || {}).name || '';
+    const card = (title, icon, body) => `<div class="card-lite"><div class="fw-bold mb-1"><i class="bi bi-${icon} text-primary"></i> ${title}</div>${body}</div>`;
+    const kv = (l, v) => v ? `<div class="d-flex justify-content-between py-1 border-bottom"><span class="text-muted">${l}</span><b class="text-end ms-3">${esc(v)}</b></div>` : '';
+    const byPanel = (panel, fld) => (c.items || []).filter(x => panelOfRow(x) === panel && Number(x[fld] || 0) > 0);
+    const list = (rows, fn) => rows.length ? rows.map(fn).join('') : '';
+    let h = card('Client', 'person-badge', kv('Name', c.clientName) + kv(k === 'v' ? 'Code' : 'Mobile', f.code) + kv('Client type', f.type) + kv('Area', f.area) + kv('Category', f.category) + kv('Speciality', f.speciality)
+      + (k === 'u' ? kv('Qualification', c.qualification) + kv('Contact person', c.contactPerson) + kv('Address', c.address) : ''));
+    h += card('Visit', 'geo-alt', kv('Visit type', c.visitType) + kv('Checked in', c.inTime) + (c.checkinAddress ? kv('Check-in location', c.checkinAddress) : '') + kv('Checked out', c.outTime) + (c.checkoutAddress ? kv('Check-out location', c.checkoutAddress) : '') + (c.refused ? kv('Result', 'Refused to meet') : '') + (c.checkinLat ? kv('Location', 'saved') : ''));
+    h += card('Joint Work', 'people', (c.jointWith || []).length ? c.jointWith.map(id => { const j = OPT.joint.find(x => x.id === id);
+      return `<div class="py-1 border-bottom"><b>${esc(j ? j.empName : '')}</b> <small class="text-muted">${j ? '(' + esc(j.empCode) + ') · ' + esc(j.designation || '') : ''}</small></div>`; }).join('') : '<span class="text-muted">Self work</span>');
+    const det = (c.items || []).filter(x => x.detailed);
+    if (det.length) h += card('Item Detailed List', 'journal-check', list(det, x => `<div class="py-1 border-bottom">${esc(x.itemName || nm(OPT.items, x.itemId))}</div>`));
+    const smp = byPanel('SAMPLE', 'qty'); if (smp.length) h += card('Sample', 'capsule', list(smp, x => kv(x.itemName || nm(OPT.items, x.itemId), 'x ' + x.qty)));
+    const inp = byPanel('INPUT', 'qty'); if (inp.length) h += card('Input', 'gift', list(inp, x => kv(x.itemName || nm(OPT.items, x.itemId), 'x ' + x.qty)));
+    const pob = (c.items || []).filter(x => Number(x.pobQty) > 0); if (pob.length || Number(c.pobValue) > 0) h += card('POB / Order', 'cart-check', list(pob, x => kv(x.itemName || nm(OPT.items, x.itemId), x.pobQty + ' x ₹' + money(x.rate))) + kv('POB total', '₹' + money(callPob(c))));
+    if ((c.leaflets || []).length) h += card('Leaflets', 'file-earmark-text', c.leaflets.map(l => kv(nm(OPT.items, l.itemId), 'x ' + l.qty)).join(''));
+    if ((c.treatments || []).length) h += card('Treatment', 'heart-pulse', `<div class="dcr-chips">${c.treatments.map(t => `<span class="dcr-chip on">${esc(nm(OPT.treatments, t))}</span>`).join('')}</div>`);
+    if (c.signaturePath) h += card('Image', 'camera', `${SFAFiles.thumb(c.signaturePath, null, { name: 'image' })}`);
+    h += card('Activity / Remarks', 'chat-left-text', kv('Activity', c.activityType) + kv('Remarks', c.remarks) + kv('Next visit', c.nextVisit) + kv('Priority', c.nextVisitPriority) + kv('Next visit remarks', c.nextVisitRemarks) || '<span class="text-muted">—</span>');
+    EDIT = null;
+    sheetOpen(c.clientName, h, `<button class="btn btn-light" onclick="sheetClose()">Close</button>${ST.canEdit ? `<button class="btn btn-outline-danger" onclick="callRemove('${k}',${i})"><i class="bi bi-trash"></i> Delete check-in</button>` : ''}`);
+    if (window.SFAFiles && SFAFiles.hydrate) SFAFiles.hydrate(document.getElementById('sheetBody'));
+  }
+
+  // ---- check-in / unlisted card lists
+  function paneCalls(tab, kind) {
+    const list = kind === 'v' ? ST.visits.map((c, i) => [c, i]).filter(x => x[0].worktypeCode === tab.code) : ST.unlisted.map((c, i) => [c, i]);
+    const cards = list.map(([c, i]) => {
+      const name = kind === 'v' ? c.clientName : c.clientName, sub = kind === 'v' ? [c.clientCode, c.clientTypeName, (OPT.clients.find(x => x.id === c.clientId) || {}).ownerId !== OPT.me ? ((OPT.clients.find(x => x.id === c.clientId) || {}).ownerName || '') : ''].filter(Boolean).join(' · ') : (c.mobile || 'Unlisted');
+      const pob = callPob(c), nItems = (c.items || []).length;
+      return `<div class="card-lite dcr-visit" onclick="editCall('${kind}',${i})"><div class="ava">${esc(initials(name))}</div>
+        <div class="meta"><b>${esc(name)}</b><small class="text-muted">${esc(sub)}${c.inTime ? ' · ' + esc(c.inTime) + (c.outTime ? '–' + esc(c.outTime) : '') : ''}</small>
+        <small>${isOpen(c) ? '<span class="badge bg-success">Checked in — tap to check out</span> ' : ''}${c.refused ? '<span class="badge bg-warning text-dark">Refused</span> ' : ''}${pob ? `<span class="badge bg-success">POB ₹${money(pob)}</span> ` : ''}${nItems ? `<span class="badge bg-light text-dark border">${nItems} item${nItems > 1 ? 's' : ''}</span>` : ''}</small></div>
+        <i class="bi bi-chevron-right text-muted"></i></div>`; }).join('');
+    return (cards || `<div class="dcr-empty"><i class="bi bi-person-plus fs-1"></i><div>No ${kind === 'v' ? 'client' : 'unlisted'} calls yet</div></div>`) +
+      (ST.canEdit ? `<button class="dcr-add" onclick="${kind === 'v' ? `pickClient('${esc(tab.code)}')` : `newUnlisted('${esc(tab.code)}')`}"><i class="bi bi-plus-circle"></i> Add ${kind === 'v' ? 'client' : 'unlisted client'}</button>` : '');
+  }
+
+  // a check-in tab lists ONLY the clients of its own client type (Doctor / Retailer / Party ...), set in app_dcr_worktype
+  function clientsFor(tab) {
+    const mine = OPT.clients.filter(c => c.dcrTab === tab.code || (tab.clientTypeId != null && c.clientTypeId === tab.clientTypeId));
+    return tpOn() && TPF.planned ? mine.filter(c => TPF.clientIds.includes(c.id)) : mine;   // tour plan rule: planned clients only
+  }
+  // "Select Party" / "Select Retailer" / "Select Doctor": the singular label of the client type mapped to the tab
+  const kindLabel = (tab) => ((OPT.clientTypes.find(t => t.dcrTab === tab.code) || {}).label) || tab.name.replace(/ Check-?in$/i, '');
+  function pickClient(code) {
+    EDIT = null;
+    const tab = OPT.tabs.find(t => t.code === code), used = new Set(ST.visits.filter(v => v.worktypeCode === code).map(v => v.clientId));
+    const list = clientsFor(tab);
+    // the filter values come from the masters (area_master / category_master / speciality_master), not from whoever is in the list
+    const sel = (id, label, vals) => `<div class="col-4"><select class="form-select form-select-sm" id="${id}" data-no-search onchange="pickFilter()"><option value="">${label}</option>${vals.map(v => `<option value="${esc(v.id)}">${esc(v.name)}</option>`).join('')}</select></div>`;
+    sheetOpen('Select ' + kindLabel(tab), `<div class="row g-2 mb-2">${sel('pickArea', 'Area', OPT.areas)}${sel('pickCat', 'Category', OPT.categories)}${sel('pickSpec', 'Speciality', OPT.specialities)}</div>
+      <input class="form-control mb-2" id="pickQ" placeholder="Search name, code…" oninput="pickFilter()" />
+      <div class="small text-muted mb-1" id="pickCount"></div><div class="dcr-pick" id="pickList"></div>`, `<button class="btn btn-light" onclick="addVisitSheet()"><i class="bi bi-chevron-left"></i> Back</button><button class="btn btn-light" onclick="sheetClose()">Close</button>`);
+    window.__pick = list; window.__pickTab = code; pickFilter();
+  }
+  const fmtDay = (d) => d ? new Date(String(d).slice(0, 10) + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'NA';
+  // a client already checked in on this DCR's date shows as visited (greyed) and cannot be picked again
+  const visitedHere = (id) => ST.visits.some(v => v.clientId === id);
+  function pickFilter() {
+    const v = (id) => document.getElementById(id).value, q = v('pickQ').toLowerCase(), ar = v('pickArea'), ca = v('pickCat'), sp = v('pickSpec');
+    const rows = window.__pick.filter(c => (!q || (c.name + ' ' + c.code).toLowerCase().includes(q)) && (!ar || String(c.areaId) === ar) && (!ca || String(c.categoryId) === ca) && (!sp || String(c.specialityId) === sp));
+    document.getElementById('pickCount').textContent = rows.length + ' found';
+    document.getElementById('pickList').innerHTML = rows.map(c => { const vis = visitedHere(c.id), today = ST.dcrDate === todayStr();
+      return `<div class="cl-card ${vis ? 'visited' : ''}" onclick="${vis ? 'visitedNote()' : `addClient(${c.id})`}"><div class="flex-fill" style="min-width:0">
+        <div><span class="cl-name">${esc(c.name)}</span>${c.category ? ` <span class="text-muted">- [${esc(c.category)}]</span>` : ''}${vis ? `<span class="cl-badge">${today ? 'VISITED TODAY' : 'VISITED'}</span>` : ''}</div>
+        <div class="cl-sub">${esc([c.speciality, c.areaName].filter(Boolean).join(' · ') || c.clientTypeName || '')}</div>
+        <div class="small text-muted">Code ${esc(c.code)}${c.category ? ' · Cat ' + esc(c.category) : ''} · Visits ${Number(c.visits || 0)}${c.ownerId && c.ownerId !== OPT.me && c.ownerName ? ' · <b>of ' + esc(c.ownerName) + '</b>' : ''}</div>
+        <div class="small cl-sub"><i class="bi bi-clock-history"></i> Last visit: ${esc(fmtDay(c.lastVisit))}</div>
+        <button type="button" class="pca-btn" onclick="event.stopPropagation();preCall(${c.id})"><i class="bi bi-graph-up-arrow"></i> Pre-Call Analysis</button></div>${c.tagged && c.lat != null ? `<button type="button" class="btn btn-outline-primary btn-sm rounded-circle me-1" title="Directions to the client" style="width:2.2rem;height:2.2rem;padding:0" onclick="event.stopPropagation();openDir(${c.id})"><i class="bi bi-sign-turn-right-fill"></i></button>` : ''}<i class="bi bi-person cl-ico"></i></div>`; }).join('')
+      || '<div class="dcr-empty">No client found</div>';
+  }
+  // Pre-Call Analysis (phone-app style): client facts, month-wise visits with samples / inputs
+  async function preCall(id) {
+    try {
+      const a = await Api.get(EP.analysis(id)), tab = window.__pickTab;
+      const cell = (l, v) => `<div><small>${l}</small><b>${esc(v == null || v === '' ? '-' : v)}</b></div>`;
+      const stars = a.starRating ? '<span class="text-warning">' + '★'.repeat(a.starRating) + '</span><span class="text-muted">' + '★'.repeat(Math.max(0, 5 - a.starRating)) + '</span>' : '-';
+      let h = `<div class="dcr-sec mt-0">Pre Call Analysis</div><div class="pca-grid">
+        ${cell('Client name', a.name)}${cell('Mobile no', a.mobile)}${cell('Category', a.category)}${cell('Speciality', a.speciality)}${cell('Degree', a.degree)}${cell('Frequency of visit', a.frequency)}
+        ${cell('Days since last visit', a.daysSinceLastVisit == null ? 'NA' : a.daysSinceLastVisit + ' (Day)')}<div><small>Star rating</small><b>${stars}</b></div></div>
+        <div class="dcr-sec">Visit details</div>`;
+      h += a.months.map(m => `<div class="pca-month"><div class="d-flex justify-content-between"><b>${esc(m.month)}</b><span class="badge bg-secondary-subtle text-secondary-emphasis">${m.totalVisits} visit${m.totalVisits === 1 ? '' : 's'}</span></div>
+        ${m.visits.map(v => `<div class="small mt-1"><span class="vd">${esc(fmtDay(v.date))}</span> ${v.visitType ? '(' + esc(v.visitType) + ')' : ''}${v.refused ? ' <span class="text-warning">refused</span>' : ''} <span class="by">- ${esc(v.by)}</span></div>`).join('')}
+        ${m.totalSample || m.totalInput ? `<div class="small text-muted mt-1">Sample: <b>${m.totalSample}</b> · Input: <b>${m.totalInput}</b></div>` : ''}</div>`).join('');
+      sheetOpen('Pre-Call Analysis', h, `<button class="btn btn-light" onclick="pickClient('${esc(tab)}')"><i class="bi bi-chevron-left"></i> Back</button><button class="btn btn-light" onclick="sheetClose()">Close</button>`);
+    } catch (e) { SFA.toast(e.message, false); }
+  }
+  function visitedNote() { SFA.toast('Already visited - delete that check-in to visit again', 'info'); }
+  function addClient(id) {
+    const c = OPT.clients.find(x => x.id === id), code = window.__pickTab;
+    ST.visits.push({ clientId: c.id, clientName: c.name, clientCode: c.code, clientTypeName: c.clientTypeName, worktypeCode: code, visitType: (OPT.visitTypes[0] || ''), activityType: '', areaId: c.areaId || '',
+      inTime: '', outTime: '', checkinAt: '', checkinLat: null, checkinLng: null, pobValue: '', remarks: '', refused: false, nextVisit: '', nextVisitPriority: '', nextVisitRemarks: '',
+      signaturePath: '', items: [], leaflets: [], treatments: [], jointWith: [] });
+    render(); editCall('v', ST.visits.length - 1);   // same sheet: its content is replaced (closing + reopening it would race)
+  }
+  function newUnlisted(code) {
+    ST.unlisted.push({ key: 'n' + (++KEYSEQ), worktypeCode: code, clientName: '', clientTypeId: '', specialityId: '', categoryId: '', qualification: '', mobile: '', contactPerson: '', address: '', areaId: '',
+      visitType: (OPT.visitTypes[0] || ''), activityType: '', inTime: '', outTime: '', checkinAt: '', checkinLat: null, checkinLng: null, pobValue: '', remarks: '', refused: false,
+      nextVisit: '', nextVisitPriority: '', nextVisitRemarks: '', signaturePath: '', items: [], leaflets: [], treatments: [], jointWith: [] });
+    render(); editCall('u', ST.unlisted.length - 1, true);
+  }
+
+  // ============================================================== bottom sheet
+  function sheetOpen(title, body, foot, onClose) {
+    document.getElementById('sheetTitle').textContent = title;
+    document.getElementById('sheetBody').innerHTML = body;
+    document.getElementById('sheetFoot').innerHTML = foot || '';
+    document.getElementById('sheetFoot').classList.remove('d-none');
+    SHEET_ON_CLOSE = onClose || null;
+    SHEET.show();
+  }
+  function sheetClose() { SHEET.hide(); }
+  // X on a call that was never checked in: drop it again (nothing was saved)
+  function sheetX() { dropUnsaved(); sheetClose(); }
+  // Back from a not-yet-checked-in client / unlisted form: drop it and return one step (client list, or the "What are you doing now?" cards)
+  function sheetBack() {
+    const kind = EDIT && EDIT.kind, code = EDIT && EDIT.o && EDIT.o.worktypeCode;
+    dropUnsaved();
+    if (kind === 'v' && code && OPT.tabs.some(t => t.code === code)) pickClient(code); else addVisitSheet();
+  }
+  function dropUnsaved() {
+    if (!EDIT || (EDIT.kind !== 'v' && EDIT.kind !== 'u')) return;
+    const list = EDIT.kind === 'v' ? ST.visits : ST.unlisted;
+    if (list[EDIT.idx] && !list[EDIT.idx].inTime) { list.splice(EDIT.idx, 1); render(); }
+  }
+
+  // ============================================================== call editor
+  function editCall(kind, idx, isNew) {
+    const src = kind === 'v' ? ST.visits[idx] : ST.unlisted[idx];
+    EDIT = { kind, idx, isNew: !!isNew, o: JSON.parse(JSON.stringify(src)) };
+    sheetOpen(kind === 'v' ? EDIT.o.clientName : (EDIT.o.clientName || 'New unlisted client'), '', '', null);
+    renderCall();
+    callFoot();
+  }
+  function callFoot() {
+    const o = EDIT.o, ro = !ST.canEdit;
+    document.getElementById('sheetFoot').classList.toggle('d-none', !!EDIT.panel);
+    document.getElementById('sheetFoot').innerHTML = ro ? '<button class="btn btn-light" onclick="sheetClose()">Close</button>'
+      : !o.inTime ? '<button class="btn btn-light" onclick="sheetBack()"><i class="bi bi-chevron-left"></i> Back</button><button class="btn btn-success" onclick="doCheckIn()"><i class="bi bi-geo-alt"></i> Check in</button>'
+      : !o.outTime && !o.refused ? '<button class="btn btn-outline-danger" style="flex:0 0 auto" onclick="callDelete()" title="Delete this check-in"><i class="bi bi-trash"></i></button><button class="btn btn-outline-primary" onclick="callSave()"><i class="bi bi-save"></i> Save</button><button class="btn btn-success" onclick="confirmCheckOut()"><i class="bi bi-box-arrow-right"></i> Submit Details</button>'
+      : '<button class="btn btn-outline-danger" style="flex:0 0 auto" onclick="callDelete()" title="Delete this check-in"><i class="bi bi-trash"></i></button><button class="btn btn-primary" onclick="callSave()"><i class="bi bi-check2"></i> Done</button>';
+  }
+  const tabOf = (code) => OPT.tabs.find(t => t.code === code) || { subForms: [] };
+  function renderCall() {
+    const o = EDIT.o, tab = tabOf(o.worktypeCode), subs = tab.subForms || [], u = EDIT.kind === 'u';
+    const o_ = (k) => `EDIT.o.${k}`;
+    let h = '';
+    if (u) {
+      h += `<div class="dcr-sec mt-0">Client</div><div class="row g-2">
+        ${field('Name *', `<input class="form-control" value="${esc(o.clientName)}" oninput="${o_('clientName')}=this.value;document.getElementById('sheetTitle').textContent=this.value||'New unlisted client'" />`)}
+        ${!RULE('UNLISTED_VISIT_MOBILE_VISIBLITY', true) ? '' : field('Mobile' + (RULE('UNLISTED_VISIT_MOBILE', false) ? ' *' : ''), `<input class="form-control" inputmode="numeric" maxlength="10" value="${esc(o.mobile)}" oninput="${o_('mobile')}=this.value" />`, 'col-6')}
+        ${field('Client type', `<select class="form-select" data-no-search onchange="${o_('clientTypeId')}=this.value">${opts(OPT.clientTypes, o.clientTypeId)}</select>`, 'col-6')}
+        ${!RULE('UNLISTED_VISIT_SPECIALITY_VISIBLITY', true) ? '' : field('Speciality' + (RULE('UNLISTED_VISIT_SPECIALITY', false) ? ' *' : ''), `<select class="form-select" data-no-search onchange="${o_('specialityId')}=this.value">${opts(OPT.specialities, o.specialityId)}</select>`, 'col-6')}
+        ${!RULE('UNLISTED_VISIT_CATEGORY_VISIBLITY', true) ? '' : field('Category' + (RULE('UNLISTED_VISIT_CATEGORY', false) ? ' *' : ''), `<select class="form-select" data-no-search onchange="${o_('categoryId')}=this.value">${opts(OPT.categories, o.categoryId)}</select>`, 'col-6')}
+        ${field('Qualification', `<input class="form-control" value="${esc(o.qualification)}" oninput="${o_('qualification')}=this.value" />`, 'col-6')}
+        ${field('Contact person', `<input class="form-control" value="${esc(o.contactPerson)}" oninput="${o_('contactPerson')}=this.value" />`, 'col-6')}
+        ${field('Area', `<select class="form-select" data-no-search onchange="${o_('areaId')}=this.value">${opts(OPT.areas, o.areaId, 'Select area')}</select>`)}
+        ${field('Address', `<textarea class="form-control" rows="2" oninput="${o_('address')}=this.value">${esc(o.address)}</textarea>`)}</div>`;
+    }
+    if (!u) h = clientHead(o) + h;
+    if (!o.inTime) {
+      h += `<div class="alert alert-info mt-3 mb-0 py-2 small"><i class="bi bi-info-circle"></i> ${u ? 'Fill the client details, then tap <b>Check in</b>.' : 'Tap <b>Check in</b> when you reach the client.'} The time is captured and saved in your draft.</div>`;
+    } else if (EDIT.panel) {
+      h = panelHtml(o, EDIT.panel);   // one detail panel at a time, like the phone app
+    } else {
+      h += `<div class="alert ${o.outTime || o.refused ? 'alert-secondary' : 'alert-success'} mb-3 py-2"><i class="bi bi-geo-alt-fill"></i> Checked in at <b>${esc(o.inTime)}</b>${o.checkinLat ? ' · location saved' : ''}${o.outTime ? ` · Checked out at <b>${esc(o.outTime)}</b>` : o.refused ? '' : ' — tap <b>Submit Details</b> when you leave'}</div>`;
+      h += `<div class="dcr-sec mt-0">Visit type</div><div class="dcr-chips dcr-chips-scroll">` + OPT.visitTypes.map(v => `<button type="button" class="dcr-chip ${o.visitType === v ? 'on' : ''}" onclick="EDIT.o.visitType='${esc(v)}';renderCall()">${esc(v)}</button>`).join('') + '</div>';
+      h += `<div class="form-check form-switch my-3"><input class="form-check-input" type="checkbox" id="refSw" ${o.refused ? 'checked' : ''} onchange="${o_('refused')}=this.checked"><label class="form-check-label" for="refSw">Client refused to meet</label></div>`;
+      h += '<div class="dcr-sec">Activity details</div><div class="dcr-rows">' + detailRows(o, subs) + '</div>';
+    }
+    const sb = document.getElementById('sheetBody'), top = sb.scrollTop;
+    sb.innerHTML = h; sb.scrollTop = top;
+    if (window.SFAFiles && SFAFiles.hydrate) SFAFiles.hydrate(sb);
+  }
+  // ---- phone-app style check-out screen: one list row per detail, each opens its own panel with a Done button
+  function clientHead(o) {
+    return `<div class="card-lite dcr-visit mb-2" style="cursor:default"><div class="ava">${esc(initials(o.clientName || '?'))}</div><div class="meta"><b>${esc(o.clientName || 'New client')}</b>
+      <small class="text-muted">${esc([o.clientCode, o.clientTypeName, (OPT.areas.find(a => String(a.id) === String(o.areaId)) || {}).name].filter(Boolean).join(' · '))}</small></div>
+      ${o.inTime ? `<span class="badge bg-success">In ${esc(o.inTime)}</span>` : ''}</div>`;
+  }
+  const typeOf = (panel) => OPT.items.filter(i => i.panel === panel);
+  const panelOfRow = (r) => ((OPT.items.find(x => String(x.id) === String(r.itemId)) || {}).panel);
+  const rowOf = (id) => EDIT.o.items.find(i => String(i.itemId) === String(id));
+  const cnt = (f, panel) => EDIT.o.items.filter(i => panelOfRow(i) === panel && Number(i[f] || 0) > 0).length;
+  function detailRows(o, subs) {
+    const row = (key, icon, title, summary) => `<button type="button" class="dcr-row" onclick="openPanel('${key}')"><i class="bi bi-${icon}"></i><span class="flex-fill text-start"><b>${title}</b>${summary ? `<small class="d-block text-muted">${esc(summary)}</small>` : ''}</span><i class="bi bi-chevron-right text-muted"></i></button>`;
+    let h = '';
+    if (OPT.tabs.some(t => t.form === 'JOINT') && OPT.joint.length) h += row('joint', 'people', 'Joint Work', o.jointWith.length ? o.jointWith.map(jname).join(', ') : 'Self work');
+    if (subs.includes('ITEMS')) {
+      const det = o.items.filter(i => i.detailed).length, smp = cnt('qty', 'SAMPLE'), inp = cnt('qty', 'INPUT'), pob = o.items.filter(i => Number(i.pobQty) > 0).length;
+      h += row('detail', 'journal-check', 'Item Detailed List', det ? det + ' detailed' : '');
+      h += row('sample', 'capsule', 'Sample', smp ? smp + ' item' + (smp > 1 ? 's' : '') : '');
+      h += row('input', 'gift', 'Input', inp ? inp + ' item' + (inp > 1 ? 's' : '') : '');
+      h += row('pob', 'cart-check', 'POB / Order', pob ? pob + ' item' + (pob > 1 ? 's' : '') + ' · ₹' + money(callPob(o)) : '');
+    } else h += row('pobv', 'cart-check', 'POB value', o.pobValue ? '₹' + money(o.pobValue) : '');
+    if (subs.includes('LEAFLETS')) h += row('leaflets', 'file-earmark-text', 'Leaflets', o.leaflets.length ? o.leaflets.length + ' added' : '');
+    if (subs.includes('TREATMENT') && OPT.treatments.length) h += row('treat', 'heart-pulse', 'Treatment', o.treatments.length ? o.treatments.length + ' selected' : '');
+    h += row('image', 'camera', 'Capture Image', o.signaturePath ? 'Image added' : '');
+    h += row('remarks', 'chat-left-text', 'Activity / Remarks', [o.activityType, o.remarks].filter(Boolean).join(' · '));
+    return h;
+  }
+  function openPanel(k) { const sb = document.getElementById('sheetBody'); EDIT.mainScroll = sb.scrollTop; EDIT.panel = k; renderCall(); callFoot(); sb.scrollTop = 0; }   // the list's scroll position is remembered
+  function closePanel() { EDIT.o.items = EDIT.o.items.filter(i => Number(i.qty) > 0 || Number(i.pobQty) > 0 || i.detailed); EDIT.panel = null; renderCall(); callFoot(); document.getElementById('sheetBody').scrollTop = EDIT.mainScroll || 0; }   // back to where the user was scrolled
+  const stepper = (id, f, v) => `<div class="dcr-step"><button type="button" onclick="stp(${id},'${f}',-1)">−</button><b>${v}</b><button type="button" onclick="stp(${id},'${f}',1)">+</button></div>`;
+  function stp(id, f, d) {
+    let r = rowOf(id);
+    if (!r) { const it = OPT.items.find(x => String(x.id) === String(id)); r = { itemId: it.id, itemType: it.type, itemName: it.name, qty: 0, pobQty: 0, rate: it.rate, detailed: false, remarks: '' }; EDIT.o.items.push(r); }
+    r[f] = Math.max(0, (Number(r[f]) || 0) + d); renderCall();
+  }
+  function togDet(id) {
+    let r = rowOf(id);
+    if (!r) { const it = OPT.items.find(x => String(x.id) === String(id)); r = { itemId: it.id, itemType: it.type, itemName: it.name, qty: 0, pobQty: 0, rate: it.rate, detailed: false, remarks: '' }; EDIT.o.items.push(r); }
+    r.detailed = !r.detailed; renderCall();
+  }
+  // joint working: manager first, then seniors, then juniors - name with employee code, tap to select several
+  const REL = { MANAGER: 'Manager', SENIOR: 'Seniors', JUNIOR: 'Juniors' };
+  function jointPicker(sel, arr, after) {
+    let h = `<button class="btn ${sel.length ? 'btn-outline-primary' : 'btn-primary'} w-100 mb-3" onclick="${arr}=[];${after}">Click For Self Work</button>`;
+    ['MANAGER', 'SENIOR', 'JUNIOR'].forEach(rel => {
+      const list = OPT.joint.filter(j => j.relation === rel);
+      if (!list.length) return;
+      h += `<div class="dcr-sec mt-2">${REL[rel]}</div>` + list.map(j => { const on = sel.includes(j.id);
+        return `<div class="d-flex align-items-center gap-2 py-2 border-bottom" style="cursor:pointer" onclick="toggleIn(${arr},'${esc(j.id)}');${after}">
+          <i class="bi bi-${on ? 'check-square-fill text-primary' : 'square'} fs-5"></i><div class="flex-fill"><b>${esc(j.empName)}</b> <small class="text-muted">(${esc(j.empCode)})</small>
+          <small class="d-block text-muted">${esc(j.designation || '')}</small></div></div>`; }).join('');
+    });
+    return h + (OPT.joint.length ? '' : '<div class="dcr-empty">No manager, senior or junior found</div>');
+  }
+  function panelShell(title, count, body) {
+    return `<div class="d-flex align-items-center mb-2"><button class="btn btn-link px-0" onclick="closePanel()"><i class="bi bi-chevron-left"></i> Back</button><div class="fw-bold ms-2 flex-fill text-center me-4">${title}</div></div>${body}
+      <div class="dcr-panel-done"><button class="dcr-start-btn w-100" onclick="closePanel()">Done${count != null ? ' (' + count + ')' : ''}</button></div>`;
+  }
+  function itemList(list, f, noStep) {
+    return `<input class="form-control mb-2" placeholder="Search…" oninput="const q=this.value.toLowerCase();document.querySelectorAll('.dcr-it').forEach(e=>e.style.display=e.dataset.n.includes(q)?'':'none')" />` +
+      (list.map(i => { const r = rowOf(i.id);
+        return `<div class="dcr-it d-flex align-items-center gap-2 py-2 border-bottom" data-n="${esc(i.name.toLowerCase())}"><div class="flex-fill"><b>${esc(i.name)}</b><small class="d-block text-muted">${esc(i.type)}${f === 'pobQty' && i.rate ? ' · ₹' + money(i.rate) : ''}</small></div>
+          ${noStep ? `<div class="form-check form-switch m-0"><input class="form-check-input" type="checkbox" ${r && r.detailed ? 'checked' : ''} onchange="togDet(${i.id})"></div>` : stepper(i.id, f, r ? (Number(r[f]) || 0) : 0)}</div>`; }).join('') || '<div class="dcr-empty">No items</div>');
+  }
+  function panelHtml(o, k) {
+    const o_ = (x) => `EDIT.o.${x}`;
+    if (k === 'joint') return panelShell('Joint Work', o.jointWith.length, jointPicker(o.jointWith, 'EDIT.o.jointWith', 'renderCall()'));
+    if (k === 'detail') return panelShell('Item Detailed List', o.items.filter(i => i.detailed).length, itemList(typeOf('POB'), 'detailed', true));
+    if (k === 'sample') return panelShell('Sample', cnt('qty', 'SAMPLE'), itemList(typeOf('SAMPLE'), 'qty'));
+    if (k === 'input') return panelShell('Input', cnt('qty', 'INPUT'), itemList(typeOf('INPUT'), 'qty'));
+    if (k === 'pob') return panelShell('POB / Order', o.items.filter(i => Number(i.pobQty) > 0).length, itemList(typeOf('POB'), 'pobQty') + `<div class="d-flex justify-content-between pt-3"><span class="text-muted">POB total</span><b>₹${money(callPob(o))}</b></div>`);
+    if (k === 'pobv') return panelShell('POB value', null, field('POB value (₹)', `<input class="form-control" type="number" inputmode="decimal" value="${esc(o.pobValue)}" oninput="${o_('pobValue')}=this.value" />`));
+    if (k === 'leaflets') return panelShell('Leaflets', o.leaflets.length, (o.leaflets.map((l, i) => `<div class="dcr-item"><div class="row g-2 align-items-end">
+        ${field('Leaflet', `<select class="form-select" data-no-search onchange="EDIT.o.leaflets[${i}].itemId=this.value">${opts(OPT.items, l.itemId, 'Select')}</select>`, 'col-8')}
+        ${field('Qty', `<input class="form-control" type="number" inputmode="numeric" value="${esc(l.qty)}" oninput="EDIT.o.leaflets[${i}].qty=this.value" />`, 'col-3')}
+        <div class="col-1 text-end"><button class="btn btn-sm text-danger" onclick="EDIT.o.leaflets.splice(${i},1);renderCall()"><i class="bi bi-x-lg"></i></button></div></div></div>`).join(''))
+        + `<button class="btn btn-outline-primary btn-sm rounded-pill" onclick="EDIT.o.leaflets.push({itemId:'',qty:1,value:0});renderCall()"><i class="bi bi-plus"></i> Add leaflet</button>`);
+    if (k === 'treat') return panelShell('Treatment', o.treatments.length, `<div class="dcr-chips">` + OPT.treatments.map(t => `<button type="button" class="dcr-chip ${o.treatments.includes(t.id) ? 'on' : ''}" onclick="toggleIn(EDIT.o.treatments,${t.id});renderCall()">${esc(t.name)}</button>`).join('') + '</div>');
+    if (k === 'image') return panelShell('Capture Image', o.signaturePath ? 1 : 0, `${o.signaturePath ? `<div class="mb-2">${SFAFiles.thumb(o.signaturePath, null, { name: 'image' })}</div>` : ''}
+      ${photoBtns("r=>{EDIT.o.signaturePath=r.path;renderCall()}")}`);
+    return panelShell('Activity / Remarks', null, `<div class="dcr-chips dcr-chips-scroll mb-3">${OPT.activityTypes.map(a => `<button type="button" class="dcr-chip ${o.activityType === a ? 'on' : ''}" onclick="EDIT.o.activityType=EDIT.o.activityType==='${esc(a)}'?'':'${esc(a)}';renderCall()">${esc(a)}</button>`).join('')}</div>
+      <div class="row g-2">${field('Remarks', `<textarea class="form-control" rows="3" oninput="${o_('remarks')}=this.value">${esc(o.remarks)}</textarea>`)}
+      ${field('Next visit', `<input class="form-control" type="date" value="${esc(o.nextVisit)}" oninput="${o_('nextVisit')}=this.value" />`, 'col-6')}
+      ${field('Priority', `<select class="form-select" data-no-search onchange="${o_('nextVisitPriority')}=this.value">${opts(OPT.priorities, o.nextVisitPriority)}</select>`, 'col-6')}
+      ${field('Next visit remarks', `<input class="form-control" value="${esc(o.nextVisitRemarks)}" oninput="${o_('nextVisitRemarks')}=this.value" />`)}</div>`);
+  }
+  function itemRow(it, i) {
+    return `<div class="dcr-item"><div class="row g-2 align-items-end">
+      ${field('Item', `<select class="form-select" data-no-search onchange="itemPick(${i},this.value)">${itemOpts(it.itemId)}</select>`, 'col-12')}
+      ${field('Given qty', `<input class="form-control" type="number" inputmode="numeric" value="${esc(it.qty)}" oninput="EDIT.o.items[${i}].qty=this.value" />`, 'col-4')}
+      ${field('POB qty', `<input class="form-control" type="number" inputmode="numeric" value="${esc(it.pobQty)}" oninput="EDIT.o.items[${i}].pobQty=this.value" />`, 'col-4')}
+      ${field('Rate', `<input class="form-control" type="number" inputmode="decimal" value="${esc(it.rate)}" oninput="EDIT.o.items[${i}].rate=this.value" />`, 'col-4')}
+      <div class="col-8"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="det${i}" ${it.detailed ? 'checked' : ''} onchange="EDIT.o.items[${i}].detailed=this.checked"><label class="form-check-label" for="det${i}">Detailed</label></div></div>
+      <div class="col-4 text-end"><button class="btn btn-sm text-danger" onclick="EDIT.o.items.splice(${i},1);renderCall()"><i class="bi bi-trash"></i> Remove</button></div></div></div>`;
+  }
+  const itemOpts = (sel) => {
+    const groups = {};
+    OPT.items.forEach(i => (groups[i.type] = groups[i.type] || []).push(i));
+    return '<option value="">Select item</option>' + Object.keys(groups).sort().map(g => `<optgroup label="${esc(g)}">${groups[g].map(i => `<option value="${i.id}"${String(i.id) === String(sel) ? ' selected' : ''}>${esc(i.name)}</option>`).join('')}</optgroup>`).join('');
+  };
+  function itemPick(i, id) {
+    const it = OPT.items.find(x => String(x.id) === String(id)), row = EDIT.o.items[i];
+    row.itemId = id || ''; row.itemType = it ? it.type : ''; row.itemName = it ? it.name : '';
+    if (it) row.rate = it.rate;
+    renderCall();
+  }
+  function addItem() { EDIT.o.items.push({ itemId: '', itemType: '', qty: 0, pobQty: 0, rate: '', detailed: false, remarks: '' }); renderCall(); }
+  function toggleIn(arr, v) { const k = arr.indexOf(v); k < 0 ? arr.push(v) : arr.splice(k, 1); }
+  // ---------------- geo fencing (rule GEO_FENCING_ALLOW): current location at Start Day and at every check-in ----------------
+  const geoOn = () => /^true$/i.test(((OPT && OPT.rules) || {}).GEO_FENCING_ALLOW || '');
+  const getPos = () => new Promise(res => { if (!navigator.geolocation) return res(null);
+    navigator.geolocation.getCurrentPosition(p => res({ lat: +p.coords.latitude.toFixed(7), lng: +p.coords.longitude.toFixed(7), acc: p.coords.accuracy }), () => res(null), { timeout: 15000, maximumAge: 0, enableHighAccuracy: true }); });
+  // a small dialog above any open sheet (so the call / start sheet stays as it is)
+  function geoModal(html) {
+    geoModalClose();
+    const d = document.createElement('div'); d.id = 'geoModal';
+    d.style.cssText = 'position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:1rem';
+    d.innerHTML = `<div style="background:var(--bs-body-bg,#fff);color:var(--bs-body-color,#111);border-radius:14px;max-width:440px;width:100%;max-height:92vh;overflow:auto;padding:1.1rem 1.1rem 1rem;box-shadow:0 10px 40px rgba(0,0,0,.35)">${html}</div>`;
+    document.body.appendChild(d); return d;
+  }
+  function geoModalClose() { const d = document.getElementById('geoModal'); if (d) d.remove(); }
+  // the location could not be fetched: tell the user what to do (open the map so the phone gets a fix), and retry
+  function geoLocHelp(retry) {
+    window.__geoRetry = retry;
+    geoModal(`<div class="text-center"><i class="bi bi-geo-alt-fill text-danger" style="font-size:2.6rem"></i><div class="fs-5 fw-bold mt-1">Location not available</div></div>
+      <p class="mt-2 mb-2">We could not get your current location, and the location check is ON.</p>
+      <ol class="small ps-3 mb-3"><li>Turn on the <b>location (GPS)</b> of your phone / computer.</li><li>Allow <b>location access</b> for this site (tap the lock icon near the address).</li><li><b>Open Google Maps</b> once so the device gets a fix on where you are, then come back.</li></ol>
+      <div class="d-grid gap-2"><a class="btn btn-outline-primary" href="https://www.google.com/maps" target="_blank" rel="noopener"><i class="bi bi-map"></i> Open Google Maps</a>
+      <button class="btn btn-primary" onclick="geoModalClose();window.__geoRetry && window.__geoRetry()"><i class="bi bi-arrow-repeat"></i> Try again</button><button class="btn btn-light" onclick="geoModalClose()">Close</button></div>`);
+  }
+  const gmapDir = (lat, lng) => 'https://www.google.com/maps/dir/?api=1&destination=' + lat + ',' + lng + '&travelmode=driving';
+  function openDir(id) { const c = OPT.clients.find(x => x.id === id); if (c && c.tagged && c.lat != null) window.open(gmapDir(c.lat, c.lng), '_blank', 'noopener'); }
+  // far from the client: how far, which clients are near, directions to the tagged location, and a retag request
+  // the location check is ON but the client has no usable tag (blank / 0): no check-in, the tag can be sent for approval
+  function geoUntagged(r, pos, client) {
+    window.__geoCtx = { r, pos, client };
+    geoModal(`<div class="text-center"><i class="bi bi-geo-alt text-danger" style="font-size:2.6rem"></i><div class="fs-5 fw-bold mt-1">Client location is not tagged</div></div>
+      <div class="alert alert-danger mt-3 mb-2 py-2 small">${esc(r.message)}</div>
+      <div class="d-grid gap-2">${r.retagPending ? '<div class="alert alert-info py-2 small mb-0"><i class="bi bi-hourglass-split"></i> Your retag request is waiting for your manager / admin to approve.</div>'
+        : `<button class="btn btn-warning" onclick="geoRetagOpen()"><i class="bi bi-pin-map-fill"></i> Tag / Retag this client's location</button>`}
+        <button class="btn btn-light" onclick="geoModalClose()">Close</button></div>`);
+  }
+  function geoFar(r, pos, client) {
+    window.__geoCtx = { r, pos, client };
+    geoModal(`<div class="text-center"><i class="bi bi-exclamation-triangle-fill text-warning" style="font-size:2.6rem"></i><div class="fs-5 fw-bold mt-1">You are far from the client</div></div>
+      <div class="alert alert-warning mt-3 mb-2 py-2"><b>${esc(r.clientName || '')}</b><div class="fs-4 fw-bold">${esc(r.prettyDistance)} <small class="fs-6 fw-normal">away</small></div><div class="small">Check-in is allowed only within <b>${esc(String(r.fenceM))} m</b> of the client's tagged location.</div></div>
+      ${(r.places || []).length > 1 ? `<div class="small fw-semibold mb-1">Places of this client</div><div class="mb-2">${r.places.map(p => `<div class="d-flex justify-content-between small py-1 border-bottom"><span>${esc(p.label)}${p.address ? ' <span class="text-muted">· ' + esc(p.address) + '</span>' : ''}</span><b class="${p.within ? 'text-success' : 'text-muted'}">${esc(p.prettyDistance)}</b></div>`).join('')}</div>` : (r.clientAddress ? `<div class="small text-muted mb-2"><i class="bi bi-pin-map"></i> Tagged at: ${esc(r.clientAddress)}</div>` : '')}
+      ${(r.nearby || []).length ? `<div class="small fw-semibold mb-1">Clients near you now</div><div class="mb-2">${r.nearby.map(n => `<div class="d-flex justify-content-between small py-1 border-bottom"><span>${esc(n.name)}</span><b class="${n.within ? 'text-success' : 'text-muted'}">${esc(n.prettyDistance)}${n.within ? ' · within range' : ''}</b></div>`).join('')}</div>` : ''}
+      <div class="d-grid gap-2">${r.clientLat != null ? `<a class="btn btn-outline-primary" target="_blank" rel="noopener" href="${gmapDir(r.clientLat, r.clientLng)}"><i class="bi bi-sign-turn-right"></i> Directions to the client</a>` : ''}
+        ${r.retagPending ? '<div class="alert alert-info py-2 small mb-0"><i class="bi bi-hourglass-split"></i> Your retag request is waiting for your manager / admin to approve.</div>'
+          : `<button class="btn btn-warning" onclick="geoRetagOpen()"><i class="bi bi-pin-map-fill"></i> The client's tag is wrong - Retag location</button>`}
+        <button class="btn btn-light" onclick="geoModalClose()">Close</button></div>`);
+  }
+  // retag: pick the correct place on the map (Google Maps; without a key the current position is sent), then it goes to the manager / admin
+  let GMAPS = null;
+  function loadGoogleMaps(key) {
+    if (window.google && window.google.maps) return Promise.resolve();
+    if (GMAPS) return GMAPS;
+    return GMAPS = new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(key); s.async = true; s.onload = () => (window.google && window.google.maps ? ok() : no()); s.onerror = no; setTimeout(no, 8000); document.head.appendChild(s); });
+  }
+  async function geoRetagOpen() {
+    const ctx = window.__geoCtx; if (!ctx) return;
+    let cfg = {}; try { cfg = await Api.get(EP.geoMapConfig, { noLoader: true }); } catch (e) { }
+    const start = ctx.pos, name = ctx.client.clientName || 'the client';
+    window.__retagPick = { lat: start.lat, lng: start.lng };
+    geoModal(`<div class="fs-5 fw-bold mb-1"><i class="bi bi-pin-map-fill text-warning"></i> Retag ${esc(name)}</div><div class="small text-muted mb-2" id="rtHelp">Move the pin to the client's correct place, then send it for approval.</div>
+      <div id="rtMap" style="height:300px;border-radius:10px;background:#e9ecef" class="mb-2"></div>
+      <div class="small mb-2" id="rtPos"></div><input class="form-control mb-2" id="rtReason" placeholder="Reason (optional) e.g. clinic shifted">
+      <div class="d-grid gap-2"><button class="btn btn-outline-secondary btn-sm" onclick="rtHere()"><i class="bi bi-crosshair"></i> Use my current location</button><button class="btn btn-success" onclick="rtSend()"><i class="bi bi-send"></i> Send for approval</button><button class="btn btn-light" onclick="geoModalClose()">Cancel</button></div>`);
+    const show = () => { const p = window.__retagPick; document.getElementById('rtPos').innerHTML = '<i class="bi bi-geo"></i> ' + p.lat.toFixed(6) + ', ' + p.lng.toFixed(6); };
+    show(); window.__rtShow = show;
+    if (cfg.enabled) {
+      try {
+        await loadGoogleMaps(cfg.apiKey);
+        const g = window.google.maps, map = new g.Map(document.getElementById('rtMap'), { center: { lat: start.lat, lng: start.lng }, zoom: 18, streetViewControl: false, mapTypeControl: true });
+        const mk = new g.Marker({ position: { lat: start.lat, lng: start.lng }, map, draggable: true });
+        const set = (ll) => { window.__retagPick = { lat: +ll.lat().toFixed(7), lng: +ll.lng().toFixed(7) }; show(); };
+        mk.addListener('dragend', () => set(mk.getPosition())); map.addListener('click', (e) => { mk.setPosition(e.latLng); set(e.latLng); });
+        window.__rtMove = (lat, lng) => { mk.setPosition({ lat, lng }); map.setCenter({ lat, lng }); };
+      } catch (e) { rtNoMap(); }
+    } else rtNoMap();
+  }
+  function rtNoMap() { const m = document.getElementById('rtMap'); if (m) m.innerHTML = '<div class="d-flex h-100 align-items-center justify-content-center text-muted small text-center p-3">The map is not available (no Google key / no internet). Stand at the client and tap "Use my current location".</div>'; window.__rtMove = null; }
+  async function rtHere() { const p = await getPos(); if (!p) return geoLocHelp(rtHere); window.__retagPick = { lat: p.lat, lng: p.lng }; window.__rtShow && window.__rtShow(); window.__rtMove && window.__rtMove(p.lat, p.lng); }
+  async function rtSend() {
+    const ctx = window.__geoCtx, p = window.__retagPick;
+    try { const r = await Api.post(EP.geoRetag, { clientId: ctx.client.clientId, lat: p.lat, lng: p.lng, reason: document.getElementById('rtReason').value }); geoModalClose(); SFA.toast(r.message, true); }
+    catch (e) { SFA.toast(e.message, false); }
+  }
+  /** Commit the sheet's call into the DCR and save the draft, then re-open the call from what the server stored. */
+  async function persistCall(reopen) {
+    const kind = EDIT.kind, idx = EDIT.idx;
+    (kind === 'v' ? ST.visits : ST.unlisted)[idx] = EDIT.o;
+    if (!(await dcrSave(false, true))) return false;
+    if (reopen) { editCall(kind, idx); }
+    return true;
+  }
+  async function doCheckIn() {
+    const o = EDIT.o;
+    if (EDIT.kind === 'u' && !(o.clientName || '').trim()) { SFA.toast('Enter the name of the unlisted client first', false); return; }
+    if (o.items.some(i => !i.itemId) || o.leaflets.some(l => !l.itemId)) { SFA.toast('Choose the item in every item / leaflet row (or remove the row)', false); return; }
+    if (ST.visits.concat(ST.unlisted).some(c => c !== o && isOpen(c))) { SFA.toast('Check out of the open client first', false); return; }
+    const g = await getPos();
+    if (geoOn() || EDIT.kind === 'v') {   // location check ON (own rule, or the manager + client setting - the server tells): the position is a must, and a listed client must be within the allowed distance of its tag
+      if (geoOn() && !g) return geoLocHelp(doCheckIn);
+      if (EDIT.kind === 'v') {
+        let r; try { r = await Api.post(EP.geoCheck, { clientId: o.clientId, lat: g ? g.lat : null, lng: g ? g.lng : null }); } catch (e) { SFA.toast(e.message, false); return; }
+        if (!r.ok) { if (r.code === 'NO_LOCATION') return geoLocHelp(doCheckIn); if (r.code === 'NOT_TAGGED') return geoUntagged(r, g, { clientId: o.clientId, clientName: o.clientName }); return geoFar(r, g, { clientId: o.clientId, clientName: o.clientName }); }
+      }
+    }
+    o.inTime = nowHm(); o.checkinAt = nowDt(); if (g) { o.checkinLat = g.lat; o.checkinLng = g.lng; }
+    if (await persistCall(true)) SFA.toast('Checked in at ' + o.inTime + ' — saved in your draft', true);
+  }
+  function confirmCheckOut() {
+    if (!confirm('Submit details and check out of ' + (EDIT.o.clientName || 'this client') + '?')) return;
+    EDIT.o.items = EDIT.o.items.filter(i => Number(i.qty) > 0 || Number(i.pobQty) > 0 || i.detailed);
+    doCheckOut();
+  }
+  async function doCheckOut() {
+    EDIT.o.outTime = nowHm();
+    const gp = await getPos(); if (gp) { EDIT.o.checkoutLat = gp.lat; EDIT.o.checkoutLng = gp.lng; }   // where the call was ended
+    const nm = EDIT.o.clientName;
+    if (await persistCall(false)) { sheetClose(); SFA.toast('Checked out of ' + nm + ' at ' + EDIT.o.outTime, true); }
+  }
+  async function callSave() {
+    if (EDIT.o.items.some(i => !i.itemId) || EDIT.o.leaflets.some(l => !l.itemId)) { SFA.toast('Choose the item in every item / leaflet row (or remove the row)', false); return; }
+    if (await persistCall(false)) { sheetClose(); SFA.toast('Saved', true); }
+  }
+  async function callUpload(inputEl, key) {
+    const f = inputEl.files[0]; if (!f) return;
+    try { EDIT.o[key] = (await dcrUpload(f, 'image')).path; renderCall(); } catch (e) { SFA.toast(e.message, false); }
+  }
+
+  // ============================================================== camera: a photo with the position and the time burned in (like a map camera)
+  let CAMSTREAM = null, CAMTIMER = null;
+  function camClose() { if (CAMTIMER) clearInterval(CAMTIMER); CAMTIMER = null; if (CAMSTREAM) CAMSTREAM.getTracks().forEach(t => t.stop()); CAMSTREAM = null; const o = document.getElementById('camOv'); if (o) o.remove(); }
+  function camShoot() {
+    return new Promise(async (resolve) => {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return resolve(null);
+      let stream; try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false }); } catch (e) { SFA.toast('Camera is not available: ' + (e.message || e.name), false); return resolve(false); }
+      CAMSTREAM = stream; let pos = null;
+      const ov = document.createElement('div'); ov.id = 'camOv'; ov.style.cssText = 'position:fixed;inset:0;z-index:3000;background:#000;display:flex;flex-direction:column';
+      ov.innerHTML = `<video id="camV" autoplay playsinline muted style="flex:1;min-height:0;width:100%;object-fit:cover"></video>
+        <div id="camStamp" style="position:absolute;left:0;right:0;bottom:84px;padding:6px 12px;background:rgba(0,0,0,.45);color:#fff;font:600 13px/1.4 monospace"></div>
+        <div style="height:84px;display:flex;align-items:center;justify-content:space-around;background:#111"><button type="button" id="camX" class="btn btn-light">Cancel</button><button type="button" id="camGo" class="btn btn-light rounded-circle" style="width:56px;height:56px"><i class="bi bi-camera-fill fs-4"></i></button><span style="width:70px"></span></div>`;
+      document.body.appendChild(ov);
+      const v = document.getElementById('camV'); v.srcObject = stream;
+      const stamp = () => { const d = new Date(); return [pos ? 'Lat ' + pos.lat.toFixed(6) + '  Lon ' + pos.lng.toFixed(6) : 'Location: waiting...', pad(d.getDate()) + '-' + pad(d.getMonth() + 1) + '-' + d.getFullYear() + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds())]; };
+      const draw = () => { const el = document.getElementById('camStamp'); if (el) el.innerHTML = stamp().join('<br>'); };
+      draw(); CAMTIMER = setInterval(draw, 1000); getPos().then(p => { pos = p; draw(); });
+      document.getElementById('camX').onclick = () => { camClose(); resolve(false); };
+      document.getElementById('camGo').onclick = () => {
+        const cv = document.createElement('canvas'); cv.width = v.videoWidth || 1280; cv.height = v.videoHeight || 720; const g = cv.getContext('2d'); g.drawImage(v, 0, 0, cv.width, cv.height);
+        const lines = stamp(), fs = Math.max(16, Math.round(cv.width / 32)); g.font = '600 ' + fs + 'px monospace';
+        g.fillStyle = 'rgba(0,0,0,.5)'; g.fillRect(0, cv.height - fs * 3.1, cv.width, fs * 3.1); g.fillStyle = '#fff'; lines.forEach((t, i) => g.fillText(t, fs * 0.6, cv.height - fs * (2.0 - i * 1.15)));
+        cv.toBlob(b => { camClose(); resolve(b ? new File([b], 'camera-' + Date.now() + '.jpg', { type: 'image/jpeg' }) : false); }, 'image/jpeg', 0.85);
+      };
+    });
+  }
+  // take a photo (camera dialog; the phone camera when the browser has none), upload it and hand the stored file to set(r)
+  async function camUse(set, kind) {
+    let f = await camShoot();
+    if (f === false) return;
+    if (!f) f = await new Promise(res => { const i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*'; i.capture = 'environment'; i.onchange = () => res(i.files[0] || null); i.click(); });
+    if (!f) return;
+    try { set(await dcrUpload(f, kind || 'image')); } catch (e) { SFA.toast(e.message, false); }
+  }
+  async function camFile(el, set, kind) { const f = el.files[0]; if (!f) return; try { set(await dcrUpload(f, kind || 'image')); } catch (e) { SFA.toast(e.message, false); } }
+  // [Camera] button (CAMERA_DIRECT) and the file picker (hidden when CAMERA_ONLY)
+  const photoBtns = (setJs, kind) => `<div class="d-flex gap-2 flex-wrap align-items-center">${RULE('CAMERA_DIRECT', true) ? `<button type="button" class="btn btn-outline-primary btn-sm" onclick='camUse(${setJs}, "${kind || 'image'}")'><i class="bi bi-camera"></i> Camera</button>` : ''}`
+    + `${RULE('CAMERA_ONLY', false) && RULE('CAMERA_DIRECT', true) ? '' : `<input class="form-control form-control-sm" style="max-width:15rem" type="file" accept="image/*" onchange='camFile(this, ${setJs}, "${kind || 'image'}")' />`}</div>`;
+  async function dcrUpload(file, kind) {
+    const fd = new FormData(); fd.append('file', file); fd.append('kind', kind);
+    return Api.post(EP.upload, fd);
+  }
+  // a finished check-in is not edited - it is deleted (the client can then be checked in again)
+  async function callRemove(k, i) {
+    const c = (k === 'v' ? ST.visits : ST.unlisted)[i];
+    if (!ST.canEdit || !confirm('Delete the check-in of ' + c.clientName + '? You can check in again after this.')) return;
+    if (k === 'v') ST.visits.splice(i, 1);
+    else { const key = c.key; ST.unlisted.splice(i, 1); ST.expenses.forEach(e => { if (e.unlistedKey === key) { e.clientKind = 0; e.unlistedKey = null; } }); }
+    sheetClose();
+    if (await dcrSave(false, true)) SFA.toast('Check-in deleted - you can add the client again', true); else render();
+  }
+  async function callDelete() {
+    if (!confirm(EDIT.o.inTime ? 'Delete this check-in? The visit is removed from your DCR.' : 'Remove this client?')) return;
+    if (EDIT.kind === 'v') ST.visits.splice(EDIT.idx, 1);
+    else { const k = ST.unlisted[EDIT.idx].key; ST.unlisted.splice(EDIT.idx, 1); ST.expenses.forEach(e => { if (e.unlistedKey === k) { e.clientKind = 0; e.unlistedKey = null; } }); }
+    sheetClose();
+    if (await dcrSave(false, true)) SFA.toast('Check-in deleted', true); else render();
+  }
+
+  // ============================================================== joint / expense / day end
+  function paneJoint() {
+    if (!OPT.joint.length) return '<div class="dcr-empty"><i class="bi bi-people fs-1"></i><div>No one to work with — you need a manager or a team</div></div>';
+    return `<div class="card-lite"><div class="dcr-sec mt-0">Worked with, the whole day</div>${jointPicker(ST.jointWith, 'ST.jointWith', 'render()')}</div>`;
+  }
+  function expLink(e) {
+    if (e.clientKind === 1) { const v = ST.visits.find(x => x.clientId === e.clientId); return v ? v.clientName : ''; }
+    if (e.clientKind === 2) { const u = ST.unlisted.find(x => x.key === e.unlistedKey); return u ? u.clientName : ''; }
+    return '';
+  }
+  function paneExpense() {
+    const cards = ST.expenses.map((e, i) => { const t = OPT.expenseTypes.find(x => x.id === e.expenseId);
+      return `<div class="card-lite dcr-visit" onclick="editExpense(${i})"><div class="ava"><i class="bi bi-receipt"></i></div>
+        <div class="meta"><b>${esc(t ? t.name : 'Expense')}</b><small class="text-muted">${esc([e.description, expLink(e)].filter(Boolean).join(' · ') || ' ')}</small></div><b>₹${money(e.amount)}</b></div>`; }).join('');
+    return (cards || '<div class="dcr-empty"><i class="bi bi-receipt fs-1"></i><div>No expense yet</div></div>') +
+      (ST.canEdit ? '<button class="dcr-add" onclick="editExpense(-1)"><i class="bi bi-plus-circle"></i> Add expense</button>' : '');
+  }
+  function editExpense(idx) {
+    if (!ST.canEdit) return;   // submitted: nothing can change
+    const blankE = { expenseId: '', amount: '', description: '', clientKind: 0, clientId: null, unlistedKey: null, fromAreaId: '', toAreaId: '', startKm: '', endKm: '', startImagePath: '', endImagePath: '', fileName: '', fileType: '', filePath: '' };
+    EDIT = { kind: 'e', idx, o: idx < 0 ? blankE : JSON.parse(JSON.stringify(ST.expenses[idx])) };
+    ['fromAreaId', 'toAreaId', 'startKm', 'endKm'].forEach(k => { if (EDIT.o[k] == null) EDIT.o[k] = ''; });
+    sheetOpen(idx < 0 ? 'Add expense' : 'Expense', '', '');
+    renderExpense();
+    document.getElementById('sheetFoot').innerHTML = !ST.canEdit ? '<button class="btn btn-light" onclick="sheetClose()">Close</button>'
+      : (idx >= 0 ? '<button class="btn btn-outline-danger" style="flex:0 0 auto" onclick="expDelete()"><i class="bi bi-trash"></i></button>' : '') + '<button class="btn btn-primary" onclick="expDone()"><i class="bi bi-check2"></i> Done</button>';
+  }
+  function renderExpense() {
+    const o = EDIT.o, t = OPT.expenseTypes.find(x => String(x.id) === String(o.expenseId)), travel = t && t.travel;
+    const links = [{ id: '0', name: 'Not about a client' }].concat(ST.visits.map(v => ({ id: '1:' + v.clientId, name: v.clientName }))).concat(ST.unlisted.filter(u => u.clientName).map(u => ({ id: '2:' + u.key, name: u.clientName + ' (unlisted)' })));
+    const cur = o.clientKind === 1 ? '1:' + o.clientId : o.clientKind === 2 ? '2:' + o.unlistedKey : '0';
+    const up = (key, label) => `<div class="col-6"><label class="form-label">${label}</label>${o[key] ? `<div class="mb-1">${SFAFiles.thumb(o[key], null, { name: label })}</div>` : ''}${photoBtns("r=>{EDIT.o." + key + "=r.path;renderExpense()}")}</div>`;
+    let h = `<div class="row g-3">
+      ${field('Expense type *', `<select class="form-select" data-no-search onchange="EDIT.o.expenseId=this.value;renderExpense()">${opts(OPT.expenseTypes, o.expenseId, 'Select type')}</select>`)}
+      ${field('Amount (₹) *', `<input class="form-control" type="number" inputmode="decimal" value="${esc(o.amount)}" oninput="EDIT.o.amount=this.value" />`, 'col-6')}
+      ${field('For client', `<select class="form-select" data-no-search onchange="expLinkSet(this.value)">${opts(links, cur, '')}</select>`, 'col-6')}
+      ${field('Description', `<input class="form-control" maxlength="150" value="${esc(o.description)}" oninput="EDIT.o.description=this.value" />`)}`;
+    if (travel) h += `${field('From area', `<select class="form-select" data-no-search onchange="EDIT.o.fromAreaId=this.value">${opts(OPT.areas, o.fromAreaId)}</select>`, 'col-6')}
+      ${field('To area', `<select class="form-select" data-no-search onchange="EDIT.o.toAreaId=this.value">${opts(OPT.areas, o.toAreaId)}</select>`, 'col-6')}
+      ${field('Start km', `<input class="form-control" type="number" inputmode="decimal" value="${esc(o.startKm)}" oninput="EDIT.o.startKm=this.value" />`, 'col-6')}
+      ${field('End km', `<input class="form-control" type="number" inputmode="decimal" value="${esc(o.endKm)}" oninput="EDIT.o.endKm=this.value" />`, 'col-6')}
+      ${up('startImagePath', 'Start meter photo')}${up('endImagePath', 'End meter photo')}`;
+    h += `<div class="col-12"><label class="form-label">Bill / receipt</label>${o.filePath ? `<div class="small mb-1"><i class="bi bi-paperclip"></i> ${esc(o.fileName || 'attached')}</div>` : ''}
+      ${photoBtns("r=>{EDIT.o.filePath=r.path;EDIT.o.fileName=r.name;EDIT.o.fileType=r.type;renderExpense()}", 'document')}
+      ${RULE('CAMERA_ONLY', false) ? '' : `<input class="form-control form-control-sm mt-1" type="file" accept="image/*,application/pdf" onchange="expUpload(this,'filePath','document')" />`}</div></div>`;
+    document.getElementById('sheetBody').innerHTML = h;
+  }
+  function expLinkSet(v) {
+    const o = EDIT.o;
+    if (v.startsWith('1:')) { o.clientKind = 1; o.clientId = Number(v.slice(2)); o.unlistedKey = null; }
+    else if (v.startsWith('2:')) { o.clientKind = 2; o.unlistedKey = v.slice(2); o.clientId = null; }
+    else { o.clientKind = 0; o.clientId = null; o.unlistedKey = null; }
+  }
+  async function expUpload(el, key, kind) {
+    const f = el.files[0]; if (!f) return;
+    try { const r = await dcrUpload(f, kind); EDIT.o[key] = r.path; if (key === 'filePath') { EDIT.o.fileName = r.name; EDIT.o.fileType = r.type; } renderExpense(); } catch (e) { SFA.toast(e.message, false); }
+  }
+  function expDone() {
+    const o = EDIT.o;
+    if (!o.expenseId) { SFA.toast('Choose the expense type', false); return; }
+    if (!(Number(o.amount) > 0)) { SFA.toast('Enter the amount', false); return; }
+    o.expenseId = Number(o.amount) ? Number(o.expenseId) : o.expenseId;
+    if (EDIT.idx < 0) ST.expenses.push(o); else ST.expenses[EDIT.idx] = o;
+    sheetClose(); render();
+  }
+  function expDelete() { if (!confirm('Remove this expense?')) return; ST.expenses.splice(EDIT.idx, 1); sheetClose(); render(); }
+
+  function paneDayEnd() {
+    return `<div class="card-lite"><div class="row g-3">
+      ${field('Day ended at (area)', `<select class="form-select" data-no-search onchange="ST.dayEndAreaId=this.value">${opts(OPT.areas, ST.dayEndAreaId, 'Select area')}</select>`)}
+      ${RULE('METER_READING_DAYEND_VISIBLITY', false) ? field('Meter reading at day end (km)' + (RULE('METER_READING_DAYEND', false) ? ' *' : '') + (ST.meterStart !== '' && ST.meterStart != null ? ' - started at ' + ST.meterStart : ''), inp('meterEnd', 'number', 'inputmode="decimal" step="any"')
+        + `<div class="mt-2">${ST.meterEndImage ? `<div class="mb-1">${SFAFiles.thumb(ST.meterEndImage, null, { name: 'meter' })}</div>` : ''}${photoBtns("r=>{ST.meterEndImage=r.path;render()}")}</div>`) : ''}
+      ${field('Day end remarks', `<input class="form-control" maxlength="200" value="${esc(ST.dayEndRemarks)}" oninput="ST.dayEndRemarks=this.value" />`, 'col-6')}
+      ${field('Night stay area', `<select class="form-select" data-no-search onchange="ST.stayAreaId=this.value">${opts(OPT.areas, ST.stayAreaId, 'Not staying')}</select>`, 'col-6')}
+      ${field('Hotel', `<input class="form-control" maxlength="100" value="${esc(ST.stayHotel)}" oninput="ST.stayHotel=this.value" />`, 'col-6')}
+    </div>${RULE('FINAL_SUBMIT_REQUIRED', true) || ST.status === 1 || ST.status === 2 ? '' : '<div class="mt-3"><button class="btn btn-primary w-100" onclick="dcrSave(true)"><i class="bi bi-moon"></i> End Day</button><div class="small text-muted mt-1">Final submit is not required: ending the day submits the DCR.</div></div>'}</div>`;
+  }
+
+  function paneReview() {
+    const calls = ST.visits.length + ST.unlisted.length, pob = ST.visits.concat(ST.unlisted).reduce((s, c) => s + callPob(c), 0), exp = ST.expenses.reduce((s, e) => s + Number(e.amount || 0), 0);
+    const warn = [];
+    if (isField(ST.workType) && !calls) warn.push('No client call added yet');
+    if (isField(ST.workType) && !ST.startAreaId) warn.push('Day start area not selected');
+    const open = ST.visits.concat(ST.unlisted).filter(isOpen);
+    if (open.length) warn.push('Check out of ' + open[0].clientName + ' before submitting');
+    return `<div class="card-lite"><div class="row text-center g-2">
+        <div class="col-4"><div class="fs-3 fw-bold">${calls}</div><small class="text-muted">Calls</small></div>
+        <div class="col-4"><div class="fs-3 fw-bold">₹${money(pob)}</div><small class="text-muted">POB</small></div>
+        <div class="col-4"><div class="fs-3 fw-bold">₹${money(exp)}</div><small class="text-muted">Expense</small></div></div></div>
+      ${warn.length ? `<div class="alert alert-warning small">${warn.map(w => '<div><i class="bi bi-exclamation-triangle"></i> ' + esc(w) + '</div>').join('')}</div>` : '<div class="alert alert-success small"><i class="bi bi-check-circle"></i> Looks good — tap Submit to send it for approval (your time out is captured then).</div>'}
+      <div class="small text-muted">Draft keeps it with you to finish later. Submit sends it to your manager; once approved it cannot be changed.</div>`;
+  }
+
+  // ============================================================== save / submit
+  const n = (v) => (v === '' || v == null ? null : Number(v));
+  const s = (v) => (v === '' || v == null ? null : v);
+  function callPayload(c) {
+    return { worktypeCode: c.worktypeCode, visitType: c.visitType, activityType: s(c.activityType), areaId: n(c.areaId), inTime: s(c.inTime), outTime: s(c.outTime), checkinAt: s(c.checkinAt),
+      checkinLat: c.checkinLat, checkinLng: c.checkinLng, checkoutLat: c.checkoutLat, checkoutLng: c.checkoutLng, pobValue: n(c.pobValue), remarks: s(c.remarks), refused: !!c.refused, nextVisit: s(c.nextVisit), nextVisitPriority: s(c.nextVisitPriority),
+      nextVisitRemarks: s(c.nextVisitRemarks), signaturePath: s(c.signaturePath), jointWith: c.jointWith || [], treatments: c.treatments || [],
+      items: (c.items || []).map(i => ({ itemId: Number(i.itemId), itemType: i.itemType, qty: n(i.qty) || 0, pobQty: n(i.pobQty) || 0, rate: n(i.rate), detailed: !!i.detailed, remarks: s(i.remarks) })),
+      leaflets: (c.leaflets || []).map(l => ({ itemId: Number(l.itemId), qty: n(l.qty) || 0, value: n(l.value) || 0 })) };
+  }
+  function payload(submit) {
+    return { dcrDate: ST.dcrDate, workType: ST.workType, startAreaId: n(ST.startAreaId), workingAreaId: n(ST.workingAreaId), travelMode: s(ST.travelMode),
+      meterStart: n(ST.meterStart), meterEnd: n(ST.meterEnd), meterStartImage: s(ST.meterStartImage), meterEndImage: s(ST.meterEndImage), remarks: s(ST.remarks), dayEndAreaId: n(ST.dayEndAreaId), dayEndAt: s(ST.dayEndAt), dayEndRemarks: s(ST.dayEndRemarks), dayEndLat: ST.dayEndLat, dayEndLng: ST.dayEndLng,
+      stayAreaId: n(ST.stayAreaId), stayHotel: s(ST.stayHotel), jointWith: ST.jointWith, submit,
+      visits: ST.visits.filter(v => v.inTime).map(v => Object.assign({ clientId: v.clientId }, callPayload(v))),   // only checked-in calls are saved
+      unlisted: ST.unlisted.filter(u => u.inTime).map(u => Object.assign({ key: u.key, clientName: u.clientName, clientTypeId: n(u.clientTypeId), specialityId: n(u.specialityId), categoryId: n(u.categoryId),
+        qualification: s(u.qualification), mobile: s(u.mobile), contactPerson: s(u.contactPerson), address: s(u.address) }, callPayload(u))),
+      expenses: ST.expenses.map(e => ({ expenseId: Number(e.expenseId), amount: Number(e.amount), description: s(e.description), clientKind: e.clientKind || 0, clientId: e.clientId, unlistedKey: e.unlistedKey,
+        fromAreaId: n(e.fromAreaId), toAreaId: n(e.toAreaId), startKm: n(e.startKm), endKm: n(e.endKm), startImagePath: s(e.startImagePath), endImagePath: s(e.endImagePath),
+        fileName: s(e.fileName), fileType: s(e.fileType), filePath: s(e.filePath) })) };
+  }
+  // The same rules the server enforces (app_validations), checked first so the user sees ALL problems at once.
+  function submitIssues() {
+    const out = [], calls = ST.visits.concat(ST.unlisted).filter(c => c.inTime), working = isField(ST.workType);
+    if (working && !calls.length) out.push('Add at least one client call');
+    if (RULE('CHECKOUT', true)) calls.filter(c => !c.outTime && !c.refused).forEach(c => out.push('Check out of ' + (c.clientName || 'the client') + ' first'));
+    if (RULE('DCR_Remarks', false) && !String(ST.remarks || '').trim()) out.push('Remarks are required');
+    if (working && RULE('METER_READING_DAYEND_VISIBLITY', false) && RULE('METER_READING_DAYEND', false)) { if (ST.meterEnd === '' || ST.meterEnd == null) out.push('Meter reading at day end is required'); else if (ST.meterStart !== '' && ST.meterStart != null && Number(ST.meterEnd) < Number(ST.meterStart)) out.push('Meter end cannot be less than meter start'); }
+    ST.unlisted.filter(u => u.inTime).forEach(u => {
+      [['MOBILE', 'mobile', 'Mobile'], ['SPECIALITY', 'specialityId', 'Speciality'], ['CATEGORY', 'categoryId', 'Category']].forEach(([c, k, l]) => {
+        if (RULE('UNLISTED_VISIT_' + c + '_VISIBLITY', true) && RULE('UNLISTED_VISIT_' + c, false) && !String(u[k] || '').trim()) out.push(l + ' of ' + (u.clientName || 'unlisted client') + ' is required');
+      });
+    });
+    const w = ((OPT.rules || {}).DCR_BETWEEN_TIME || '').split('-');
+    if (working && w.length === 2) calls.forEach(c => [c.inTime, c.outTime].filter(Boolean).forEach(t => {
+      const hm = String(t).slice(-5); if (hm < w[0].trim() || hm > w[1].trim()) out.push((c.clientName || 'A call') + ': time ' + hm + ' is outside ' + w[0].trim() + '-' + w[1].trim());
+    }));
+    return [...new Set(out)];
+  }
+  async function dcrSave(submit, silent) {
+    if (submit) {
+      const issues = submitIssues();
+      if (issues.length) { SFA.toast(issues.slice(0, 4).join(' · ') + (issues.length > 4 ? ' (+' + (issues.length - 4) + ' more)' : ''), false); CUR = 'day'; render(); return false; }
+    }
+    if (submit && !confirm(RULE('FINAL_SUBMIT_REQUIRED', true) ? 'Submit this DCR for approval? Your time out is captured now.' : 'End your day now? The day end time and your location are captured.')) return false;
+    if (submit) { const gd = await getPos(); if (gd) { ST.dayEndLat = gd.lat; ST.dayEndLng = gd.lng; } }   // where the day was ended
+    try {
+      const saved = await Api.post(EP.save, payload(submit));
+      ST = fromDto(saved); render();
+      if (!silent) SFA.toast(submit ? 'DCR submitted' : 'Draft saved', true);
+      return true;
+    } catch (e) {
+      const m = String(e.message || '');
+      if (m.startsWith('NO_LOCATION')) { geoLocHelp(() => { }); return false; }   // the location check is ON and no position came with the check-in
+      SFA.toast(m.replace(/^GEO_BLOCKED:\s*/, ''), false); return false;
+    }
+  }
+
+  // ============================================================== history / approval
+  async function dcrLoadList() {
+    const days = Number(document.getElementById('hRange').value || 30), from = new Date(); from.setDate(from.getDate() - days);
+    const f = from.getFullYear() + '-' + pad(from.getMonth() + 1) + '-' + pad(from.getDate());
+    try { ROWS = await Api.get(EP.list, { query: { from: f, to: todayStr() } }); dcrRenderList(); } catch (e) { SFA.toast(e.message, false); }
+  }
+  async function pendingBadge() {
+    try {
+      const from = new Date(); from.setDate(from.getDate() - 30);
+      const rows = await Api.get(EP.list, { query: { from: from.getFullYear() + '-' + pad(from.getMonth() + 1) + '-' + pad(from.getDate()), to: todayStr() }, noLoader: true });
+      const k = rows.filter(r => r.canApprove).length, b = document.getElementById('dcrPendingBadge');
+      b.textContent = k; b.classList.toggle('d-none', !k);
+    } catch (e) { /* the badge is optional */ }
+  }
+  function dcrRenderList() {
+    const st = document.getElementById('hStatus').value, q = document.getElementById('hSearch').value.trim().toLowerCase();
+    const rows = ROWS.filter(r => (st === '' || (st === 'mine' ? r.canApprove : String(r.status) === st)) && (!q || (r.empName + ' ' + r.empCode).toLowerCase().includes(q)));
+    document.getElementById('hRows').innerHTML = rows.map(r => `<div class="card-lite dcr-visit" onclick="dcrOpen(${r.dcrId})"><div class="ava">${esc(initials(r.empName))}</div>
+      <div class="meta"><b>${esc(r.empName)}${r.mine ? ' <small class="text-muted">(me)</small>' : ''}</b><small class="text-muted">${esc(Settings.formatDate(r.dcrDate))} · ${esc(r.workType)} · ${r.listedCalls + r.unlistedCalls} calls · POB ₹${money(r.pobTotal)}${Number(r.expenseTotal) ? ' · Exp ₹' + money(r.expenseTotal) : ''}</small></div>
+      <div class="text-end">${stBadge(r.status)}${r.canApprove ? '<div><small class="text-danger fw-bold">Review</small></div>' : ''}</div></div>`).join('') || '<div class="dcr-empty"><i class="bi bi-journal-x fs-1"></i><div>No DCR found</div></div>';
+  }
+  async function dcrOpen(id) {
+    try {
+      const d = await Api.get(EP.get(id));
+      if (d.empId === OPT.me && d.canEdit) { document.getElementById('dcrDate').value = d.dcrDate; dcrView('form'); await loadDay(); return; }
+      const foot = d.canApprove ? `<button class="btn btn-outline-danger" onclick="dcrDecide(${id},false)"><i class="bi bi-x-circle"></i> Reject</button><button class="btn btn-success" onclick="dcrDecide(${id},true)"><i class="bi bi-patch-check"></i> Approve</button>`
+        : '<button class="btn btn-light" onclick="sheetClose()">Close</button>';
+      const delBtn = OPT.isAdmin ? `<button class="btn btn-outline-danger" onclick="dcrDelete(${id})"><i class="bi bi-trash"></i> Delete</button>` : '';
+      sheetOpen(d.empName + ' · ' + Settings.formatDate(d.dcrDate), detailHtml(d), delBtn + foot);
+    } catch (e) { SFA.toast(e.message, false); }
+  }
+  const jname = (id) => { const j = OPT.joint.find(x => x.id === id); return j ? j.name : ''; };
+  function detailHtml(d) {
+    const call = (c, u) => `<div class="card-lite"><b>${esc(c.clientName)}</b> <small class="text-muted">${esc(u ? (c.mobile || 'Unlisted') : (c.clientCode || ''))}</small>
+      <div class="small text-muted">${esc([c.inTime && c.outTime ? c.inTime + '–' + c.outTime : c.inTime, c.visitType, c.activityType].filter(Boolean).join(' · '))}</div>
+      ${c.refused ? '<span class="badge bg-warning text-dark">Refused to meet</span>' : ''}
+      ${(c.items || []).map(i => `<div class="small">• ${esc(i.itemName)} <span class="text-muted">(${esc(i.itemType)})</span> given ${i.qty}${i.pobQty ? ', POB ' + i.pobQty + ' × ₹' + money(i.rate) : ''}${i.detailed ? ' · detailed' : ''}</div>`).join('')}
+      ${(c.leaflets || []).map(l => `<div class="small">• Leaflet ${esc(l.itemName)} × ${l.qty}</div>`).join('')}
+      ${(c.treatments || []).map(t => { const x = OPT.treatments.find(z => z.id === t); return `<div class="small">• Treatment: ${esc(x ? x.name : t)}</div>`; }).join('')}
+      ${(c.jointWith || []).length ? `<div class="small">With: ${c.jointWith.map(j => esc(jname(j))).join(', ')}</div>` : ''}
+      ${Number(c.pobValue) ? `<span class="badge bg-success">POB ₹${money(c.pobValue)}</span>` : ''} ${c.remarks ? `<div class="small mt-1">${esc(c.remarks)}</div>` : ''}</div>`;
+    return `<div class="d-flex justify-content-between align-items-center mb-2"><div class="text-muted small">${esc(d.designation || '')} · ${esc(d.workType)}${d.timeIn ? ' · ' + esc(d.timeIn) + (d.timeOut ? '–' + esc(d.timeOut) : '') : ''}</div>${stBadge(d.status)}</div>
+      ${d.remarks ? `<div class="small mb-2">${esc(d.remarks)}</div>` : ''}
+      ${(d.jointWith || []).length ? `<div class="small mb-2">Worked with: ${d.jointWith.map(j => esc(jname(j))).join(', ')}</div>` : ''}
+      ${d.visits.length ? '<div class="dcr-sec">Client calls</div>' + d.visits.map(v => call(v, false)).join('') : ''}
+      ${d.unlisted.length ? '<div class="dcr-sec">Unlisted calls</div>' + d.unlisted.map(v => call(v, true)).join('') : ''}
+      ${d.expenses.length ? '<div class="dcr-sec">Expenses</div>' + d.expenses.map(e => `<div class="card-lite d-flex justify-content-between"><span>${esc(e.expenseName)} <small class="text-muted">${esc(e.description || '')}</small></span><b>₹${money(e.amount)}</b></div>`).join('') : ''}
+      ${d.approvalRemarks ? `<div class="alert alert-light small">${esc(d.approvedByName || '')}: ${esc(d.approvalRemarks)}</div>` : ''}`;
+  }
+  async function dcrDecide(id, ok) {
+    try {
+      if (ok) { await Api.post(EP.approve(id), { remarks: null }); SFA.toast('DCR approved', true); }
+      else { const r = prompt('Why is this DCR rejected? (the employee sees this)'); if (r === null) return; if (!r.trim()) { SFA.toast('Please give the reason', false); return; }
+        await Api.post(EP.reject(id), { reason: r.trim() }); SFA.toast('DCR rejected', true); }
+      sheetClose(); dcrLoadList(); pendingBadge();
+    } catch (e) { SFA.toast(e.message, false); }
+  }
+</script>
+</body>
+</html>

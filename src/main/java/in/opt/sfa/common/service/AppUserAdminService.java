@@ -63,6 +63,33 @@ public class AppUserAdminService {
         return users.save(u);
     }
 
+    /**
+     * Is this username free? Usernames are unique across ALL companies
+     * (user_login_master.username). A name already owned by the same
+     * employee (companyCode + empId — i.e. editing yourself) counts as free.
+     */
+    @Transactional(transactionManager = "commonTransactionManager", readOnly = true)
+    public boolean isUsernameAvailable(String username, String companyCode, String empId) {
+        return users.findByUsername(username)
+                .map(u -> empId != null && empId.equals(u.getEmpId()) && companyCode.equals(u.getCompanyCode()))
+                .orElse(true);
+    }
+
+    /** The login of an employee, if it has one. */
+    @Transactional(transactionManager = "commonTransactionManager", readOnly = true)
+    public java.util.Optional<AppUser> findLogin(String companyCode, String empId) {
+        return users.findByEmpIdAndCompanyCode(empId, companyCode);
+    }
+
+    /** Set a new password for an employee's login (admin reset; plain text like everywhere else). */
+    @Transactional(transactionManager = "commonTransactionManager")
+    public AppUser resetPassword(String companyCode, String empId, String newRaw) {
+        AppUser u = users.findByEmpIdAndCompanyCode(empId, companyCode)
+                .orElseThrow(() -> new IllegalStateException("This employee has no login yet"));
+        u.setPassword(newRaw);
+        return users.save(u);
+    }
+
     /** Link a login to an employee id if it isn't linked yet (so future JWTs carry it). */
     @Transactional(transactionManager = "commonTransactionManager")
     public void linkEmpId(String username, String empId) {

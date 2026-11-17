@@ -5,7 +5,7 @@ import in.opt.sfa.tenant.master.category.dto.CategoryMasterDto;
 import in.opt.sfa.tenant.master.category.entity.CategoryMaster;
 import in.opt.sfa.tenant.master.category.mapper.CategoryMasterMapper;
 import in.opt.sfa.tenant.master.category.repository.CategoryMasterRepository;
-import in.opt.sfa.tenant.master.employee.service.EmployeeNameResolver;
+import in.opt.sfa.tenant.master.empdetail.service.EmpNameResolver;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,9 +24,9 @@ public class CategoryMasterService {
 
     private final CategoryMasterRepository categories;
     private final CategoryMasterMapper mapper;
-    private final EmployeeNameResolver employeeNames;
+    private final EmpNameResolver employeeNames;
 
-    public CategoryMasterService(CategoryMasterRepository categories, CategoryMasterMapper mapper, EmployeeNameResolver employeeNames) {
+    public CategoryMasterService(CategoryMasterRepository categories, CategoryMasterMapper mapper, EmpNameResolver employeeNames) {
         this.categories = categories;
         this.mapper = mapper;
         this.employeeNames = employeeNames;

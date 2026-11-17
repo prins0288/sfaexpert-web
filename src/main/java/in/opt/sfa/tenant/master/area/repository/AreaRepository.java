@@ -8,7 +8,7 @@ import java.util.Optional;
 
 public interface AreaRepository extends JpaRepository<Area, Long> {
     List<Area> findAllByOrderByOidAsc();
-    List<Area> findByStatusOrderByAreaNameAsc(String status);
+    List<Area> findByActiveOrderByAreaNameAsc(boolean active);
     Optional<Area> findByAreaCode(String areaCode);
     Optional<Area> findFirstByAreaCodeOrAreaName(String areaCode, String areaName);
 }

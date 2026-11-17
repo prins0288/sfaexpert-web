@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>/* reverse-proxy sub-path support: make relative css/js resolve under the deploy prefix (e.g. /sfaexpert), "" locally */
+  (function(){try{var p=location.pathname,m=p.match(/^(.*?)\/u\/\d+(\/|$)/),c=m?m[1]:p.replace(/\/[^\/]*$/,'');document.write('<base href="'+(c||'')+'/">');}catch(e){}})();</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StarSFA &middot; Attendance Rules</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css" rel="stylesheet" />
+  <link href="css/app.css" rel="stylesheet" />
+  <link href="css/app-ui.css" rel="stylesheet" />
+  <script>
+    /* Apply the saved theme (mode / layout / density / colours) BEFORE first
+       paint so there is no flash. theme.js re-applies from the server after. */
+    (function () {
+      try {
+        var d = document.documentElement, s = localStorage;
+        // theme is PER TENANT and several tenants can be signed in at once
+        // (/u/0, /u/1...), so these caches are scoped to the account slot —
+        // a shared key would paint the last-customised tenant's colours here.
+        var m = location.pathname.match(/\/u\/(\d+)(\/|$)/), q = '_u' + (m ? m[1] : '0');
+        d.setAttribute('data-theme', s.getItem('sfa_mode' + q) || 'light');
+        d.setAttribute('data-nav', s.getItem('sfa_nav' + q) || 'vertical');
+        d.setAttribute('data-density', s.getItem('sfa_density' + q) || 'comfortable');
+        var f = s.getItem('sfa_font' + q); if (f) d.style.setProperty('--sfa-font-scale', f);
+        var c = s.getItem('sfa_theme' + q);
+        if (c) { c = JSON.parse(c); var t = (c.resolved && c.resolved[c.mode]) || {};
+          for (var k in t) d.style.setProperty('--sfa-' + k, t[k]); }
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+<div id="app" data-page="attendancerules" data-title="Attendance Rules"></div>
+<template id="pageContent">
+<div class="ap-app"><div class="ap-top"><div><h1 class="ap-title" data-i18n="rep.att.rules.title">Attendance Rules</h1><div class="text-muted small" data-i18n="rep.att.rules.sub">Conditions that decide whether a submitted DCR day counts as present, half day or absent in the Attendance Report. A condition left at 0 / empty is not checked.</div></div>
+  <button class="ap-btn go" onclick="add()"><i class="bi bi-plus-circle"></i> <span data-i18n="rep.att.rules.add">Add rule</span></button></div>
+<div id="body"></div>
+<div class="offcanvas offcanvas-bottom ap-sheet" tabindex="-1" id="sh" data-bs-backdrop="true"><div class="offcanvas-header"><h5 class="offcanvas-title" id="shT"></h5><button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button></div><div class="offcanvas-body" id="shB"></div><div class="ap-sheet-foot" id="shF"></div></div></div>
+</template>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.colVis.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="js/core/session.js"></script>
+<script src="js/core/endpoints.js"></script>
+<script src="js/core/http.js"></script>
+<script src="js/core/theme.js"></script>
+<script src="js/core/settings.js"></script>
+<script src="js/core/i18n.js"></script>
+<script src="js/app.js"></script>
+<script src="js/core/uikit.js"></script>
+<script src="js/shell.js"></script>
+<script>
+
+const R = API.report.attendance + '/rules';
+const T = (k, en) => (window.I18n ? I18n.t(k, en) : en);   // lang_*.properties + the tenant's label_master
+const esc = (v) => SFA.esc(v == null ? '' : v);
+const val = (id) => document.getElementById(id).value;
+const chk = (id) => document.getElementById(id).checked;
+let SHEET = null; const sheet = () => SHEET || (SHEET = new bootstrap.Offcanvas('#sh'));
+let DATA = null, SEL = new Set(), CUR = null, LASTLANG = window.I18n ? I18n.lang : 'en';
+if (window.I18n) I18n.onChange(() => { if (I18n.lang !== LASTLANG) { LASTLANG = I18n.lang; if (DATA) render(); } });
+window.pageInit = async function () { await load(); };
+async function load() {
+  try { DATA = await Api.get(R); } catch (e) { document.getElementById('body').innerHTML = '<div class="ap-card ap-empty">' + esc(e.message) + '</div>'; return; }
+  render();
+}
+const resName = (r) => r === 'ABSENT' ? T('rep.absent', 'Absent') : T('rep.att.halfDay', 'Half day');
+function summary(r) {
+  const p = [];
+  if (Number(r.minCalls)) p.push(T('rep.att.rules.fewerCalls', 'Fewer than {n} calls') .replace('{n}', r.minCalls) + ' → ' + resName(r.callsResult) + (r.countUnlisted ? '' : ' (' + T('rep.att.rules.listedOnly', 'listed only') + ')'));
+  if (Number(r.minHours)) p.push(T('rep.att.rules.fewerHours', 'Worked less than {n} h').replace('{n}', Number(r.minHours)) + ' → ' + resName(r.hoursResult));
+  if (r.lateStartAfter) p.push(T('rep.att.rules.lateAfter', 'Day started after {t}').replace('{t}', r.lateStartAfter) + ' → ' + resName(r.lateResult));
+  if (r.earlyEndBefore) p.push(T('rep.att.rules.earlyBefore', 'Day ended before {t}').replace('{t}', r.earlyEndBefore) + ' → ' + resName(r.earlyResult));
+  if (r.needApproved) p.push(T('rep.att.rules.needAppr', 'Only an approved DCR counts'));
+  return p.length ? p : [T('rep.att.rules.noCondition', 'No condition - a submitted DCR is a present day')];
+}
+function render() {
+  document.getElementById('body').innerHTML = DATA.rules.map(r => `<div class="ap-card" style="cursor:pointer" onclick="edit(${r.id})"><div class="d-flex align-items-start gap-2">
+    <input type="checkbox" class="form-check-input mt-1" ${SEL.has(r.id) ? 'checked' : ''} onclick="event.stopPropagation()" onchange="this.checked ? SEL.add(${r.id}) : SEL.delete(${r.id}); bar()">
+    <div class="flex-fill" style="min-width:0"><b>${esc(r.ruleName)}</b> <span class="ap-badge wait">${esc(r.designation || T('rep.att.rules.all', 'All designations'))}</span> ${r.active ? '' : '<span class="ap-badge bad">Off</span>'}
+    <div class="small text-muted">${T('rep.att.rules.appliesTo', 'Checked on')}: ${esc(r.applyTypes)}</div><ul class="small mb-0 mt-1">${summary(r).map(x => '<li>' + esc(x) + '</li>').join('')}</ul></div><i class="bi bi-chevron-right text-muted"></i></div></div>`).join('')
+    + '<div class="ap-bar" id="bar"><div class="info" id="barInfo"></div><button class="ap-btn danger" onclick="del()"><i class="bi bi-trash"></i> <span>' + T('common.delete', 'Delete') + '</span></button></div>';
+  bar();
+}
+function bar() { const b = document.getElementById('bar'); if (!b) return; b.classList.toggle('show', SEL.size > 0); document.getElementById('barInfo').textContent = SEL.size; }
+async function del() { if (!confirm(T('rep.att.rules.confirmDel', 'Delete the selected rule(s)?'))) return; try { await Api.post(R + '/delete', { ids: [...SEL] }); SEL = new Set(); await load(); SFA.toast('OK'); } catch (e) { SFA.toast(e.message, false); } }
+function add() { form({ ruleName: '', applyTypes: 'WORKING', minCalls: 0, callsResult: 'ABSENT', countUnlisted: true, minHours: 0, hoursResult: 'HALF', lateStartAfter: '', lateResult: 'HALF', earlyEndBefore: '', earlyResult: 'HALF', needApproved: false, active: true }); }
+function edit(id) { form(DATA.rules.find(r => r.id === id)); }
+function form(r) {
+  CUR = r; document.getElementById('shT').textContent = r.id ? r.ruleName : T('rep.att.rules.add', 'Add rule');
+  const types = String(r.applyTypes || '').split(',').map(x => x.trim());
+  const resSel = (id, v) => `<select class="form-select" id="${id}"><option value="ABSENT" ${v === 'ABSENT' ? 'selected' : ''}>${T('rep.absent', 'Absent')}</option><option value="HALF" ${v === 'HALF' ? 'selected' : ''}>${T('rep.att.halfDay', 'Half day')}</option></select>`;
+  const sw = (id, l, v) => `<div class="col-12 col-md-6"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="${id}" ${v ? 'checked' : ''}><label class="form-check-label" for="${id}">${l}</label></div></div>`;
+  document.getElementById('shB').innerHTML = `<div class="row g-3">
+    <div class="col-12 col-md-6"><label class="form-label">${T('rep.att.rules.name', 'Rule name')}</label><input class="form-control" id="f_name" value="${esc(r.ruleName)}"></div>
+    <div class="col-12 col-md-6"><label class="form-label">${T('entity.designation', 'Designation')}</label><select class="form-select" id="f_des"><option value="">${T('rep.att.rules.all', 'All designations')}</option>${DATA.designations.map(d => `<option value="${d.id}" ${String(d.id) === String(r.designationId) ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select></div>
+    <div class="col-12"><label class="form-label">${T('rep.att.rules.types', 'Conditions are checked on these day types (other types count as present once submitted)')}</label><div class="d-flex flex-wrap gap-3">${DATA.workTypes.map(w => `<label class="form-check"><input type="checkbox" class="form-check-input wt" value="${esc(w.code)}" ${types.includes(w.code) ? 'checked' : ''}> <span class="form-check-label">${esc(w.name)}</span></label>`).join('')}</div></div>
+    <div class="col-6 col-md-3"><label class="form-label">${T('rep.att.rules.minCalls', 'Minimum calls')}</label><input type="number" min="0" class="form-control" id="f_calls" value="${esc(r.minCalls)}"></div><div class="col-6 col-md-3"><label class="form-label">${T('rep.att.rules.ifLess', 'If fewer, the day is')}</label>${resSel('f_callsRes', r.callsResult)}</div>
+    ${sw('f_unl', T('rep.att.rules.countUnl', 'Unlisted check-ins count as calls'), r.countUnlisted)}
+    <div class="col-6 col-md-3"><label class="form-label">${T('rep.att.rules.minHours', 'Minimum working hours')}</label><input type="number" step="0.25" min="0" max="24" class="form-control" id="f_hours" value="${esc(r.minHours)}"></div><div class="col-6 col-md-3"><label class="form-label">${T('rep.att.rules.ifLess', 'If fewer, the day is')}</label>${resSel('f_hoursRes', r.hoursResult)}</div><div class="col-12 col-md-6"></div>
+    <div class="col-6 col-md-3"><label class="form-label">${T('rep.att.rules.lateLbl', 'Day must start by')}</label><input type="time" class="form-control" id="f_late" value="${esc(r.lateStartAfter)}"></div><div class="col-6 col-md-3"><label class="form-label">${T('rep.att.rules.ifLate', 'If later, the day is')}</label>${resSel('f_lateRes', r.lateResult)}</div>
+    <div class="col-6 col-md-3"><label class="form-label">${T('rep.att.rules.earlyLbl', 'Day must end after')}</label><input type="time" class="form-control" id="f_early" value="${esc(r.earlyEndBefore)}"></div><div class="col-6 col-md-3"><label class="form-label">${T('rep.att.rules.ifEarly', 'If earlier, the day is')}</label>${resSel('f_earlyRes', r.earlyResult)}</div>
+    ${sw('f_appr', T('rep.att.rules.needAppr', 'Only an approved DCR counts'), r.needApproved)}${sw('f_on', T('rep.att.rules.active', 'Rule is on'), r.active)}</div>`;
+  document.getElementById('shF').innerHTML = `<button class="ap-btn light" data-bs-dismiss="offcanvas">${T('common.cancel', 'Cancel')}</button><button class="ap-btn go" onclick="save()"><i class="bi bi-check2"></i> ${T('common.save', 'Save')}</button>`;
+  sheet().show();
+}
+async function save() {
+  const types = [...document.querySelectorAll('.wt:checked')].map(i => i.value).join(',');
+  const b = { id: CUR.id || null, ruleName: val('f_name'), designationId: val('f_des'), applyTypes: types, minCalls: val('f_calls'), callsResult: val('f_callsRes'), countUnlisted: chk('f_unl'), minHours: val('f_hours'), hoursResult: val('f_hoursRes'),
+    lateStartAfter: val('f_late'), lateResult: val('f_lateRes'), earlyEndBefore: val('f_early'), earlyResult: val('f_earlyRes'), needApproved: chk('f_appr'), active: chk('f_on') };
+  try { await Api.post(R, b); sheet().hide(); await load(); SFA.toast(T('common.save', 'Save') + ' OK'); } catch (e) { SFA.toast(e.message, false); }
+}
+
+</script>
+</body>
+</html>

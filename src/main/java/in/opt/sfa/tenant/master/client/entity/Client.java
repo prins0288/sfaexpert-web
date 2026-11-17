@@ -12,12 +12,13 @@ import org.hibernate.annotations.Formula;
 public class Client {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
     private Long oid;
 
     @Column(name = "client_code")
     private String clientCode;
 
-    @Column(name = "client_type_oid")
+    @Column(name = "client_type_id")
     private Long clientTypeOid;
 
     private String prefix;
@@ -27,19 +28,19 @@ public class Client {
     @Column(name = "firm_name")
     private String firmName;
 
-    @Column(name = "degree_oid")
+    @Column(name = "degree_id")
     private Long degreeOid;
 
-    @Column(name = "speciality_oid")
+    @Column(name = "speciality_id")
     private Long specialityOid;
 
-    @Column(name = "category_oid")
+    @Column(name = "category_id")
     private Long categoryOid;
 
-    @Column(name = "route_oid")
+    @Column(name = "route_id")
     private Long routeOid;
 
-    @Column(name = "area_oid")
+    @Column(name = "area_id")
     private Long areaOid;
 
     private String address;
@@ -60,29 +61,29 @@ public class Client {
     private String status = "Y";
 
     // ---- display-only ----
-    @Formula("(select t.type_name from client_type t where t.oid = client_type_oid)")
+    @Formula("(select t.type_name from client_type t where t.oid = client_type_id)")
     private String typeName;
 
-    @Formula("(select t.singular_label from client_type t where t.oid = client_type_oid)")
+    @Formula("(select t.singular_label from client_type t where t.oid = client_type_id)")
     private String typeSingular;
 
-    @Formula("(select a.area_name from city_master a where a.oid = area_oid)")
+    @Formula("(select a.area_name from area_master a where a.id = area_id)")
     private String areaName;
 
-    @Formula("(select r.route_name from route r where r.oid = route_oid)")
+    @Formula("(select r.route_name from route r where r.oid = route_id)")
     private String routeName;
 
     // Degrees now live in degree_master (PK = id), not the old `degree` table
     // (which no longer exists — hence "Table acme_db.degree doesn't exist").
     // client.degree_oid stores a degree_master.id.
-    @Formula("(select d.degree_name from degree_master d where d.id = degree_oid)")
+    @Formula("(select d.degree_name from degree_master d where d.id = degree_id)")
     private String degreeName;
 
     // speciality_master / category_master use `oid` as their PK column
     // (only degree_master uses `id`), so match on oid here.
-    @Formula("(select s.speciality_name from speciality_master s where s.oid = speciality_oid)")
+    @Formula("(select s.speciality_name from speciality_master s where s.oid = speciality_id)")
     private String specialityName;
 
-    @Formula("(select c.category_name from category_master c where c.oid = category_oid)")
+    @Formula("(select c.category_name from category_master c where c.oid = category_id)")
     private String categoryName;
 }

@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>/* reverse-proxy sub-path support: make relative css/js resolve under the deploy prefix (e.g. /sfaexpert), "" locally */
+  (function(){try{var p=location.pathname,m=p.match(/^(.*?)\/u\/\d+(\/|$)/),c=m?m[1]:p.replace(/\/[^\/]*$/,'');document.write('<base href="'+(c||'')+'/">');}catch(e){}})();</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StarSFA &middot; Payroll</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css" rel="stylesheet" />
+  <link href="css/app.css" rel="stylesheet" />
+  <link href="css/app-ui.css" rel="stylesheet" />
+  <script>
+    /* Apply the saved theme (mode / layout / density / colours) BEFORE first
+       paint so there is no flash. theme.js re-applies from the server after. */
+    (function () {
+      try {
+        var d = document.documentElement, s = localStorage;
+        // theme is PER TENANT and several tenants can be signed in at once
+        // (/u/0, /u/1...), so these caches are scoped to the account slot —
+        // a shared key would paint the last-customised tenant's colours here.
+        var m = location.pathname.match(/\/u\/(\d+)(\/|$)/), q = '_u' + (m ? m[1] : '0');
+        d.setAttribute('data-theme', s.getItem('sfa_mode' + q) || 'light');
+        d.setAttribute('data-nav', s.getItem('sfa_nav' + q) || 'vertical');
+        d.setAttribute('data-density', s.getItem('sfa_density' + q) || 'comfortable');
+        var f = s.getItem('sfa_font' + q); if (f) d.style.setProperty('--sfa-font-scale', f);
+        var c = s.getItem('sfa_theme' + q);
+        if (c) { c = JSON.parse(c); var t = (c.resolved && c.resolved[c.mode]) || {};
+          for (var k in t) d.style.setProperty('--sfa-' + k, t[k]); }
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+<div id="app" data-page="payroll" data-title="Payroll"></div>
+<template id="pageContent">
+<div class="ap-app"><div class="ap-top flex-wrap"><div><h1 class="ap-title">Payroll</h1><div class="text-muted small">Generate a month, fix loss-of-pay, hold or release a salary, approve (a different person must approve) and mark paid</div></div>
+ <div class="d-flex gap-2 align-items-center flex-wrap w-100"><input type="month" class="form-control" id="gm"><button class="ap-btn go" onclick="gen()"><i class="bi bi-gear"></i> Generate</button></div></div>
+ <div id="body"></div><div class="offcanvas offcanvas-bottom ap-sheet" tabindex="-1" id="sh" data-bs-backdrop="true"><div class="offcanvas-header"><h5 class="offcanvas-title" id="shT"></h5><button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button></div><div class="offcanvas-body" id="shB"></div><div class="ap-sheet-foot" id="shF"></div></div></div>
+</template>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.colVis.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="js/core/session.js"></script>
+<script src="js/core/endpoints.js"></script>
+<script src="js/core/http.js"></script>
+<script src="js/core/theme.js"></script>
+<script src="js/core/settings.js"></script>
+<script src="js/core/i18n.js"></script>
+<script src="js/app.js"></script>
+<script src="js/core/uikit.js"></script>
+<script src="js/shell.js"></script>
+<script>
+
+const S = API.master.hr.salary, P = API.master.hr.payroll;
+const SLOT = (location.pathname.match(/^(.*?\/u\/\d+)(\/|$)/) || [null, ''])[1];   // keep the signed-in account slot (/u/0) in the slip link
+const esc = (v) => SFA.esc(v == null ? '' : v);
+const val = (id) => document.getElementById(id).value;
+const chk = (id) => document.getElementById(id).checked;
+let SHEET = null; const sheet = () => SHEET || (SHEET = new bootstrap.Offcanvas('#sh'));
+const money = (v) => Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const MON = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const fmtD = (d) => d ? new Date(String(d).slice(0, 10) + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+const ask = (t) => { const r = prompt(t); if (r == null) return null; if (!r.trim()) { SFA.toast('A reason is required', false); return null; } return r.trim(); };
+const stBadge = (s) => `<span class="ap-badge ${s === 'GENERATED' || s === 'RELEASED' || s === 'APPROVED' || s === 'PAID' ? 'ok' : s === 'HELD' ? 'bad' : 'wait'}">${s}</span>`;
+
+let RUN = null;
+window.pageInit = async function () { const d = new Date(); d.setMonth(d.getMonth() - 1); document.getElementById('gm').value = d.toISOString().slice(0, 7); await list(); };
+async function list() {
+  RUN = null;
+  try {
+    const rows = await Api.get(P.runs);
+    document.getElementById('body').innerHTML = rows.map(r => `<div class="ap-card" style="cursor:pointer" onclick="openRun(${r.id})"><div class="d-flex align-items-center gap-2"><div class="flex-fill"><b>${MON[r.month]} ${r.year}</b> ${stBadge(r.status)}
+      <div class="small text-muted">${r.slips} slips${r.held ? ' · <span class="text-danger">' + r.held + ' on hold</span>' : ''} · generated ${esc(r.generatedBy)}${r.approvedBy ? ' · approved ' + esc(r.approvedBy) : ''}</div></div>
+      <div class="text-end"><b>Rs ${money(r.net)}</b>${Number(r.heldNet) ? '<div class="small text-danger">hold Rs ' + money(r.heldNet) + '</div>' : ''}</div><i class="bi bi-chevron-right text-muted"></i></div></div>`).join('') || '<div class="ap-card ap-empty"><i class="bi bi-wallet2 fs-1"></i><div>No payroll yet - choose a month and tap Generate</div></div>';
+  } catch (e) { document.getElementById('body').innerHTML = '<div class="ap-card ap-empty">' + esc(e.message) + '</div>'; }
+}
+async function gen() {   // on an approved month this adds only the employees who have no slip yet
+  const [y, m] = val('gm').split('-').map(Number); if (!y) { SFA.toast('Choose the month', false); return; }
+  try { const r = await Api.post(P.generate, { year: y, month: m }); SFA.toast(r.slips + ' payslips generated' + (r.held ? ', ' + r.held + ' on hold' : '') + (r.withoutSalary ? ', ' + r.withoutSalary + ' employee(s) have no salary set' : '')); await openRun(r.runId); } catch (e) { SFA.toast(e.message, false); }
+}
+async function openRun(id) {
+  try { RUN = await Api.get(P.run(id)); } catch (e) { SFA.toast(e.message, false); return; }
+  const pend = RUN.slips.filter(x => !x.approved).length, draft = RUN.status !== 'PAID', tot = RUN.slips.reduce((a, s) => a + Number(s.net), 0);
+  document.getElementById('body').innerHTML = `<div class="ap-card d-flex flex-wrap align-items-center gap-2"><button class="ap-btn light" onclick="list()"><i class="bi bi-arrow-left"></i> Back</button><b>${MON[RUN.month]} ${RUN.year}</b> ${stBadge(RUN.status)}<span class="text-muted">${RUN.slips.length} slips · Rs ${money(tot)}${RUN.status === 'APPROVED' && pend ? ' · <b class="text-danger">' + pend + ' waiting approval</b>' : ''}</span>
+    <span class="ms-auto d-flex gap-2">${pend ? `<button class="ap-btn go" onclick="approve()">Approve${RUN.status === 'APPROVED' ? ' ' + pend + ' new' : ''}</button>` : ''}${RUN.status !== 'PAID' ? '<button class="ap-btn danger" onclick="delRun()">Delete month</button>' : ''}${RUN.status === 'APPROVED' && !pend ? '<button class="ap-btn go" onclick="paid()">Mark paid</button>' : ''}</span></div>`
+   + RUN.slips.map(s => `<div class="ap-card"><div class="d-flex align-items-center gap-2"><div class="flex-fill" style="min-width:0"><b>${esc(s.name)}</b> <span class="text-muted">${esc(s.empCode)}</span> ${stBadge(s.status)} ${s.approved ? '' : (RUN.status === 'APPROVED' ? '<span class="ap-badge wait">Waiting approval</span>' : '')}
+      <div class="small text-muted">${[s.designation, s.hq, s.state].filter(Boolean).map(esc).join(' · ')}</div><div class="small">Paid ${Number(s.paidDays)}/${s.daysInMonth} days${Number(s.lopDays) ? ' · <span class="text-danger">LOP ' + Number(s.lopDays) + '</span>' : ''} · Gross ${money(s.gross)} · Ded ${money(s.deductions)}</div>${s.holdReason ? '<div class="small text-danger"><i class="bi bi-pause-circle"></i> ' + esc(s.holdReason) + '</div>' : ''}</div>
+      <div class="text-end"><div class="fw-bold">Rs ${money(s.net)}</div><div class="d-flex gap-1 mt-1 justify-content-end flex-wrap"><a class="ap-btn light" target="_blank" href="${SLOT}/hr/payslip.html?id=${s.id}">Slip</a>
+      ${!s.approved && draft ? `<button class="ap-btn light" onclick="lop(${s.id}, ${Number(s.lopDays)})">LOP</button>` : ''}${draft ? `<button class="ap-btn danger" onclick="delSlip(${s.id})"><i class="bi bi-trash"></i></button>` : ''}${RUN.status !== 'PAID' ? (s.status === 'HELD' ? `<button class="ap-btn go" onclick="rel(${s.id})">Release</button>` : `<button class="ap-btn danger" onclick="hold(${s.id})">Hold</button>`) : ''}</div></div></div></div>`).join('');
+}
+async function lop(id, cur) { const v = prompt('Loss-of-pay days for this month', cur); if (v == null) return; const r = ask('Reason (kept in the audit log)'); if (!r) return; try { await Api.post(P.lop(id), { lopDays: v, reason: r }); await openRun(RUN.id); SFA.toast('Recalculated'); } catch (e) { SFA.toast(e.message, false); } }
+async function delSlip(id) { if (!confirm('Delete this payslip? (Generating the month again will make it again.) A paid month cannot be changed.')) return; const r = ask('Reason for deleting (kept in the audit log)'); if (!r) return; try { await Api.post(P.removeSlip(id), { reason: r }); await openRun(RUN.id); SFA.toast('Payslip deleted'); } catch (e) { SFA.toast(e.message, false); } }
+async function hold(id) { const r = ask('Reason for holding this salary'); if (!r) return; try { await Api.post(P.hold(id), { reason: r }); await openRun(RUN.id); SFA.toast('On hold'); } catch (e) { SFA.toast(e.message, false); } }
+async function rel(id) { const r = ask('Reason for releasing'); if (!r) return; try { await Api.post(P.release(id), { reason: r }); await openRun(RUN.id); SFA.toast('Released'); } catch (e) { SFA.toast(e.message, false); } }
+async function approve() {
+  if (!confirm('Approve this month? Employees can then see their slips (held ones stay hidden).')) return;
+  try { await Api.post(P.approve(RUN.id), {}); }
+  catch (e) {
+    if (!String(e.message).startsWith('SAME_PERSON')) { SFA.toast(e.message, false); return; }
+    const r = ask('You generated this month yourself. As Super Admin you may still approve it - reason (kept in the audit log)'); if (!r) return;
+    try { await Api.post(P.approve(RUN.id), { reason: r }); } catch (e2) { SFA.toast(e2.message, false); return; }
+  }
+  await openRun(RUN.id); SFA.toast('Approved');
+}
+async function paid() { if (!confirm('Mark this month as paid?')) return; try { await Api.post(P.paid(RUN.id), {}); await openRun(RUN.id); SFA.toast('Marked paid'); } catch (e) { SFA.toast(e.message, false); } }
+async function delRun() { if (!confirm('Delete this ' + RUN.status.toLowerCase() + ' month with all its slips? A paid month cannot be deleted.')) return; let reason = null; if (RUN.status !== 'DRAFT') { reason = ask('Reason for deleting an approved month (kept in the audit log)'); if (!reason) return; } try { await Api.post(P.removeRun(RUN.id), { reason }); await list(); SFA.toast('Deleted'); } catch (e) { SFA.toast(e.message, false); } }
+
+</script>
+</body>
+</html>

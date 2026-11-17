@@ -14,6 +14,8 @@ public class PermissionDefinitionDto {
     private String module;
     private String description;
     private Boolean status;
+    /** Result when no assignment matches the user (true = allowed). */
+    private Boolean defaultAllowed;
 
     @JsonFormat(pattern = "dd-MM-yyyy")
     private LocalDateTime createdAt;

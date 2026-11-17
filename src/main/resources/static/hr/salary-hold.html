@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>/* reverse-proxy sub-path support: make relative css/js resolve under the deploy prefix (e.g. /sfaexpert), "" locally */
+  (function(){try{var p=location.pathname,m=p.match(/^(.*?)\/u\/\d+(\/|$)/),c=m?m[1]:p.replace(/\/[^\/]*$/,'');document.write('<base href="'+(c||'')+'/">');}catch(e){}})();</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StarSFA &middot; Salary Hold</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css" rel="stylesheet" />
+  <link href="css/app.css" rel="stylesheet" />
+  <link href="css/app-ui.css" rel="stylesheet" />
+  <script>
+    /* Apply the saved theme (mode / layout / density / colours) BEFORE first
+       paint so there is no flash. theme.js re-applies from the server after. */
+    (function () {
+      try {
+        var d = document.documentElement, s = localStorage;
+        // theme is PER TENANT and several tenants can be signed in at once
+        // (/u/0, /u/1...), so these caches are scoped to the account slot —
+        // a shared key would paint the last-customised tenant's colours here.
+        var m = location.pathname.match(/\/u\/(\d+)(\/|$)/), q = '_u' + (m ? m[1] : '0');
+        d.setAttribute('data-theme', s.getItem('sfa_mode' + q) || 'light');
+        d.setAttribute('data-nav', s.getItem('sfa_nav' + q) || 'vertical');
+        d.setAttribute('data-density', s.getItem('sfa_density' + q) || 'comfortable');
+        var f = s.getItem('sfa_font' + q); if (f) d.style.setProperty('--sfa-font-scale', f);
+        var c = s.getItem('sfa_theme' + q);
+        if (c) { c = JSON.parse(c); var t = (c.resolved && c.resolved[c.mode]) || {};
+          for (var k in t) d.style.setProperty('--sfa-' + k, t[k]); }
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+<div id="app" data-page="salaryhold" data-title="Salary Hold"></div>
+<template id="pageContent">
+<div class="ap-app"><div class="ap-top"><div><h1 class="ap-title">Salary Hold</h1><div class="text-muted small">Hold the salary of chosen states, HQs, designations or employees from a month. Matching payslips are put on hold when a month is generated (and in a draft month already generated)</div></div><button class="ap-btn go" onclick="add()"><i class="bi bi-plus-circle"></i> New hold</button></div><div id="body"></div><div class="offcanvas offcanvas-bottom ap-sheet" tabindex="-1" id="sh" data-bs-backdrop="true"><div class="offcanvas-header"><h5 class="offcanvas-title" id="shT"></h5><button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button></div><div class="offcanvas-body" id="shB"></div><div class="ap-sheet-foot" id="shF"></div></div></div>
+</template>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.colVis.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="js/core/session.js"></script>
+<script src="js/core/endpoints.js"></script>
+<script src="js/core/http.js"></script>
+<script src="js/core/theme.js"></script>
+<script src="js/core/settings.js"></script>
+<script src="js/core/i18n.js"></script>
+<script src="js/app.js"></script>
+<script src="js/core/uikit.js"></script>
+<script src="js/shell.js"></script>
+<script>
+
+const S = API.master.hr.salary, P = API.master.hr.payroll;
+const esc = (v) => SFA.esc(v == null ? '' : v);
+const val = (id) => document.getElementById(id).value;
+const chk = (id) => document.getElementById(id).checked;
+let SHEET = null; const sheet = () => SHEET || (SHEET = new bootstrap.Offcanvas('#sh'));
+const money = (v) => Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const MON = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const fmtD = (d) => d ? new Date(String(d).slice(0, 10) + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+const ask = (t) => { const r = prompt(t); if (r == null) return null; if (!r.trim()) { SFA.toast('A reason is required', false); return null; } return r.trim(); };
+const stBadge = (s) => `<span class="ap-badge ${s === 'GENERATED' || s === 'RELEASED' || s === 'APPROVED' || s === 'PAID' ? 'ok' : s === 'HELD' ? 'bad' : 'wait'}">${s}</span>`;
+
+let CFG = null; const PK = {};
+window.pageInit = async function () { await load(); };
+const per = (p) => p ? MON[Number(String(p).slice(4))] + ' ' + String(p).slice(0, 4) : '';
+async function load() {
+  try { const rows = await Api.get(P.holds);
+    document.getElementById('body').innerHTML = rows.map(r => `<div class="ap-card"><div class="d-flex align-items-center gap-2"><div class="flex-fill"><b>${esc(r.reason)}</b> ${r.active ? '<span class="ap-badge bad">On hold</span>' : '<span class="ap-badge ok">Released</span>'}
+      <div class="small text-muted">From ${per(r.fromPeriod)} ${r.toPeriod ? 'to ' + per(r.toPeriod) : 'until released'}</div>
+      <div class="ap-chips mt-1">${r.targets.map(t => `<span class="ap-badge wait">${({ STATE: 'State', HQ: 'HQ', DESIGNATION: 'Designation', EMP: 'Employee' })[t.targetType]}: ${esc(t.targetName)}</span>`).join('')}</div></div>
+      ${r.active ? `<button class="ap-btn go" onclick="rel(${r.id})">Release</button>` : ''}</div></div>`).join('') || '<div class="ap-card ap-empty"><i class="bi bi-pause-circle fs-1"></i><div>No salary hold</div></div>';
+  } catch (e) { document.getElementById('body').innerHTML = '<div class="ap-card ap-empty">' + esc(e.message) + '</div>'; }
+}
+async function rel(id) { const r = ask('Reason for releasing this hold'); if (!r) return; try { await Api.post(P.holdRelease(id), { reason: r }); await load(); SFA.toast('Hold released - release the payslips of a generated month from the Payroll page'); } catch (e) { SFA.toast(e.message, false); } }
+function picker(key, title, items) { PK[key] = { items, chosen: new Set() }; return `<div class="ap-sec">${title} <span class="text-muted fw-normal" id="pc_${key}"></span></div><input class="form-control mb-2" placeholder="Search ${title.toLowerCase()}…" oninput="pkRender('${key}', this.value)"><div class="ap-pick" id="pk_${key}"></div>`; }
+function pkRender(key, q) { const p = PK[key], t = (q || '').toLowerCase(); document.getElementById('pk_' + key).innerHTML = p.items.filter(i => !t || String(i.name).toLowerCase().includes(t)).slice(0, 300).map(i => `<label class="ap-row"><input type="checkbox" class="form-check-input" ${p.chosen.has(String(i.id)) ? 'checked' : ''} onchange="pkTog('${key}','${esc(i.id)}',this.checked)"><div class="grow">${esc(i.name)}</div></label>`).join('') || '<div class="ap-empty">None found</div>'; document.getElementById('pc_' + key).textContent = p.chosen.size ? '(' + p.chosen.size + ' selected)' : ''; }
+function pkTog(key, id, on) { const p = PK[key]; on ? p.chosen.add(String(id)) : p.chosen.delete(String(id)); document.getElementById('pc_' + key).textContent = p.chosen.size ? '(' + p.chosen.size + ' selected)' : ''; }
+async function add() {
+  if (!CFG) CFG = await Api.get(P.holdConfig);
+  document.getElementById('shT').textContent = 'New salary hold';
+  document.getElementById('shB').innerHTML = `<div class="row g-3"><div class="col-6"><label class="form-label">From month</label><input type="month" class="form-control" id="h_from" value="${new Date().toISOString().slice(0, 7)}"></div><div class="col-6"><label class="form-label">Until month (empty = until released)</label><input type="month" class="form-control" id="h_to"></div>
+    <div class="col-12"><label class="form-label">Reason</label><input class="form-control" id="h_reason" placeholder="e.g. Audit pending / notice period"></div></div>
+    <div class="alert alert-info py-2 small mt-3 mb-0"><i class="bi bi-info-circle"></i> Choose who - state, HQ, designation, employee (any mix). The salary of everyone matching any choice is held.</div>`
+    + picker('STATE', 'States', CFG.states) + picker('HQ', 'HQs', CFG.hqs) + picker('DESIGNATION', 'Designations', CFG.designations) + picker('EMP', 'Employees', CFG.employees);
+  document.getElementById('shF').innerHTML = '<button class="ap-btn light" data-bs-dismiss="offcanvas">Cancel</button><button class="ap-btn danger" onclick="save()"><i class="bi bi-pause-circle"></i> Hold salary</button>';
+  sheet().show(); ['STATE', 'HQ', 'DESIGNATION', 'EMP'].forEach(k => pkRender(k, ''));
+}
+async function save() {
+  try { const r = await Api.post(P.holds, { fromPeriod: val('h_from'), toPeriod: val('h_to'), reason: val('h_reason'), targets: { STATE: [...PK.STATE.chosen], HQ: [...PK.HQ.chosen], DESIGNATION: [...PK.DESIGNATION.chosen], EMP: [...PK.EMP.chosen] } });
+    sheet().hide(); await load(); SFA.toast('Hold saved' + (r.heldNow ? ' - ' + r.heldNow + ' payslip(s) of a draft month put on hold now' : '')); } catch (e) { SFA.toast(e.message, false); }
+}
+
+</script>
+</body>
+</html>

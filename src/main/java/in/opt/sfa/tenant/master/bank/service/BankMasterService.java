@@ -5,7 +5,7 @@ import in.opt.sfa.tenant.master.bank.dto.BankMasterDto;
 import in.opt.sfa.tenant.master.bank.entity.BankMaster;
 import in.opt.sfa.tenant.master.bank.mapper.BankMasterMapper;
 import in.opt.sfa.tenant.master.bank.repository.BankMasterRepository;
-import in.opt.sfa.tenant.master.employee.service.EmployeeNameResolver;
+import in.opt.sfa.tenant.master.empdetail.service.EmpNameResolver;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,9 +24,9 @@ public class BankMasterService {
 
     private final BankMasterRepository banks;
     private final BankMasterMapper mapper;
-    private final EmployeeNameResolver employeeNames;
+    private final EmpNameResolver employeeNames;
 
-    public BankMasterService(BankMasterRepository banks, BankMasterMapper mapper, EmployeeNameResolver employeeNames) {
+    public BankMasterService(BankMasterRepository banks, BankMasterMapper mapper, EmpNameResolver employeeNames) {
         this.banks = banks;
         this.mapper = mapper;
         this.employeeNames = employeeNames;
