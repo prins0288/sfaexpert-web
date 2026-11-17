@@ -243,7 +243,7 @@ public class ExpenseService {
     /** Create the statement of the month, or - while it is still a draft / rejected - refresh it from the DCR (rows that someone changed keep their amounts). */
     @Transactional(transactionManager = "tenantTransactionManager")
     public Map<String, Object> generate(String empId, int month, int year, boolean refresh) throws Exception {
-        if (!empId.equals(TeamScope.me())) throw new ForbiddenException("Only the employee builds his own statement");
+        if (!empId.equals(TeamScope.me()) && !TeamScope.isAdmin()) throw new ForbiddenException("A user or manager builds his own statement; only an admin can build it for any employee");
         if (month < 1 || month > 12 || year < 2000 || year > 2100) throw new IllegalArgumentException("Choose a valid month and year");
         if (year > LocalDate.now().getYear() || (year == LocalDate.now().getYear() && month > LocalDate.now().getMonthValue())) throw new IllegalArgumentException("A future month has no expense yet");
         List<Map<String, Object>> st = jdbc.queryForList("SELECT id, status FROM expense_statement WHERE emp_id = ? AND exp_month = ? AND exp_year = ?", empId, month, year);
@@ -286,12 +286,14 @@ public class ExpenseService {
     private Map<String, Object> perms(String owner, String status) {
         String me = TeamScope.me(); boolean admin = TeamScope.isAdmin() && !owner.equals(me), mgr = isMgrOf(owner), self = owner.equals(me);
         Map<String, Object> p = new LinkedHashMap<>();
-        boolean editU = self && List.of("DRAFT", "REJECTED").contains(status), editM = mgr && !admin && "SUBMITTED".equals(status), editA = admin && List.of("SUBMITTED", "MGR_APPROVED").contains(status);
-        p.put("level", editA ? "A" : editM ? "M" : editU ? "U" : null);
-        p.put("canEdit", editU || editM || editA); p.put("canSubmit", editU && !"REJECTED".equals("X"));
+        boolean draft = List.of("DRAFT", "REJECTED").contains(status);
+        boolean editU = self && draft, editM = mgr && !admin && "SUBMITTED".equals(status), editA = admin && (draft || List.of("SUBMITTED", "MGR_APPROVED").contains(status));   // an admin can also work on the draft of any employee (build, change, submit for him)
+        boolean forOwner = (self || admin) && draft;
+        p.put("level", editU ? "U" : editA ? "A" : editM ? "M" : null);
+        p.put("canEdit", editU || editM || editA); p.put("canSubmit", forOwner);
         p.put("canApprove", (mgr && !admin && "SUBMITTED".equals(status)) || (admin && List.of("SUBMITTED", "MGR_APPROVED").contains(status)));
         p.put("canReject", (mgr && !admin && "SUBMITTED".equals(status)) || (admin && List.of("SUBMITTED", "MGR_APPROVED").contains(status)));
-        p.put("canRefresh", editU); p.put("approveAs", admin ? "A" : "M");
+        p.put("canRefresh", forOwner); p.put("approveAs", admin ? "A" : "M");
         return p;
     }
 
@@ -320,7 +322,7 @@ public class ExpenseService {
     @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
     public Map<String, Object> find(String empId, int month, int year) throws Exception {
         List<Long> l = jdbc.query("SELECT id FROM expense_statement WHERE emp_id = ? AND exp_month = ? AND exp_year = ?", (rs, i) -> rs.getLong(1), empId, month, year);
-        if (l.isEmpty()) { canView(empId); return Map.of("exists", false); }
+        if (l.isEmpty()) { canView(empId); return Map.of("exists", false, "canBuild", empId.equals(TeamScope.me()) || TeamScope.isAdmin()); }
         Map<String, Object> o = new LinkedHashMap<>(get(l.get(0))); o.put("exists", true); return o;
     }
 
@@ -393,7 +395,7 @@ public class ExpenseService {
     @Transactional(transactionManager = "tenantTransactionManager")
     public Map<String, Object> submit(long sid) {
         String owner = ownerOf(sid); String status = jdbc.queryForObject("SELECT status FROM expense_statement WHERE id = ?", String.class, sid);
-        if (!owner.equals(TeamScope.me())) throw new ForbiddenException("Only the employee submits his statement");
+        if (!owner.equals(TeamScope.me()) && !TeamScope.isAdmin()) throw new ForbiddenException("Only the employee (or an admin for him) submits the statement");
         if (!List.of("DRAFT", "REJECTED").contains(status)) throw new IllegalStateException("The statement is already " + status.toLowerCase().replace('_', ' '));
         if (jdbc.queryForObject("SELECT COALESCE(SUM(total), 0) FROM expense_statement_day WHERE statement_id = ?", BigDecimal.class, sid).signum() <= 0) throw new IllegalStateException("There is no expense to submit");
         jdbc.update("UPDATE expense_statement SET status = 'SUBMITTED', submitted_at = NOW(), reject_reason = NULL, updated_at = NOW() WHERE id = ?", sid);

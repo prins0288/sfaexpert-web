@@ -103,7 +103,7 @@
   const MONTHS = [...Array(12)].map((_, i) => new Date(2024, i, 1).toLocaleDateString('en-GB', { month: 'long' }));
   const ST_NAME = { DRAFT: ['Draft', 'secondary'], SUBMITTED: ['Submitted', 'info'], MGR_APPROVED: ['Manager approved', 'primary'], APPROVED: ['Approved', 'success'], REJECTED: ['Rejected', 'danger'] };
   const LV = { U: 'Changed by the employee', M: 'Changed by the manager', A: 'Changed by the admin' };
-  let FIL = null, ME = null, D = null, PEND = {}, ACT = null, HM = null, LASTLANG = window.I18n ? I18n.lang : 'en', ROWS = [];
+  let FIL = null, ME = null, D = null, r0 = null, PEND = {}, ACT = null, HM = null, LASTLANG = window.I18n ? I18n.lang : 'en', ROWS = [];
   if (window.I18n) I18n.onChange(() => { if (I18n.lang !== LASTLANG) { LASTLANG = I18n.lang; draw(); } });
 
   window.pageInit = async function () {
@@ -128,7 +128,7 @@
     PEND = {};
     try {
       const r = await Api.get(EP + '/find', { query: q() });
-      D = r.exists ? r : null;
+      r0 = r; D = r.exists ? r : null;
       document.getElementById('rpSub').textContent = MONTHS[q().month - 1] + ' ' + q().year;
       draw(); rpFToggle(true); window.scrollTo(0, 0); Activity.record(REPORT_KEY, REPORT_LABEL, { month: q().month, year: q().year, emp: q().empId }, MONTHS[q().month - 1] + ' ' + q().year);
     } catch (e) { SFA.toast(e.message, false); }
@@ -142,9 +142,9 @@
   function draw() {
     const bar = document.getElementById('stBar'), wrap = document.getElementById('exWrap');
     if (!D) {
-      const mine = q().empId === ME;
+      const mine = q().empId === ME, canBuild = !!(r0 && r0.canBuild), who = (document.getElementById('f_emp').selectedOptions[0] || {}).textContent || '';
       bar.innerHTML = ''; document.getElementById('rpKpis').innerHTML = ''; document.getElementById('legend').innerHTML = '';
-      wrap.innerHTML = `<div class="text-center text-muted py-5"><i class="bi bi-receipt fs-2 d-block mb-2"></i>${T('exp.notBuilt', 'No statement for this month yet')}${mine ? `<div class="mt-3"><button class="btn btn-primary" onclick="build(false)"><i class="bi bi-magic"></i> ${T('exp.build', 'Build from my DCR')}</button></div>` : ''}</div>`; return;
+      wrap.innerHTML = `<div class="text-center text-muted py-5"><i class="bi bi-receipt fs-2 d-block mb-2"></i>${T('exp.notBuilt', 'No statement for this month yet')}${canBuild ? `<div class="mt-3"><button class="btn btn-primary" onclick="build(false)"><i class="bi bi-magic"></i> ${mine ? T('exp.build', 'Build from my DCR') : T('exp.buildFor', 'Build from the DCR of') + ' ' + esc(who)}</button></div>` : ''}</div>`; return;
     }
     const s = D.statement, p = D.perms, cols = D.headCols, edit = p.canEdit;
     const steps = [['SUBMITTED', T('exp.submitted', 'Submitted by the employee')], ['MGR_APPROVED', T('exp.mgrApproved', 'Approved by the manager')], ['APPROVED', T('exp.adminApproved', 'Approved by the admin')]];
