@@ -54,11 +54,12 @@ public class AreaService {
     private final TeamScope scope;
 
     private final HomeAreaService homeAreas;
+    private final in.opt.sfa.tenant.master.areatype.AreaTypeService areaTypes;
 
     public AreaService(AreaRepository areas, RouteAreaMapRepository maps, HqRepository hqs, StateRepository states,
                        AreaMapper mapper, ApprovalEngine approval, AreaMasterApprovalRepository history,
-                       EmpDetailRepository employees, TeamScope scope, HomeAreaService homeAreas) {
-        this.homeAreas = homeAreas;
+                       EmpDetailRepository employees, TeamScope scope, HomeAreaService homeAreas, in.opt.sfa.tenant.master.areatype.AreaTypeService areaTypes) {
+        this.homeAreas = homeAreas; this.areaTypes = areaTypes;
         this.scope = scope;
         this.areas = areas;
         this.maps = maps;
@@ -310,7 +311,11 @@ public class AreaService {
         a.setGooglePlaceId(Strings.isBlank(f.getGooglePlaceId()) ? null : f.getGooglePlaceId().trim());
         a.setLatitude(f.getLatitude());
         a.setLongitude(f.getLongitude());
-        a.setAreaType(Strings.isBlank(f.getAreaType()) ? null : f.getAreaType().trim());
+        String at = Strings.isBlank(f.getAreaType()) ? null : f.getAreaType().trim();
+        String known = areaTypes.codeOf(at);   // a type of the Area Type Master is stored by its code
+        if (known != null) at = known;
+        if (at == null && f.getDistanceKm() != null) at = areaTypes.codeForKm(f.getDistanceKm().doubleValue());   // no type given: the km range of the distance decides
+        a.setAreaType(at);
         a.setDistanceKm(f.getDistanceKm());
         if (f.getHome() != null) {
             if (f.getHome() && a.getEmpId() == null) throw new IllegalStateException("A starting point needs an employee");

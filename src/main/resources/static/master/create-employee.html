@@ -126,6 +126,9 @@
             <a href="master/password-reset.html">Master Entry &gt; Password Reset</a>.</div></div>
         </div>
 
+        <h6 class="text-muted">Expense rates <small>(DA and fare per km by area type - leave blank to use the designation / company rates)</small></h6>
+        <div class="row g-2 mb-3" id="e_exprates"></div>
+
         <h6 class="text-muted">More details <small>(optional — fill now or update later)</small></h6>
         <div class="row g-3 mb-3">
           <div class="col-md-4"><label class="form-label">Gender</label>
@@ -356,6 +359,7 @@
   let DT = null, MODAL = null, LK = null, EMP = [], PHOTO = null, LOGIN_LOCKED = false, DOCS_EXISTING = [], DOCS_REMOVED = new Set(), OPTS = { relationships: [], nomineeTypes: [], bloodGroups: [] }, EDIT_ORIG = null;
 
   window.pageInit = async function () {
+    expTypesLoad();
     MODAL = new bootstrap.Modal('#empModal');
     try {
       [LK, OPTS] = await Promise.all([
@@ -441,7 +445,25 @@
     SELECTS.concat(['e_changeReason']).forEach(id => { const el = document.getElementById(id); if (el && jQuery(el).data('select2')) jQuery(el).trigger('change.select2'); });
   }
 
+  // DA and fare given to this employee by area type (HQ / EX / OUT EX / OUT ...): they win over the designation rates in the expense
+  let EXPTYPES = [], EXPLOADED = false;
+  async function expTypesLoad() { try { EXPTYPES = (await Api.get(API.report.areaType)).filter(t => t.active); } catch (e) { EXPTYPES = []; } expDraw({}); }
+  function expDraw(vals) {
+    document.getElementById('e_exprates').innerHTML = EXPTYPES.map(t => { const v = vals[t.code] || {}; return `<div class="col-6 col-md-3"><div class="border rounded p-2"><div class="small fw-semibold mb-1">${SFA.esc(t.name)} <span class="text-muted">(${t.kmFrom}-${t.kmTo == null ? '&infin;' : t.kmTo} km)</span></div>
+      <div class="input-group input-group-sm mb-1"><span class="input-group-text">DA</span><input class="form-control" type="number" min="0" step="any" data-xt="${SFA.esc(t.code)}" data-xk="da" value="${v.da == null ? '' : v.da}"></div>
+      <div class="input-group input-group-sm"><span class="input-group-text">Fare/km</span><input class="form-control" type="number" min="0" step="any" data-xt="${SFA.esc(t.code)}" data-xk="fare" value="${v.fare == null ? '' : v.fare}"></div></div></div>`; }).join('') || '<div class="text-muted small">No area types yet - add them in Master Entry &gt; Area Type Master.</div>';
+  }
+  async function expLoad(empId) {
+    EXPLOADED = false; const m = {};
+    try { (await Api.get(API.report.expense + '/emp-rates', { query: { empId }, noLoader: true })).forEach(r => m[r.typeCode] = r); EXPLOADED = true; } catch (e) { }
+    expDraw(m);
+  }
+  async function expSave(empId) {
+    const rates = EXPTYPES.map(t => { const g = (k) => document.querySelector(`[data-xt="${t.code}"][data-xk="${k}"]`); return { typeCode: t.code, da: g('da') ? g('da').value : '', fare: g('fare') ? g('fare').value : '' }; });
+    if (!rates.length) return; await Api.post(API.report.expense + '/emp-rates', { empId, rates });
+  }
   function clearForm() {
+    expDraw({});
     TEXT_FIELDS.forEach(id => document.getElementById(id).value = '');
     SELECTS.forEach(id => document.getElementById(id).value = '');
     DATES.forEach(id => sfaSetDate(id, ''));
@@ -483,6 +505,7 @@
     if (!r) return;
     clearForm();
     fillManagerSelect(r.empId, r.managerId);
+    expLoad(r.empId);
     document.getElementById('e_empId').value = r.empId;
     const sal = document.getElementById('e_salutation');
     if (r.salutation && ![...sal.options].some(o => o.value === r.salutation)) {
@@ -664,6 +687,7 @@
     try {
       const saved = await Api.post(API.master.createEmployee.save, body);
       const empId = saved.empId, problems = [];
+      try { await expSave(empId); } catch (e) { problems.push('Expense rates: ' + e.message); }
       // photo + documents need the employee to exist, so they go right after it is saved
       try {
         if (PHOTO.file()) { const fd = new FormData(); fd.append('file', PHOTO.file()); await Api.post(API.master.createEmployee.photo(empId), fd); }

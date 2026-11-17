@@ -513,6 +513,7 @@
 
     report: {
       dcr: "/api/report/dcr",
+      areaType: "/api/master/area-type",                              // GET list | POST {id?, code, name, kmFrom, kmTo, sortOrder, stay, active} | POST /{id}/delete
       expense: "/api/expense",                                       // /setup /list /find /{id} /generate /day/{dayId} /{id}/history /{id}/submit /{id}/approve /{id}/reject
       inventory: "/api/inventory",                                   // /config (GET, POST) /parties?empId= /list /entry?empId&partyId&month&year /save /upload
       seniorClients: "/api/dcr/senior-clients",                      // GET ?empId= | GET /candidates?empId= | POST {empId, clientIds[], geoEnabled} | POST /{id}/geo {enabled} | POST /delete {ids}

@@ -29,12 +29,13 @@ public class ExpenseService {
     private final JdbcTemplate jdbc;
     private final TeamScope scope;
     private final ObjectMapper json = new ObjectMapper();
+    private final in.opt.sfa.tenant.master.areatype.AreaTypeService areaTypes;
 
-    public ExpenseService(JdbcTemplate jdbc, TeamScope scope) { this.jdbc = jdbc; this.scope = scope; }
+    public ExpenseService(JdbcTemplate jdbc, TeamScope scope, in.opt.sfa.tenant.master.areatype.AreaTypeService areaTypes) { this.jdbc = jdbc; this.scope = scope; this.areaTypes = areaTypes; }
 
     // ------------------------------------------------------------------ settings and rates (admin)
     public Map<String, String> settings() {
-        Map<String, String> m = new LinkedHashMap<>(Map.of("START_FROM_STAY_AFTER_OFF", "N"));
+        Map<String, String> m = new LinkedHashMap<>(Map.of("START_FROM_STAY_AFTER_OFF", "N", "TYPE_RULE", "MAX", "STAY_FORCES_TYPE", "Y"));
         for (Map<String, Object> r : jdbc.queryForList("SELECT setting_key, setting_value FROM expense_setting")) m.put((String) r.get("setting_key"), String.valueOf(r.get("setting_value")));
         return m;
     }
@@ -44,6 +45,7 @@ public class ExpenseService {
         Authz.requireRole("ADMIN");
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("settings", settings());
+        out.put("areaTypes", areaTypes.types().stream().map(t -> Map.of("code", t.code(), "name", t.name())).toList());
         out.put("da", jdbc.queryForList("SELECT r.id, r.designation_id AS designationId, d.designation AS designation, r.area_type AS areaType, r.amount FROM expense_da_rate r LEFT JOIN designation_master d ON d.id = r.designation_id ORDER BY d.designation, r.area_type"));
         out.put("fare", jdbc.queryForList("SELECT r.id, r.designation_id AS designationId, d.designation AS designation, r.travel_mode AS travelMode, r.rate_per_km AS ratePerKm FROM expense_fare_rate r LEFT JOIN designation_master d ON d.id = r.designation_id ORDER BY d.designation, r.travel_mode"));
         out.put("designations", jdbc.queryForList("SELECT id, designation AS name FROM designation_master ORDER BY hierarchy_level, designation"));
@@ -54,9 +56,12 @@ public class ExpenseService {
     @Transactional(transactionManager = "tenantTransactionManager")
     public void saveSettings(Map<String, Object> b) {
         Authz.requireRole("ADMIN");
-        String v = String.valueOf(b.get("START_FROM_STAY_AFTER_OFF"));
-        if (!List.of("Y", "N").contains(v)) throw new IllegalArgumentException("START_FROM_STAY_AFTER_OFF must be Y or N");
-        jdbc.update("INSERT INTO expense_setting (setting_key, setting_value, updated_by, updated_at) VALUES ('START_FROM_STAY_AFTER_OFF', ?, ?, NOW()) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_by = VALUES(updated_by), updated_at = NOW()", v, TeamScope.me());
+        for (String k : List.of("START_FROM_STAY_AFTER_OFF", "TYPE_RULE", "STAY_FORCES_TYPE")) {
+            if (!b.containsKey(k)) continue;
+            String v = String.valueOf(b.get(k));
+            if ("TYPE_RULE".equals(k) ? !List.of("MAX", "LAST").contains(v) : !List.of("Y", "N").contains(v)) throw new IllegalArgumentException(k + " has a wrong value");
+            jdbc.update("INSERT INTO expense_setting (setting_key, setting_value, updated_by, updated_at) VALUES (?, ?, ?, NOW()) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_by = VALUES(updated_by), updated_at = NOW()", k, v, TeamScope.me());
+        }
     }
 
     private static Integer intOrNull(Object o) { return o == null || o.toString().isBlank() ? null : Integer.valueOf(o.toString()); }
@@ -69,7 +74,7 @@ public class ExpenseService {
     public void saveDa(Map<String, Object> b) {
         Authz.requireRole("ADMIN");
         String type = String.valueOf(b.get("areaType")).trim().toUpperCase();
-        if (!List.of("HQ", "EX", "OUT").contains(type)) throw new IllegalArgumentException("Area type must be HQ, EX or OUT");
+        if (areaTypes.types().stream().noneMatch(t -> t.code().equals(type))) throw new IllegalArgumentException("Choose an area type of the Area Type Master");
         jdbc.update("INSERT INTO expense_da_rate (designation_id, area_type, amount) VALUES (?,?,?) ON DUPLICATE KEY UPDATE amount = VALUES(amount)", intOrNull(b.get("designationId")), type, money(b.get("amount"), "Amount"));
     }
     @Transactional(transactionManager = "tenantTransactionManager")
@@ -81,6 +86,28 @@ public class ExpenseService {
     }
     @Transactional(transactionManager = "tenantTransactionManager")
     public void deleteRate(String kind, long id) { Authz.requireRole("ADMIN"); jdbc.update("DELETE FROM " + ("da".equals(kind) ? "expense_da_rate" : "expense_fare_rate") + " WHERE id = ?", id); }
+
+    // ------------------------------------------------------------------ DA / fare of one employee by area type (set in Create Employee)
+    @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
+    public List<Map<String, Object>> empRates(String empId) {
+        Authz.requireRole("ADMIN", "MANAGER");
+        return jdbc.queryForList("SELECT type_code AS typeCode, da_amount AS da, fare_per_km AS fare FROM expense_emp_rate WHERE emp_id = ?", empId);
+    }
+
+    @Transactional(transactionManager = "tenantTransactionManager")
+    @SuppressWarnings("unchecked")
+    public void saveEmpRates(String empId, List<Map<String, Object>> rates) {
+        Authz.requireRole("ADMIN", "MANAGER");
+        if (jdbc.queryForObject("SELECT COUNT(*) FROM emp_detail WHERE emp_id = ?", Integer.class, empId) == 0) throw new IllegalArgumentException("Employee not found");
+        Set<String> codes = new HashSet<>(); areaTypes.types().forEach(t -> codes.add(t.code()));
+        for (Map<String, Object> r : rates) {
+            String code = String.valueOf(r.get("typeCode"));
+            if (!codes.contains(code)) throw new IllegalArgumentException("Unknown area type " + code);
+            boolean noDa = r.get("da") == null || r.get("da").toString().isBlank(), noFare = r.get("fare") == null || r.get("fare").toString().isBlank();
+            if (noDa && noFare) { jdbc.update("DELETE FROM expense_emp_rate WHERE emp_id = ? AND type_code = ?", empId, code); continue; }
+            jdbc.update("INSERT INTO expense_emp_rate (emp_id, type_code, da_amount, fare_per_km) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE da_amount = VALUES(da_amount), fare_per_km = VALUES(fare_per_km)", empId, code, noDa ? null : money(r.get("da"), "DA"), noFare ? null : money(r.get("fare"), "Fare"));
+        }
+    }
 
     // ------------------------------------------------------------------ generation from the DCR
     private record Area(long id, String name, String type, Double lat, Double lng, Double distKm) { }
@@ -104,7 +131,14 @@ public class ExpenseService {
         return BigDecimal.valueOf(km).setScale(1, RoundingMode.HALF_UP);
     }
 
-    private static int rank(String t) { return "OUT".equalsIgnoreCase(t) ? 3 : "EX".equalsIgnoreCase(t) ? 2 : 1; }
+    /** The master type of an area: its stored area type, else the range of its distance from the HQ, else the lowest type. */
+    private String typeCode(Area a, List<in.opt.sfa.tenant.master.areatype.AreaTypeService.Type> types) {
+        if (a == null) return types.isEmpty() ? "HQ" : types.get(0).code();
+        String c = areaTypes.codeOf(a.type());
+        if (c == null) c = areaTypes.codeForKm(a.distKm());
+        return c != null ? c : (types.isEmpty() ? "HQ" : types.get(0).code());
+    }
+    private static int rankOf(String code, List<in.opt.sfa.tenant.master.areatype.AreaTypeService.Type> types) { for (int i = 0; i < types.size(); i++) if (types.get(i).code().equals(code)) return i; return 0; }
 
     private BigDecimal rate(String sql, Object desig, Object key) {
         List<BigDecimal> l = jdbc.query(sql, (rs, i) -> rs.getBigDecimal(1), desig, key);
@@ -118,7 +152,10 @@ public class ExpenseService {
         Map<Long, Area> areas = areas();
         List<Long> homeL = jdbc.query("SELECT id FROM area_master WHERE emp_id = ? AND is_home = 1 LIMIT 1", (rs, i) -> rs.getLong(1), empId);
         Area home = homeL.isEmpty() ? null : areas.get(homeL.get(0));
-        boolean fromStayAfterOff = "Y".equals(settings().get("START_FROM_STAY_AFTER_OFF"));
+        Map<String, String> sett = settings(); boolean fromStayAfterOff = "Y".equals(sett.get("START_FROM_STAY_AFTER_OFF"));
+        List<in.opt.sfa.tenant.master.areatype.AreaTypeService.Type> types = areaTypes.types();
+        Map<String, BigDecimal[]> emp = new HashMap<>();   // type code -> {da, fare per km} given to this employee
+        for (Map<String, Object> r : jdbc.queryForList("SELECT type_code, da_amount, fare_per_km FROM expense_emp_rate WHERE emp_id = ?", empId)) emp.put((String) r.get("type_code"), new BigDecimal[]{(BigDecimal) r.get("da_amount"), (BigDecimal) r.get("fare_per_km")});
         Integer desig = jdbc.query("SELECT designation FROM emp_detail WHERE emp_id = ?", (rs, i) -> rs.getObject(1) == null ? null : rs.getInt(1), empId).stream().findFirst().orElse(null);
         Set<String> fieldWork = new HashSet<>(jdbc.queryForList("SELECT worktype_code FROM app_dcr_worktype WHERE emp_id IS NULL AND form_open = 'WORK'", String.class));
         Map<String, Map<String, Object>> dcr = new LinkedHashMap<>();
@@ -166,18 +203,20 @@ public class ExpenseService {
             List<Area> seq = new ArrayList<>(); Area pos = start;
             for (Long id : visits.getOrDefault(dcrId, List.of())) { Area a = areas.get(id); if (a != null && (pos == null || a.id() != pos.id())) { seq.add(a); pos = a; } }
             Area end = stay != null ? stay : home;
-            List<String> legs = new ArrayList<>(); BigDecimal km = BigDecimal.ZERO; Area cur = start; int topRank = 1;
-            for (Area a : seq) { legs.add(nm(cur, home) + "-" + a.name()); km = km.add(legKm(cur, a, home)); cur = a; topRank = Math.max(topRank, rank(a.type())); }
+            List<String> legs = new ArrayList<>(); BigDecimal km = BigDecimal.ZERO; Area cur = start; int topRank = 0; String lastType = null;
+            for (Area a : seq) { legs.add(nm(cur, home) + "-" + a.name()); km = km.add(legKm(cur, a, home)); cur = a; String tc = typeCode(a, types); topRank = Math.max(topRank, rankOf(tc, types)); lastType = tc; }
             if (end != null && (cur == null || cur.id() != end.id())) { legs.add(nm(cur, home) + "-" + end.name()); km = km.add(legKm(cur, end, home)); }
-            if (stay != null) topRank = Math.max(topRank, rank(stay.type()));
             BigDecimal meterKm = p.get("meter_start") != null && p.get("meter_end") != null ? ((BigDecimal) p.get("meter_end")).subtract((BigDecimal) p.get("meter_start")) : null;
             if (meterKm != null && meterKm.signum() > 0) km = meterKm.setScale(1, RoundingMode.HALF_UP);   // the meter of the day wins over the calculated km
-            String type = topRank == 3 ? "OUT" : topRank == 2 ? "EX" : "HQ";
+            // the type of the day: the highest type of the areas visited (TYPE_RULE MAX) or the type of the last area visited (LAST); a night stay makes it the stay type (STAY_FORCES_TYPE)
+            String type = "LAST".equals(sett.get("TYPE_RULE")) && lastType != null ? lastType : (types.isEmpty() ? "HQ" : types.get(topRank).code());
+            if (stay != null && "Y".equals(sett.get("STAY_FORCES_TYPE"))) type = types.stream().filter(t -> t.stay()).map(t -> t.code()).findFirst().orElse(type);
+            BigDecimal[] er = emp.get(type);
             String daSql = "SELECT amount FROM expense_da_rate WHERE desig_key = COALESCE(?, 0) AND area_type = ?";
-            BigDecimal da = Optional.ofNullable(rate(daSql, desig, type)).orElse(Optional.ofNullable(rate(daSql, null, type)).orElse(BigDecimal.ZERO));   // the designation's rate, else the all-designation rate
+            BigDecimal da = er != null && er[0] != null ? er[0] : Optional.ofNullable(rate(daSql, desig, type)).orElse(Optional.ofNullable(rate(daSql, null, type)).orElse(BigDecimal.ZERO));   // the employee's DA, else the designation's, else the all-designation rate
             String mode = p.get("travel_mode") == null ? null : p.get("travel_mode").toString();
             String fareSql = "SELECT rate_per_km FROM expense_fare_rate WHERE desig_key = COALESCE(?, 0) AND travel_mode = ?";
-            BigDecimal per = mode == null ? null : Optional.ofNullable(rate(fareSql, desig, mode)).orElse(rate(fareSql, null, mode));
+            BigDecimal per = er != null && er[1] != null ? er[1] : (mode == null ? null : Optional.ofNullable(rate(fareSql, desig, mode)).orElse(rate(fareSql, null, mode)));
             BigDecimal fare = per == null ? BigDecimal.ZERO : km.multiply(per).setScale(2, RoundingMode.HALF_UP);
             row.put("route", String.join(",", legs)); row.put("visits", visitCount.getOrDefault(dcrId, 0)); row.put("stayArea", stay == null ? null : stay.name());
             row.put("km", km); row.put("fare", fare); row.put("da", da); row.put("travelExp", fare.add(travelExp.getOrDefault(dcrId, BigDecimal.ZERO)));

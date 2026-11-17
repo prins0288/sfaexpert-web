@@ -19,6 +19,11 @@ public class ExpenseController {
     @PostMapping("/setup/fare") public Map<String, Object> fare(@RequestBody Map<String, Object> b) { service.saveFare(b); return Map.of("saved", true); }
     @PostMapping("/setup/{kind}/{id}/delete") public Map<String, Object> deleteRate(@PathVariable String kind, @PathVariable long id) { service.deleteRate(kind, id); return Map.of("deleted", true); }
 
+    @GetMapping("/emp-rates") public List<Map<String, Object>> empRates(@RequestParam String empId) { return service.empRates(empId); }
+    @PostMapping("/emp-rates")
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> saveEmpRates(@RequestBody Map<String, Object> b) { service.saveEmpRates(String.valueOf(b.get("empId")), (List<Map<String, Object>>) b.getOrDefault("rates", List.of())); return Map.of("saved", true); }
+
     @GetMapping("/list")
     public List<Map<String, Object>> list(@RequestParam(required = false) Integer month, @RequestParam(required = false) Integer year, @RequestParam(required = false) String status, @RequestParam(required = false) String empId) { return service.list(month, year, status, empId); }
     @GetMapping("/find") public Map<String, Object> find(@RequestParam String empId, @RequestParam int month, @RequestParam int year) throws Exception { return service.find(empId, month, year); }

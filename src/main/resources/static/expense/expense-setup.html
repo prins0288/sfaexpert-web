@@ -40,12 +40,15 @@
 <div class="card mb-2"><div class="card-header"><i class="bi bi-signpost-split"></i> <span data-i18n="exp.routeSetting">Route setting</span></div>
   <div class="card-body"><div class="row g-2 align-items-end"><div class="col-md-6"><label class="form-label small fw-semibold" data-i18n="exp.startAfterOff">After a holiday / weekly off the next working day starts from</label>
     <select class="form-select form-select-sm" id="s_off"><option value="N" data-i18n="exp.fromHome">The starting point (home area)</option><option value="Y" data-i18n="exp.fromStay">The stay area of the last working day</option></select></div>
+    <div class="col-md-3"><label class="form-label small fw-semibold" data-i18n="exp.typeRule">Area type used for the day</label><select class="form-select form-select-sm" id="s_rule"><option value="MAX" data-i18n="exp.ruleMax">The highest type of the areas visited</option><option value="LAST" data-i18n="exp.ruleLast">The type of the last area visited</option></select></div>
+    <div class="col-md-3"><label class="form-label small fw-semibold" data-i18n="exp.stayType">A night stay makes the day</label><select class="form-select form-select-sm" id="s_stay"><option value="Y" data-i18n="exp.stayYes">The stay type (OUT)</option><option value="N" data-i18n="exp.stayNo">No change (the visited areas decide)</option></select></div>
     <div class="col-auto"><button class="btn btn-sm btn-primary" onclick="saveSet()"><i class="bi bi-check2"></i> <span data-i18n="common.save">Save</span></button></div></div>
+    <div class="form-text mt-2" data-i18n="exp.typeHelp">The area type of a day decides its DA and fare: the types come from the Area Type Master (HQ 0-50 km, EX 51-100, OUT EX 101-250, OUT 251+ ...). A rate set for an employee in Create Employee wins over the designation and company rates.</div>
     <div class="form-text mt-2" data-i18n="exp.routeHelp">Route of a working day: starting point - the areas visited in the order of the visits - back to the starting point. When the user stays the night in an area the day ends there and the next working day starts from that stay area. Only after a holiday / weekly off this setting decides.</div></div></div>
 <div class="row g-2">
  <div class="col-lg-6"><div class="card"><div class="card-header"><i class="bi bi-cash-coin"></i> <span data-i18n="exp.daRates">Daily allowance (DA)</span></div><div class="card-body">
   <div class="row g-2 align-items-end mb-2"><div class="col-5"><label class="form-label small mb-0" data-i18n="entity.designation">Designation</label><select class="form-select form-select-sm" id="da_des"></select></div>
-   <div class="col-3"><label class="form-label small mb-0" data-i18n="exp.areaType">Area type</label><select class="form-select form-select-sm" id="da_type"><option>HQ</option><option>EX</option><option>OUT</option></select></div>
+   <div class="col-3"><label class="form-label small mb-0" data-i18n="exp.areaType">Area type</label><select class="form-select form-select-sm" id="da_type"></select></div>
    <div class="col-2"><label class="form-label small mb-0" data-i18n="exp.amount">Amount</label><input class="form-control form-control-sm" id="da_amt" type="number" min="0" step="any"></div>
    <div class="col-2"><button class="btn btn-sm btn-outline-primary w-100" onclick="addDa()"><i class="bi bi-plus-lg"></i></button></div></div>
   <div id="daList"></div></div></div></div>
@@ -84,7 +87,8 @@
   let S = null;
   window.pageInit = async function () { try { S = await Api.get(EP + '/setup'); draw(); } catch (e) { SFA.toast(e.message, false); } };
   function draw() {
-    document.getElementById('s_off').value = S.settings.START_FROM_STAY_AFTER_OFF;
+    document.getElementById('s_off').value = S.settings.START_FROM_STAY_AFTER_OFF; document.getElementById('s_rule').value = S.settings.TYPE_RULE; document.getElementById('s_stay').value = S.settings.STAY_FORCES_TYPE;
+    document.getElementById('da_type').innerHTML = S.areaTypes.map(t => `<option value="${esc(t.code)}">${esc(t.name)}</option>`).join('');
     const des = '<option value="">' + T('exp.allDes', 'All designations') + '</option>' + S.designations.map(d => `<option value="${d.id}">${esc(d.name)}</option>`).join('');
     document.getElementById('da_des').innerHTML = des; document.getElementById('fr_des').innerHTML = des;
     document.getElementById('fr_mode').innerHTML = S.travelModes.map(m => `<option>${esc(m)}</option>`).join('');
@@ -93,7 +97,7 @@
     document.getElementById('fareList').innerHTML = tbl(S.fare.map(r => `<tr><td>${esc(r.designation || T('exp.allDes', 'All designations'))}</td><td>${esc(r.travelMode)}</td><td class="text-end">${r.ratePerKm}</td><td class="text-end"><button class="btn btn-sm btn-outline-danger" onclick="del('fare',${r.id})"><i class="bi bi-trash"></i></button></td></tr>`));
   }
   const reload = async () => { S = await Api.get(EP + '/setup'); draw(); };
-  async function saveSet() { try { await Api.post(EP + '/setup/settings', { START_FROM_STAY_AFTER_OFF: document.getElementById('s_off').value }); SFA.toast(T('inv.saved', 'Saved'), true); } catch (e) { SFA.toast(e.message, false); } }
+  async function saveSet() { try { await Api.post(EP + '/setup/settings', { START_FROM_STAY_AFTER_OFF: document.getElementById('s_off').value, TYPE_RULE: document.getElementById('s_rule').value, STAY_FORCES_TYPE: document.getElementById('s_stay').value }); SFA.toast(T('inv.saved', 'Saved'), true); } catch (e) { SFA.toast(e.message, false); } }
   async function addDa() { try { await Api.post(EP + '/setup/da', { designationId: document.getElementById('da_des').value || null, areaType: document.getElementById('da_type').value, amount: document.getElementById('da_amt').value }); document.getElementById('da_amt').value = ''; await reload(); } catch (e) { SFA.toast(e.message, false); } }
   async function addFare() { try { await Api.post(EP + '/setup/fare', { designationId: document.getElementById('fr_des').value || null, travelMode: document.getElementById('fr_mode').value, ratePerKm: document.getElementById('fr_rate').value }); document.getElementById('fr_rate').value = ''; await reload(); } catch (e) { SFA.toast(e.message, false); } }
   async function del(kind, id) { if (!confirm(T('perm.confirmDel', 'Remove?'))) return; try { await Api.post(EP + '/setup/' + kind + '/' + id + '/delete', {}); await reload(); } catch (e) { SFA.toast(e.message, false); } }

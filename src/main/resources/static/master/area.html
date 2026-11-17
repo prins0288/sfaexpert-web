@@ -98,9 +98,9 @@
         <div class="col-md-4"><label class="form-label">Pincode</label>
           <input class="form-control" id="a_pincode" maxlength="12" /></div>
         <div class="col-md-6"><label class="form-label">Area Type</label>
-          <input class="form-control" id="a_areaType" maxlength="30" placeholder="Core / Metro" /></div>
+          <select class="form-select" id="a_areaType"><option value="">-</option></select><div class="form-text">HQ / EX / OUT ... from the Area Type Master; left blank it follows the distance.</div></div>
         <div class="col-md-6"><label class="form-label">Distance (km)</label>
-          <input class="form-control" id="a_distanceKm" type="number" step="0.01" /></div>
+          <input class="form-control" id="a_distanceKm" type="number" step="0.01" oninput="areaTypeSuggest()" /></div>
         <div class="col-12"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="a_home"><label class="form-check-label" for="a_home">Starting point (home) of this employee - pre-selected at Start Day; only one per employee</label></div></div>
       </div></div>
       <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
@@ -190,7 +190,19 @@
   const esc = (v) => SFA.esc(v == null ? '' : v);
   const STEP = { PENDING_MANAGER: 'Manager', PENDING_ADMIN: 'Admin' };
 
+  // area types come from the Area Type Master (km range of each)
+  let ATYPES = [];
+  async function loadAreaTypes() {
+    try { ATYPES = (await Api.get(API.report.areaType)).filter(t => t.active); } catch (e) { ATYPES = []; }
+    document.getElementById('a_areaType').innerHTML = '<option value="">-</option>' + ATYPES.map(t => `<option value="${SFA.esc(t.code)}">${SFA.esc(t.name)} (${t.kmFrom} - ${t.kmTo == null ? '&infin;' : t.kmTo} km)</option>`).join('');
+  }
+  function atSet(v) { const el = document.getElementById('a_areaType'); if (v && ![...el.options].some(o => o.value === v)) el.insertAdjacentHTML('beforeend', `<option value="${SFA.esc(v)}">${SFA.esc(v)}</option>`); el.value = v || ''; }
+  function areaTypeSuggest() {   // the distance decides the type while none is chosen
+    const el = document.getElementById('a_areaType'), km = parseFloat(document.getElementById('a_distanceKm').value); if (el.value || isNaN(km)) return;
+    const t = ATYPES.find(x => km >= x.kmFrom && (x.kmTo == null || km <= x.kmTo)); if (t) el.value = t.code;
+  }
   window.pageInit = async function () {
+    loadAreaTypes();
     MODAL = new bootstrap.Modal('#areaModal');
     MULTI = new bootstrap.Modal('#areaMultiModal');
     try {
@@ -321,7 +333,7 @@
     document.getElementById('a_latitude').value = r.latitude == null ? '' : r.latitude;
     document.getElementById('a_longitude').value = r.longitude == null ? '' : r.longitude;
     document.getElementById('a_gSearch').value = ''; document.getElementById('a_gList').classList.add('d-none');
-    document.getElementById('a_areaType').value = r.areaType || '';
+    atSet(r.areaType || '');
     document.getElementById('a_distanceKm').value = r.distanceKm == null ? '' : r.distanceKm;
     document.getElementById('a_home').checked = !!r.home;
     ['a_empId', 'a_stateOid', 'a_hqOid'].forEach(id => { const el = document.getElementById(id); if (window.$ && $(el).data('select2')) $(el).trigger('change'); });
