@@ -99,7 +99,8 @@ public class DcrService {
             org.slf4j.LoggerFactory.getLogger(DcrService.class).warn("item_type_master.dcr_panel is missing - run migration 91_dcr_masters.sql");
             m.put("items", jdbc.queryForList(itemSql.formatted("NULL")));
         }
-        m.put("expenseTypes", jdbc.queryForList("SELECT id, expense_name AS name, is_travel AS travel FROM expense_master WHERE is_active = 1 ORDER BY sort_order, expense_name"));
+        try { m.put("expenseTypes", jdbc.queryForList("SELECT id, expense_name AS name, is_travel AS travel, bill_required AS billRequired FROM expense_master WHERE is_active = 1 AND exp_kind = 'VARIABLE' ORDER BY sort_order, expense_name")); }   // fixed expenses (mobile bill ...) are given monthly, not fed in the DCR
+        catch (org.springframework.dao.DataAccessException e) { m.put("expenseTypes", jdbc.queryForList("SELECT id, expense_name AS name, is_travel AS travel FROM expense_master WHERE is_active = 1 ORDER BY sort_order, expense_name")); }
         m.put("treatments", jdbc.queryForList("SELECT id, treatment_type AS type, treatment_name AS name FROM treatment_master WHERE is_active = 1 ORDER BY treatment_type, sort_order, treatment_name"));
         m.put("visitTypes", jdbc.queryForList("SELECT type_name AS name FROM visit_type_master WHERE is_active = 1 ORDER BY type_name").stream().map(r -> r.get("name")).toList());
         m.put("activityTypes", jdbc.queryForList("SELECT type_name AS name FROM activity_type_master WHERE is_active = 1 ORDER BY type_name").stream().map(r -> r.get("name")).toList());
@@ -754,8 +755,15 @@ public class DcrService {
         f.getVisits().forEach(v -> listedIds.add(v.getClientId()));
         for (DcrDto.Expense x : f.getExpenses()) {
             if (x.getExpenseId() == null) throw new IllegalStateException("Choose the expense type");
-            List<Map<String, Object>> type = jdbc.queryForList("SELECT expense_name, is_travel FROM expense_master WHERE id = ? AND is_active = 1", x.getExpenseId());
-            if (type.isEmpty()) throw new IllegalStateException("Unknown expense type " + x.getExpenseId());
+            List<Map<String, Object>> type;
+            try {
+                type = jdbc.queryForList("SELECT expense_name, is_travel, bill_required FROM expense_master WHERE id = ? AND is_active = 1 AND exp_kind = 'VARIABLE'", x.getExpenseId());
+                if (type.isEmpty()) throw new IllegalStateException("Choose a variable expense type (a fixed expense is given monthly)");
+                if (Boolean.TRUE.equals(type.get(0).get("bill_required")) && Strings.isBlank(x.getFilePath())) throw new IllegalStateException("The bill / invoice file is required for " + type.get(0).get("expense_name"));
+            } catch (org.springframework.dao.DataAccessException e) {   // migration 129 not run yet
+                type = jdbc.queryForList("SELECT expense_name, is_travel FROM expense_master WHERE id = ? AND is_active = 1", x.getExpenseId());
+                if (type.isEmpty()) throw new IllegalStateException("Unknown expense type " + x.getExpenseId());
+            }
             if (x.getAmount() == null || x.getAmount().signum() <= 0) throw new IllegalStateException("Enter the amount of the " + type.get(0).get("expense_name") + " expense");
             boolean travel = flag(type.get(0).get("is_travel")) == 1;
             long ref = 0; int kind = x.getClientKind();

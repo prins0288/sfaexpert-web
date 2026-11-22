@@ -64,7 +64,7 @@
 </div>
 <ul class="nav nav-pills mb-2" id="tabs"><li class="nav-item"><button class="nav-link active" data-v="stmt" onclick="tab('stmt')"><i class="bi bi-table"></i> <span data-i18n="exp.statement">Statement</span></button></li>
   <li class="nav-item"><button class="nav-link" data-v="list" onclick="tab('list')"><i class="bi bi-people"></i> <span data-i18n="exp.team">Statements</span> <span class="badge bg-danger d-none" id="pendBadge"></span></button></li></ul>
-<div id="vStmt"><div id="stBar"></div><div class="rp-kpis" id="rpKpis"></div><div class="mb-2" id="legend"></div><div class="ex-wrap" id="exWrap"></div></div>
+<div id="vStmt"><div id="stBar"></div><div class="rp-kpis" id="rpKpis"></div><div class="mb-2" id="legend"></div><div id="fixedBox"></div><div class="ex-wrap" id="exWrap"></div></div>
 <div id="vList" class="d-none"><div class="card"><div class="card-body"><div class="row g-2 mb-2"><div class="col-6 col-md-2"><select class="form-select form-select-sm" id="l_status" onchange="listLoad()"><option value="">All</option><option value="SUBMITTED">Submitted</option><option value="MGR_APPROVED">Manager approved</option><option value="APPROVED">Approved</option><option value="REJECTED">Rejected</option><option value="DRAFT">Draft</option></select></div></div><div id="lstWrap"></div></div></div></div>
 
 <div class="modal fade" id="histModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-sm-down"><div class="modal-content">
@@ -125,7 +125,7 @@
   async function pending() { try { const l = await Api.get(EP + '/list', { query: { status: 'SUBMITTED' }, noLoader: true }); const k = l.filter(r => r.canApprove).length, m = await Api.get(EP + '/list', { query: { status: 'MGR_APPROVED' }, noLoader: true }); const k2 = m.filter(r => r.canApprove).length; const b = document.getElementById('pendBadge'); b.textContent = k + k2; b.classList.toggle('d-none', !(k + k2)); } catch (e) { } }
 
   async function rpGo() {
-    PEND = {};
+    PEND = {}; Object.keys(PENDF).forEach(k => delete PENDF[k]);
     try {
       const r = await Api.get(EP + '/find', { query: q() });
       r0 = r; D = r.exists ? r : null;
@@ -157,10 +157,13 @@
         ${p.canSubmit ? `<button class="btn btn-sm btn-primary" onclick="act('submit')"><i class="bi bi-send"></i> ${T('exp.submit', 'Submit')}</button>` : ''}
         ${p.canApprove ? `<button class="btn btn-sm btn-success" onclick="act('approve')"><i class="bi bi-check2-circle"></i> ${p.approveAs === 'A' ? T('exp.approveAdmin', 'Approve (admin)') : T('exp.approveMgr', 'Approve (manager)')}</button>` : ''}
         ${p.canReject ? `<button class="btn btn-sm btn-outline-danger" onclick="reject()"><i class="bi bi-x-circle"></i> ${T('exp.reject', 'Reject')}</button>` : ''}</div></div></div>`;
+    const fx = D.fixed || [], fixedSum = fx.reduce((a, f) => a + Number(f.amount), 0);
+    document.getElementById('fixedBox').innerHTML = fx.length ? `<div class="card mb-2"><div class="card-header py-1 d-flex align-items-center"><span><i class="bi bi-pin-angle"></i> ${T('exp.fixedExp', 'Fixed expense of the month')}</span><button class="btn btn-sm btn-outline-secondary py-0 ms-auto" onclick="hist(null,'')" title="${T('exp.history', 'History')}"><i class="bi bi-clock-history"></i></button></div><div class="card-body py-2"><div class="row g-2">
+      ${fx.map(f => `<div class="col-6 col-md-3"><div class="border rounded p-2 ${f.editedLevel ? 'lv-' + f.editedLevel : ''}" style="${f.editedLevel ? 'background:' + { U: '#d6e9ff', M: '#ffe2a8', A: '#e6d0ff' }[f.editedLevel] : ''}" title="${f.editedLevel ? esc(LV[f.editedLevel] + ' - ' + (f.editedBy || '')) : ''}"><div class="small text-muted">${esc(f.name)}</div>${edit ? `<input class="form-control form-control-sm" type="number" min="0" step="any" value="${f.amount}" onchange="pendFixed(${f.id},this.value)">` : `<b>${num(f.amount)}</b>`}</div></div>`).join('')}</div></div></div>` : '';
     const sum = (f) => D.days.reduce((a, d) => a + Number(f(d) || 0), 0);
     const workDays = D.days.filter(d => d.route && !/^(Holiday|Weekly off|Leave)$/.test(d.route)).length, headSum = D.days.reduce((a, d) => a + Object.values(d.heads).reduce((x, y) => x + Number(y), 0), 0), edited = D.days.filter(d => d.editedLevel).length;
     const kp = (l, v, c) => `<div class="rp-kpi ${c || ''}"><small>${l}</small><b>${v}</b></div>`;
-    document.getElementById('rpKpis').innerHTML = kp(T('exp.total', 'Total expense'), num(s.total), 'ok') + kp(T('exp.workDays', 'Working days'), workDays) + kp('Km', num(sum(d => d.km))) + kp('DA', num(sum(d => d.da))) + kp(T('exp.travelExp', 'Travel expense'), num(sum(d => d.travelExp))) + kp(T('exp.otherExp', 'Other expense'), num(headSum)) + kp(T('exp.editedRows', 'Changed rows'), edited, edited ? 'warn' : '');
+    document.getElementById('rpKpis').innerHTML = kp(T('exp.total', 'Total expense'), num(s.total), 'ok') + kp(T('exp.workDays', 'Working days'), workDays) + kp('Km', num(sum(d => d.km))) + kp('DA', num(sum(d => d.da))) + kp(T('exp.travelExp', 'Travel expense'), num(sum(d => d.travelExp))) + kp(T('exp.otherExp', 'Other expense'), num(headSum)) + (fx.length ? kp(T('exp.fixedExp', 'Fixed expense of the month'), num(fixedSum)) : '') + kp(T('exp.editedRows', 'Changed rows'), edited, edited ? 'warn' : '');
     const inp = (d, k, cls) => edit ? `<input class="form-control form-control-sm ${cls || ''}" type="number" min="0" step="any" value="${d[k]}" onchange="pend(${d.id},'${k}',this.value)">` : num(d[k]);
     wrap.innerHTML = `<table class="ex"><thead><tr><th>${T('exp.date', 'Date')}</th><th>${T('exp.dayType', 'Day type')}</th><th>${T('exp.tpArea', 'TP area')}</th><th>${T('exp.route', 'Route')}</th><th>${T('exp.visits', 'Client visit')}</th><th>${T('exp.stay', 'Stay')}</th><th>Km</th><th>${T('exp.fare', 'Fare')}</th><th>DA</th><th>${T('exp.travelExp', 'Travel expense')}</th>${cols.map(c => `<th>${esc(c.name)}</th>`).join('')}<th>${T('exp.bills', 'Bills')}</th><th>${T('exp.remark', 'Remark')}</th><th>${T('exp.rowTotal', 'Total')}</th><th>${T('exp.workWith', 'Work with')}</th><th></th></tr></thead><tbody>
       ${D.days.map(d => { const off = !d.route || /^(Holiday|Weekly off|Leave)$/.test(d.route), can = edit && !off; return `<tr class="${d.editedLevel ? 'lv-' + d.editedLevel : (off ? 'off' : '')}" title="${d.editedLevel ? esc(LV[d.editedLevel] + ' - ' + (d.editedBy || '') + ' ' + ago(d.editedAt)) : ''}"><td>${d.date.substring(8, 10)}-${d.date.substring(5, 7)}</td><td>${esc(d.dayType)}</td><td>${esc(d.tpArea)}</td><td class="route">${esc(d.route)}</td><td class="n">${d.visits || ''}</td><td>${d.stayArea ? 'Yes (' + esc(d.stayArea) + ')' : (off ? '' : 'No')}</td>
@@ -174,23 +177,25 @@
   }
   // changes of the rows are collected and saved together (the manager / admin give one reason)
   function pend(id, k, v) { (PEND[id] = PEND[id] || { heads: {} })[k] = v; pcount(); }
+  const PENDF = {};
+  function pendFixed(id, v) { PENDF[id] = v; pcount(); }
   function pendHead(id, hid, v) { (PEND[id] = PEND[id] || { heads: {} }).heads[hid] = v; pcount(); }
-  const pcount = () => { const el = document.getElementById('pcnt'); if (el) el.textContent = Object.keys(PEND).length; };
+  const pcount = () => { const el = document.getElementById('pcnt'); if (el) el.textContent = Object.keys(PEND).length + Object.keys(PENDF).length; };
   async function saveAll() {
-    const ids = Object.keys(PEND); if (!ids.length) { SFA.toast(T('exp.nothing', 'Nothing changed'), false); return; }
+    const ids = Object.keys(PEND), fids = Object.keys(PENDF); if (!ids.length && !fids.length) { SFA.toast(T('exp.nothing', 'Nothing changed'), false); return; }
     let reason = null; if (D.perms.level !== 'U') { reason = prompt(T('exp.reasonAsk', 'Reason of the change (shown in the history)')); if (!reason || !reason.trim()) { SFA.toast(T('exp.reasonNeeded', 'Give the reason of the change'), false); return; } }
-    try { for (const id of ids) await Api.post(EP + '/day/' + id, Object.assign({}, PEND[id], { reason })); SFA.toast(T('exp.changesSaved', 'Changes saved'), true); await rpGo(); } catch (e) { SFA.toast(e.message, false); }
+    try { for (const id of ids) await Api.post(EP + '/day/' + id, Object.assign({}, PEND[id], { reason })); for (const id of fids) await Api.post(EP + '/fixed-line/' + id, { amount: PENDF[id], reason }); Object.keys(PENDF).forEach(k => delete PENDF[k]); SFA.toast(T('exp.changesSaved', 'Changes saved'), true); await rpGo(); } catch (e) { SFA.toast(e.message, false); }
   }
   async function act(a) {
-    if (Object.keys(PEND).length && !confirm(T('exp.unsaved', 'There are unsaved changes. Continue without saving them?'))) return;
+    if ((Object.keys(PEND).length || Object.keys(PENDF).length) && !confirm(T('exp.unsaved', 'There are unsaved changes. Continue without saving them?'))) return;
     try { await Api.post(EP + '/' + D.statement.id + '/' + a, {}); SFA.toast(T('exp.done', 'Done'), true); await rpGo(); pending(); } catch (e) { SFA.toast(e.message, false); }
   }
   async function reject() { const r = prompt(T('exp.rejectAsk', 'Reason of the rejection')); if (!r || !r.trim()) return; try { await Api.post(EP + '/' + D.statement.id + '/reject', { reason: r }); SFA.toast(T('exp.done', 'Done'), true); await rpGo(); pending(); } catch (e) { SFA.toast(e.message, false); } }
   async function hist(dayId, date) {
     try {
-      const l = await Api.get(EP + '/' + D.statement.id + '/history', { query: { dayId } });
-      document.getElementById('hDate').textContent = date.substring(8, 10) + '-' + date.substring(5, 7) + '-' + date.substring(0, 4);
-      document.getElementById('histBody').innerHTML = l.length ? `<table class="table table-sm"><thead><tr><th>${T('exp.when', 'When')}</th><th>${T('exp.field', 'Field')}</th><th class="text-end">${T('exp.old', 'Old')}</th><th class="text-end">${T('exp.new', 'New')}</th><th>${T('exp.by', 'By')}</th><th>${T('exp.reason', 'Reason')}</th></tr></thead><tbody>${l.map(x => `<tr class="lv-${x.level}" style="background:${{ U: '#d6e9ff', M: '#ffe2a8', A: '#e6d0ff' }[x.level]}"><td>${ago(x.changedAt)}</td><td>${esc(x.field.replace('head:', ''))}</td><td class="text-end">${esc(x.oldValue)}</td><td class="text-end"><b>${esc(x.newValue)}</b></td><td>${esc(x.changedBy)} <small>(${T('exp.lv.' + x.level, LV[x.level])})</small></td><td>${esc(x.reason)}</td></tr>`).join('')}</tbody></table>` : `<div class="text-muted text-center py-4">${T('exp.noChange', 'This row was never changed')}</div>`;
+      const l = (await Api.get(EP + '/' + D.statement.id + '/history', { query: { dayId: dayId || undefined } })).filter(x => dayId || String(x.field).startsWith('fixed:'));
+      document.getElementById('hDate').textContent = date ? date.substring(8, 10) + '-' + date.substring(5, 7) + '-' + date.substring(0, 4) : T('exp.fixedExp', 'Fixed expense of the month');
+      document.getElementById('histBody').innerHTML = l.length ? `<table class="table table-sm"><thead><tr><th>${T('exp.when', 'When')}</th><th>${T('exp.field', 'Field')}</th><th class="text-end">${T('exp.old', 'Old')}</th><th class="text-end">${T('exp.new', 'New')}</th><th>${T('exp.by', 'By')}</th><th>${T('exp.reason', 'Reason')}</th></tr></thead><tbody>${l.map(x => `<tr class="lv-${x.level}" style="background:${{ U: '#d6e9ff', M: '#ffe2a8', A: '#e6d0ff' }[x.level]}"><td>${ago(x.changedAt)}</td><td>${esc(x.field.replace('head:', '').replace('fixed:', ''))}</td><td class="text-end">${esc(x.oldValue)}</td><td class="text-end"><b>${esc(x.newValue)}</b></td><td>${esc(x.changedBy)} <small>(${T('exp.lv.' + x.level, LV[x.level])})</small></td><td>${esc(x.reason)}</td></tr>`).join('')}</tbody></table>` : `<div class="text-muted text-center py-4">${T('exp.noChange', 'This row was never changed')}</div>`;
       HM.show();
     } catch (e) { SFA.toast(e.message, false); }
   }

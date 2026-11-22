@@ -1037,6 +1037,7 @@
     const o = EDIT.o;
     if (!o.expenseId) { SFA.toast('Choose the expense type', false); return; }
     if (!(Number(o.amount) > 0)) { SFA.toast('Enter the amount', false); return; }
+    { const tp = (OPT.expenseTypes || []).find(t => String(t.id) === String(o.expenseId)); if (tp && tp.billRequired && !o.filePath) { SFA.toast('The bill / invoice file is required for ' + tp.name, false); return; } }   // the master asks a bill for this type
     o.expenseId = Number(o.amount) ? Number(o.expenseId) : o.expenseId;
     if (EDIT.idx < 0) ST.expenses.push(o); else ST.expenses[EDIT.idx] = o;
     sheetClose(); render();

@@ -11,13 +11,34 @@ import java.util.Map;
 @RequestMapping("/api/expense")
 public class ExpenseController {
     private final ExpenseService service;
-    public ExpenseController(ExpenseService service) { this.service = service; }
+    private final ExpenseMasterService master;
+    private final in.opt.sfa.storage.FileUploadService uploads;
+    public ExpenseController(ExpenseService service, ExpenseMasterService master, in.opt.sfa.storage.FileUploadService uploads) { this.service = service; this.master = master; this.uploads = uploads; }
 
     @GetMapping("/setup") public Map<String, Object> setup() { return service.setup(); }
     @PostMapping("/setup/settings") public Map<String, Object> settings(@RequestBody Map<String, Object> b) { service.saveSettings(b); return Map.of("saved", true); }
     @PostMapping("/setup/da") public Map<String, Object> da(@RequestBody Map<String, Object> b) { service.saveDa(b); return Map.of("saved", true); }
     @PostMapping("/setup/fare") public Map<String, Object> fare(@RequestBody Map<String, Object> b) { service.saveFare(b); return Map.of("saved", true); }
     @PostMapping("/setup/{kind}/{id}/delete") public Map<String, Object> deleteRate(@PathVariable String kind, @PathVariable long id) { service.deleteRate(kind, id); return Map.of("deleted", true); }
+
+    // ---- expense master (fixed / variable), fixed assignment, daily feed
+    @GetMapping("/types") public List<Map<String, Object>> types() { return master.types(); }
+    @GetMapping("/types/variable") public List<Map<String, Object>> variableTypes() { return master.variableTypes(); }
+    @PostMapping("/types") public Map<String, Object> saveType(@RequestBody Map<String, Object> b) { master.saveType(b); return Map.of("saved", true); }
+    @PostMapping("/types/{id}/delete") public Map<String, Object> deleteType(@PathVariable long id) { master.deleteType(id); return Map.of("deleted", true); }
+    @GetMapping("/fixed") public List<Map<String, Object>> fixedList(@RequestParam(required = false) Long expenseId, @RequestParam(required = false) String empId) { return master.fixedList(expenseId, empId); }
+    @PostMapping("/fixed/assign") public Map<String, Object> assign(@RequestBody Map<String, Object> b) { return master.assign(b); }
+    @PostMapping("/fixed/{id}") public Map<String, Object> updateFixed(@PathVariable long id, @RequestBody Map<String, Object> b) { master.updateFixed(id, b); return Map.of("saved", true); }
+    @PostMapping("/fixed/{id}/delete") public Map<String, Object> deleteFixed(@PathVariable long id) { master.deleteFixed(id); return Map.of("deleted", true); }
+    @PostMapping("/fixed-line/{id}") public Map<String, Object> fixedLine(@PathVariable long id, @RequestBody Map<String, Object> b) { return service.changeFixed(id, b); }
+    @GetMapping("/entries") public Map<String, Object> entries(@RequestParam String empId, @RequestParam int month, @RequestParam int year) { return master.entries(empId, month, year); }
+    @PostMapping("/entry") public Map<String, Object> saveEntry(@RequestBody Map<String, Object> b) { return master.saveEntry(b); }
+    @PostMapping("/entry/{id}/delete") public Map<String, Object> deleteEntry(@PathVariable long id) { master.deleteEntry(id); return Map.of("deleted", true); }
+    @PostMapping(value = "/upload", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    public Map<String, Object> upload(@RequestParam("file") org.springframework.web.multipart.MultipartFile file) throws Exception {
+        in.opt.sfa.storage.StoredFile f = uploads.upload("expense", file, in.opt.sfa.storage.FileUploadService.Kind.DOCUMENT, true);
+        Map<String, Object> m = new java.util.LinkedHashMap<>(); m.put("path", f.path()); m.put("name", f.originalName()); m.put("type", f.type()); return m;
+    }
 
     @GetMapping("/emp-rates") public List<Map<String, Object>> empRates(@RequestParam String empId) { return service.empRates(empId); }
     @PostMapping("/emp-rates")

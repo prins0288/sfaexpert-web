@@ -224,6 +224,21 @@ public class ExpenseService {
             days.add(row);
             prevStay = stay;   // null = he went back to the starting point
         }
+        // variable expenses fed on their day (Daily Expense) come into the heads of that day, travel ones into the travel expense; every bill file counts as a bill
+        Map<String, Map<Long, BigDecimal>> eh = new HashMap<>(); Map<String, BigDecimal> et = new HashMap<>(); Map<String, Integer> eb = new HashMap<>();
+        try {
+            for (Map<String, Object> r : jdbc.queryForList("SELECT x.exp_date, x.expense_id, m.is_travel, SUM(x.amount) AS amt, SUM(CASE WHEN x.file_path IS NULL THEN 0 ELSE 1 END) AS bills FROM expense_entry x JOIN expense_master m ON m.id = x.expense_id WHERE x.emp_id = ? AND x.exp_date BETWEEN ? AND ? GROUP BY x.exp_date, x.expense_id, m.is_travel", empId, from, to)) {
+                String ds = String.valueOf(r.get("exp_date")).substring(0, 10); BigDecimal amt = (BigDecimal) r.get("amt");
+                if (Boolean.TRUE.equals(r.get("is_travel")) || (r.get("is_travel") instanceof Number tn && tn.intValue() == 1)) et.merge(ds, amt, BigDecimal::add); else eh.computeIfAbsent(ds, k -> new LinkedHashMap<>()).merge(((Number) r.get("expense_id")).longValue(), amt, BigDecimal::add);
+                eb.merge(ds, ((Number) r.get("bills")).intValue(), Integer::sum);
+            }
+        } catch (org.springframework.dao.DataAccessException e) { /* migration 129 not run */ }
+        for (Map<String, Object> row : days) {
+            String ds = (String) row.get("date");
+            if (et.containsKey(ds)) row.put("travelExp", ((BigDecimal) row.get("travelExp")).add(et.get(ds)));
+            if (eh.containsKey(ds)) { @SuppressWarnings("unchecked") Map<Long, BigDecimal> h = new LinkedHashMap<>((Map<Long, BigDecimal>) row.get("heads")); eh.get(ds).forEach((k, v) -> h.merge(k, v, BigDecimal::add)); row.put("heads", h); }
+            if (eb.containsKey(ds)) row.put("bills", ((Number) row.get("bills")).intValue() + eb.get(ds));
+        }
         return days;
     }
     private static String nm(Area a, Area home) { return a == null ? (home == null ? "Start" : home.name()) : a.name(); }
@@ -271,11 +286,29 @@ public class ExpenseService {
                         sid, ds, d.get("dcrId"), d.get("dayType"), d.get("tpArea"), d.get("route"), d.get("visits"), d.get("stayArea"), km, fare, da, tr, headsJson(heads), d.get("bills"), d.get("workWith"), total(da, tr, heads), json.writeValueAsString(orig));
             }
         }
+        syncFixed(sid, empId, month, year);
         recount(sid);
         return Map.of("id", sid, "created", st.isEmpty());
     }
 
-    private void recount(long sid) { jdbc.update("UPDATE expense_statement SET total_amount = COALESCE((SELECT SUM(total) FROM expense_statement_day WHERE statement_id = ?), 0), updated_at = NOW() WHERE id = ?", sid, sid); }
+    private void recount(long sid) { jdbc.update("UPDATE expense_statement SET total_amount = COALESCE((SELECT SUM(total) FROM expense_statement_day WHERE statement_id = ?), 0) + COALESCE((SELECT SUM(amount) FROM expense_statement_fixed WHERE statement_id = ?), 0), updated_at = NOW() WHERE id = ?", sid, sid, sid); }
+
+    /** The fixed expenses assigned to the employee for the month (mobile bill, internet bill ...): a line of the statement each; a line that someone changed keeps its amount. */
+    private void syncFixed(long sid, String empId, int month, int year) {
+        LocalDate first = YearMonth.of(year, month).atDay(1), last = YearMonth.of(year, month).atEndOfMonth();
+        Map<Long, BigDecimal> now = new LinkedHashMap<>();
+        try {
+            for (Map<String, Object> r : jdbc.queryForList("SELECT a.expense_id, a.amount FROM expense_fixed_assign a JOIN expense_master m ON m.id = a.expense_id AND m.is_active = 1 WHERE a.emp_id = ? AND a.effective_from <= ? AND (a.effective_to IS NULL OR a.effective_to >= ?) ORDER BY a.effective_from", empId, last, first))
+                now.put(((Number) r.get("expense_id")).longValue(), (BigDecimal) r.get("amount"));   // the latest start wins
+        } catch (org.springframework.dao.DataAccessException e) { return; }
+        Map<Long, String> edited = new HashMap<>();
+        for (Map<String, Object> r : jdbc.queryForList("SELECT expense_id, edited_level FROM expense_statement_fixed WHERE statement_id = ?", sid)) edited.put(((Number) r.get("expense_id")).longValue(), (String) r.get("edited_level"));
+        for (Map.Entry<Long, BigDecimal> e : now.entrySet()) {
+            if (edited.get(e.getKey()) != null) jdbc.update("UPDATE expense_statement_fixed SET orig_amount = ? WHERE statement_id = ? AND expense_id = ?", e.getValue(), sid, e.getKey());
+            else jdbc.update("INSERT INTO expense_statement_fixed (statement_id, expense_id, amount, orig_amount) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE amount = VALUES(amount), orig_amount = VALUES(orig_amount)", sid, e.getKey(), e.getValue(), e.getValue());
+        }
+        for (Map.Entry<Long, String> e : edited.entrySet()) if (e.getValue() == null && !now.containsKey(e.getKey())) jdbc.update("DELETE FROM expense_statement_fixed WHERE statement_id = ? AND expense_id = ?", sid, e.getKey());   // no longer assigned and never changed
+    }
 
     // ------------------------------------------------------------------ who may do what
     private String ownerOf(long sid) { return jdbc.queryForList("SELECT emp_id FROM expense_statement WHERE id = ?", String.class, sid).stream().findFirst().orElseThrow(() -> new IllegalArgumentException("Statement not found")); }
@@ -314,7 +347,8 @@ public class ExpenseService {
         }
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("statement", s); out.put("days", days); out.put("perms", perms(owner, (String) s.get("status")));
-        out.put("headCols", jdbc.queryForList("SELECT id, expense_name AS name FROM expense_master WHERE is_travel = 0 AND is_active = 1 ORDER BY sort_order, id"));
+        out.put("fixed", jdbc.queryForList("SELECT f.id, f.expense_id AS expenseId, m.expense_name AS name, f.amount, f.orig_amount AS origAmount, f.edited_level AS editedLevel, eb.emp_name AS editedBy, f.edited_at AS editedAt FROM expense_statement_fixed f JOIN expense_master m ON m.id = f.expense_id LEFT JOIN emp_detail eb ON eb.emp_id = f.edited_by WHERE f.statement_id = ? ORDER BY m.sort_order, m.id", sid));
+        out.put("headCols", jdbc.queryForList("SELECT id, expense_name AS name FROM expense_master WHERE is_travel = 0 AND is_active = 1 AND exp_kind = 'VARIABLE' ORDER BY sort_order, id"));
         out.put("legend", List.of(Map.of("level", "U", "name", "Changed by the employee"), Map.of("level", "M", "name", "Changed by the manager"), Map.of("level", "A", "name", "Changed by the admin")));
         return out;
     }
@@ -343,7 +377,7 @@ public class ExpenseService {
     @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
     public List<Map<String, Object>> history(long sid, Long dayId) {
         canView(ownerOf(sid));
-        return jdbc.queryForList("SELECT l.id, l.exp_date AS date, l.field_name AS field, l.old_value AS oldValue, l.new_value AS newValue, e.emp_name AS changedBy, l.level, l.reason, l.changed_at AS changedAt FROM expense_change_log l LEFT JOIN emp_detail e ON e.emp_id = l.changed_by WHERE l.statement_id = ?" + (dayId == null ? "" : " AND l.day_id = " + dayId.longValue()) + " ORDER BY l.id DESC", sid);
+        return jdbc.queryForList("SELECT l.id, l.exp_date AS date, l.day_id AS dayId, l.field_name AS field, l.old_value AS oldValue, l.new_value AS newValue, e.emp_name AS changedBy, l.level, l.reason, l.changed_at AS changedAt FROM expense_change_log l LEFT JOIN emp_detail e ON e.emp_id = l.changed_by WHERE l.statement_id = ?" + (dayId == null ? "" : " AND l.day_id = " + dayId.longValue()) + " ORDER BY l.id DESC", sid);
     }
 
     // ------------------------------------------------------------------ change a day
@@ -387,6 +421,22 @@ public class ExpenseService {
         return Map.of("changed", changed, "total", upd.get("total"));
     }
 
+    @Transactional(transactionManager = "tenantTransactionManager")
+    public Map<String, Object> changeFixed(long fixedId, Map<String, Object> b) {
+        Map<String, Object> f = jdbc.queryForList("SELECT f.*, s.emp_id, s.status, m.expense_name FROM expense_statement_fixed f JOIN expense_statement s ON s.id = f.statement_id JOIN expense_master m ON m.id = f.expense_id WHERE f.id = ?", fixedId).stream().findFirst().orElseThrow(() -> new IllegalArgumentException("Row not found"));
+        String owner = (String) f.get("emp_id"); long sid = ((Number) f.get("statement_id")).longValue();
+        Map<String, Object> pm = perms(owner, (String) f.get("status"));
+        if (!Boolean.TRUE.equals(pm.get("canEdit"))) throw new ForbiddenException("You cannot change this statement now");
+        String level = (String) pm.get("level"), reason = b.get("reason") == null || b.get("reason").toString().isBlank() ? null : b.get("reason").toString().trim();
+        if (!"U".equals(level) && reason == null) throw new IllegalArgumentException("Give the reason of the change");
+        BigDecimal nv = money(b.get("amount"), "Amount"), ov = (BigDecimal) f.get("amount");
+        if (nv.compareTo(ov) == 0) return Map.of("changed", 0);
+        jdbc.update("UPDATE expense_statement_fixed SET amount = ?, edited_level = ?, edited_by = ?, edited_at = NOW() WHERE id = ?", nv, level, TeamScope.me(), fixedId);
+        jdbc.update("INSERT INTO expense_change_log (statement_id, day_id, exp_date, field_name, old_value, new_value, changed_by, level, reason) VALUES (?,NULL,NULL,?,?,?,?,?,?)", sid, "fixed:" + f.get("expense_name"), fmt(ov), fmt(nv), TeamScope.me(), level, reason);
+        recount(sid);
+        return Map.of("changed", 1);
+    }
+
     private void log(long sid, long dayId, LocalDate dt, String field, String oldV, String newV, String by, String level, String reason) {
         jdbc.update("INSERT INTO expense_change_log (statement_id, day_id, exp_date, field_name, old_value, new_value, changed_by, level, reason) VALUES (?,?,?,?,?,?,?,?,?)", sid, dayId, dt, field, oldV, newV, by, level, reason);
     }
@@ -397,7 +447,7 @@ public class ExpenseService {
         String owner = ownerOf(sid); String status = jdbc.queryForObject("SELECT status FROM expense_statement WHERE id = ?", String.class, sid);
         if (!owner.equals(TeamScope.me()) && !TeamScope.isAdmin()) throw new ForbiddenException("Only the employee (or an admin for him) submits the statement");
         if (!List.of("DRAFT", "REJECTED").contains(status)) throw new IllegalStateException("The statement is already " + status.toLowerCase().replace('_', ' '));
-        if (jdbc.queryForObject("SELECT COALESCE(SUM(total), 0) FROM expense_statement_day WHERE statement_id = ?", BigDecimal.class, sid).signum() <= 0) throw new IllegalStateException("There is no expense to submit");
+        if (jdbc.queryForObject("SELECT COALESCE((SELECT SUM(total) FROM expense_statement_day WHERE statement_id = ?), 0) + COALESCE((SELECT SUM(amount) FROM expense_statement_fixed WHERE statement_id = ?), 0)", BigDecimal.class, sid, sid).signum() <= 0) throw new IllegalStateException("There is no expense to submit");
         jdbc.update("UPDATE expense_statement SET status = 'SUBMITTED', submitted_at = NOW(), reject_reason = NULL, updated_at = NOW() WHERE id = ?", sid);
         return Map.of("status", "SUBMITTED");
     }
