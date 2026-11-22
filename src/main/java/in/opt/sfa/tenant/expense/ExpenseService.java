@@ -37,7 +37,7 @@ public class ExpenseService {
 
     // ------------------------------------------------------------------ settings and rates (admin)
     public Map<String, String> settings() {
-        Map<String, String> m = new LinkedHashMap<>(Map.of("START_FROM_STAY_AFTER_OFF", "N", "TYPE_RULE", "MAX", "STAY_FORCES_TYPE", "Y", "REQUIRE_ALL_DCR", "Y"));
+        Map<String, String> m = new LinkedHashMap<>(Map.of("START_FROM_STAY_AFTER_OFF", "N", "TYPE_RULE", "MAX", "STAY_FORCES_TYPE", "Y", "REQUIRE_ALL_DCR", "Y", "VISIT_HIDE", ""));
         for (Map<String, Object> r : jdbc.queryForList("SELECT setting_key, setting_value FROM expense_setting")) m.put((String) r.get("setting_key"), String.valueOf(r.get("setting_value")));
         return m;
     }
@@ -47,6 +47,7 @@ public class ExpenseService {
         Authz.requireRole("ADMIN");
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("settings", settings());
+        out.put("visitTypes", visitTypes());
         out.put("areaTypes", areaTypes.types().stream().map(t -> Map.of("code", t.code(), "name", t.name())).toList());
         out.put("da", jdbc.queryForList("SELECT r.id, r.designation_id AS designationId, d.designation AS designation, r.area_type AS areaType, r.amount FROM expense_da_rate r LEFT JOIN designation_master d ON d.id = r.designation_id ORDER BY d.designation, r.area_type"));
         out.put("fare", jdbc.queryForList("SELECT r.id, r.designation_id AS designationId, d.designation AS designation, r.travel_mode AS travelMode, r.rate_per_km AS ratePerKm FROM expense_fare_rate r LEFT JOIN designation_master d ON d.id = r.designation_id ORDER BY d.designation, r.travel_mode"));
@@ -55,9 +56,17 @@ public class ExpenseService {
         return out;
     }
 
+    /** The client types the visit counts can be shown for. */
+    private List<Map<String, Object>> visitTypes() { return jdbc.queryForList("SELECT oid AS id, type_code AS code, COALESCE(NULLIF(plural_label, ''), type_name) AS name FROM client_type WHERE is_active = 1 ORDER BY oid"); }
+
     @Transactional(transactionManager = "tenantTransactionManager")
     public void saveSettings(Map<String, Object> b) {
         Authz.requireRole("ADMIN");
+        if (b.containsKey("VISIT_HIDE")) {   // the visit-count columns the company does not want to see: L:<type id> (listed) / U:<type id> (unlisted)
+            String v = b.get("VISIT_HIDE") == null ? "" : b.get("VISIT_HIDE").toString().trim();
+            if (!v.isEmpty() && !v.matches("([LU]:\\d+)(,[LU]:\\d+)*")) throw new IllegalArgumentException("VISIT_HIDE has a wrong value");
+            jdbc.update("INSERT INTO expense_setting (setting_key, setting_value, updated_by, updated_at) VALUES ('VISIT_HIDE', ?, ?, NOW()) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_by = VALUES(updated_by), updated_at = NOW()", v, TeamScope.me());
+        }
         for (String k : List.of("START_FROM_STAY_AFTER_OFF", "TYPE_RULE", "STAY_FORCES_TYPE", "REQUIRE_ALL_DCR")) {
             if (!b.containsKey(k)) continue;
             String v = String.valueOf(b.get(k));
@@ -373,12 +382,24 @@ public class ExpenseService {
         String owner = (String) s.get("empId"); canView(owner);
         List<Map<String, Object>> days = new ArrayList<>();
         for (Map<String, Object> r : jdbc.queryForList("""
-                SELECT d.id, d.exp_date AS date, d.day_type AS dayType, d.tp_area AS tpArea, d.route, d.visits, d.stay_area AS stayArea, d.row_kind AS rowKind, d.stay_area_id AS stayAreaId, d.stay_manual AS stayManual, d.last_area_id AS lastAreaId, d.km, d.fare, d.da, d.travel_exp AS travelExp, d.heads_json, d.bills, d.remark, d.work_with AS workWith,
+                SELECT d.id, d.dcr_id AS dcrId, d.exp_date AS date, d.day_type AS dayType, d.tp_area AS tpArea, d.route, d.visits, d.stay_area AS stayArea, d.row_kind AS rowKind, d.stay_area_id AS stayAreaId, d.stay_manual AS stayManual, d.last_area_id AS lastAreaId, d.km, d.fare, d.da, d.travel_exp AS travelExp, d.heads_json, d.bills, d.remark, d.work_with AS workWith,
                        d.total, d.edited_level AS editedLevel, eb.emp_name AS editedBy, d.edited_at AS editedAt
                 FROM expense_statement_day d LEFT JOIN emp_detail eb ON eb.emp_id = d.edited_by WHERE d.statement_id = ? ORDER BY d.exp_date""", sid)) {
             Map<String, Object> m = new LinkedHashMap<>(r); m.put("heads", parseHeads((String) r.remove("heads_json"))); m.put("date", String.valueOf(r.get("date")).substring(0, 10)); days.add(m);
         }
+        Set<String> hide = new HashSet<>(Arrays.asList(settings().getOrDefault("VISIT_HIDE", "").split(",")));
+        List<Map<String, Object>> vcols = new ArrayList<>();
+        for (Map<String, Object> t : visitTypes()) for (String k : new String[]{"L", "U"}) if (!hide.contains(k + ":" + t.get("id"))) vcols.add(Map.of("key", k + ":" + t.get("id"), "name", t.get("name"), "unlisted", "U".equals(k)));
+        Map<Long, Map<String, Integer>> vc = new HashMap<>();
+        List<Object> dids = new ArrayList<>(); for (Map<String, Object> d : days) if (d.get("dcrId") != null) dids.add(d.get("dcrId"));
+        if (!dids.isEmpty() && !vcols.isEmpty()) {
+            String in = String.join(",", Collections.nCopies(dids.size(), "?"));
+            for (Map<String, Object> r : jdbc.queryForList("SELECT x.dcr_id, 'L' AS k, c.client_type_id AS t, COUNT(*) AS n FROM dcr_client_summary x JOIN client_master c ON c.id = x.client_id WHERE x.dcr_id IN (" + in + ") GROUP BY x.dcr_id, c.client_type_id UNION ALL SELECT dcr_id, 'U', client_type_id, COUNT(*) FROM dcr_unlisted_client_summary WHERE dcr_id IN (" + in + ") GROUP BY dcr_id, client_type_id", Stream.concat(dids.stream(), dids.stream()).toArray()))
+                vc.computeIfAbsent(((Number) r.get("dcr_id")).longValue(), k -> new HashMap<>()).merge(r.get("k") + ":" + r.get("t"), ((Number) r.get("n")).intValue(), Integer::sum);
+        }
+        for (Map<String, Object> d : days) { Object di = d.get("dcrId"); d.put("vc", di == null ? Map.of() : vc.getOrDefault(((Number) di).longValue(), Map.of())); }
         Map<String, Object> out = new LinkedHashMap<>();
+        out.put("visitCols", vcols);
         out.put("statement", s); out.put("days", days); out.put("perms", perms(owner, (String) s.get("status")));
         out.put("fixed", jdbc.queryForList("SELECT f.id, f.expense_id AS expenseId, m.expense_name AS name, f.amount, f.orig_amount AS origAmount, f.edited_level AS editedLevel, eb.emp_name AS editedBy, f.edited_at AS editedAt FROM expense_statement_fixed f JOIN expense_master m ON m.id = f.expense_id LEFT JOIN emp_detail eb ON eb.emp_id = f.edited_by WHERE f.statement_id = ? ORDER BY m.sort_order, m.id", sid));
         out.put("headCols", jdbc.queryForList("SELECT id, expense_name AS name FROM expense_master WHERE is_travel = 0 AND is_active = 1 AND exp_kind = 'VARIABLE' ORDER BY sort_order, id"));
