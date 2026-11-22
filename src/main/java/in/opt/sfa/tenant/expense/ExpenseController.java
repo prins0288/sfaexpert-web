@@ -52,6 +52,7 @@ public class ExpenseController {
     @PostMapping("/generate")
     public Map<String, Object> generate(@RequestBody Map<String, Object> b) throws Exception { return service.generate(String.valueOf(b.get("empId")), Integer.parseInt(String.valueOf(b.get("month"))), Integer.parseInt(String.valueOf(b.get("year"))), Boolean.TRUE.equals(b.get("refresh"))); }
     @PostMapping("/day/{dayId}") public Map<String, Object> day(@PathVariable long dayId, @RequestBody Map<String, Object> b) throws Exception { return service.changeDay(dayId, b); }
+    @GetMapping("/{id}/stay-areas") public List<Map<String, Object>> stayAreas(@PathVariable long id) { return service.stayAreas(id); }
     @GetMapping("/{id}/history") public List<Map<String, Object>> history(@PathVariable long id, @RequestParam(required = false) Long dayId) { return service.history(id, dayId); }
     @PostMapping("/{id}/submit") public Map<String, Object> submit(@PathVariable long id) { return service.submit(id); }
     @PostMapping("/{id}/approve") public Map<String, Object> approve(@PathVariable long id) { return service.approve(id); }

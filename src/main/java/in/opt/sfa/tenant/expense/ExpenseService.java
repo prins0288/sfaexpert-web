@@ -16,6 +16,7 @@ import java.sql.Date;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.*;
+import java.util.stream.Stream;
 
 /**
  * Monthly expense statement of an employee, built from his DCR days. The user submits it, his manager approves it, then the admin approves it; the manager and the admin
@@ -30,12 +31,13 @@ public class ExpenseService {
     private final TeamScope scope;
     private final ObjectMapper json = new ObjectMapper();
     private final in.opt.sfa.tenant.master.areatype.AreaTypeService areaTypes;
+    private final in.opt.sfa.tenant.tp.service.HolidayService holidays;
 
-    public ExpenseService(JdbcTemplate jdbc, TeamScope scope, in.opt.sfa.tenant.master.areatype.AreaTypeService areaTypes) { this.jdbc = jdbc; this.scope = scope; this.areaTypes = areaTypes; }
+    public ExpenseService(JdbcTemplate jdbc, TeamScope scope, in.opt.sfa.tenant.master.areatype.AreaTypeService areaTypes, in.opt.sfa.tenant.tp.service.HolidayService holidays) { this.jdbc = jdbc; this.scope = scope; this.areaTypes = areaTypes; this.holidays = holidays; }
 
     // ------------------------------------------------------------------ settings and rates (admin)
     public Map<String, String> settings() {
-        Map<String, String> m = new LinkedHashMap<>(Map.of("START_FROM_STAY_AFTER_OFF", "N", "TYPE_RULE", "MAX", "STAY_FORCES_TYPE", "Y"));
+        Map<String, String> m = new LinkedHashMap<>(Map.of("START_FROM_STAY_AFTER_OFF", "N", "TYPE_RULE", "MAX", "STAY_FORCES_TYPE", "Y", "REQUIRE_ALL_DCR", "Y"));
         for (Map<String, Object> r : jdbc.queryForList("SELECT setting_key, setting_value FROM expense_setting")) m.put((String) r.get("setting_key"), String.valueOf(r.get("setting_value")));
         return m;
     }
@@ -56,7 +58,7 @@ public class ExpenseService {
     @Transactional(transactionManager = "tenantTransactionManager")
     public void saveSettings(Map<String, Object> b) {
         Authz.requireRole("ADMIN");
-        for (String k : List.of("START_FROM_STAY_AFTER_OFF", "TYPE_RULE", "STAY_FORCES_TYPE")) {
+        for (String k : List.of("START_FROM_STAY_AFTER_OFF", "TYPE_RULE", "STAY_FORCES_TYPE", "REQUIRE_ALL_DCR")) {
             if (!b.containsKey(k)) continue;
             String v = String.valueOf(b.get(k));
             if ("TYPE_RULE".equals(k) ? !List.of("MAX", "LAST").contains(v) : !List.of("Y", "N").contains(v)) throw new IllegalArgumentException(k + " has a wrong value");
@@ -146,7 +148,7 @@ public class ExpenseService {
     }
 
     @SuppressWarnings("unchecked")
-    private List<Map<String, Object>> calculate(String empId, int month, int year) throws Exception {
+    private List<Map<String, Object>> calculate(String empId, int month, int year, Map<String, Long> stayOver) throws Exception {
         YearMonth ym = YearMonth.of(year, month); LocalDate from = ym.atDay(1), to = ym.atEndOfMonth();
         if (to.isAfter(LocalDate.now())) to = LocalDate.now();
         Map<Long, Area> areas = areas();
@@ -181,17 +183,35 @@ public class ExpenseService {
             for (Map<String, Object> r : jdbc.queryForList("SELECT a.tour_date AS d, GROUP_CONCAT(DISTINCT ar.area_name ORDER BY ar.area_name SEPARATOR ', ') AS n FROM tour_emp_area a JOIN tour_emp_parent p ON p.tour_main = a.tour_main JOIN area_master ar ON ar.id = a.area_id WHERE p.emp_id = ? AND a.tour_date BETWEEN ? AND ? GROUP BY a.tour_date", empId, from, to)) tp.put(String.valueOf(r.get("d")).substring(0, 10), (String) r.get("n"));
         } catch (org.springframework.dao.DataAccessException e) { /* no tour plan tables */ }
 
+        LocalDate doj = null, lwd = null;   // days before the joining date / after the last working day are not checked
+        for (Map<String, Object> r : jdbc.queryForList("SELECT date_of_joining AS doj, last_working_date AS lwd FROM emp_detail WHERE emp_id = ?", empId)) { if (r.get("doj") != null) doj = ((Date) r.get("doj")).toLocalDate(); if (r.get("lwd") != null) lwd = ((Date) r.get("lwd")).toLocalDate(); }
+        Map<String, List<Map<String, Object>>> off = holidays.forEmployee(empId, from, to);
         List<Map<String, Object>> days = new ArrayList<>();
         Area prevStay = null; boolean offSince = false;
         for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
             String ds = d.toString(); Map<String, Object> p = dcr.get(ds);
-            Map<String, Object> row = new LinkedHashMap<>(); row.put("date", ds);
+            Map<String, Object> row = new LinkedHashMap<>(); row.put("date", ds); row.put("stayAreaId", null); row.put("lastAreaId", null); row.put("stayManual", false);
+            if ((doj != null && d.isBefore(doj)) || (lwd != null && d.isAfter(lwd))) {
+                row.put("rowKind", "NOTJOINED"); row.put("dcrId", null); row.put("dayType", "-"); row.put("tpArea", null); row.put("route", doj != null && d.isBefore(doj) ? "Not joined yet" : "Left"); row.put("visits", 0);
+                row.put("km", BigDecimal.ZERO); row.put("fare", BigDecimal.ZERO); row.put("da", BigDecimal.ZERO); row.put("travelExp", BigDecimal.ZERO); row.put("heads", new LinkedHashMap<Long, BigDecimal>()); row.put("bills", 0); row.put("workWith", null); row.put("stayArea", null);
+                days.add(row); continue;
+            }
             String wt = p == null ? null : (String) p.get("work_type"); int status = p == null ? -1 : ((Number) p.get("status")).intValue();
             boolean working = p != null && status >= 1 && wt != null && fieldWork.contains(wt);
             row.put("dcrId", p == null ? null : p.get("dcr_id")); row.put("dayType", wt == null ? "-" : wt); row.put("tpArea", tp.get(ds));
             if (!working) {
                 if (p == null || wt == null || List.of("HOLIDAY", "WEEKLY_OFF", "LEAVE").contains(wt) || status < 1) offSince = true;
-                row.put("route", p == null ? null : ("HOLIDAY".equals(wt) ? "Holiday" : "WEEKLY_OFF".equals(wt) ? "Weekly off" : "LEAVE".equals(wt) ? "Leave" : null)); row.put("visits", 0);
+                boolean submitted = p != null && status >= 1;
+                List<Map<String, Object>> offs = off.getOrDefault(ds, List.of());
+                String kind, label;
+                if (submitted && "LEAVE".equals(wt)) { kind = "LEAVE"; label = "Leave"; }
+                else if (submitted && "HOLIDAY".equals(wt)) { kind = "OFF"; label = "Holiday"; }
+                else if (submitted && "WEEKLY_OFF".equals(wt)) { kind = "OFF"; label = "Weekly off"; }
+                else if (submitted) { kind = "OTHER"; label = null; }   // a submitted DCR of a non-field work type (office work ...)
+                else if (!offs.isEmpty()) { kind = "OFF"; label = "WEEKLY_OFF".equals(offs.get(0).get("kind")) ? "Weekly off" : "Holiday"; }
+                else if (d.equals(LocalDate.now())) { kind = "TODAY"; label = null; }   // today's DCR can still come
+                else { kind = "ABSENT"; label = "Absent"; }   // no submitted DCR on a working day
+                row.put("rowKind", kind); row.put("route", label); row.put("visits", 0);
                 row.put("km", BigDecimal.ZERO); row.put("fare", BigDecimal.ZERO); row.put("da", BigDecimal.ZERO); row.put("travelExp", BigDecimal.ZERO); row.put("heads", new LinkedHashMap<Long, BigDecimal>()); row.put("bills", 0); row.put("workWith", null); row.put("stayArea", null);
                 days.add(row); continue;
             }
@@ -200,8 +220,12 @@ public class ExpenseService {
             if (prevStay != null && (!offSince || fromStayAfterOff)) start = prevStay;   // the night stay carries to the next working day; after an off day only when the setting says so
             offSince = false;
             Area stay = p.get("stay_area_id") == null ? null : areas.get(((Number) p.get("stay_area_id")).longValue());
+            boolean manualStay = false;
+            if (stay == null && stayOver != null && stayOver.get(ds) != null && areas.get(stayOver.get(ds)) != null) { stay = areas.get(stayOver.get(ds)); manualStay = true; }   // the stay the manager / admin added
+            List<Long> vis = visits.getOrDefault(dcrId, List.of());
+            row.put("rowKind", "WORK"); row.put("stayAreaId", stay == null ? null : stay.id()); row.put("stayManual", manualStay); row.put("lastAreaId", vis.isEmpty() ? null : vis.get(vis.size() - 1));
             List<Area> seq = new ArrayList<>(); Area pos = start;
-            for (Long id : visits.getOrDefault(dcrId, List.of())) { Area a = areas.get(id); if (a != null && (pos == null || a.id() != pos.id())) { seq.add(a); pos = a; } }
+            for (Long id : vis) { Area a = areas.get(id); if (a != null && (pos == null || a.id() != pos.id())) { seq.add(a); pos = a; } }
             Area end = stay != null ? stay : home;
             List<String> legs = new ArrayList<>(); BigDecimal km = BigDecimal.ZERO; Area cur = start; int topRank = 0; String lastType = null;
             for (Area a : seq) { legs.add(nm(cur, home) + "-" + a.name()); km = km.add(legKm(cur, a, home)); cur = a; String tc = typeCode(a, types); topRank = Math.max(topRank, rankOf(tc, types)); lastType = tc; }
@@ -272,23 +296,32 @@ public class ExpenseService {
             String status = (String) st.get(0).get("status");
             if (!List.of("DRAFT", "REJECTED").contains(status)) throw new IllegalStateException("The statement is already " + status.toLowerCase().replace('_', ' ') + " - it cannot be refreshed");
         }
-        Map<String, Map<String, Object>> have = new HashMap<>();
-        for (Map<String, Object> r : jdbc.queryForList("SELECT id, exp_date, edited_level FROM expense_statement_day WHERE statement_id = ?", sid)) have.put(String.valueOf(r.get("exp_date")).substring(0, 10), r);
-        for (Map<String, Object> d : calculate(empId, month, year)) {
+        syncDays(sid, empId, month, year, null);
+        syncFixed(sid, empId, month, year);
+        recount(sid);
+        return Map.of("id", sid, "created", st.isEmpty());
+    }
+
+    /** Calculate the days from the DCR and write them to the statement. Rows someone changed keep their amounts (only the information columns follow the DCR); the row of forceDayId is recalculated fully. */
+    private void syncDays(long sid, String empId, int month, int year, Long forceDayId) throws Exception {
+        Map<String, Map<String, Object>> have = new HashMap<>(); Map<String, Long> over = new HashMap<>();
+        for (Map<String, Object> r : jdbc.queryForList("SELECT id, exp_date, edited_level, stay_manual, stay_area_id FROM expense_statement_day WHERE statement_id = ?", sid)) {
+            String k = String.valueOf(r.get("exp_date")).substring(0, 10); have.put(k, r);
+            if ((Boolean.TRUE.equals(r.get("stay_manual")) || (r.get("stay_manual") instanceof Number n && n.intValue() == 1)) && r.get("stay_area_id") != null) over.put(k, ((Number) r.get("stay_area_id")).longValue());
+        }
+        for (Map<String, Object> d : calculate(empId, month, year, over)) {
             String ds = (String) d.get("date"); BigDecimal km = (BigDecimal) d.get("km"), fare = (BigDecimal) d.get("fare"), da = (BigDecimal) d.get("da"), tr = (BigDecimal) d.get("travelExp");
             @SuppressWarnings("unchecked") Map<Long, BigDecimal> heads = (Map<Long, BigDecimal>) d.get("heads");
             Map<String, Object> orig = new LinkedHashMap<>(); orig.put("km", km); orig.put("fare", fare); orig.put("da", da); orig.put("travelExp", tr); orig.put("heads", json.readValue(headsJson(heads), Map.class));
             Map<String, Object> ex = have.get(ds);
-            if (ex != null && ex.get("edited_level") != null) {   // changed by someone: only the information columns and the calculated values are refreshed
-                jdbc.update("UPDATE expense_statement_day SET dcr_id = ?, day_type = ?, tp_area = ?, route = ?, visits = ?, stay_area = ?, work_with = ?, orig_json = ? WHERE id = ?", d.get("dcrId"), d.get("dayType"), d.get("tpArea"), d.get("route"), d.get("visits"), d.get("stayArea"), d.get("workWith"), json.writeValueAsString(orig), ex.get("id"));
+            boolean keep = ex != null && ex.get("edited_level") != null && !(forceDayId != null && forceDayId.longValue() == ((Number) ex.get("id")).longValue());
+            if (keep) {   // changed by someone: only the information columns and the calculated values are refreshed
+                jdbc.update("UPDATE expense_statement_day SET dcr_id = ?, day_type = ?, tp_area = ?, route = ?, visits = ?, stay_area = ?, work_with = ?, row_kind = ?, last_area_id = ?, orig_json = ? WHERE id = ?", d.get("dcrId"), d.get("dayType"), d.get("tpArea"), d.get("route"), d.get("visits"), d.get("stayArea"), d.get("workWith"), d.get("rowKind"), d.get("lastAreaId"), json.writeValueAsString(orig), ex.get("id"));
             } else {
-                jdbc.update("INSERT INTO expense_statement_day (statement_id, exp_date, dcr_id, day_type, tp_area, route, visits, stay_area, km, fare, da, travel_exp, heads_json, bills, work_with, total, orig_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE dcr_id = VALUES(dcr_id), day_type = VALUES(day_type), tp_area = VALUES(tp_area), route = VALUES(route), visits = VALUES(visits), stay_area = VALUES(stay_area), km = VALUES(km), fare = VALUES(fare), da = VALUES(da), travel_exp = VALUES(travel_exp), heads_json = VALUES(heads_json), bills = VALUES(bills), work_with = VALUES(work_with), total = VALUES(total), orig_json = VALUES(orig_json)",
-                        sid, ds, d.get("dcrId"), d.get("dayType"), d.get("tpArea"), d.get("route"), d.get("visits"), d.get("stayArea"), km, fare, da, tr, headsJson(heads), d.get("bills"), d.get("workWith"), total(da, tr, heads), json.writeValueAsString(orig));
+                jdbc.update("INSERT INTO expense_statement_day (statement_id, exp_date, dcr_id, day_type, tp_area, route, visits, stay_area, km, fare, da, travel_exp, heads_json, bills, work_with, total, orig_json, row_kind, stay_area_id, stay_manual, last_area_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE dcr_id = VALUES(dcr_id), day_type = VALUES(day_type), tp_area = VALUES(tp_area), route = VALUES(route), visits = VALUES(visits), stay_area = VALUES(stay_area), km = VALUES(km), fare = VALUES(fare), da = VALUES(da), travel_exp = VALUES(travel_exp), heads_json = VALUES(heads_json), bills = VALUES(bills), work_with = VALUES(work_with), total = VALUES(total), orig_json = VALUES(orig_json), row_kind = VALUES(row_kind), stay_area_id = VALUES(stay_area_id), stay_manual = VALUES(stay_manual), last_area_id = VALUES(last_area_id)",
+                        sid, ds, d.get("dcrId"), d.get("dayType"), d.get("tpArea"), d.get("route"), d.get("visits"), d.get("stayArea"), km, fare, da, tr, headsJson(heads), d.get("bills"), d.get("workWith"), total(da, tr, heads), json.writeValueAsString(orig), d.get("rowKind"), d.get("stayAreaId"), Boolean.TRUE.equals(d.get("stayManual")) ? 1 : 0, d.get("lastAreaId"));
             }
         }
-        syncFixed(sid, empId, month, year);
-        recount(sid);
-        return Map.of("id", sid, "created", st.isEmpty());
     }
 
     private void recount(long sid) { jdbc.update("UPDATE expense_statement SET total_amount = COALESCE((SELECT SUM(total) FROM expense_statement_day WHERE statement_id = ?), 0) + COALESCE((SELECT SUM(amount) FROM expense_statement_fixed WHERE statement_id = ?), 0), updated_at = NOW() WHERE id = ?", sid, sid, sid); }
@@ -320,10 +353,10 @@ public class ExpenseService {
         String me = TeamScope.me(); boolean admin = TeamScope.isAdmin() && !owner.equals(me), mgr = isMgrOf(owner), self = owner.equals(me);
         Map<String, Object> p = new LinkedHashMap<>();
         boolean draft = List.of("DRAFT", "REJECTED").contains(status);
-        boolean editU = self && draft, editM = mgr && !admin && "SUBMITTED".equals(status), editA = admin && (draft || List.of("SUBMITTED", "MGR_APPROVED").contains(status));   // an admin can also work on the draft of any employee (build, change, submit for him)
+        boolean editU = false, editM = mgr && !admin && "SUBMITTED".equals(status), editA = admin && (draft || List.of("SUBMITTED", "MGR_APPROVED").contains(status));   // an admin can also work on the draft of any employee (build, change, submit for him)
         boolean forOwner = (self || admin) && draft;
         p.put("level", editU ? "U" : editA ? "A" : editM ? "M" : null);
-        p.put("canEdit", editU || editM || editA); p.put("canSubmit", forOwner);
+        p.put("canEdit", editU || editM || editA); p.put("canStay", editM || editA); p.put("canSubmit", forOwner);
         p.put("canApprove", (mgr && !admin && "SUBMITTED".equals(status)) || (admin && List.of("SUBMITTED", "MGR_APPROVED").contains(status)));
         p.put("canReject", (mgr && !admin && "SUBMITTED".equals(status)) || (admin && List.of("SUBMITTED", "MGR_APPROVED").contains(status)));
         p.put("canRefresh", forOwner); p.put("approveAs", admin ? "A" : "M");
@@ -340,7 +373,7 @@ public class ExpenseService {
         String owner = (String) s.get("empId"); canView(owner);
         List<Map<String, Object>> days = new ArrayList<>();
         for (Map<String, Object> r : jdbc.queryForList("""
-                SELECT d.id, d.exp_date AS date, d.day_type AS dayType, d.tp_area AS tpArea, d.route, d.visits, d.stay_area AS stayArea, d.km, d.fare, d.da, d.travel_exp AS travelExp, d.heads_json, d.bills, d.remark, d.work_with AS workWith,
+                SELECT d.id, d.exp_date AS date, d.day_type AS dayType, d.tp_area AS tpArea, d.route, d.visits, d.stay_area AS stayArea, d.row_kind AS rowKind, d.stay_area_id AS stayAreaId, d.stay_manual AS stayManual, d.last_area_id AS lastAreaId, d.km, d.fare, d.da, d.travel_exp AS travelExp, d.heads_json, d.bills, d.remark, d.work_with AS workWith,
                        d.total, d.edited_level AS editedLevel, eb.emp_name AS editedBy, d.edited_at AS editedAt
                 FROM expense_statement_day d LEFT JOIN emp_detail eb ON eb.emp_id = d.edited_by WHERE d.statement_id = ? ORDER BY d.exp_date""", sid)) {
             Map<String, Object> m = new LinkedHashMap<>(r); m.put("heads", parseHeads((String) r.remove("heads_json"))); m.put("date", String.valueOf(r.get("date")).substring(0, 10)); days.add(m);
@@ -349,7 +382,7 @@ public class ExpenseService {
         out.put("statement", s); out.put("days", days); out.put("perms", perms(owner, (String) s.get("status")));
         out.put("fixed", jdbc.queryForList("SELECT f.id, f.expense_id AS expenseId, m.expense_name AS name, f.amount, f.orig_amount AS origAmount, f.edited_level AS editedLevel, eb.emp_name AS editedBy, f.edited_at AS editedAt FROM expense_statement_fixed f JOIN expense_master m ON m.id = f.expense_id LEFT JOIN emp_detail eb ON eb.emp_id = f.edited_by WHERE f.statement_id = ? ORDER BY m.sort_order, m.id", sid));
         out.put("headCols", jdbc.queryForList("SELECT id, expense_name AS name FROM expense_master WHERE is_travel = 0 AND is_active = 1 AND exp_kind = 'VARIABLE' ORDER BY sort_order, id"));
-        out.put("legend", List.of(Map.of("level", "U", "name", "Changed by the employee"), Map.of("level", "M", "name", "Changed by the manager"), Map.of("level", "A", "name", "Changed by the admin")));
+        out.put("legend", List.of(Map.of("level", "ABSENT", "name", "Absent (DCR not submitted)"), Map.of("level", "LEAVE", "name", "Leave"), Map.of("level", "M", "name", "Changed by the manager"), Map.of("level", "A", "name", "Changed by the admin")));
         return out;
     }
 
@@ -386,13 +419,14 @@ public class ExpenseService {
     @Transactional(transactionManager = "tenantTransactionManager")
     @SuppressWarnings("unchecked")
     public Map<String, Object> changeDay(long dayId, Map<String, Object> b) throws Exception {
-        Map<String, Object> d = jdbc.queryForList("SELECT d.*, s.emp_id, s.status FROM expense_statement_day d JOIN expense_statement s ON s.id = d.statement_id WHERE d.id = ?", dayId).stream().findFirst().orElseThrow(() -> new IllegalArgumentException("Row not found"));
+        Map<String, Object> d = jdbc.queryForList("SELECT d.*, s.emp_id, s.status, s.exp_month, s.exp_year FROM expense_statement_day d JOIN expense_statement s ON s.id = d.statement_id WHERE d.id = ?", dayId).stream().findFirst().orElseThrow(() -> new IllegalArgumentException("Row not found"));
         String owner = (String) d.get("emp_id"); long sid = ((Number) d.get("statement_id")).longValue();
         Map<String, Object> pm = perms(owner, (String) d.get("status"));
         if (!Boolean.TRUE.equals(pm.get("canEdit"))) throw new ForbiddenException("You cannot change this statement now");
         String level = (String) pm.get("level"), reason = b.get("reason") == null || b.get("reason").toString().isBlank() ? null : b.get("reason").toString().trim();
         if (!"U".equals(level) && reason == null) throw new IllegalArgumentException("Give the reason of the change");
         String me = TeamScope.me(); LocalDate dt = ((Date) d.get("exp_date")).toLocalDate();
+        if (b.containsKey("stayAreaId")) return changeStay(d, dayId, sid, owner, pm, level, reason, b.get("stayAreaId"), dt);
         Map<String, Object> upd = new LinkedHashMap<>(); int changed = 0;
         String[][] num = {{"km", "km"}, {"fare", "fare"}, {"da", "da"}, {"travelExp", "travel_exp"}};
         for (String[] f : num) {
@@ -421,6 +455,35 @@ public class ExpenseService {
         return Map.of("changed", changed, "total", upd.get("total"));
     }
 
+    /** The areas a stay can be put in for an employee's statement: his own areas; for an employee who has a team, his own and all his team's areas. */
+    @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
+    public List<Map<String, Object>> stayAreas(long sid) {
+        String owner = ownerOf(sid); canView(owner);
+        List<String> ids = new ArrayList<>(); ids.add(owner); ids.addAll(scope.team(owner));
+        String in = String.join(",", Collections.nCopies(ids.size(), "?"));
+        return jdbc.queryForList("SELECT a.id, a.area_name AS name, a.emp_id AS empId, e.emp_name AS empName FROM area_master a LEFT JOIN emp_detail e ON e.emp_id = a.emp_id WHERE a.emp_id IN (" + in + ") AND a.status = 1 ORDER BY (a.emp_id = ?) DESC, a.area_name", Stream.concat(ids.stream(), Stream.of(owner)).toArray());
+    }
+
+    /** Stay of a working day whose DCR has none: only the manager of the employee / an admin adds it (never on his own statement). The route, km, fare and DA of this day and of the days after it are calculated again. */
+    private Map<String, Object> changeStay(Map<String, Object> d, long dayId, long sid, String owner, Map<String, Object> pm, String level, String reason, Object areaV, LocalDate dt) throws Exception {
+        if (!Boolean.TRUE.equals(pm.get("canStay"))) throw new ForbiddenException("Only the employee's manager or an admin can add the stay");
+        if (reason == null) throw new IllegalArgumentException("Give the reason of the change");
+        if (!"WORK".equals(d.get("row_kind"))) throw new IllegalArgumentException("A stay can be added only on a working day");
+        boolean manual = d.get("stay_manual") != null && (Boolean.TRUE.equals(d.get("stay_manual")) || (d.get("stay_manual") instanceof Number n && n.intValue() == 1));
+        if (d.get("stay_area_id") != null && !manual) throw new IllegalArgumentException("The DCR of this day already has its stay");
+        Long nv = areaV == null || areaV.toString().isBlank() ? null : Long.valueOf(areaV.toString());
+        if (nv != null && stayAreas(sid).stream().noneMatch(a -> ((Number) a.get("id")).longValue() == nv)) throw new IllegalArgumentException("This area is not in the list of the stay areas");
+        Long ov = d.get("stay_area_id") == null ? null : ((Number) d.get("stay_area_id")).longValue();
+        if (Objects.equals(nv, ov)) return Map.of("changed", 0);
+        Map<Long, String> names = new HashMap<>(); for (Map<String, Object> a : jdbc.queryForList("SELECT id, area_name FROM area_master")) names.put(((Number) a.get("id")).longValue(), (String) a.get("area_name"));
+        jdbc.update("UPDATE expense_statement_day SET stay_area_id = ?, stay_manual = ? WHERE id = ?", nv, nv == null ? 0 : 1, dayId);
+        log(sid, dayId, dt, "stay", ov == null ? null : names.get(ov), nv == null ? null : names.get(nv), TeamScope.me(), level, reason);
+        syncDays(sid, owner, ((Number) d.get("exp_month")).intValue(), ((Number) d.get("exp_year")).intValue(), dayId);
+        jdbc.update("UPDATE expense_statement_day SET edited_level = ?, edited_by = ?, edited_at = NOW() WHERE id = ?", level, TeamScope.me(), dayId);
+        recount(sid);
+        return Map.of("changed", 1);
+    }
+
     @Transactional(transactionManager = "tenantTransactionManager")
     public Map<String, Object> changeFixed(long fixedId, Map<String, Object> b) {
         Map<String, Object> f = jdbc.queryForList("SELECT f.*, s.emp_id, s.status, m.expense_name FROM expense_statement_fixed f JOIN expense_statement s ON s.id = f.statement_id JOIN expense_master m ON m.id = f.expense_id WHERE f.id = ?", fixedId).stream().findFirst().orElseThrow(() -> new IllegalArgumentException("Row not found"));
@@ -447,6 +510,13 @@ public class ExpenseService {
         String owner = ownerOf(sid); String status = jdbc.queryForObject("SELECT status FROM expense_statement WHERE id = ?", String.class, sid);
         if (!owner.equals(TeamScope.me()) && !TeamScope.isAdmin()) throw new ForbiddenException("Only the employee (or an admin for him) submits the statement");
         if (!List.of("DRAFT", "REJECTED").contains(status)) throw new IllegalStateException("The statement is already " + status.toLowerCase().replace('_', ' '));
+        if ("Y".equals(settings().get("REQUIRE_ALL_DCR"))) {   // the statement goes only when every day of the month has its DCR (days before the joining date, holidays, weekly offs and leave are not counted)
+            Map<String, Object> st = jdbc.queryForMap("SELECT exp_month, exp_year FROM expense_statement WHERE id = ?", sid);
+            List<String> miss = new ArrayList<>();
+            try { for (Map<String, Object> r : calculate(owner, ((Number) st.get("exp_month")).intValue(), ((Number) st.get("exp_year")).intValue(), null)) if ("ABSENT".equals(r.get("rowKind"))) miss.add(LocalDate.parse((String) r.get("date")).format(java.time.format.DateTimeFormatter.ofPattern("dd-MMM"))); }
+            catch (Exception e) { throw new IllegalStateException("Could not check the DCR of the month: " + e.getMessage()); }
+            if (!miss.isEmpty()) throw new IllegalStateException("The expense cannot be submitted until the DCR of the whole month is submitted. DCR not submitted for: " + String.join(", ", miss));
+        }
         if (jdbc.queryForObject("SELECT COALESCE((SELECT SUM(total) FROM expense_statement_day WHERE statement_id = ?), 0) + COALESCE((SELECT SUM(amount) FROM expense_statement_fixed WHERE statement_id = ?), 0)", BigDecimal.class, sid, sid).signum() <= 0) throw new IllegalStateException("There is no expense to submit");
         jdbc.update("UPDATE expense_statement SET status = 'SUBMITTED', submitted_at = NOW(), reject_reason = NULL, updated_at = NOW() WHERE id = ?", sid);
         return Map.of("status", "SUBMITTED");

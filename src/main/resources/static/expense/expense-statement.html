@@ -42,7 +42,7 @@
   table.ex th, table.ex td { border-right: 1px solid var(--bs-border-color); border-bottom: 1px solid var(--bs-border-color); padding: .25rem .4rem; vertical-align: middle; }
   table.ex thead th { background: #0a5a78; color: #fff; position: sticky; top: 0; z-index: 3; text-align: center; white-space: nowrap; }
   table.ex td.n { text-align: right; font-variant-numeric: tabular-nums; } table.ex td.route { min-width: 260px; } table.ex input { width: 5.4rem; text-align: right; } table.ex input.rm { width: 9rem; text-align: left; } table.ex input.bl { width: 3.6rem; }
-  table.ex tr.lv-U td { background: #d6e9ff; } table.ex tr.lv-M td { background: #ffe2a8; } table.ex tr.lv-A td { background: #e6d0ff; } table.ex tr.off td { color: var(--bs-secondary-color); background: var(--bs-tertiary-bg); }
+  table.ex tr.lv-U td { background: #d6e9ff; } table.ex tr.lv-M td { background: #ffe2a8; } table.ex tr.lv-A td { background: #e6d0ff; } table.ex tr.k-abs td { background: #ffd0d0; color: #842029; font-weight: 600; } table.ex tr.k-lv td { background: #d3f2dd; color: #0f5132; } table.ex tr.off td { color: var(--bs-secondary-color); background: var(--bs-tertiary-bg); }
   table.ex tfoot td { position: sticky; bottom: 0; background: #e7f0f4; font-weight: 700; z-index: 3; }
   .lg { display: inline-flex; align-items: center; gap: .3rem; font-size: .75rem; margin-right: .8rem; } .lg i { width: 1rem; height: 1rem; display: inline-block; border: 1px solid #0003; border-radius: .2rem; }
   .flow { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; font-size: .78rem; } .flow span { padding: .15rem .6rem; border-radius: 1rem; background: var(--bs-tertiary-bg); } .flow span.on { background: #198754; color: #fff; } .flow span.cur { background: #fd7e14; color: #fff; }
@@ -103,7 +103,7 @@
   const MONTHS = [...Array(12)].map((_, i) => new Date(2024, i, 1).toLocaleDateString('en-GB', { month: 'long' }));
   const ST_NAME = { DRAFT: ['Draft', 'secondary'], SUBMITTED: ['Submitted', 'info'], MGR_APPROVED: ['Manager approved', 'primary'], APPROVED: ['Approved', 'success'], REJECTED: ['Rejected', 'danger'] };
   const LV = { U: 'Changed by the employee', M: 'Changed by the manager', A: 'Changed by the admin' };
-  let FIL = null, ME = null, D = null, r0 = null, PEND = {}, ACT = null, HM = null, LASTLANG = window.I18n ? I18n.lang : 'en', ROWS = [];
+  let SA = [], SUBERR = null, FIL = null, ME = null, D = null, r0 = null, PEND = {}, ACT = null, HM = null, LASTLANG = window.I18n ? I18n.lang : 'en', ROWS = [];
   if (window.I18n) I18n.onChange(() => { if (I18n.lang !== LASTLANG) { LASTLANG = I18n.lang; draw(); } });
 
   window.pageInit = async function () {
@@ -128,7 +128,8 @@
     PEND = {}; Object.keys(PENDF).forEach(k => delete PENDF[k]);
     try {
       const r = await Api.get(EP + '/find', { query: q() });
-      r0 = r; D = r.exists ? r : null;
+      r0 = r; D = r.exists ? r : null; SA = []; SUBERR = null;
+      if (D && D.perms.canStay) { try { SA = await Api.get(EP + '/' + D.statement.id + '/stay-areas', { noLoader: true }); } catch (e) { SA = []; } }
       document.getElementById('rpSub').textContent = MONTHS[q().month - 1] + ' ' + q().year;
       draw(); rpFToggle(true); window.scrollTo(0, 0); Activity.record(REPORT_KEY, REPORT_LABEL, { month: q().month, year: q().year, emp: q().empId }, MONTHS[q().month - 1] + ' ' + q().year);
     } catch (e) { SFA.toast(e.message, false); }
@@ -149,7 +150,7 @@
     const s = D.statement, p = D.perms, cols = D.headCols, edit = p.canEdit;
     const steps = [['SUBMITTED', T('exp.submitted', 'Submitted by the employee')], ['MGR_APPROVED', T('exp.mgrApproved', 'Approved by the manager')], ['APPROVED', T('exp.adminApproved', 'Approved by the admin')]];
     const order = ['DRAFT', 'REJECTED', 'SUBMITTED', 'MGR_APPROVED', 'APPROVED'], cur = order.indexOf(s.status);
-    bar.innerHTML = `<div class="card mb-2"><div class="card-body py-2 d-flex flex-wrap align-items-center gap-3"><div><b>${esc(s.empName)}</b> <small class="text-muted">${esc(s.empCode)}</small> ${stTag(s.status)}</div>
+    bar.innerHTML = (SUBERR ? `<div class="alert alert-danger py-2 mb-2" role="alert"><i class="bi bi-exclamation-triangle"></i> ${esc(SUBERR)}</div>` : '') + `<div class="card mb-2"><div class="card-body py-2 d-flex flex-wrap align-items-center gap-3"><div><b>${esc(s.empName)}</b> <small class="text-muted">${esc(s.empCode)}</small> ${stTag(s.status)}</div>
       <div class="flow">${steps.map((x, i) => `<span class="${cur >= 2 + i ? 'on' : (cur === 1 + i && i < 2 ? 'cur' : '')}">${i + 1}. ${esc(x[1])}${i === 0 && s.submittedAt ? ' · ' + ago(s.submittedAt) : ''}${i === 1 && s.mgrBy ? ' · ' + esc(s.mgrBy) : ''}${i === 2 && s.adminBy ? ' · ' + esc(s.adminBy) : ''}</span>`).join('<i class="bi bi-arrow-right text-muted"></i>')}</div>
       ${s.status === 'REJECTED' ? `<div class="text-danger small"><i class="bi bi-x-circle"></i> ${T('exp.rejectedBy', 'Rejected by')} ${esc(s.rejectedBy)}: ${esc(s.rejectReason)}</div>` : ''}
       <div class="ms-auto d-flex gap-2 flex-wrap">${p.canRefresh ? `<button class="btn btn-sm btn-outline-secondary" onclick="build(true)"><i class="bi bi-arrow-repeat"></i> ${T('exp.refresh', 'Refresh from DCR')}</button>` : ''}
@@ -161,19 +162,32 @@
     document.getElementById('fixedBox').innerHTML = fx.length ? `<div class="card mb-2"><div class="card-header py-1 d-flex align-items-center"><span><i class="bi bi-pin-angle"></i> ${T('exp.fixedExp', 'Fixed expense of the month')}</span><button class="btn btn-sm btn-outline-secondary py-0 ms-auto" onclick="hist(null,'')" title="${T('exp.history', 'History')}"><i class="bi bi-clock-history"></i></button></div><div class="card-body py-2"><div class="row g-2">
       ${fx.map(f => `<div class="col-6 col-md-3"><div class="border rounded p-2 ${f.editedLevel ? 'lv-' + f.editedLevel : ''}" style="${f.editedLevel ? 'background:' + { U: '#d6e9ff', M: '#ffe2a8', A: '#e6d0ff' }[f.editedLevel] : ''}" title="${f.editedLevel ? esc(LV[f.editedLevel] + ' - ' + (f.editedBy || '')) : ''}"><div class="small text-muted">${esc(f.name)}</div>${edit ? `<input class="form-control form-control-sm" type="number" min="0" step="any" value="${f.amount}" onchange="pendFixed(${f.id},this.value)">` : `<b>${num(f.amount)}</b>`}</div></div>`).join('')}</div></div></div>` : '';
     const sum = (f) => D.days.reduce((a, d) => a + Number(f(d) || 0), 0);
-    const workDays = D.days.filter(d => d.route && !/^(Holiday|Weekly off|Leave)$/.test(d.route)).length, headSum = D.days.reduce((a, d) => a + Object.values(d.heads).reduce((x, y) => x + Number(y), 0), 0), edited = D.days.filter(d => d.editedLevel).length;
+    const isOff = (d) => d.rowKind ? !['WORK', 'OTHER'].includes(d.rowKind) : (!d.route || /^(Holiday|Weekly off|Leave)$/.test(d.route)), workDays = D.days.filter(d => !isOff(d)).length, absDays = D.days.filter(d => d.rowKind === 'ABSENT').length, leaveDays = D.days.filter(d => d.rowKind === 'LEAVE').length, headSum = D.days.reduce((a, d) => a + Object.values(d.heads).reduce((x, y) => x + Number(y), 0), 0), edited = D.days.filter(d => d.editedLevel).length;
     const kp = (l, v, c) => `<div class="rp-kpi ${c || ''}"><small>${l}</small><b>${v}</b></div>`;
-    document.getElementById('rpKpis').innerHTML = kp(T('exp.total', 'Total expense'), num(s.total), 'ok') + kp(T('exp.workDays', 'Working days'), workDays) + kp('Km', num(sum(d => d.km))) + kp('DA', num(sum(d => d.da))) + kp(T('exp.travelExp', 'Travel expense'), num(sum(d => d.travelExp))) + kp(T('exp.otherExp', 'Other expense'), num(headSum)) + (fx.length ? kp(T('exp.fixedExp', 'Fixed expense of the month'), num(fixedSum)) : '') + kp(T('exp.editedRows', 'Changed rows'), edited, edited ? 'warn' : '');
+    document.getElementById('rpKpis').innerHTML = kp(T('exp.total', 'Total expense'), num(s.total), 'ok') + kp(T('exp.workDays', 'Working days'), workDays) + (absDays ? kp(T('exp.absentDays', 'Absent days'), absDays, 'warn') : '') + (leaveDays ? kp(T('exp.leaveDays', 'Leave days'), leaveDays) : '') + kp('Km', num(sum(d => d.km))) + kp('DA', num(sum(d => d.da))) + kp(T('exp.travelExp', 'Travel expense'), num(sum(d => d.travelExp))) + kp(T('exp.otherExp', 'Other expense'), num(headSum)) + (fx.length ? kp(T('exp.fixedExp', 'Fixed expense of the month'), num(fixedSum)) : '') + kp(T('exp.editedRows', 'Changed rows'), edited, edited ? 'warn' : '');
     const inp = (d, k, cls) => edit ? `<input class="form-control form-control-sm ${cls || ''}" type="number" min="0" step="any" value="${d[k]}" onchange="pend(${d.id},'${k}',this.value)">` : num(d[k]);
     wrap.innerHTML = `<table class="ex"><thead><tr><th>${T('exp.date', 'Date')}</th><th>${T('exp.dayType', 'Day type')}</th><th>${T('exp.tpArea', 'TP area')}</th><th>${T('exp.route', 'Route')}</th><th>${T('exp.visits', 'Client visit')}</th><th>${T('exp.stay', 'Stay')}</th><th>Km</th><th>${T('exp.fare', 'Fare')}</th><th>DA</th><th>${T('exp.travelExp', 'Travel expense')}</th>${cols.map(c => `<th>${esc(c.name)}</th>`).join('')}<th>${T('exp.bills', 'Bills')}</th><th>${T('exp.remark', 'Remark')}</th><th>${T('exp.rowTotal', 'Total')}</th><th>${T('exp.workWith', 'Work with')}</th><th></th></tr></thead><tbody>
-      ${D.days.map(d => { const off = !d.route || /^(Holiday|Weekly off|Leave)$/.test(d.route), can = edit && !off; return `<tr class="${d.editedLevel ? 'lv-' + d.editedLevel : (off ? 'off' : '')}" title="${d.editedLevel ? esc(LV[d.editedLevel] + ' - ' + (d.editedBy || '') + ' ' + ago(d.editedAt)) : ''}"><td>${d.date.substring(8, 10)}-${d.date.substring(5, 7)}</td><td>${esc(d.dayType)}</td><td>${esc(d.tpArea)}</td><td class="route">${esc(d.route)}</td><td class="n">${d.visits || ''}</td><td>${d.stayArea ? 'Yes (' + esc(d.stayArea) + ')' : (off ? '' : 'No')}</td>
+      ${D.days.map(d => { const off = isOff(d), can = edit && !off; return `<tr class="${d.editedLevel ? 'lv-' + d.editedLevel : (d.rowKind === 'ABSENT' ? 'k-abs' : d.rowKind === 'LEAVE' ? 'k-lv' : (off ? 'off' : ''))}" title="${d.editedLevel ? esc(LV[d.editedLevel] + ' - ' + (d.editedBy || '') + ' ' + ago(d.editedAt)) : ''}"><td>${d.date.substring(8, 10)}-${d.date.substring(5, 7)}</td><td>${esc(d.dayType)}</td><td>${esc(d.tpArea)}</td><td class="route">${esc(d.route)}</td><td class="n">${d.visits || ''}</td><td>${stayCell(d, off)}</td>
         <td class="n">${can ? inp(d, 'km') : num(d.km)}</td><td class="n">${can ? inp(d, 'fare') : num(d.fare)}</td><td class="n">${can ? inp(d, 'da') : num(d.da)}</td><td class="n">${can ? inp(d, 'travelExp') : num(d.travelExp)}</td>
         ${cols.map(c => `<td class="n">${can ? `<input class="form-control form-control-sm" type="number" min="0" step="any" value="${d.heads[c.id] || 0}" onchange="pendHead(${d.id},${c.id},this.value)">` : num(d.heads[c.id])}</td>`).join('')}
         <td class="n">${can ? `<input class="form-control form-control-sm bl" type="number" min="0" value="${d.bills}" onchange="pend(${d.id},'bills',this.value)">` : d.bills}</td><td>${can ? `<input class="form-control form-control-sm rm" maxlength="250" value="${esc(d.remark)}" onchange="pend(${d.id},'remark',this.value)">` : esc(d.remark)}</td>
         <td class="n"><b>${num(d.total)}</b></td><td>${esc(d.workWith)}</td><td><button class="btn btn-sm btn-outline-secondary py-0" title="${T('exp.history', 'History')}" onclick="hist(${d.id},'${d.date}')"><i class="bi bi-clock-history"></i></button></td></tr>`; }).join('')}</tbody>
       <tfoot><tr><td colspan="6">${T('exp.total', 'Total')}</td><td class="n">${num(sum(d => d.km))}</td><td class="n">${num(sum(d => d.fare))}</td><td class="n">${num(sum(d => d.da))}</td><td class="n">${num(sum(d => d.travelExp))}</td>${cols.map(c => `<td class="n">${num(sum(d => d.heads[c.id]))}</td>`).join('')}<td class="n">${sum(d => d.bills)}</td><td></td><td class="n">${num(s.total)}</td><td colspan="2"></td></tr></tfoot></table>`;
-    document.getElementById('legend').innerHTML = `<b class="small">${T('exp.colours', 'Row colours')}:</b> <span class="lg"><i style="background:#fff"></i>${T('exp.asCalc', 'As calculated from the DCR')}</span>` + D.legend.map(l => `<span class="lg"><i style="background:${{ U: '#d6e9ff', M: '#ffe2a8', A: '#e6d0ff' }[l.level]}"></i>${T('exp.lv.' + l.level, l.name)}</span>`).join('') + `<span class="lg text-muted">${T('exp.legendHelp', 'Hover a coloured row to see who changed it; the clock icon shows every change with the reason.')}</span>`;
+    document.getElementById('legend').innerHTML = `<b class="small">${T('exp.colours', 'Row colours')}:</b> <span class="lg"><i style="background:#fff"></i>${T('exp.asCalc', 'As calculated from the DCR')}</span>` + D.legend.map(l => `<span class="lg"><i style="background:${{ U: '#d6e9ff', M: '#ffe2a8', A: '#e6d0ff', ABSENT: '#ffd0d0', LEAVE: '#d3f2dd' }[l.level]}"></i>${T('exp.lv.' + l.level, l.name)}</span>`).join('') + `<span class="lg text-muted">${T('exp.legendHelp', 'Hover a coloured row to see who changed it; the clock icon shows every change with the reason.')}</span>`;
     pcount();
+  }
+  // the stay of a day: only the manager of the employee / an admin can add it, and only when the DCR has none; the list is the employee's areas (a manager owner: his and his team's)
+  function stayCell(d, off) {
+    if (off) return '';
+    const can = D.perms.canStay && d.rowKind === 'WORK' && (!d.stayArea || d.stayManual);
+    if (!can) return d.stayArea ? 'Yes (' + esc(d.stayArea) + ')' : (d.rowKind === 'WORK' ? 'No' : '');
+    const last = SA.find(a => a.id === d.lastAreaId);
+    return `<select class="form-select form-select-sm" style="min-width:9rem" onchange="setStay(${d.id}, this.value)"><option value="">${T('exp.noStay', 'No stay')}</option>${SA.map(a => `<option value="${a.id}" ${a.id === d.stayAreaId ? 'selected' : ''}>${a.id === d.lastAreaId ? '★ ' : ''}${esc(a.name)}${a.empName && a.empId !== D.statement.empId ? ' (' + esc(a.empName) + ')' : ''}</option>`).join('')}</select>`
+      + (!d.stayAreaId && last ? ` <button class="btn btn-sm btn-outline-primary py-0" title="${T('exp.lastArea', 'Last area visited')}" onclick="setStay(${d.id}, ${last.id})"><i class="bi bi-geo-alt"></i> ${esc(last.name)}</button>` : '');
+  }
+  async function setStay(dayId, areaId) {
+    const reason = prompt(T('exp.reasonAsk', 'Reason of the change (shown in the history)')); if (!reason || !reason.trim()) { SFA.toast(T('exp.reasonNeeded', 'Give the reason of the change'), false); draw(); return; }
+    try { await Api.post(EP + '/day/' + dayId, { stayAreaId: areaId === '' ? null : areaId, reason }); SFA.toast(T('exp.changesSaved', 'Changes saved'), true); await rpGo(); } catch (e) { SFA.toast(e.message, false); draw(); }
   }
   // changes of the rows are collected and saved together (the manager / admin give one reason)
   function pend(id, k, v) { (PEND[id] = PEND[id] || { heads: {} })[k] = v; pcount(); }
@@ -188,7 +202,7 @@
   }
   async function act(a) {
     if ((Object.keys(PEND).length || Object.keys(PENDF).length) && !confirm(T('exp.unsaved', 'There are unsaved changes. Continue without saving them?'))) return;
-    try { await Api.post(EP + '/' + D.statement.id + '/' + a, {}); SFA.toast(T('exp.done', 'Done'), true); await rpGo(); pending(); } catch (e) { SFA.toast(e.message, false); }
+    try { await Api.post(EP + '/' + D.statement.id + '/' + a, {}); SFA.toast(T('exp.done', 'Done'), true); await rpGo(); pending(); } catch (e) { SFA.toast(e.message, false); if (a === 'submit') { SUBERR = e.message; draw(); window.scrollTo(0, 0); } }
   }
   async function reject() { const r = prompt(T('exp.rejectAsk', 'Reason of the rejection')); if (!r || !r.trim()) return; try { await Api.post(EP + '/' + D.statement.id + '/reject', { reason: r }); SFA.toast(T('exp.done', 'Done'), true); await rpGo(); pending(); } catch (e) { SFA.toast(e.message, false); } }
   async function hist(dayId, date) {
