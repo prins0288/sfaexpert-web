@@ -37,7 +37,7 @@ public class ExpenseService {
 
     // ------------------------------------------------------------------ settings and rates (admin)
     public Map<String, String> settings() {
-        Map<String, String> m = new LinkedHashMap<>(Map.of("START_FROM_STAY_AFTER_OFF", "N", "TYPE_RULE", "MAX", "STAY_FORCES_TYPE", "Y", "REQUIRE_ALL_DCR", "Y", "VISIT_HIDE", ""));
+        Map<String, String> m = new LinkedHashMap<>(Map.of("START_FROM_STAY_AFTER_OFF", "N", "TYPE_RULE", "MAX", "STAY_FORCES_TYPE", "Y", "REQUIRE_ALL_DCR", "Y", "VISIT_HIDE", "", "EDIT_FIELDS", "km,fare,da,travelExp,heads,remark,fixed", "ROUTE_STYLE", "COMMA", "ROUTE_HR_COLOR", "#cccccc"));
         for (Map<String, Object> r : jdbc.queryForList("SELECT setting_key, setting_value FROM expense_setting")) m.put((String) r.get("setting_key"), String.valueOf(r.get("setting_value")));
         return m;
     }
@@ -56,12 +56,23 @@ public class ExpenseService {
         return out;
     }
 
+    private static final Set<String> EDITABLE = Set.of("km", "fare", "da", "travelExp", "heads", "remark", "fixed", "total");
+    private void putSetting(String k, String v) { jdbc.update("INSERT INTO expense_setting (setting_key, setting_value, updated_by, updated_at) VALUES (?, ?, ?, NOW()) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_by = VALUES(updated_by), updated_at = NOW()", k, v, TeamScope.me()); }
+    private Set<String> editFields() { String v = settings().get("EDIT_FIELDS"); return v == null || v.isBlank() ? Set.of() : new HashSet<>(Arrays.asList(v.split(","))); }
+
     /** The client types the visit counts can be shown for. */
     private List<Map<String, Object>> visitTypes() { return jdbc.queryForList("SELECT oid AS id, type_code AS code, COALESCE(NULLIF(plural_label, ''), type_name) AS name FROM client_type WHERE is_active = 1 ORDER BY oid"); }
 
     @Transactional(transactionManager = "tenantTransactionManager")
     public void saveSettings(Map<String, Object> b) {
         Authz.requireRole("ADMIN");
+        if (b.containsKey("EDIT_FIELDS")) {   // what the manager / admin may change in a row
+            String v = b.get("EDIT_FIELDS") == null ? "" : b.get("EDIT_FIELDS").toString().trim();
+            for (String f : v.isEmpty() ? new String[0] : v.split(",")) if (!EDITABLE.contains(f)) throw new IllegalArgumentException("EDIT_FIELDS has a wrong value");
+            putSetting("EDIT_FIELDS", v);
+        }
+        if (b.containsKey("ROUTE_STYLE")) { String v = String.valueOf(b.get("ROUTE_STYLE")); if (!List.of("COMMA", "BR", "HR").contains(v)) throw new IllegalArgumentException("ROUTE_STYLE has a wrong value"); putSetting("ROUTE_STYLE", v); }
+        if (b.containsKey("ROUTE_HR_COLOR")) { String v = String.valueOf(b.get("ROUTE_HR_COLOR")); if (!v.matches("#[0-9a-fA-F]{6}")) throw new IllegalArgumentException("ROUTE_HR_COLOR must be a colour like #cccccc"); putSetting("ROUTE_HR_COLOR", v); }
         if (b.containsKey("VISIT_HIDE")) {   // the visit-count columns the company does not want to see: L:<type id> (listed) / U:<type id> (unlisted)
             String v = b.get("VISIT_HIDE") == null ? "" : b.get("VISIT_HIDE").toString().trim();
             if (!v.isEmpty() && !v.matches("([LU]:\\d+)(,[LU]:\\d+)*")) throw new IllegalArgumentException("VISIT_HIDE has a wrong value");
@@ -400,6 +411,12 @@ public class ExpenseService {
         for (Map<String, Object> d : days) { Object di = d.get("dcrId"); d.put("vc", di == null ? Map.of() : vc.getOrDefault(((Number) di).longValue(), Map.of())); }
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("visitCols", vcols);
+        Map<String, String> sett = settings(); out.put("editFields", editFields()); out.put("routeStyle", sett.get("ROUTE_STYLE")); out.put("routeColor", sett.get("ROUTE_HR_COLOR"));
+        Map<String, BigDecimal> billAmt = new HashMap<>();   // the amount that has a bill file attached, per date
+        for (Map<String, Object> d : days) if (d.get("dcrId") != null) { BigDecimal a = jdbc.queryForObject("SELECT COALESCE(SUM(amount), 0) FROM dcr_expense WHERE dcr_id = ? AND file_path IS NOT NULL", BigDecimal.class, d.get("dcrId")); billAmt.merge((String) d.get("date"), a, BigDecimal::add); }
+        LocalDate m1 = LocalDate.of(((Number) s.get("year")).intValue(), ((Number) s.get("month")).intValue(), 1);
+        try { for (Map<String, Object> r : jdbc.queryForList("SELECT exp_date, SUM(amount) AS a FROM expense_entry WHERE emp_id = ? AND exp_date BETWEEN ? AND ? AND file_path IS NOT NULL GROUP BY exp_date", owner, m1, m1.plusMonths(1).minusDays(1))) billAmt.merge(String.valueOf(r.get("exp_date")).substring(0, 10), (BigDecimal) r.get("a"), BigDecimal::add); } catch (org.springframework.dao.DataAccessException e) { /* migration 129 not run */ }
+        for (Map<String, Object> d : days) d.put("billAmount", billAmt.getOrDefault((String) d.get("date"), BigDecimal.ZERO));
         out.put("statement", s); out.put("days", days); out.put("perms", perms(owner, (String) s.get("status")));
         out.put("fixed", jdbc.queryForList("SELECT f.id, f.expense_id AS expenseId, m.expense_name AS name, f.amount, f.orig_amount AS origAmount, f.edited_level AS editedLevel, eb.emp_name AS editedBy, f.edited_at AS editedAt FROM expense_statement_fixed f JOIN expense_master m ON m.id = f.expense_id LEFT JOIN emp_detail eb ON eb.emp_id = f.edited_by WHERE f.statement_id = ? ORDER BY m.sort_order, m.id", sid));
         out.put("headCols", jdbc.queryForList("SELECT id, expense_name AS name FROM expense_master WHERE is_travel = 0 AND is_active = 1 AND exp_kind = 'VARIABLE' ORDER BY sort_order, id"));
@@ -447,6 +464,9 @@ public class ExpenseService {
         String level = (String) pm.get("level"), reason = b.get("reason") == null || b.get("reason").toString().isBlank() ? null : b.get("reason").toString().trim();
         if (!"U".equals(level) && reason == null) throw new IllegalArgumentException("Give the reason of the change");
         String me = TeamScope.me(); LocalDate dt = ((Date) d.get("exp_date")).toLocalDate();
+        Set<String> ed = editFields();
+        for (String k : List.of("km", "fare", "da", "travelExp", "remark", "total")) if (b.containsKey(k) && !ed.contains(k)) throw new ForbiddenException("The company does not allow changing " + k + " in the statement");
+        if (b.get("heads") instanceof Map<?, ?> hmm && !hmm.isEmpty() && !ed.contains("heads")) throw new ForbiddenException("The company does not allow changing the other expenses in the statement");
         if (b.containsKey("stayAreaId")) return changeStay(d, dayId, sid, owner, pm, level, reason, b.get("stayAreaId"), dt);
         Map<String, Object> upd = new LinkedHashMap<>(); int changed = 0;
         String[][] num = {{"km", "km"}, {"fare", "fare"}, {"da", "da"}, {"travelExp", "travel_exp"}};
@@ -455,7 +475,7 @@ public class ExpenseService {
             BigDecimal nv = money(b.get(f[0]), f[0]), ov = (BigDecimal) d.get(f[1]);
             if (nv.compareTo(ov) != 0) { log(sid, dayId, dt, f[0], fmt(ov), fmt(nv), me, level, reason); upd.put(f[1], nv); changed++; }
         }
-        if (b.containsKey("bills")) { int nv = Integer.parseInt(String.valueOf(b.get("bills"))), ov = ((Number) d.get("bills")).intValue(); if (nv != ov) { log(sid, dayId, dt, "bills", String.valueOf(ov), String.valueOf(nv), me, level, reason); upd.put("bills", nv); changed++; } }
+        if (false && b.containsKey("bills")) { int nv = Integer.parseInt(String.valueOf(b.get("bills"))), ov = ((Number) d.get("bills")).intValue(); if (nv != ov) { log(sid, dayId, dt, "bills", String.valueOf(ov), String.valueOf(nv), me, level, reason); upd.put("bills", nv); changed++; } }
         if (b.containsKey("remark")) { String nv = b.get("remark") == null || b.get("remark").toString().isBlank() ? null : b.get("remark").toString().trim(), ov = (String) d.get("remark"); if (!Objects.equals(nv, ov)) { log(sid, dayId, dt, "remark", ov, nv, me, level, reason); upd.put("remark", nv); changed++; } }
         BigDecimal da = (BigDecimal) upd.getOrDefault("da", d.get("da")), tr = (BigDecimal) upd.getOrDefault("travel_exp", d.get("travel_exp"));
         Map<Long, BigDecimal> heads = parseHeads((String) d.get("heads_json"));
@@ -467,13 +487,26 @@ public class ExpenseService {
             }
             upd.put("heads_json", headsJson(heads));
         }
+        BigDecimal manual = null;
+        if (b.containsKey("total")) { BigDecimal nv = money(b.get("total"), "total"), ov = (BigDecimal) d.get("total"); if (nv.compareTo(ov) != 0) { log(sid, dayId, dt, "total", fmt(ov), fmt(nv), me, level, reason); manual = nv; changed++; } }
         if (changed == 0) return Map.of("changed", 0);
-        upd.put("total", total(da, tr, heads)); upd.put("edited_level", level); upd.put("edited_by", me);
+        upd.put("total", manual != null ? manual : total(da, tr, heads)); upd.put("edited_level", level); upd.put("edited_by", me);
         StringBuilder sql = new StringBuilder("UPDATE expense_statement_day SET edited_at = NOW()"); List<Object> a = new ArrayList<>();
         for (Map.Entry<String, Object> e : upd.entrySet()) { sql.append(", ").append(e.getKey()).append(" = ?"); a.add(e.getValue()); }
         sql.append(" WHERE id = ?"); a.add(dayId);
         jdbc.update(sql.toString(), a.toArray()); recount(sid);
         return Map.of("changed", changed, "total", upd.get("total"));
+    }
+
+    /** The bills (expense lines with an attached file) of a day of the statement: from the DCR expenses and from the daily feed. */
+    @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
+    public List<Map<String, Object>> bills(long dayId) {
+        Map<String, Object> d = jdbc.queryForList("SELECT d.dcr_id, d.exp_date, s.emp_id FROM expense_statement_day d JOIN expense_statement s ON s.id = d.statement_id WHERE d.id = ?", dayId).stream().findFirst().orElseThrow(() -> new IllegalArgumentException("Row not found"));
+        String owner = (String) d.get("emp_id"); canView(owner);
+        List<Map<String, Object>> out = new ArrayList<>();
+        if (d.get("dcr_id") != null) out.addAll(jdbc.queryForList("SELECT m.expense_name AS expense, x.amount, x.description, x.file_path AS filePath, x.file_name AS fileName, x.file_type AS fileType, 'DCR' AS source FROM dcr_expense x JOIN expense_master m ON m.id = x.expense_id WHERE x.dcr_id = ? AND x.file_path IS NOT NULL", d.get("dcr_id")));
+        try { out.addAll(jdbc.queryForList("SELECT m.expense_name AS expense, x.amount, x.description, x.file_path AS filePath, x.file_name AS fileName, x.file_type AS fileType, 'FEED' AS source FROM expense_entry x JOIN expense_master m ON m.id = x.expense_id WHERE x.emp_id = ? AND x.exp_date = ? AND x.file_path IS NOT NULL", owner, d.get("exp_date"))); } catch (org.springframework.dao.DataAccessException e) { /* migration 129 not run */ }
+        return out;
     }
 
     /** The areas a stay can be put in for an employee's statement: his own areas; for an employee who has a team, his own and all his team's areas. */
@@ -511,6 +544,7 @@ public class ExpenseService {
         String owner = (String) f.get("emp_id"); long sid = ((Number) f.get("statement_id")).longValue();
         Map<String, Object> pm = perms(owner, (String) f.get("status"));
         if (!Boolean.TRUE.equals(pm.get("canEdit"))) throw new ForbiddenException("You cannot change this statement now");
+        if (!editFields().contains("fixed")) throw new ForbiddenException("The company does not allow changing the fixed expenses in the statement");
         String level = (String) pm.get("level"), reason = b.get("reason") == null || b.get("reason").toString().isBlank() ? null : b.get("reason").toString().trim();
         if (!"U".equals(level) && reason == null) throw new IllegalArgumentException("Give the reason of the change");
         BigDecimal nv = money(b.get("amount"), "Amount"), ov = (BigDecimal) f.get("amount");
