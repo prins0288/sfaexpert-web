@@ -178,7 +178,8 @@ public class ExpenseService {
         List<in.opt.sfa.tenant.master.areatype.AreaTypeService.Type> types = areaTypes.types();
         Map<String, BigDecimal[]> emp = new HashMap<>();   // type code -> {da, fare per km} given to this employee
         for (Map<String, Object> r : jdbc.queryForList("SELECT type_code, da_amount, fare_per_km FROM expense_emp_rate WHERE emp_id = ?", empId)) emp.put((String) r.get("type_code"), new BigDecimal[]{(BigDecimal) r.get("da_amount"), (BigDecimal) r.get("fare_per_km")});
-        Integer desig = jdbc.query("SELECT designation FROM emp_detail WHERE emp_id = ?", (rs, i) -> rs.getObject(1) == null ? null : rs.getInt(1), empId).stream().findFirst().orElse(null);
+        List<Integer> dl = jdbc.query("SELECT designation FROM emp_detail WHERE emp_id = ?", (rs, i) -> rs.getObject(1) == null ? null : rs.getInt(1), empId);
+        Integer desig = dl.isEmpty() ? null : dl.get(0);   // no designation = only the all-designation / employee rates apply
         Set<String> fieldWork = new HashSet<>(jdbc.queryForList("SELECT worktype_code FROM app_dcr_worktype WHERE emp_id IS NULL AND form_open = 'WORK'", String.class));
         Map<String, Map<String, Object>> dcr = new LinkedHashMap<>();
         for (Map<String, Object> r : jdbc.queryForList("SELECT dcr_id, dcr_date, work_type, status, stay_area_id, travel_mode, meter_start, meter_end FROM dcr_parent_summary WHERE emp_id = ? AND dcr_date BETWEEN ? AND ? ORDER BY dcr_date", empId, from, to)) dcr.put(String.valueOf(r.get("dcr_date")).substring(0, 10), r);
