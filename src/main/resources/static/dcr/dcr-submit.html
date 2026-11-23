@@ -1031,11 +1031,19 @@
     ['fromAreaId', 'toAreaId', 'startKm', 'endKm'].forEach(k => { if (EDIT.o[k] == null) EDIT.o[k] = ''; });
     sheetOpen(idx < 0 ? 'Add expense' : 'Expense', '', '');
     renderExpense();
-    document.getElementById('sheetFoot').innerHTML = !ST.canEdit ? '<button class="btn btn-light" onclick="sheetClose()">Close</button>'
-      : (idx >= 0 ? '<button class="btn btn-outline-danger" style="flex:0 0 auto" onclick="expDelete()"><i class="bi bi-trash"></i></button>' : '') + '<button class="btn btn-primary" onclick="expDone()"><i class="bi bi-check2"></i> Done</button>';
+    // a fed expense cannot be edited - it can only be deleted (and fed again)
+    document.getElementById('sheetFoot').innerHTML = idx >= 0 ? '<button class="btn btn-light" onclick="sheetClose()">Close</button>' + (ST.canEdit ? '<button class="btn btn-outline-danger" onclick="expDelete()"><i class="bi bi-trash"></i> Delete</button>' : '')
+      : '<button class="btn btn-primary" onclick="expDone()"><i class="bi bi-check2"></i> Done</button>';
   }
   function renderExpense() {
     const o = EDIT.o, t = OPT.expenseTypes.find(x => String(x.id) === String(o.expenseId)), travel = t && t.travel;
+    if (EDIT.idx >= 0) {   // read only
+      const kv = (l, v) => v ? `<div class="d-flex justify-content-between py-1 border-bottom"><span class="text-muted">${l}</span><b class="text-end ms-3">${esc(v)}</b></div>` : '';
+      const cl = o.clientKind === 1 ? (ST.visits.find(v => String(v.clientId) === String(o.clientId)) || {}).clientName : o.clientKind === 2 ? ((ST.unlisted.find(u => u.key === o.unlistedKey) || {}).clientName || '') + ' (unlisted)' : '';
+      document.getElementById('sheetBody').innerHTML = `<div class="card-lite">${kv('Expense type', t ? t.name : '')}${kv('Amount (₹)', '₹' + money(o.amount))}${kv('For client', cl)}${kv('Description', o.description)}${travel ? kv('Km', o.startKm !== '' && o.endKm !== '' ? o.startKm + ' - ' + o.endKm : '') : ''}${o.filePath ? `<div class="py-2"><span class="text-muted">Bill / receipt</span><div>${SFAFiles.thumb(o.filePath, null, { name: o.fileName || 'bill' })}</div></div>` : ''}</div>`;
+      if (window.SFAFiles && SFAFiles.hydrate) SFAFiles.hydrate(document.getElementById('sheetBody'));
+      return;
+    }
     const links = [{ id: '0', name: 'Not about a client' }].concat(ST.visits.map(v => ({ id: '1:' + v.clientId, name: v.clientName }))).concat(ST.unlisted.filter(u => u.clientName).map(u => ({ id: '2:' + u.key, name: u.clientName + ' (unlisted)' })));
     const cur = o.clientKind === 1 ? '1:' + o.clientId : o.clientKind === 2 ? '2:' + o.unlistedKey : '0';
     const up = (key, label) => `<div class="col-6"><label class="form-label">${label}</label>${o[key] ? `<div class="mb-1">${SFAFiles.thumb(o[key], null, { name: label })}</div>` : ''}${photoBtns("r=>{EDIT.o." + key + "=r.path;renderExpense()}")}</div>`;
