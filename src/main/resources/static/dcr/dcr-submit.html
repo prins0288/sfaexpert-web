@@ -707,6 +707,7 @@
     } else h += row('pobv', 'cart-check', 'POB value', o.pobValue ? '₹' + money(o.pobValue) : '');
     if (subs.includes('LEAFLETS')) h += row('leaflets', 'file-earmark-text', 'Leaflets', o.leaflets.length ? o.leaflets.length + ' added' : '');
     if (subs.includes('TREATMENT') && OPT.treatments.length) h += row('treat', 'heart-pulse', 'Treatment', o.treatments.length ? o.treatments.length + ' selected' : '');
+    if (OPT.expenseTypes.some(t => !t.travel)) { const me = clientExpenses(o), tot = me.reduce((a, e) => a + Number(e.amount || 0), 0); h += row('cexp', 'wallet2', 'Expense', me.length ? me.length + ' · ₹' + money(tot) : ''); }
     h += row('image', 'camera', 'Capture Image', o.signaturePath ? 'Image added' : '');
     h += row('remarks', 'chat-left-text', 'Activity / Remarks', [o.activityType, o.remarks].filter(Boolean).join(' · '));
     return h;
@@ -748,8 +749,34 @@
         return `<div class="dcr-it d-flex align-items-center gap-2 py-2 border-bottom" data-n="${esc(i.name.toLowerCase())}"><div class="flex-fill"><b>${esc(i.name)}</b><small class="d-block text-muted">${esc(i.type)}${f === 'pobQty' && i.rate ? ' · ₹' + money(i.rate) : ''}</small></div>
           ${noStep ? `<div class="form-check form-switch m-0"><input class="form-check-input" type="checkbox" ${r && r.detailed ? 'checked' : ''} onchange="togDet(${i.id})"></div>` : stepper(i.id, f, r ? (Number(r[f]) || 0) : 0)}</div>`; }).join('') || '<div class="dcr-empty">No items</div>');
   }
+  // an expense for this client (client / retailer / party / unlisted), e.g. a gift on the client's birthday: variable expense types only
+  let XP = { expenseId: '', amount: '', description: '', filePath: '', fileName: '', fileType: '' };
+  const clientExpenses = (o) => ST.expenses.filter(e => EDIT.kind === 'u' ? (e.clientKind === 2 && e.unlistedKey === o.key) : (e.clientKind === 1 && String(e.clientId) === String(o.clientId)));
+  function cexpPanel(o) {
+    const types = OPT.expenseTypes.filter(t => !t.travel), list = clientExpenses(o);
+    const rows = list.map(e => { const t = OPT.expenseTypes.find(x => String(x.id) === String(e.expenseId)); const i = ST.expenses.indexOf(e);
+      return `<div class="d-flex align-items-center gap-2 py-2 border-bottom"><div class="flex-fill"><b>${esc(t ? t.name : 'Expense')}</b> <span class="text-muted">₹${money(e.amount)}</span>${e.filePath ? ' <i class="bi bi-paperclip"></i>' : ''}<small class="d-block text-muted">${esc(e.description || '')}</small></div>${ST.canEdit ? `<button class="btn btn-sm btn-outline-danger" onclick="cexpDel(${i})"><i class="bi bi-trash"></i></button>` : ''}</div>`; }).join('');
+    const form = !ST.canEdit ? '' : `<div class="dcr-sec">Add expense</div><div class="row g-2">
+      ${field('Expense type *', `<select class="form-select" data-no-search onchange="XP.expenseId=this.value;renderCall()">${opts(types, XP.expenseId, 'Select type')}</select>`)}
+      ${field('Amount (₹) *', `<input class="form-control" type="number" inputmode="decimal" value="${esc(XP.amount)}" oninput="XP.amount=this.value" />`, 'col-6')}
+      ${field('Description', `<input class="form-control" maxlength="150" value="${esc(XP.description)}" oninput="XP.description=this.value" />`, 'col-6')}
+      <div class="col-12"><label class="form-label">Bill / receipt</label>${XP.filePath ? `<div class="small mb-1"><i class="bi bi-paperclip"></i> ${esc(XP.fileName || 'attached')}</div>` : ''}${photoBtns("r=>{XP.filePath=r.path;XP.fileName=r.name;XP.fileType=r.type;renderCall()}", 'document')}</div>
+      <div class="col-12"><button class="btn btn-primary w-100" onclick="cexpAdd()"><i class="bi bi-plus-circle"></i> Add</button></div></div>`;
+    return panelShell('Expense', list.length, (rows || '<div class="dcr-empty">No expense for this client</div>') + form);
+  }
+  function cexpAdd() {
+    const t = OPT.expenseTypes.find(x => String(x.id) === String(XP.expenseId));
+    if (!t) { SFA.toast('Choose the expense type', false); return; }
+    if (!(Number(XP.amount) > 0)) { SFA.toast('Enter the amount', false); return; }
+    if (t.billRequired && !XP.filePath) { SFA.toast('The bill / invoice file is required for ' + t.name, false); return; }
+    const o = EDIT.o, u = EDIT.kind === 'u';
+    ST.expenses.push(Object.assign({ fromAreaId: '', toAreaId: '', startKm: '', endKm: '', startImagePath: '', endImagePath: '' }, XP, { expenseId: Number(XP.expenseId), clientKind: u ? 2 : 1, clientId: u ? null : o.clientId, unlistedKey: u ? o.key : null }));
+    XP = { expenseId: '', amount: '', description: '', filePath: '', fileName: '', fileType: '' }; renderCall();
+  }
+  function cexpDel(i) { ST.expenses.splice(i, 1); renderCall(); }
   function panelHtml(o, k) {
     const o_ = (x) => `EDIT.o.${x}`;
+    if (k === 'cexp') return cexpPanel(o);
     if (k === 'joint') return panelShell('Joint Work', o.jointWith.length, jointPicker(o.jointWith, 'EDIT.o.jointWith', 'renderCall()'));
     if (k === 'detail') return panelShell('Item Detailed List', o.items.filter(i => i.detailed).length, itemList(typeOf('POB'), 'detailed', true));
     if (k === 'sample') return panelShell('Sample', cnt('qty', 'SAMPLE'), itemList(typeOf('SAMPLE'), 'qty'));
