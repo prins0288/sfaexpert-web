@@ -480,8 +480,9 @@
     CUR = code; sheetClose(); render();   // joint working / day end are plain tabs
   }
   function expenseSummary() {
-    if (!ST.expenses.length) return '';
-    return '<div class="dcr-sec mt-0">Expenses</div>' + ST.expenses.map((e, i) => { const t = OPT.expenseTypes.find(x => x.id === e.expenseId);
+    const own = ST.expenses.map((e, i) => [e, i]).filter(x => !x[0].clientKind);   // the expenses of a client are shown with that client
+    if (!own.length) return '';
+    return '<div class="dcr-sec mt-0">Expenses</div>' + own.map(([e, i]) => { const t = OPT.expenseTypes.find(x => x.id === e.expenseId);
       return `<div class="card-lite dcr-visit" onclick="editExpense(${i})"><div class="ava"><i class="bi bi-receipt"></i></div>
         <div class="meta"><b>${esc(t ? t.name : 'Expense')}</b><small class="text-muted">${esc(e.description || ' ')}</small></div><b>₹${money(e.amount)}</b></div>`; }).join('');
   }
@@ -503,7 +504,8 @@
       <div class="meta"><b>${esc(c.clientName)}${k === 'u' ? ' <small class="text-muted">(Unlisted)</small>' : ''}</b>
         <small class="text-muted">${esc([f.type, f.area].filter(Boolean).join(' · '))}</small>
         <small class="text-muted">${esc([f.category, f.speciality].filter(Boolean).join(' · '))}</small>
-        <small class="text-muted"><i class="bi bi-clock"></i> ${esc(c.inTime)}${c.outTime ? ' – ' + esc(c.outTime) : ''}</small></div>
+        <small class="text-muted"><i class="bi bi-clock"></i> ${esc(c.inTime)}${c.outTime ? ' – ' + esc(c.outTime) : ''}</small>
+        ${(() => { const ce = clientExpensesOf(k, c); return ce.length ? `<small class="text-muted"><i class="bi bi-wallet2"></i> ${ce.map(e => esc((OPT.expenseTypes.find(x => String(x.id) === String(e.expenseId)) || {}).name || 'Expense') + ' ₹' + money(e.amount)).join(', ')}</small>` : ''; })()}</div>
       ${isOpen(c) ? '<span class="badge bg-success">Checked in</span>' : c.refused ? '<span class="badge bg-warning text-dark">Refused</span>' : '<span class="badge bg-success-subtle text-success-emphasis border">Visited</span>'}</div>`; }).join('');
   }
   // a call still open goes straight to its check-out screen; a finished one opens its full details
@@ -519,6 +521,7 @@
     h += card('Visit', 'geo-alt', kv('Visit type', c.visitType) + kv('Checked in', c.inTime) + (c.checkinAddress ? kv('Check-in location', c.checkinAddress) : '') + kv('Checked out', c.outTime) + (c.checkoutAddress ? kv('Check-out location', c.checkoutAddress) : '') + (c.refused ? kv('Result', 'Refused to meet') : '') + (c.checkinLat ? kv('Location', 'saved') : ''));
     h += card('Joint Work', 'people', (c.jointWith || []).length ? c.jointWith.map(id => { const j = OPT.joint.find(x => x.id === id);
       return `<div class="py-1 border-bottom"><b>${esc(j ? j.empName : '')}</b> <small class="text-muted">${j ? '(' + esc(j.empCode) + ') · ' + esc(j.designation || '') : ''}</small></div>`; }).join('') : '<span class="text-muted">Self work</span>');
+    { const ce = clientExpensesOf(k, c); if (ce.length) h += card('Expense', 'wallet2', ce.map(e => { const t = OPT.expenseTypes.find(x => String(x.id) === String(e.expenseId)); return kv((t ? t.name : 'Expense') + (e.description ? ' - ' + e.description : ''), '₹' + money(e.amount)) + (e.filePath ? `<div class="py-1">${SFAFiles.thumb(e.filePath, null, { name: e.fileName || 'bill' })}</div>` : ''); }).join('')); }
     const det = (c.items || []).filter(x => x.detailed);
     if (det.length) h += card('Item Detailed List', 'journal-check', list(det, x => `<div class="py-1 border-bottom">${esc(x.itemName || nm(OPT.items, x.itemId))}</div>`));
     const smp = byPanel('SAMPLE', 'qty'); if (smp.length) h += card('Sample', 'capsule', list(smp, x => kv(x.itemName || nm(OPT.items, x.itemId), 'x ' + x.qty)));
@@ -751,7 +754,8 @@
   }
   // an expense for this client (client / retailer / party / unlisted), e.g. a gift on the client's birthday: variable expense types only
   let XP = { expenseId: '', amount: '', description: '', filePath: '', fileName: '', fileType: '' };
-  const clientExpenses = (o) => ST.expenses.filter(e => EDIT.kind === 'u' ? (e.clientKind === 2 && e.unlistedKey === o.key) : (e.clientKind === 1 && String(e.clientId) === String(o.clientId)));
+  const clientExpensesOf = (k, o) => ST.expenses.filter(e => k === 'u' ? (e.clientKind === 2 && e.unlistedKey === o.key) : (e.clientKind === 1 && String(e.clientId) === String(o.clientId)));
+  const clientExpenses = (o) => clientExpensesOf(EDIT.kind, o);
   function cexpPanel(o) {
     const types = OPT.expenseTypes.filter(t => !t.travel), list = clientExpenses(o);
     const rows = list.map(e => { const t = OPT.expenseTypes.find(x => String(x.id) === String(e.expenseId)); const i = ST.expenses.indexOf(e);
