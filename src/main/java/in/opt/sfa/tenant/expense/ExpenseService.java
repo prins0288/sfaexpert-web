@@ -180,7 +180,7 @@ public class ExpenseService {
         for (Map<String, Object> r : jdbc.queryForList("SELECT type_code, da_amount, fare_per_km FROM expense_emp_rate WHERE emp_id = ?", empId)) emp.put((String) r.get("type_code"), new BigDecimal[]{(BigDecimal) r.get("da_amount"), (BigDecimal) r.get("fare_per_km")});
         List<Integer> dl = jdbc.query("SELECT designation FROM emp_detail WHERE emp_id = ?", (rs, i) -> rs.getObject(1) == null ? null : rs.getInt(1), empId);
         Integer desig = dl.isEmpty() ? null : dl.get(0);   // no designation = only the all-designation / employee rates apply
-        Set<String> fieldWork = new HashSet<>(jdbc.queryForList("SELECT worktype_code FROM app_dcr_worktype WHERE emp_id IS NULL AND form_open = 'WORK'", String.class));
+        Set<String> fieldWork = new HashSet<>(jdbc.queryForList("SELECT DISTINCT worktype_code FROM app_dcr_worktype WHERE form_open = 'WORK'", String.class));
         Map<String, Map<String, Object>> dcr = new LinkedHashMap<>();
         for (Map<String, Object> r : jdbc.queryForList("SELECT dcr_id, dcr_date, work_type, status, stay_area_id, travel_mode, meter_start, meter_end FROM dcr_parent_summary WHERE emp_id = ? AND dcr_date BETWEEN ? AND ? ORDER BY dcr_date", empId, from, to)) dcr.put(String.valueOf(r.get("dcr_date")).substring(0, 10), r);
         Map<Long, List<Long>> visits = new HashMap<>(); Map<Long, Integer> visitCount = new HashMap<>();
@@ -218,7 +218,7 @@ public class ExpenseService {
                 days.add(row); continue;
             }
             String wt = p == null ? null : (String) p.get("work_type"); int status = p == null ? -1 : ((Number) p.get("status")).intValue();
-            boolean working = p != null && status >= 1 && wt != null && fieldWork.contains(wt);
+            boolean working = p != null && (status >= 1 || (d.equals(LocalDate.now()) && visitCount.getOrDefault(((Number) p.get("dcr_id")).longValue(), 0) > 0)) && wt != null && (fieldWork.contains(wt) || (!List.of("HOLIDAY", "WEEKLY_OFF", "LEAVE").contains(wt) && visitCount.getOrDefault(((Number) p.get("dcr_id")).longValue(), 0) > 0));   // a field work type, or any day that has client visits
             row.put("dcrId", p == null ? null : p.get("dcr_id")); row.put("dayType", wt == null ? "-" : wt); row.put("tpArea", tp.get(ds));
             if (!working) {
                 if (p == null || wt == null || List.of("HOLIDAY", "WEEKLY_OFF", "LEAVE").contains(wt) || status < 1) offSince = true;
