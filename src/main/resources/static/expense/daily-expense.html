@@ -43,12 +43,13 @@
     <div class="col-6 col-md-1"><label class="form-label small fw-semibold" data-i18n="inv.year">Year</label><select class="form-select form-select-sm" id="f_year" onchange="load()"></select></div>
     <div class="col-12 col-md-4"><label class="form-label small fw-semibold" data-i18n="entity.employee">Employee</label><select class="form-select form-select-sm" id="f_emp" onchange="load()"></select></div></div></div></div>
 <div class="card mb-2" id="feedCard"><div class="card-header" data-i18n="de.feed">Feed an expense</div><div class="card-body"><div class="row g-2 align-items-end">
-  <div class="col-6 col-md-2"><label class="form-label small fw-semibold" data-i18n="exp.date">Date</label><input class="form-control form-control-sm" type="date" id="e_date"></div>
+  <div class="col-6 col-md-2"><label class="form-label small fw-semibold" data-i18n="exp.date">Date</label><input class="form-control form-control-sm" type="date" id="e_date" onchange="chkDay()"></div>
   <div class="col-6 col-md-3"><label class="form-label small fw-semibold" data-i18n="de.type">Expense type</label><select class="form-select form-select-sm" id="e_type"></select></div>
   <div class="col-6 col-md-2"><label class="form-label small fw-semibold" data-i18n="exp.amount">Amount</label><input class="form-control form-control-sm" type="number" min="0" step="any" id="e_amt"></div>
   <div class="col-12 col-md-5"><label class="form-label small fw-semibold" data-i18n="de.desc">Description</label><input class="form-control form-control-sm" id="e_desc" maxlength="150"></div>
   <div class="col-12 col-md-5"><label class="form-label small fw-semibold"><span data-i18n="de.bill">Bill / invoice</span> <span id="e_star"></span></label><input class="form-control form-control-sm" type="file" id="e_file" accept="image/*,application/pdf"></div>
-  <div class="col-12 col-md-3"><button class="btn btn-sm btn-primary w-100" onclick="feed()"><i class="bi bi-plus-lg"></i> <span data-i18n="de.add">Add</span></button></div></div></div></div>
+  <div class="col-12"><div class="alert alert-warning py-1 mb-0 d-none" id="notStarted"><i class="bi bi-exclamation-triangle"></i> <span data-i18n="de.notStarted">The day is not started for this date - start the day in the DCR first; then the expense can be fed.</span></div></div>
+  <div class="col-12 col-md-3"><button class="btn btn-sm btn-primary w-100" id="addBtn" onclick="feed()"><i class="bi bi-plus-lg"></i> <span data-i18n="de.add">Add</span></button></div></div></div></div>
 <div class="card"><div class="card-header"><span data-i18n="de.list">Entries of the month</span> <b class="ms-2" id="sumTot"></b></div><div class="card-body"><div id="lst"></div></div></div>
 </template>
 
@@ -86,13 +87,17 @@
     try { ME = (await Api.get(API.profile.get)).empId; const fil = await Api.get(FEP + '/filters');
       document.getElementById('f_emp').innerHTML = fil.employees.map(e => `<option value="${esc(e.id)}" ${e.id === ME ? 'selected' : ''}>${esc(e.name)}</option>`).join(''); await load(); } catch (e) { SFA.toast(e.message, false); }
   };
+  async function chkDay() {
+    const d = document.getElementById('e_date').value, e = document.getElementById('f_emp').value; if (!d || !e) return;
+    try { const r = await Api.get(EP + '/day-started', { query: { empId: e, date: d }, noLoader: true }); document.getElementById('notStarted').classList.toggle('d-none', r.started); document.getElementById('addBtn').disabled = !r.started; } catch (x) { /* the server checks again on Add */ }
+  }
   const q = () => ({ empId: document.getElementById('f_emp').value, month: document.getElementById('f_month').value, year: document.getElementById('f_year').value });
   async function load() {
     try {
       D = await Api.get(EP + '/entries', { query: q() });
       document.getElementById('e_type').innerHTML = D.types.map(t => `<option value="${t.id}" data-bill="${t.billRequired ? 1 : 0}">${esc(t.name)}${t.billRequired ? ' *' : ''}</option>`).join('');
       document.getElementById('lockBadge').classList.toggle('d-none', !D.locked); document.getElementById('feedCard').classList.toggle('d-none', D.locked || !D.canFeed);
-      draw();
+      draw(); chkDay();
     } catch (e) { SFA.toast(e.message, false); }
   }
   function draw() {

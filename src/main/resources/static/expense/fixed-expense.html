@@ -48,6 +48,15 @@
     <div class="row g-2 mt-1 d-none" id="a_filter"><div class="col-4 col-md-2"><select class="form-select form-select-sm" id="a_state"></select></div><div class="col-4 col-md-2"><select class="form-select form-select-sm" id="a_hq"></select></div><div class="col-4 col-md-2"><select class="form-select form-select-sm" id="a_des"></select></div></div>
     <div class="d-none mt-2" id="a_pickBox"><div id="a_emps" class="border rounded p-2" style="max-height:220px;overflow:auto"></div></div>
     <div class="mt-2"><button class="btn btn-sm btn-primary" onclick="assign()"><i class="bi bi-check2"></i> <span data-i18n="fx.assign">Give</span></button></div></div></div>
+<div class="card mb-2"><div class="card-header"><i class="bi bi-tags"></i> <span data-i18n="vx.title">Variable expense - who can use which</span></div>
+  <div class="card-body"><div class="small text-muted mb-2" data-i18n="vx.help">Give each variable expense type (food, gift, courier ...) to the employees who may use it. An employee sees only the types given to him in the DCR, Daily Expense and his statement; an employee with nothing given can use every variable type.</div>
+    <div class="row g-2 align-items-end"><div class="col-6 col-md-3"><label class="form-label small fw-semibold" data-i18n="vx.type">Variable expense</label><select class="form-select form-select-sm" id="v_exp"></select></div>
+      <div class="col-6 col-md-3"><label class="form-label small fw-semibold" data-i18n="fx.to">Give to</label><select class="form-select form-select-sm" id="v_scope" onchange="vScope()"><option value="all" data-i18n="fx.all">All employees</option><option value="filter" data-i18n="fx.filter">State / HQ / designation</option><option value="pick" data-i18n="fx.pick">Employees I pick</option></select></div></div>
+    <div class="row g-2 mt-1 d-none" id="v_filter"><div class="col-4 col-md-2"><select class="form-select form-select-sm" id="v_state"></select></div><div class="col-4 col-md-2"><select class="form-select form-select-sm" id="v_hq"></select></div><div class="col-4 col-md-2"><select class="form-select form-select-sm" id="v_des"></select></div></div>
+    <div class="d-none mt-2" id="v_pickBox"><div id="v_emps" class="border rounded p-2" style="max-height:220px;overflow:auto"></div></div>
+    <div class="mt-2 d-flex gap-2 align-items-center"><button class="btn btn-sm btn-primary" onclick="vAssign()"><i class="bi bi-check2"></i> <span data-i18n="fx.assign">Give</span></button>
+      <select class="form-select form-select-sm ms-auto" style="max-width:15rem" id="vl_exp" onchange="vLoad()"></select></div>
+    <div id="vlst" class="mt-2"></div></div></div>
 <div class="card"><div class="card-header d-flex align-items-center gap-2"><span data-i18n="fx.given">Given</span>
   <select class="form-select form-select-sm ms-auto" style="max-width:15rem" id="l_exp" onchange="load()"></select></div><div class="card-body"><div id="lst"></div></div></div>
 </template>
@@ -85,9 +94,26 @@
       const o = (list, first) => `<option value="">${first}</option>` + list.map(x => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('');
       document.getElementById('a_state').innerHTML = o(FIL.states, T('entity.state', 'State')); document.getElementById('a_hq').innerHTML = o(FIL.hqs, T('entity.hq', 'HQ')); document.getElementById('a_des').innerHTML = o(FIL.designations, T('entity.designation', 'Designation'));
       document.getElementById('a_emps').innerHTML = FIL.employees.map(e => `<div class="form-check"><input class="form-check-input" type="checkbox" value="${esc(e.id)}" id="pe_${esc(e.id)}" onchange="this.checked ? picked.add(this.value) : picked.delete(this.value)"><label class="form-check-label small" for="pe_${esc(e.id)}">${esc(e.name)}</label></div>`).join('');
-      await load();
+      const VT = (await Api.get(EP + '/types')).filter(t => t.kind === 'VARIABLE' && t.active), vo = VT.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
+      document.getElementById('v_exp').innerHTML = vo || '<option value="">-</option>'; document.getElementById('vl_exp').innerHTML = '<option value="">' + T('common.all', 'All') + '</option>' + vo;
+      document.getElementById('v_state').innerHTML = o(FIL.states, T('entity.state', 'State')); document.getElementById('v_hq').innerHTML = o(FIL.hqs, T('entity.hq', 'HQ')); document.getElementById('v_des').innerHTML = o(FIL.designations, T('entity.designation', 'Designation'));
+      document.getElementById('v_emps').innerHTML = FIL.employees.map(e => `<div class="form-check"><input class="form-check-input" type="checkbox" value="${esc(e.id)}" id="ve_${esc(e.id)}" onchange="this.checked ? vPicked.add(this.value) : vPicked.delete(this.value)"><label class="form-check-label small" for="ve_${esc(e.id)}">${esc(e.name)}</label></div>`).join('');
+      await load(); await vLoad();
     } catch (e) { SFA.toast(e.message, false); }
   };
+  const vPicked = new Set(); let VROWS = [];
+  function vScope() { const v = document.getElementById('v_scope').value; document.getElementById('v_filter').classList.toggle('d-none', v !== 'filter'); document.getElementById('v_pickBox').classList.toggle('d-none', v !== 'pick'); }
+  async function vAssign() {
+    const g = (i) => document.getElementById(i).value, sc = g('v_scope'); const body = { expenseId: g('v_exp') };
+    if (sc === 'all') body.all = true; else if (sc === 'filter') { body.stateId = g('v_state'); body.hqId = g('v_hq'); body.designationId = g('v_des'); } else body.empIds = [...vPicked];
+    try { const r = await Api.post(EP + '/var-assign', body); SFA.toast(T('fx.done', 'Given') + ' (' + r.created + ' ' + T('fx.new', 'new') + ')', true); await vLoad(); } catch (e) { SFA.toast(e.message, false); }
+  }
+  async function vLoad() {
+    try { VROWS = await Api.get(EP + '/var-assign', { query: { expenseId: document.getElementById('vl_exp').value || undefined } }); } catch (e) { SFA.toast(e.message, false); return; }
+    document.getElementById('vlst').innerHTML = VROWS.length ? `<div class="table-responsive"><table class="table table-sm table-striped align-middle"><thead><tr><th>${T('entity.employee', 'Employee')}</th><th>${T('entity.designation', 'Designation')}</th><th>${T('vx.type', 'Variable expense')}</th><th></th></tr></thead><tbody>${VROWS.map(r => `<tr><td><b>${esc(r.empName)}</b> <small class="text-muted">${esc(r.empCode)}</small></td><td>${esc(r.designation)}</td><td>${esc(r.expense)}</td><td><button class="btn btn-sm btn-outline-danger" onclick="vDel(${r.id})"><i class="bi bi-trash"></i></button></td></tr>`).join('')}</tbody></table></div>` : `<div class="text-muted text-center py-2">${T('fx.none', 'Nothing given yet')}</div>`;
+  }
+  async function vDel(id) { if (!confirm(T('perm.confirmDel', 'Remove?'))) return; try { await Api.post(EP + '/var-assign/' + id + '/delete', {}); await vLoad(); } catch (e) { SFA.toast(e.message, false); } }
+
   function scopeCh() { const v = document.getElementById('a_scope').value; document.getElementById('a_filter').classList.toggle('d-none', v !== 'filter'); document.getElementById('a_pickBox').classList.toggle('d-none', v !== 'pick'); }
   async function assign() {
     const g = (i) => document.getElementById(i).value, sc = g('a_scope'); const body = { expenseId: g('a_exp'), amount: g('a_amt'), effectiveFrom: g('a_from') };

@@ -31,6 +31,10 @@ public class ExpenseController {
     @PostMapping("/fixed/{id}") public Map<String, Object> updateFixed(@PathVariable long id, @RequestBody Map<String, Object> b) { master.updateFixed(id, b); return Map.of("saved", true); }
     @PostMapping("/fixed/{id}/delete") public Map<String, Object> deleteFixed(@PathVariable long id) { master.deleteFixed(id); return Map.of("deleted", true); }
     @PostMapping("/fixed-line/{id}") public Map<String, Object> fixedLine(@PathVariable long id, @RequestBody Map<String, Object> b) { return service.changeFixed(id, b); }
+    @GetMapping("/var-assign") public List<Map<String, Object>> varList(@RequestParam(required = false) Long expenseId) { return master.varList(expenseId); }
+    @PostMapping("/var-assign") public Map<String, Object> varAssign(@RequestBody Map<String, Object> b) { return master.varAssign(b); }
+    @PostMapping("/var-assign/{id}/delete") public Map<String, Object> varDelete(@PathVariable long id) { master.varDelete(id); return Map.of("deleted", true); }
+    @GetMapping("/day-started") public Map<String, Object> dayStarted(@RequestParam String empId, @RequestParam String date) { return master.dayStarted(empId, date); }
     @GetMapping("/entries") public Map<String, Object> entries(@RequestParam String empId, @RequestParam int month, @RequestParam int year) { return master.entries(empId, month, year); }
     @PostMapping("/entry") public Map<String, Object> saveEntry(@RequestBody Map<String, Object> b) { return master.saveEntry(b); }
     @PostMapping("/entry/{id}/delete") public Map<String, Object> deleteEntry(@PathVariable long id) { master.deleteEntry(id); return Map.of("deleted", true); }

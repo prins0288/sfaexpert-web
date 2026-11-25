@@ -37,6 +37,44 @@ public class ExpenseMasterService {
         return jdbc.queryForList("SELECT id, expense_name AS name, is_travel AS travel, bill_required AS billRequired FROM expense_master WHERE is_active = 1 AND exp_kind = 'VARIABLE' ORDER BY sort_order, expense_name");
     }
 
+    /** The variable types one employee can use: the ones given to him; an employee with nothing given can use every variable type. */
+    public List<Map<String, Object>> variableTypesFor(String empId) {
+        try {
+            return jdbc.queryForList("SELECT id, expense_name AS name, is_travel AS travel, bill_required AS billRequired FROM expense_master WHERE is_active = 1 AND exp_kind = 'VARIABLE' AND (NOT EXISTS (SELECT 1 FROM expense_var_assign a WHERE a.emp_id = ?) OR id IN (SELECT expense_id FROM expense_var_assign WHERE emp_id = ?)) ORDER BY sort_order, expense_name", empId, empId);
+        } catch (org.springframework.dao.DataAccessException e) { return variableTypes(); }   // migration 132 not run
+    }
+
+    @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
+    public List<Map<String, Object>> varList(Long expenseId) {
+        Authz.requireRole("ADMIN");
+        return jdbc.queryForList("SELECT a.id, a.expense_id AS expenseId, m.expense_name AS expense, e.emp_code AS empCode, e.emp_name AS empName, d.designation FROM expense_var_assign a JOIN expense_master m ON m.id = a.expense_id JOIN emp_detail e ON e.emp_id = a.emp_id LEFT JOIN designation_master d ON d.id = e.designation WHERE 1 = 1" + (expenseId == null ? "" : " AND a.expense_id = " + expenseId.longValue()) + " ORDER BY m.expense_name, e.emp_name");
+    }
+
+    /** Give a variable expense type to the chosen employees, or to everyone / a state / HQ / designation. */
+    @Transactional(transactionManager = "tenantTransactionManager")
+    public Map<String, Object> varAssign(Map<String, Object> b) {
+        Authz.requireRole("ADMIN");
+        long expenseId = Long.parseLong(String.valueOf(b.get("expenseId")));
+        if (jdbc.queryForObject("SELECT COUNT(*) FROM expense_master WHERE id = ? AND exp_kind = 'VARIABLE' AND is_active = 1", Integer.class, expenseId) == 0) throw new IllegalArgumentException("Choose a variable expense");
+        Set<String> emps = new LinkedHashSet<>();
+        if (b.get("empIds") instanceof List<?> l && !l.isEmpty()) l.forEach(o -> emps.add(o.toString()));
+        else {
+            StringBuilder sql = new StringBuilder("SELECT emp_id FROM emp_detail WHERE is_active = 1 AND COALESCE(is_vacant, 0) = 0"); List<Object> a = new ArrayList<>();
+            if (b.get("stateId") != null && !b.get("stateId").toString().isBlank()) { sql.append(" AND state_id = ?"); a.add(Long.valueOf(b.get("stateId").toString())); }
+            if (b.get("hqId") != null && !b.get("hqId").toString().isBlank()) { sql.append(" AND hq_id = ?"); a.add(Long.valueOf(b.get("hqId").toString())); }
+            if (b.get("designationId") != null && !b.get("designationId").toString().isBlank()) { sql.append(" AND designation = ?"); a.add(Integer.valueOf(b.get("designationId").toString())); }
+            if (!flag(b.get("all")) && a.isEmpty()) throw new IllegalArgumentException("Choose the employees, or All / a state / HQ / designation");
+            emps.addAll(jdbc.queryForList(sql.toString(), String.class, a.toArray()));
+        }
+        if (emps.isEmpty()) throw new IllegalArgumentException("No employee found for this choice");
+        int created = 0;
+        for (String e : emps) created += jdbc.update("INSERT IGNORE INTO expense_var_assign (emp_id, expense_id, created_by) VALUES (?,?,?)", e, expenseId, TeamScope.me());
+        return Map.of("created", created, "already", emps.size() - created);
+    }
+
+    @Transactional(transactionManager = "tenantTransactionManager")
+    public void varDelete(long id) { Authz.requireRole("ADMIN"); jdbc.update("DELETE FROM expense_var_assign WHERE id = ?", id); }
+
     @Transactional(transactionManager = "tenantTransactionManager")
     public void saveType(Map<String, Object> b) {
         Authz.requireRole("ADMIN");
@@ -125,9 +163,14 @@ public class ExpenseMasterService {
         checkEmp(empId);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("rows", jdbc.queryForList("SELECT x.id, x.exp_date AS date, x.expense_id AS expenseId, m.expense_name AS expense, x.amount, x.description, x.file_name AS fileName, x.file_path AS filePath FROM expense_entry x JOIN expense_master m ON m.id = x.expense_id WHERE x.emp_id = ? AND MONTH(x.exp_date) = ? AND YEAR(x.exp_date) = ? ORDER BY x.exp_date, x.id", empId, month, year));
-        out.put("types", variableTypes()); out.put("locked", locked(empId, month, year)); out.put("canFeed", empId.equals(TeamScope.me()) || TeamScope.isAdmin());
+        out.put("types", variableTypesFor(empId)); out.put("locked", locked(empId, month, year)); out.put("canFeed", empId.equals(TeamScope.me()) || TeamScope.isAdmin());
         return out;
     }
+
+    /** The day is started: the employee has a DCR (day start) for the date. A daily expense can be fed only for a started day. */
+    @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
+    public Map<String, Object> dayStarted(String empId, String date) { checkEmp(empId); return Map.of("started", started(empId, LocalDate.parse(date))); }
+    private boolean started(String empId, LocalDate d) { return jdbc.queryForObject("SELECT COUNT(*) FROM dcr_parent_summary WHERE emp_id = ? AND dcr_date = ?", Integer.class, empId, d) > 0; }
 
     /** The statement of the month is submitted (or beyond): the entries of the month are frozen. */
     private boolean locked(String empId, int month, int year) {
@@ -141,10 +184,11 @@ public class ExpenseMasterService {
         if (!empId.equals(TeamScope.me()) && !TeamScope.isAdmin()) throw new ForbiddenException("A user feeds his own expense; only an admin can feed it for another employee");
         LocalDate d = LocalDate.parse(String.valueOf(b.get("date")));
         if (d.isAfter(LocalDate.now())) throw new IllegalArgumentException("A future date cannot be fed");
+        if (!started(empId, d)) throw new IllegalStateException("The day is not started - start the day in the DCR of this date first, then feed the expense");
         if (locked(empId, d.getMonthValue(), d.getYear())) throw new IllegalStateException("The expense statement of this month is already submitted - the entries are closed");
         long expenseId = Long.parseLong(String.valueOf(b.get("expenseId")));
         List<Map<String, Object>> t = jdbc.queryForList("SELECT bill_required FROM expense_master WHERE id = ? AND exp_kind = 'VARIABLE' AND is_active = 1", expenseId);
-        if (t.isEmpty()) throw new IllegalArgumentException("Choose a variable expense type");
+        if (t.isEmpty() || variableTypesFor(empId).stream().noneMatch(x -> ((Number) x.get("id")).longValue() == expenseId)) throw new IllegalArgumentException("This expense type is not given to the employee");
         BigDecimal amount; try { amount = new BigDecimal(String.valueOf(b.get("amount")).trim()).setScale(2, RoundingMode.HALF_UP); } catch (NumberFormatException e) { throw new IllegalArgumentException("Amount must be a number"); }
         if (amount.signum() <= 0) throw new IllegalArgumentException("Enter the amount");
         String path = b.get("filePath") == null || b.get("filePath").toString().isBlank() ? null : b.get("filePath").toString();

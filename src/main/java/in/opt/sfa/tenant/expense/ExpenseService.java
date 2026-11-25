@@ -420,7 +420,12 @@ public class ExpenseService {
         for (Map<String, Object> d : days) d.put("billAmount", billAmt.getOrDefault((String) d.get("date"), BigDecimal.ZERO));
         out.put("statement", s); out.put("days", days); out.put("perms", perms(owner, (String) s.get("status")));
         out.put("fixed", jdbc.queryForList("SELECT f.id, f.expense_id AS expenseId, m.expense_name AS name, f.amount, f.orig_amount AS origAmount, f.edited_level AS editedLevel, eb.emp_name AS editedBy, f.edited_at AS editedAt FROM expense_statement_fixed f JOIN expense_master m ON m.id = f.expense_id LEFT JOIN emp_detail eb ON eb.emp_id = f.edited_by WHERE f.statement_id = ? ORDER BY m.sort_order, m.id", sid));
-        out.put("headCols", jdbc.queryForList("SELECT id, expense_name AS name FROM expense_master WHERE is_travel = 0 AND is_active = 1 AND exp_kind = 'VARIABLE' ORDER BY sort_order, id"));
+        List<Map<String, Object>> hc = jdbc.queryForList("SELECT id, expense_name AS name FROM expense_master WHERE is_travel = 0 AND is_active = 1 AND exp_kind = 'VARIABLE' ORDER BY sort_order, id");
+        Set<Long> given = new HashSet<>(); boolean any = false;   // the variable types given to the employee (none given = all), plus any type that already has an amount in the statement
+        try { for (Long id : jdbc.queryForList("SELECT expense_id FROM expense_var_assign WHERE emp_id = ?", Long.class, owner)) { given.add(id); any = true; } } catch (org.springframework.dao.DataAccessException e) { /* migration 132 not run */ }
+        final boolean limited = any;
+        hc = hc.stream().filter(h -> { long id = ((Number) h.get("id")).longValue(); return !limited || given.contains(id) || days.stream().anyMatch(d -> d.get("heads") instanceof Map<?, ?> m && m.get(id) != null && new BigDecimal(m.get(id).toString()).signum() != 0); }).toList();
+        out.put("headCols", hc);
         out.put("legend", List.of(Map.of("level", "ABSENT", "name", "Absent (DCR not submitted)"), Map.of("level", "LEAVE", "name", "Leave"), Map.of("level", "M", "name", "Changed by the manager"), Map.of("level", "A", "name", "Changed by the admin")));
         return out;
     }
