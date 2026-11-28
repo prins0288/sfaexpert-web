@@ -35,31 +35,36 @@
 <div id="app" data-page="dashboard" data-title="Dashboard"></div>
 
 <template id="pageContent">
-  <div class="row g-3 mb-4">
-    <div class="col-md-3 col-6"><a href="/master/route.html" class="text-decoration-none">
-      <div class="stat-tile"><div class="icon" style="background:#2a56a0"><i class="bi bi-signpost-2"></i></div>
-        <div><div class="num" id="routeCount">0</div><div class="lbl" data-i18n="dashboard.routes">Routes</div></div></div></a></div>
-    <div class="col-md-3 col-6"><a href="/master/area.html" class="text-decoration-none">
-      <div class="stat-tile"><div class="icon" style="background:#0aa3a3"><i class="bi bi-geo-alt"></i></div>
-        <div><div class="num" id="areaCount">0</div><div class="lbl" data-i18n="dashboard.areas">Areas</div></div></div></a></div>
-    <div class="col-md-3 col-6"><a href="/master/client.html" class="text-decoration-none">
-      <div class="stat-tile"><div class="icon" style="background:#1a9d63"><i class="bi bi-people"></i></div>
-        <div><div class="num" id="clientCount">0</div><div class="lbl" data-i18n="dashboard.clients">Clients</div></div></div></a></div>
-    <div class="col-md-3 col-6"><a href="/master/products.html" class="text-decoration-none">
-      <div class="stat-tile"><div class="icon" style="background:#b0384a"><i class="bi bi-box-seam"></i></div>
-        <div><div class="num" id="productCount">0</div><div class="lbl" data-i18n="dashboard.products">Products</div></div></div></a></div>
-  </div>
-
-  <div class="card">
-    <div class="card-header"><i class="bi bi-speedometer2"></i> <span data-i18n="dashboard.overview">Overview</span></div>
-    <div class="card-body">
-      <p><span data-i18n="dashboard.welcome">Welcome</span>, <b id="welcomeUser"></b>. You are signed in to tenant <b id="welcomeTenant"></b>.</p>
-      <p class="text-muted mb-0">
-        Multi-tenant (one DB per tenant, a dedicated HikariCP pool per tenant), JPA repositories that
-        auto-route to the active tenant, and the list &rarr; add/edit &rarr; soft-delete master pattern
-        on Route, Area, Route&ndash;Area mapping, Client Type and Client.
-      </p>
-    </div>
+  <style>
+    .db-hello { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: .5rem; margin-bottom: .9rem; }
+    .db-hello h1 { font-size: 1.35rem; font-weight: 800; margin: 0; }
+    .db-scope { display: inline-block; font-size: .72rem; font-weight: 700; border-radius: .5rem; padding: .15rem .55rem; background: var(--bs-primary-bg-subtle); color: var(--bs-primary); }
+    .db-tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: .65rem; margin-bottom: 1rem; }
+    @media (min-width: 768px) { .db-tiles { grid-template-columns: repeat(4, 1fr); } } @media (min-width: 1200px) { .db-tiles { grid-template-columns: repeat(6, 1fr); } }
+    .db-tile { background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: 1rem; padding: .7rem .85rem; display: flex; gap: .7rem; align-items: center; text-decoration: none; color: inherit; }
+    .db-tile .ic { width: 2.4rem; height: 2.4rem; border-radius: .7rem; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 1.15rem; flex: 0 0 auto; }
+    .db-tile b { font-size: 1.3rem; line-height: 1.1; display: block; } .db-tile small { color: var(--bs-secondary-color); font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; }
+    .db-tile.soft { background: rgba(220, 53, 69, .06); border-color: rgba(220, 53, 69, .25); } .db-tile.soft b { color: #a8505a; }
+    .db-card { background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: 1rem; padding: .85rem 1rem; margin-bottom: .8rem; }
+    .db-wait { display: flex; flex-wrap: wrap; gap: .5rem; }
+    .db-wait a { text-decoration: none; border: 1px solid var(--bs-border-color); border-radius: 999px; padding: .35rem .9rem; font-weight: 600; color: var(--bs-body-color); background: var(--bs-tertiary-bg); }
+    .db-wait a b { background: #d9441a; color: #fff; border-radius: 999px; padding: 0 .5rem; margin-left: .35rem; font-size: .8rem; }
+    .db-tag { display: inline-block; font-size: .72rem; font-weight: 700; border-radius: .45rem; padding: .1rem .5rem; background: var(--bs-secondary-bg); color: var(--bs-secondary-color); }
+    .db-tag.ok { background: var(--bs-success-bg-subtle); color: var(--bs-success-text-emphasis); } .db-tag.soft { background: rgba(220, 53, 69, .10); color: #a8505a; }
+    .db-tbl { width: 100%; font-size: .88rem; } .db-tbl th { font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; color: var(--bs-secondary-color); padding: .45rem .55rem; white-space: nowrap; position: sticky; top: 0; background: var(--bs-body-bg); }
+    .db-tbl td { padding: .45rem .55rem; border-top: 1px solid var(--bs-border-color); vertical-align: middle; } .db-tbl tr.me td { background: var(--bs-primary-bg-subtle); }
+    .db-wrap { max-height: 60vh; overflow: auto; }
+    .db-emp { border: 1px solid var(--bs-border-color); border-radius: 1rem; padding: .7rem .9rem; margin-bottom: .5rem; } .db-emp.me { background: var(--bs-primary-bg-subtle); }
+    @media (max-width: 991.98px) { .db-desk { display: none; } } @media (min-width: 992px) { .db-mob { display: none; } }
+  </style>
+  <div class="db-hello"><div><h1>Welcome, <span id="welcomeUser"></span></h1><div class="text-muted small">Company <b id="welcomeTenant"></b> · <span id="dbMonth"></span></div></div><span class="db-scope" id="dbScope"></span></div>
+  <div class="db-tiles" id="dbTiles"></div>
+  <div class="db-card d-none" id="dbWaitCard"><div class="fw-bold mb-2"><i class="bi bi-bell"></i> Waiting for you</div><div class="db-wait" id="dbWait"></div></div>
+  <div class="db-card" id="dbTour"></div>
+  <div class="db-card" id="dbPeople">
+    <div class="d-flex align-items-center gap-2 flex-wrap mb-2"><div class="fw-bold" id="dbPeopleTitle"></div><input class="form-control form-control-sm ms-auto" style="max-width:15rem" id="dbQ" placeholder="Search name / code / HQ…" oninput="dbRender()"></div>
+    <div class="db-desk"><div class="db-wrap"><table class="db-tbl"><thead><tr><th>Employee</th><th>Designation</th><th>HQ</th><th>Today</th><th class="text-end">DCR days</th><th class="text-end">Absent</th><th class="text-end">Calls</th><th class="text-end">POB</th><th class="text-end">Expense</th></tr></thead><tbody id="dbRows"></tbody></table></div></div>
+    <div class="db-mob" id="dbCards"></div>
   </div>
 </template>
 
@@ -75,18 +80,46 @@
 <script src="js/core/uikit.js"></script>
 <script src="js/shell.js"></script>
 <script>
+  const esc = (v) => SFA.esc(v == null ? '' : v);
+  const money = (v) => Number(v || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const TPS = { DRAFT: 'Not submitted yet', PENDING_MANAGER: 'Waiting for your manager', PENDING_ADMIN: 'Waiting for the admin', APPROVED: 'Approved', REJECTED: 'Sent back - needs your changes' };
+  let DB = null;
   window.pageInit = async function () {
     document.getElementById('welcomeUser').textContent = SFA.user;
     document.getElementById('welcomeTenant').textContent = SFA.companyCode;
-    // ONE lightweight counts call instead of downloading all 4 full master lists.
-    try {
-      const c = await Api.get(API.dashboard.counts);
-      document.getElementById('routeCount').textContent = c.routes || 0;
-      document.getElementById('areaCount').textContent = c.areas || 0;
-      document.getElementById('clientCount').textContent = c.clients || 0;
-      document.getElementById('productCount').textContent = c.products || 0;
-    } catch (e) { /* leave 0s */ }
+    try { DB = await Api.get(API.dashboard.overview); render(); } catch (e) { SFA.toast(e.message, false); }
   };
+  const tile = (icon, color, label, value, href, cls) => `<a class="db-tile ${cls || ''}" ${href ? `href="${href}"` : ''}><div class="ic" style="background:${color}"><i class="bi bi-${icon}"></i></div><div><b>${value}</b><small>${label}</small></div></a>`;
+  function render() {
+    const t = DB.totals, self = DB.scope === 'SELF';
+    const [y, m] = DB.month.split('-'); document.getElementById('dbMonth').textContent = MONTHS[+m - 1] + ' ' + y;
+    document.getElementById('dbScope').textContent = DB.scope === 'ALL' ? 'All employees · ' + t.people : DB.scope === 'TEAM' ? 'Your team + you · ' + t.people : 'Your own numbers';
+    const me = DB.employees.find(e => e.mine);
+    document.getElementById('dbTiles').innerHTML = (self ? tile('sun', '#2a56a0', 'Today', me ? esc(me.today === 'DCR' ? 'DCR started' : me.todayText || 'Not started') : '-', 'dcr/dcr-submit.html')
+        : tile('people', '#2a56a0', 'Employees', t.people, 'report/dcr-report.html') + tile('play-circle', '#0aa3a3', 'Started today', t.startedToday + ' / ' + t.people, 'report/dcr-report.html'))
+      + tile('journal-check', '#1a9d63', 'DCR days', t.dcrs, 'report/dcr-report.html') + tile('x-circle', '#b0384a', 'Absent days', t.absent, 'report/dcr-report.html', t.absent ? 'soft' : '')
+      + tile('telephone', '#7b4fb3', 'Calls', t.calls) + tile('cart-check', '#d9441a', 'POB', '₹' + money(t.pob)) + tile('wallet2', '#5b6b7b', 'Expense', '₹' + money(t.expense))
+      + tile('geo-alt', '#0aa3a3', 'Areas', t.areas, 'master/area.html') + tile('people-fill', '#1a9d63', 'Clients', t.clients, 'master/client-master.html') + tile('box-seam', '#b0384a', 'Products', t.products, 'master/item-master.html');
+    const w = DB.waiting, parts = [];
+    if (w.dcr) parts.push(`<a href="dcr/dcr-submit.html?view=approval"><i class="bi bi-journal-check"></i> DCR to approve<b>${w.dcr}</b></a>`);
+    if (w.tourPlans) parts.push(`<a href="tp/tour-plan.html?tab=team"><i class="bi bi-calendar-check"></i> Tour plans to approve<b>${w.tourPlans}</b></a>`);
+    document.getElementById('dbWaitCard').classList.toggle('d-none', !parts.length); document.getElementById('dbWait').innerHTML = parts.join('');
+    const tp = DB.myTourPlan;
+    document.getElementById('dbTour').innerHTML = `<div class="d-flex align-items-center gap-2 flex-wrap"><div><div class="fw-bold"><i class="bi bi-calendar3"></i> My tour plan - ${MONTHS[+m - 1]}</div><div class="text-muted small">${esc(TPS[tp.status] || tp.status)}</div></div>
+      <a class="btn btn-sm btn-primary ms-auto" href="tp/tour-plan.html">${tp.canEdit ? (tp.canSubmit ? 'Submit the plan' : 'Plan the days') : 'Open'}</a></div>`;
+    document.getElementById('dbPeopleTitle').innerHTML = self ? '<i class="bi bi-person"></i> My month' : '<i class="bi bi-people"></i> ' + (DB.scope === 'ALL' ? 'All employees' : 'My team') + ' - this month';
+    dbRender();
+  }
+  const todayTag = (e) => e.today === 'DCR' ? `<span class="db-tag ok">${esc(e.todayText)}</span>` : e.today === 'NONE' ? '<span class="db-tag">-</span>' : `<span class="db-tag">${esc(e.todayText)}</span>`;
+  function dbRender() {
+    const q = (document.getElementById('dbQ').value || '').trim().toLowerCase();
+    const list = DB.employees.filter(e => !q || ((e.empName || '') + ' ' + (e.empCode || '') + ' ' + (e.hq || '') + ' ' + (e.designation || '')).toLowerCase().includes(q));
+    document.getElementById('dbRows').innerHTML = list.map(e => `<tr class="${e.mine ? 'me' : ''}"><td><b>${esc(e.empName)}</b> <small class="text-muted">${esc(e.empCode)}</small>${e.mine ? ' <span class="db-tag">you</span>' : ''}</td><td>${esc(e.designation)}</td><td>${esc(e.hq)}</td><td>${todayTag(e)}</td>
+      <td class="text-end">${e.dcrDays}</td><td class="text-end">${e.absentDays ? `<span class="db-tag soft">${e.absentDays}</span>` : 0}</td><td class="text-end">${e.calls}</td><td class="text-end">${money(e.pob)}</td><td class="text-end">${money(e.expense)}</td></tr>`).join('') || '<tr><td colspan="9" class="text-center text-muted py-4">Nobody found</td></tr>';
+    document.getElementById('dbCards').innerHTML = list.map(e => `<div class="db-emp ${e.mine ? 'me' : ''}"><div class="d-flex justify-content-between gap-2"><div><b>${esc(e.empName)}</b> <small class="text-muted">${esc(e.empCode)}</small>${e.mine ? ' <span class="db-tag">you</span>' : ''}<div class="small text-muted">${esc([e.designation, e.hq].filter(Boolean).join(' · '))}</div></div><div class="text-end">${todayTag(e)}</div></div>
+      <div class="small mt-1"><b>${e.dcrDays}</b> DCR · ${e.absentDays ? `<span class="db-tag soft">${e.absentDays} absent</span>` : '0 absent'} · <b>${e.calls}</b> calls · POB <b>₹${money(e.pob)}</b> · Exp <b>₹${money(e.expense)}</b></div></div>`).join('');
+  }
 </script>
 </body>
 </html>

@@ -5,7 +5,7 @@ import in.opt.sfa.tenant.master.imagetype.dto.ImageTypeMasterDto;
 import in.opt.sfa.tenant.master.imagetype.entity.ImageTypeMaster;
 import in.opt.sfa.tenant.master.imagetype.mapper.ImageTypeMasterMapper;
 import in.opt.sfa.tenant.master.imagetype.repository.ImageTypeMasterRepository;
-import in.opt.sfa.tenant.master.employee.service.EmployeeNameResolver;
+import in.opt.sfa.tenant.master.empdetail.service.EmpNameResolver;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,9 +24,9 @@ public class ImageTypeMasterService {
 
     private final ImageTypeMasterRepository imageTypes;
     private final ImageTypeMasterMapper mapper;
-    private final EmployeeNameResolver employeeNames;
+    private final EmpNameResolver employeeNames;
 
-    public ImageTypeMasterService(ImageTypeMasterRepository imageTypes, ImageTypeMasterMapper mapper, EmployeeNameResolver employeeNames) {
+    public ImageTypeMasterService(ImageTypeMasterRepository imageTypes, ImageTypeMasterMapper mapper, EmpNameResolver employeeNames) {
         this.imageTypes = imageTypes;
         this.mapper = mapper;
         this.employeeNames = employeeNames;

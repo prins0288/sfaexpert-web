@@ -38,12 +38,10 @@ public class EmpDetail {
     @Column(name = "hq_id")
     private Long hqId;
 
-    /** -> designation_master.oid. Column is literally named "designation" in the DB. */
-    @Column(name = "designation", nullable = false)
-    private Long designationId;
-
-    @Column(name = "emp_level")
-    private Integer empLevel;
+    /** -> designation_master.id. Column is literally named "designation" in the DB; the
+     *  employee's level and role come from the designation (no level is stored here). */
+    @Column(name = "designation")
+    private Integer designationId;
 
     /** Immediate manager -> emp_detail.emp_id. */
     @Column(name = "manager_id", length = 40)
@@ -82,8 +80,20 @@ public class EmpDetail {
     @Column(name = "last_working_date")
     private LocalDate lastWorkingDate;
 
+    /** Text from salutation_master, e.g. "Mr." (the value itself, not an id). */
+    @Column(name = "salutation", length = 20)
+    private String salutation;
+
     @Column(name = "photo_path")
     private String photoPath;
+
+    /** Thumbnail of a photo uploaded from the employee form (null for a My Profile photo). */
+    @Column(name = "photo_thumbnail_path")
+    private String photoThumbnailPath;
+
+    /** Vacant position (no person in it): its login is refused (AuthService). */
+    @Column(name = "is_vacant", nullable = false)
+    private boolean vacant;
 
     /** True once gender/DOJ/email/department (the "extra" fields) are all filled in. */
     @Column(name = "profile_complete")

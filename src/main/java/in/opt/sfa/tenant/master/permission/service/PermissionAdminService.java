@@ -27,9 +27,12 @@ public class PermissionAdminService {
     private final PermissionAssignmentRepository assignments;
     private final EmpDetailRepository empDetails;
     private final DesignationRepository designations;
+    private final in.opt.sfa.tenant.team.TeamScope teamScope;
 
     public PermissionAdminService(PermissionDefinitionRepository definitions, PermissionAssignmentRepository assignments,
-                                  EmpDetailRepository empDetails, DesignationRepository designations) {
+                                  EmpDetailRepository empDetails, DesignationRepository designations,
+                                  in.opt.sfa.tenant.team.TeamScope teamScope) {
+        this.teamScope = teamScope;
         this.definitions = definitions;
         this.assignments = assignments;
         this.empDetails = empDetails;
@@ -37,23 +40,23 @@ public class PermissionAdminService {
     }
 
     public record EmpOption(String empId, String empCode, String name) {}
-    public record DesignationOption(String code, String name, Integer empLevel) {}
+    /** code = designation_master.id (as text — what DESIGNATION rules store). */
+    public record DesignationOption(String code, String name, Integer hierarchyLevel, String category) {}
     /** Everything the admin screen can assign to — the same identity sources the JWT claims come from. */
-    public record Targets(List<EmpOption> employees, List<DesignationOption> designations, List<Integer> empLevels) {}
+    public record Targets(List<EmpOption> employees, List<DesignationOption> designations, List<Integer> hierarchyLevels) {}
 
-    // ---- assignable targets (emp_id / designation_code / emp_level) ---------
+    // ---- assignable targets (emp_id / designation id / hierarchy level) ------
 
     @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
     public Targets targets() {
+        java.util.Set<String> adminIds = teamScope.adminLevelIds();   // admin-level users never appear in a dropdown
         List<EmpDetail> emps = empDetails.findAllByOrderByEmpNameAsc().stream()
-                .filter(e -> e.isActive() && e.getEmpId() != null).toList();
-        List<DesignationOption> desigs = designations.findByStatusOrderByDesignationNameAsc("Y").stream()
-                .filter(d -> !Strings.isBlank(d.getDesignationCode()))
-                .map(d -> new DesignationOption(d.getDesignationCode(), d.getDesignationName(), d.getEmpLevel()))
+                .filter(e -> e.isActive() && e.getEmpId() != null && !adminIds.contains(e.getEmpId())).toList();
+        List<DesignationOption> desigs = designations.findByActiveTrueOrderByDisplayOrderAscHierarchyLevelAsc().stream()
+                .map(d -> new DesignationOption(String.valueOf(d.getId()), d.getDesignation(), d.getHierarchyLevel(), d.getDesignationCategory()))
                 .toList();
         TreeSet<Integer> levels = new TreeSet<>();
-        emps.stream().map(EmpDetail::getEmpLevel).filter(Objects::nonNull).forEach(levels::add);
-        desigs.stream().map(DesignationOption::empLevel).filter(Objects::nonNull).forEach(levels::add);
+        desigs.stream().map(DesignationOption::hierarchyLevel).filter(Objects::nonNull).forEach(levels::add);
         return new Targets(
                 emps.stream().map(e -> new EmpOption(e.getEmpId(), e.getEmpCode(), e.getEmpName())).toList(),
                 desigs, List.copyOf(levels));
@@ -76,6 +79,7 @@ public class PermissionAdminService {
         target.setModule(form.getModule());
         target.setDescription(form.getDescription());
         target.setStatus(form.getStatus() == null ? Boolean.TRUE : form.getStatus());
+        if (form.getDefaultAllowed() != null) target.setDefaultAllowed(form.getDefaultAllowed());
         return toDto(definitions.save(target));
     }
 
@@ -103,8 +107,8 @@ public class PermissionAdminService {
     }
 
     @Transactional(transactionManager = "tenantTransactionManager")
-    public void deleteAssignment(Long oid) {
-        assignments.deleteById(oid);
+    public void deleteAssignment(Long id) {
+        assignments.deleteById(id);
     }
 
     private static PermissionDefinitionDto toDto(PermissionDefinition e) {
@@ -114,6 +118,7 @@ public class PermissionAdminService {
         d.setModule(e.getModule());
         d.setDescription(e.getDescription());
         d.setStatus(e.getStatus());
+        d.setDefaultAllowed(e.getDefaultAllowed());
         d.setCreatedAt(e.getCreatedAt());
         d.setCreatedBy(e.getCreatedBy());
         d.setUpdatedAt(e.getUpdatedAt());

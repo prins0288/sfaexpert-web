@@ -178,6 +178,31 @@
       return request("POST", path, fd, opts);
     },
 
+    /** Authenticated GET of a file as a Blob (for <img> previews: URL.createObjectURL(blob)). */
+    async blob(path, opts) {
+      opts = opts || {};
+      let res = await fetch(apiUrl(withQuery(path, opts.query)), { headers: authHeader(opts.headers) });
+      if (res.status === 401 && await tryRefresh()) {
+        res = await fetch(apiUrl(withQuery(path, opts.query)), { headers: authHeader(opts.headers) });
+      }
+      if (res.status === 401) { onUnauthorized(); throw new Error("Session expired. Please sign in again."); }
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      return res.blob();
+    },
+
+    /**
+     * Save a record together with its files in ONE multipart request — the way
+     * every screen with an upload saves:  Api.saveWithFiles(url, data, { image: file })
+     * Part "data" = the JSON (read by @RequestPart("data")), one part per file;
+     * null / undefined files are skipped.
+     */
+    saveWithFiles(path, data, files, opts) {
+      const fd = new FormData();
+      fd.append("data", new Blob([JSON.stringify(data || {})], { type: "application/json" }));
+      Object.keys(files || {}).forEach((k) => { if (files[k]) fd.append(k, files[k]); });
+      return request("POST", path, fd, opts);
+    },
+
     /** Authenticated file download that saves as `filename`. */
     async download(path, filename, opts) {
       opts = opts || {};

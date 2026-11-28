@@ -35,6 +35,14 @@ public class PermissionDefinition {
     @Column(nullable = false)
     private Boolean status = true;
 
+    /**
+     * What a user gets when NO permission_assignment row matches them.
+     * true (the usual) = open to everyone until someone is denied;
+     * false = closed until someone is granted (e.g. COLUMN_SETTINGS).
+     */
+    @Column(name = "default_allowed", nullable = false)
+    private Boolean defaultAllowed = true;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
@@ -56,6 +64,7 @@ public class PermissionDefinition {
         this.createdBy = who;
         this.updatedBy = who;
         if (this.status == null) this.status = true;
+        if (this.defaultAllowed == null) this.defaultAllowed = true;
     }
 
     @PreUpdate

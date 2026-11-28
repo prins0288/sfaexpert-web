@@ -15,7 +15,7 @@ public class ClaudeProvider implements AiProvider {
     @Override public String id() { return "claude"; }
     @Override public String label() { return "Claude (Anthropic)"; }
     @Override public List<String> models() {
-        return List.of("claude-sonnet-4-5", "claude-opus-4-1", "claude-haiku-4-5", "claude-3-5-sonnet-latest");
+        return List.of("claude-haiku-5-5", "claude-sonnet-5-5", "claude-sonnet-4-5", "claude-opus-4-1", "claude-haiku-4-5", "claude-3-5-sonnet-latest");
     }
 
     @Override
@@ -25,7 +25,7 @@ public class ClaudeProvider implements AiProvider {
 
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("model", model);
-        body.put("max_tokens", 2048);
+        body.put("max_tokens", 1024);   // short answers = fast
         body.put("system", systemPrompt);
         body.put("messages", msgs);
         body.put("temperature", 0.1);

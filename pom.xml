@@ -42,6 +42,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
         </dependency>
+        <!-- tenant SMTP mail (expense reminders ...): the sender is built per tenant from its smtp_setting row, not from application.yml -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
@@ -98,6 +103,20 @@
             <version>5.2.5</version>
         </dependency>
 
+        <!-- TwelveMonkeys ImageIO plugins: read CMYK / YCCK JPEGs (with their colour
+             profile) and WebP, which the JDK's own readers cannot — used by
+             FileUploadService to build thumbnails for any uploaded image. -->
+        <dependency>
+            <groupId>com.twelvemonkeys.imageio</groupId>
+            <artifactId>imageio-jpeg</artifactId>
+            <version>3.12.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.twelvemonkeys.imageio</groupId>
+            <artifactId>imageio-webp</artifactId>
+            <version>3.12.0</version>
+        </dependency>
+
         <!-- Swagger / OpenAPI (springdoc) — documents the mobile REST API.
              UI at /swagger-ui.html, spec at /v3/api-docs. -->
         <dependency>
@@ -118,6 +137,29 @@
             <artifactId>spring-boot-devtools</artifactId>
             <scope>runtime</scope>
             <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+            <!-- the mail implementation is used directly (SMTP return codes), so it is a compile dependency -->
+        <dependency>
+            <groupId>org.eclipse.angus</groupId>
+            <artifactId>angus-mail</artifactId>
+        </dependency>
+        <!-- HTML mail is sanitized (no scripts, no remote images by default) before it is shown -->
+        <dependency>
+            <groupId>com.googlecode.owasp-java-html-sanitizer</groupId>
+            <artifactId>owasp-java-html-sanitizer</artifactId>
+            <version>20240325.1</version>
+        </dependency>
+        <!-- local mail server for the mail module tests (SMTP + IMAP on localhost) -->
+        <dependency>
+            <groupId>com.icegreen</groupId>
+            <artifactId>greenmail</artifactId>
+            <version>2.1.3</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 

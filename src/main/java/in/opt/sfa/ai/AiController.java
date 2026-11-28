@@ -100,7 +100,9 @@ public class AiController {
     @PostMapping("/chat")
     @Operation(summary = "Ask the AI; answered from your data as HTML")
     public Map<String, Object> chat(@RequestBody Map<String, Object> body) {
-        Authz.requireRole("ADMIN", "MANAGER", "SUPER_ADMIN");
+        // everyone signed in may ask how-to questions; company DATA only for admins / managers
+        String myRole = UserContext.role();
+        boolean dataAllowed = "ADMIN".equals(myRole) || "MANAGER".equals(myRole) || "SUPER_ADMIN".equals(myRole);
         List<ChatMessage> history = new ArrayList<>();
         Object msgs = body.get("messages");
         if (msgs instanceof List<?> list) {
@@ -116,7 +118,7 @@ public class AiController {
         }
         if (history.isEmpty()) throw new IllegalArgumentException("No message to answer");
         String model = str(body.get("model"));
-        String html = chat.answer(history, model);
+        String html = chat.answer(history, model, dataAllowed);
 
         // Persist this turn (prompt + response) to the common ai_chat log — best effort.
         String prompt = history.get(history.size() - 1).content();   // newest user turn

@@ -93,13 +93,16 @@
   // This only hides buttons; the server still enforces @RequiresPermission.
   let PERMS = {};
 
+  // Fetched fresh on EVERY page load (one small call), so a permission an admin
+  // just granted / revoked applies on the user's next click — no re-login or new
+  // tab needed. The tab cache is only the fallback when the call fails.
   async function loadPermissions() {
-    const cached = Session.cache.get("perms");
-    if (cached) { PERMS = cached; return; }
     try {
       PERMS = (await Api.get(API.permissions.my, { noLoader: true })) || {};
       Session.cache.set("perms", PERMS);
-    } catch (e) { PERMS = {}; }   // not migrated yet / offline -> show everything, server decides
+    } catch (e) {
+      PERMS = Session.cache.get("perms") || {};   // offline / not migrated -> last known, else show everything (server decides)
+    }
   }
 
   const can = (code) => !code || PERMS[code] !== false;
@@ -458,7 +461,7 @@
         <span class="sfa-footer-right"><span data-i18n="footer.company">Company:</span> <b>${esc(companyCode)}</b> · <span data-i18n="footer.signedInAs">signed in as:</span> <b>${esc(user)}</b>
           · <span data-i18n="footer.lastLogin">last login:</span> <b>${esc(lastLoginText)}</b> · <b id="sfaClockNow">${esc(fmtDateTime(new Date()))}</b></span>
       </footer>`;
-    const content = `<main class="sfa-content"><div id="sfaMsg" class="alert py-2 small" style="display:none"></div><div id="sfaContent"></div></main>`;
+    const content = `<main class="sfa-content"><div id="sfaContent"></div></main>`;
 
     app.className = "sfa-shell";
     app.setAttribute("data-layout", layout);
@@ -466,7 +469,8 @@
     if (layout === "horizontal") {
       app.innerHTML = `
         <div class="sfa-main sfa-main-h">
-          <header class="sfa-topbar">${brand}<div class="sfa-title">${esc(title)}</div>${headerActions(color)}</header>
+          <header class="sfa-topbar">${brand}<div class="sfa-title">${esc(title)}</div><div class="sfa-marquee" id="sfaMarquee" hidden></div>${headerActions(color)}</header>
+          <div class="sfa-marquee-strip" id="sfaMarqueeStrip" hidden></div>
           <nav class="sfa-menubar" id="sfaNav">${horizontalNavHtml()}</nav>
           ${crumb}${content}${footer}
         </div>`;
@@ -476,8 +480,9 @@
         <div class="sfa-main">
           <header class="sfa-topbar">
             <button class="sfa-icon-btn sfa-toggle" id="sfaToggle" title="Toggle sidebar"><i class="bi bi-list"></i></button>
-            <div class="sfa-title">${esc(title)}</div>${headerActions(color)}
+            <div class="sfa-title">${esc(title)}</div><div class="sfa-marquee" id="sfaMarquee" hidden></div>${headerActions(color)}
           </header>
+          <div class="sfa-marquee-strip" id="sfaMarqueeStrip" hidden></div>
           ${crumb}${content}${footer}
         </div>
         <div class="sfa-backdrop" id="sfaBackdrop"></div>`;
@@ -488,6 +493,7 @@
     rewriteLinks();
     wireShell();
     wireHelpTooltip();
+    loadMarquee();
     if (window.sfaFlatpickr) sfaFlatpickr(document);
   }
 
@@ -829,6 +835,65 @@
     wireSearch();
   }
 
+  // ============================================================== marquee (header message)
+  /** Keep only harmless tags / attributes of an HTML message: b i u s em strong span mark small sub sup br a (+ safe colour styles). */
+  function sanitizeMarquee(html) {
+    const ALLOWED = { B: 1, STRONG: 1, I: 1, EM: 1, U: 1, S: 1, SPAN: 1, MARK: 1, SMALL: 1, SUB: 1, SUP: 1, BR: 1, A: 1, DEL: 1, INS: 1 };
+    const STYLE_OK = /^(color|background-color|font-weight|font-style|text-decoration|font-size|letter-spacing)$/i;
+    const doc = new DOMParser().parseFromString("<body>" + html + "</body>", "text/html");
+    (function walk(node) {
+      Array.from(node.childNodes).forEach(ch => {
+        if (ch.nodeType === 3) return;
+        if (ch.nodeType !== 1 || !ALLOWED[ch.tagName]) { if (ch.nodeType === 1 && /^(SCRIPT|STYLE|IFRAME|OBJECT|EMBED)$/.test(ch.tagName)) { ch.remove(); return; } while (ch.firstChild) node.insertBefore(ch.firstChild, ch); ch.remove(); return; }
+        Array.from(ch.attributes).forEach(a => {
+          const n = a.name.toLowerCase();
+          if (n === "style") { const keep = a.value.split(";").map(x => x.trim()).filter(x => x && STYLE_OK.test(x.split(":")[0].trim()) && !/url\(|expression|javascript/i.test(x)); keep.length ? ch.setAttribute("style", keep.join(";")) : ch.removeAttribute("style"); }
+          else if (n === "href" && ch.tagName === "A" && /^(https?:|mailto:|tel:)/i.test(a.value.trim())) { /* keep */ }
+          else if (n === "title") { /* keep */ }
+          else ch.removeAttribute(a.name);
+        });
+        if (ch.tagName === "A") { ch.setAttribute("target", "_blank"); ch.setAttribute("rel", "noopener noreferrer"); }
+        walk(ch);
+      });
+    })(doc.body);
+    return doc.body.innerHTML;
+  }
+
+  window.sanitizeMarquee = sanitizeMarquee;   // the Marquee Message page previews with the same filter
+
+  async function loadMarquee() {
+    const box = document.getElementById("sfaMarquee"), strip = document.getElementById("sfaMarqueeStrip");
+    if (!box || !strip) return;
+    let msgs = null;
+    const key = "sfa_mq_u" + (Session.index ? Session.index() : "0");
+    try { const c = JSON.parse(sessionStorage.getItem(key) || "null"); if (c && Date.now() - c.t < 300000) msgs = c.m; } catch (e) { /* no cache */ }
+    if (!msgs) {
+      try { msgs = (await Api.get(API.master.marquee.mine, { noLoader: true })) || []; sessionStorage.setItem(key, JSON.stringify({ t: Date.now(), m: msgs })); } catch (e) { msgs = []; }
+    }
+    renderMarquee(msgs);
+    window.addEventListener("resize", () => { clearTimeout(loadMarquee.t); loadMarquee.t = setTimeout(() => renderMarquee(msgs), 250); });
+  }
+
+  /**
+   * One smooth, seamless loop: a "set" is the messages repeated just often enough to fill the box, two sets sit side by side and the track
+   * slides left by exactly one set - so a short message never leaves a big empty gap, it simply repeats after a small separator.
+   */
+  function renderMarquee(msgs) {
+    [document.getElementById("sfaMarquee"), document.getElementById("sfaMarqueeStrip")].forEach(box => {
+      if (!box) return;
+      if (!msgs || !msgs.length) { box.hidden = true; box.innerHTML = ""; return; }
+      const unit = msgs.map(m => '<span class="sfa-mq-item">' + sanitizeMarquee(m.html) + "</span>").join("");
+      box.hidden = false;
+      const build = (k) => { const set = '<span class="sfa-mq-set">' + unit.repeat(k) + "</span>"; box.innerHTML = '<div class="sfa-marquee-track">' + set + set + "</div>"; return box.firstChild; };
+      let track = build(1);
+      if (!box.offsetWidth) return;   // hidden by CSS at this width (the other box shows)
+      const one = track.firstChild.offsetWidth || 1, k = Math.max(1, Math.ceil(box.clientWidth / one));
+      if (k > 1) track = build(k);
+      const speed = Math.max(10, Math.min(300, Number(msgs[0].speed) || 60));
+      track.style.setProperty("--mq-dur", (track.firstChild.offsetWidth / speed).toFixed(1) + "s");
+    });
+  }
+
   /** Populate the topbar language dropdown from I18n.available and switch on click. */
   function wireLanguage() {
     const menu = document.getElementById("sfaLangMenu");
@@ -891,6 +956,8 @@
     get claims() { return Session.claims(); },
     /** SFA.can("ZONE_SAVE") — false only when this user is explicitly denied. */
     can,
+    /** SFA.granted("COLUMN_SETTINGS") — true only when the server said so (for deny-by-default codes). */
+    granted: (code) => PERMS[code] === true || role === "SUPER_ADMIN",   // super admin always passes, like the server
     /** Drop the cached permission map (e.g. after editing assignments) and re-apply. */
     async reloadPermissions() { Session.cache.clear("perms"); await loadPermissions(); applyPermissions(document); },
     user, companyCode, role, u, esc,
@@ -914,13 +981,50 @@
       return Api.post(path, opts.body, cfg);
     },
     download(path, filename) { return Api.download(path, filename); },
-    toast(msg, ok) {
-      const el = document.getElementById("sfaMsg");
-      if (!el) return;
-      el.className = "alert py-2 small " + (ok === false ? "alert-danger" : "alert-success");
-      el.textContent = msg;
-      el.style.display = "block";
-      setTimeout(() => { el.style.display = "none"; }, ok === false ? 8000 : 3000);
+    /**
+     * Global toast: top-right corner, above every popup (modal), several can
+     * show at once and each closes on its own timer (default 3 s; hover pauses
+     * it, x closes it now).
+     *   SFA.toast("Saved")                 success
+     *   SFA.toast(err.message, false)      error
+     *   SFA.toast("Check rates", "warning", 5000)   type: success | error | warning | info, ms
+     */
+    toast(msg, ok, ms) {
+      if (msg == null || msg === "") return;
+      const type = ok === false ? "error" : ok === true || ok == null ? "success" : String(ok);
+      const icon = { success: "check-circle-fill", error: "x-circle-fill", warning: "exclamation-triangle-fill", info: "info-circle-fill" }[type] || "info-circle-fill";
+      let host = document.getElementById("sfaToasts");
+      if (!host) {
+        host = document.createElement("div");
+        host.id = "sfaToasts";
+        host.className = "sfa-toasts";
+        host.setAttribute("aria-live", "polite");
+        document.body.appendChild(host);
+      }
+      while (host.children.length >= 6) host.firstElementChild.remove();   // keep the stack short
+      const t = document.createElement("div");
+      t.className = "sfa-toast sfa-toast-" + type;
+      t.setAttribute("role", type === "error" ? "alert" : "status");
+      t.innerHTML = '<i class="bi bi-' + icon + ' sfa-toast-icon"></i><div class="sfa-toast-msg"></div>' +
+        '<button type="button" class="sfa-toast-close" aria-label="Close">&times;</button><div class="sfa-toast-bar"></div>';
+      t.querySelector(".sfa-toast-msg").textContent = String(msg);
+      const life = ms > 0 ? ms : 3000;
+      t.querySelector(".sfa-toast-bar").style.animationDuration = life + "ms";
+      host.appendChild(t);
+      requestAnimationFrame(() => t.classList.add("show"));
+
+      let left = life, started = Date.now(), timer = null;
+      const close = () => {
+        clearTimeout(timer);
+        t.classList.remove("show");
+        t.classList.add("hide");
+        setTimeout(() => t.remove(), 250);
+      };
+      const run = () => { started = Date.now(); timer = setTimeout(close, left); };
+      t.addEventListener("mouseenter", () => { clearTimeout(timer); left -= Date.now() - started; t.classList.add("paused"); });
+      t.addEventListener("mouseleave", () => { t.classList.remove("paused"); run(); });
+      t.querySelector(".sfa-toast-close").addEventListener("click", close);
+      run();
     },
   };
 
@@ -970,4 +1074,40 @@
     const app = document.getElementById("app");
     if (app && currentLayout() !== app.getAttribute("data-layout")) Shell.rebuild();
   });
+})(window);
+
+/* ---------------------------------------------------------------------------
+ * Page links keep the signed-in account slot (/u/N/).
+ * A link written as "dcr/dcr-submit.html" (dashboard tiles, "to approve" links, back links ...) resolves to /dcr/dcr-submit.html, without /u/N/, so
+ * the page opens with no sign-in and fails. The menu builds its URLs with Session.uUrl(); this does the same for every other in-app link: the href
+ * is rewritten when the page is built (so "open in new tab" / copy link are right too) and again for links added later.
+ * ------------------------------------------------------------------------- */
+(function (window) {
+  "use strict";
+  const S = window.Session;
+  if (!S || !S.uUrl) return;
+  function fix(a) {
+    try {
+      const raw = a.getAttribute("href");
+      if (!raw || raw.charAt(0) === "#" || /^(mailto:|tel:|javascript:)/i.test(raw) || a.hasAttribute("download") || a.dataset.noSlot != null) return;
+      const u = new URL(a.href, location.href);
+      if (u.origin !== location.origin || !/\.html$/i.test(u.pathname)) return;
+      const ctx = S.ctx();
+      if (u.pathname.indexOf(ctx + "/") !== 0 && ctx !== "") return;
+      const rest = u.pathname.slice(ctx.length).replace(/^\//, "");
+      if (/^u\/\d+\//.test(rest) || /^(index|login)\.html$/i.test(rest)) return;   // already has its slot / the sign-in page
+      a.setAttribute("href", S.uUrl(S.activeIndex(), rest) + u.search + u.hash);
+    } catch (e) { /* leave the link as it is */ }
+  }
+  function fixAll(root) { (root.querySelectorAll ? root.querySelectorAll("a[href]") : []).forEach(fix); }
+  function start() {
+    fixAll(document);
+    new MutationObserver(muts => muts.forEach(m => {
+      m.addedNodes.forEach(n => { if (n.nodeType === 1) { if (n.tagName === "A") fix(n); else fixAll(n); } });
+      if (m.type === "attributes" && m.target.tagName === "A") fix(m.target);
+    })).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["href"] });
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start); else start();
+  // a link clicked before the observer got to it (or built by script and clicked at once) is fixed at the click
+  document.addEventListener("click", e => { const a = e.target.closest && e.target.closest("a[href]"); if (a) fix(a); }, true);
 })(window);

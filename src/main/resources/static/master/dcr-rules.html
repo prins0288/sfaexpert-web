@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>/* reverse-proxy sub-path support: make relative css/js resolve under the deploy prefix (e.g. /sfaexpert), "" locally */
+  (function(){try{var p=location.pathname,m=p.match(/^(.*?)\/u\/\d+(\/|$)/),c=m?m[1]:p.replace(/\/[^\/]*$/,'');document.write('<base href="'+(c||'')+'/">');}catch(e){}})();</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StarSFA &middot; DCR Rules</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css" rel="stylesheet" />
+  <link href="css/app.css" rel="stylesheet" />
+  <script>
+    /* Apply the saved theme (mode / layout / density / colours) BEFORE first
+       paint so there is no flash. theme.js re-applies from the server after. */
+    (function () {
+      try {
+        var d = document.documentElement, s = localStorage;
+        // theme is PER TENANT and several tenants can be signed in at once
+        // (/u/0, /u/1...), so these caches are scoped to the account slot —
+        // a shared key would paint the last-customised tenant's colours here.
+        var m = location.pathname.match(/\/u\/(\d+)(\/|$)/), q = '_u' + (m ? m[1] : '0');
+        d.setAttribute('data-theme', s.getItem('sfa_mode' + q) || 'light');
+        d.setAttribute('data-nav', s.getItem('sfa_nav' + q) || 'vertical');
+        d.setAttribute('data-density', s.getItem('sfa_density' + q) || 'comfortable');
+        var f = s.getItem('sfa_font' + q); if (f) d.style.setProperty('--sfa-font-scale', f);
+        var c = s.getItem('sfa_theme' + q);
+        if (c) { c = JSON.parse(c); var t = (c.resolved && c.resolved[c.mode]) || {};
+          for (var k in t) d.style.setProperty('--sfa-' + k, t[k]); }
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+<div id="app" data-page="dcrrules" data-title="DCR Rules"></div>
+<template id="pageContent">
+  <div class="card">
+    <div class="card-header"><i class="bi bi-shield-check"></i> DCR Rules (validations)</div>
+    <div class="card-body">
+      <div class="row g-2 align-items-end mb-2">
+        <div class="col-md-5"><label class="form-label mb-1">Showing</label>
+          <select class="form-select" id="r_scope" onchange="reload()"></select></div>
+        <div class="col-md-7"><p class="text-muted small mb-0" id="r_hint"></p></div>
+      </div>
+      <p class="text-muted small mb-2">Master rules are the default; every employee gets their own copy when created, and an employee's row overrides the master for that employee.
+        Choose <b>Summary</b> to see which value most employees have for each rule.</p>
+      <div class="table-responsive">
+        <table id="rTable" class="table table-striped table-bordered nowrap" style="width:100%">
+          <thead id="rHead"></thead><tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</template>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.colVis.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="js/core/session.js"></script>
+<script src="js/core/endpoints.js"></script>
+<script src="js/core/http.js"></script>
+<script src="js/core/theme.js"></script>
+<script src="js/core/settings.js"></script>
+<script src="js/core/i18n.js"></script>
+<script src="js/app.js"></script>
+<script src="js/core/uikit.js"></script>
+<script src="js/shell.js"></script>
+<script>
+  let DT = null, LK = {}, ROWS = [];
+  const EP = API.master.dcrSubmit;
+  const esc = (v) => SFA.esc(v == null ? '' : v);
+  const scope = () => document.getElementById('r_scope').value;
+  window.pageInit = async function () {
+    try {
+      LK = await Api.get(API.lookups, { query: { keys: 'employees' } });
+      document.getElementById('r_scope').innerHTML = '<option value="">Master (default)</option><option value="__sum">Summary - all employees</option>' +
+        (LK.employees || []).map(e => `<option value="${esc(e.oid)}">${esc(e.label)}</option>`).join('');
+      await reload();
+    } catch (e) { SFA.toast(e.message, false); }
+  };
+  async function reload() {
+    if (DT) DT.destroy();
+    const sc = scope(), tb = document.querySelector('#rTable tbody'), hd = document.getElementById('rHead');
+    if (sc === '__sum') {
+      ROWS = await Api.get(EP.rulesSummary);
+      document.getElementById('r_hint').textContent = 'How many employees run each rule with which value.';
+      hd.innerHTML = '<tr><th>Screen</th><th>Rule</th><th>Value</th><th>On</th><th>Employees</th></tr>';
+      tb.innerHTML = ROWS.map(r => `<tr><td>${esc(r.screen)}</td><td><b>${esc(r.name)}</b> <small class="text-muted">${esc(r.code)}</small></td><td>${esc(r.value)}</td>
+        <td>${r.enabled ? '<span class="badge badge-active">On</span>' : '<span class="badge badge-inactive">Off</span>'}</td><td>${r.employees}</td></tr>`).join('');
+    } else {
+      ROWS = await Api.get(EP.rules, { query: { empId: sc } });
+      document.getElementById('r_hint').textContent = sc ? (ROWS.length ? "This employee's own rules." : 'No own rules yet - the master rules apply.') : 'Master rules (default).';
+      hd.innerHTML = '<tr><th>Screen</th><th>Rule</th><th>Value</th><th>On</th><th class="no-export">Actions</th></tr>';
+      tb.innerHTML = ROWS.map(r => `<tr><td>${esc(r.screen)}</td><td><b>${esc(r.name)}</b> <small class="text-muted d-block">${esc(r.description)}</small>${r.inherited ? '<span class="badge bg-light text-dark border">Same as master - saving makes it this employee\'s own</span>' : ''}</td>
+        <td style="min-width:9rem">${r.dataType === 'BOOLEAN' ? `<select class="form-select form-select-sm" data-no-search id="v${r.code}"><option ${/^true$/i.test(r.value) ? 'selected' : ''}>TRUE</option><option ${/^true$/i.test(r.value) ? '' : 'selected'}>FALSE</option></select>`
+          : `<input class="form-control form-control-sm" id="v${r.code}" value="${esc(r.value)}" />`}</td>
+        <td><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="e${r.code}" ${r.enabled ? 'checked' : ''}></div></td>
+        <td class="no-export"><button class="btn btn-sm btn-primary" onclick="ruleSave('${esc(r.code)}')"><i class="bi bi-check2"></i> Save</button>
+          ${sc ? '' : `<button class="btn btn-sm btn-outline-secondary" title="Apply this value to every employee" onclick="ruleAll('${esc(r.code)}')">All employees</button>`}</td></tr>`).join('');
+    }
+    DT = sfaDataTable('#rTable');
+  }
+  async function ruleSave(code) {
+    const val = document.getElementById('v' + code).value, on = document.getElementById('e' + code).checked, sc = scope();
+    try {
+      if (sc) await Api.post(EP.ruleFor(sc, code), { value: val, enabled: on });          // an employee: updates his row, or creates it
+      else { const r = ROWS.find(x => x.code === code); await Api.post(EP.rule(r.id), { value: val, enabled: on }); }
+      SFA.toast('Saved'); if (sc) await reload();
+    } catch (e) { SFA.toast(e.message, false); }
+  }
+  async function ruleAll(code) {
+    const r = ROWS.find(x => x.code === code), v = document.getElementById('v' + code).value;
+    if (!confirm('Set ' + r.name + ' = ' + v + ' for every employee?')) return;
+    try { await ruleSave(code); const d = await Api.post(EP.rulesApplyAll, { code: r.code, value: v }); SFA.toast('Updated ' + (d && d.updated != null ? d.updated : '') + ' rows'); await reload(); }
+    catch (e) { SFA.toast(e.message, false); }
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>/* reverse-proxy sub-path support: make relative css/js resolve under the deploy prefix (e.g. /sfaexpert), "" locally */
+  (function(){try{var p=location.pathname,m=p.match(/^(.*?)\/u\/\d+(\/|$)/),c=m?m[1]:p.replace(/\/[^\/]*$/,'');document.write('<base href="'+(c||'')+'/">');}catch(e){}})();</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StarSFA &middot; HR Roles & Access</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css" rel="stylesheet" />
+  <link href="css/app.css" rel="stylesheet" />
+  <link href="css/app-ui.css" rel="stylesheet" />
+  <script>
+    /* Apply the saved theme (mode / layout / density / colours) BEFORE first
+       paint so there is no flash. theme.js re-applies from the server after. */
+    (function () {
+      try {
+        var d = document.documentElement, s = localStorage;
+        // theme is PER TENANT and several tenants can be signed in at once
+        // (/u/0, /u/1...), so these caches are scoped to the account slot —
+        // a shared key would paint the last-customised tenant's colours here.
+        var m = location.pathname.match(/\/u\/(\d+)(\/|$)/), q = '_u' + (m ? m[1] : '0');
+        d.setAttribute('data-theme', s.getItem('sfa_mode' + q) || 'light');
+        d.setAttribute('data-nav', s.getItem('sfa_nav' + q) || 'vertical');
+        d.setAttribute('data-density', s.getItem('sfa_density' + q) || 'comfortable');
+        var f = s.getItem('sfa_font' + q); if (f) d.style.setProperty('--sfa-font-scale', f);
+        var c = s.getItem('sfa_theme' + q);
+        if (c) { c = JSON.parse(c); var t = (c.resolved && c.resolved[c.mode]) || {};
+          for (var k in t) d.style.setProperty('--sfa-' + k, t[k]); }
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+<div id="app" data-page="hrroles" data-title="HR Roles & Access"></div>
+<template id="pageContent">
+<div class="ap-app">
+  <div class="ap-top"><div><h1 class="ap-title">HR Roles &amp; Access</h1><div class="text-muted small">What each role may do, and who holds which extra role. Admin level gets HR Admin, managers get Manager and everybody is an Employee automatically</div></div></div>
+  <div class="ap-seg" id="seg"><button data-k="m" class="active" onclick="go('m')">Permission matrix</button><button data-k="a" onclick="go('a')">People</button></div>
+  <div id="body"></div>
+  <div class="offcanvas offcanvas-bottom ap-sheet" tabindex="-1" id="sh" data-bs-backdrop="true">
+    <div class="offcanvas-header"><h5 class="offcanvas-title" id="shT"></h5><button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button></div>
+    <div class="offcanvas-body" id="shB"></div><div class="ap-sheet-foot" id="shF"></div></div>
+</div>
+</template>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.colVis.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="js/core/session.js"></script>
+<script src="js/core/endpoints.js"></script>
+<script src="js/core/http.js"></script>
+<script src="js/core/theme.js"></script>
+<script src="js/core/settings.js"></script>
+<script src="js/core/i18n.js"></script>
+<script src="js/app.js"></script>
+<script src="js/core/uikit.js"></script>
+<script src="js/shell.js"></script>
+<script>
+
+const H = API.master.hr;
+const esc = (v) => SFA.esc(v == null ? '' : v);
+const val = (id) => document.getElementById(id).value;
+const chk = (id) => document.getElementById(id).checked;
+const SHEETS = {};
+function sheet(id) { return SHEETS[id] || (SHEETS[id] = new bootstrap.Offcanvas('#' + id)); }
+async function askReason(label) { const r = prompt(label || 'Reason for this change (kept in the audit log)'); if (r == null) return null; if (!r.trim()) { SFA.toast('A reason is required', false); return null; } return r.trim(); }
+
+let MX = null, TABK = 'm', ASG = [], EMPS = [];
+window.pageInit = async function () { await go('m'); };
+async function go(k) {
+  TABK = k; document.querySelectorAll('#seg button').forEach(b => b.classList.toggle('active', b.dataset.k === k));
+  try { if (k === 'm') { MX = await Api.get(H.matrix); renderM(); } else { MX = await Api.get(H.matrix); ASG = await Api.get(H.assignments); renderA(); find(''); } }
+  catch (e) { document.getElementById('body').innerHTML = '<div class="ap-card ap-empty">' + esc(e.message) + '</div>'; }
+}
+function renderM() {
+  const mods = [...new Set(MX.permissions.map(p => p.module))];
+  document.getElementById('body').innerHTML = '<div class="ap-card" style="overflow-x:auto"><table class="table table-sm align-middle mb-0"><thead><tr><th>Permission</th>' + MX.roles.map(r => `<th class="text-center" title="${esc(r.description)}">${esc(r.name)}</th>`).join('') + '</tr></thead><tbody>'
+   + mods.map(m => `<tr><td colspan="${MX.roles.length + 1}" class="ap-sec">${esc(m)}</td></tr>` + MX.permissions.filter(p => p.module === m).map(p => `<tr><td>${esc(p.name)}</td>` + MX.roles.map(r => {
+      const sa = r.code === 'SUPER_ADMIN', on = sa || r.permissions.includes(p.code);
+      return `<td class="text-center"><input type="checkbox" class="form-check-input" ${on ? 'checked' : ''} ${sa ? 'disabled' : ''} onchange="tog(${r.id},'${p.code}',this.checked)"></td>`; }).join('') + '</tr>').join('')).join('')
+   + '</tbody></table></div><div class="small text-muted mt-2">Every change is written to the audit log. Super Admin always has everything.</div>';
+}
+async function tog(roleId, code, on) {
+  const role = MX.roles.find(r => r.id === roleId);
+  const reason = await askReason('Reason for this permission change'); if (!reason) { renderM(); return; }
+  const next = on ? [...new Set([...role.permissions, code])] : role.permissions.filter(c => c !== code);
+  try { await Api.post(H.rolePerms(roleId), { permissions: next, reason }); role.permissions = next; SFA.toast('Saved'); } catch (e) { SFA.toast(e.message, false); renderM(); }
+}
+function renderA() {
+  document.getElementById('body').innerHTML = '<div class="ap-card"><div class="d-flex gap-2"><input class="form-control" id="q" placeholder="Search employee to give a role (name or code)" oninput="find(this.value)"></div><div id="found" class="mt-2"></div></div>'
+   + (ASG.map(a => `<div class="ap-card" style="cursor:pointer" onclick="editRoles('${esc(a.empId)}','${esc(a.name)}','${esc(a.roles)}')"><b>${esc(a.name)}</b> <span class="text-muted">${esc(a.empCode)}</span><div class="ap-chips mt-1">${a.roles.split(',').map(r => `<span class="ap-badge ok">${esc(r)}</span>`).join('')}</div></div>`).join('') || '<div class="ap-card ap-empty">Nobody has an extra role yet</div>');
+}
+async function find(q) {
+  EMPS = await Api.get(H.employees, { query: { q } });
+  document.getElementById('found').innerHTML = EMPS.slice(0, 15).map(e => `<div class="ap-row" style="cursor:pointer" onclick="editRoles('${esc(e.empId)}','${esc(e.name)}','')"><div class="grow">${esc(e.name)} <span class="text-muted">${esc(e.empCode)}</span></div></div>`).join('') || '<div class="text-muted">None</div>';
+}
+let CURE = null;
+function editRoles(empId, name, roles) {
+  CURE = empId; const have = roles ? roles.split(',') : [];
+  document.getElementById('shT').textContent = name;
+  document.getElementById('shB').innerHTML = '<div class="small text-muted mb-2">Everybody is an Employee. Admin level already acts as HR Admin and managers as Manager. Tick only what this person needs on top.</div>'
+    + MX.roles.filter(r => r.code !== 'EMPLOYEE').map(r => `<label class="ap-row"><input type="checkbox" class="form-check-input" value="${r.code}" ${have.includes(r.code) ? 'checked' : ''}><div class="grow"><b>${esc(r.name)}</b><div class="small text-muted">${esc(r.description)}</div></div></label>`).join('');
+  document.getElementById('shF').innerHTML = '<button class="ap-btn light" data-bs-dismiss="offcanvas">Cancel</button><button class="ap-btn go" onclick="saveRoles()"><i class="bi bi-check2"></i> Save</button>';
+  sheet('sh').show();
+}
+async function saveRoles() {
+  const reason = await askReason(); if (!reason) return;
+  const roles = [...document.querySelectorAll('#shB input:checked')].map(i => i.value);
+  try { await Api.post(H.empRoles(CURE), { roles, reason }); sheet('sh').hide(); await go('a'); SFA.toast('Saved'); } catch (e) { SFA.toast(e.message, false); }
+}
+
+</script>
+</body>
+</html>
