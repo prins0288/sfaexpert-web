@@ -111,7 +111,7 @@
       }
       const label = labelOf(el); if (!label) return; let val;
       if (el.type === "checkbox" || el.type === "radio") val = el.checked ? "Yes" : "No";
-      else if (el.tagName === "SELECT") { const opts = Array.from(el.selectedOptions || []); val = opts.length && el.multiple && opts.length === el.options.length ? "All" : (opts.length ? opts.map((o) => o.textContent.trim()).filter(Boolean).join(", ") : "");   // every option chosen = All if (!val) val = el.options.length ? (el.options[0].textContent.trim() || "All") : "All"; }
+      else if (el.tagName === "SELECT") { const opts = Array.from(el.selectedOptions || []); val = opts.length && el.multiple && opts.length === el.options.length ? "All" : (opts.length ? opts.map((o) => o.textContent.trim()).filter(Boolean).join(", ") : ""); if (!val) val = el.options.length ? (el.options[0].textContent.trim() || "All") : "All"; }
       else val = (el.value || "").trim() || "-";
       parts.push(label + ": " + val);
     });
