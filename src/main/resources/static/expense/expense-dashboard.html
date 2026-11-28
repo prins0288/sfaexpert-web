@@ -76,6 +76,9 @@
 <div class="row g-2 mb-2" id="kpis"></div>
 <ul class="nav nav-pills mb-2" id="tabs"></ul>
 <div class="card"><div class="card-body" id="tbl"></div></div>
+<div class="modal fade" id="stmtModal" tabindex="-1"><div class="modal-dialog modal-fullscreen"><div class="modal-content">
+  <div class="modal-header sfa-modal py-2"><h5 class="modal-title"><i class="bi bi-receipt"></i> <span id="stmtTitle"></span></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body p-0"><iframe id="stmtFrame" style="width:100%;height:calc(100vh - 56px);border:0" title="Expense statement"></iframe></div></div></div></div>
 <div class="modal fade" id="activityModal" tabindex="-1"><div class="modal-dialog modal-dialog-scrollable modal-fullscreen-sm-down"><div class="modal-content">
   <div class="modal-header sfa-modal"><h5 class="modal-title"><i class="bi bi-clock-history"></i> <span data-i18n="rep.recentSearches">Recent searches</span></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
   <div class="modal-body" id="activityList"></div></div></div></div>
@@ -106,11 +109,12 @@
   const MONTHS = [...Array(12)].map((_, i) => new Date(2024, i, 1).toLocaleDateString('en-GB', { month: 'long' }));
   const ST = { NOT_STARTED: ['Not submitted', 'danger'], DRAFT: ['Draft', 'secondary'], SUBMITTED: ['Submitted', 'info'], MGR_APPROVED: ['Manager approved', 'primary'], APPROVED: ['Approved', 'success'], REJECTED: ['Rejected', 'danger'] };
   const num = (v) => Number(v || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 });
-  let D = null, TAB = 'all', ACT = null, VIEW = [], LASTLANG = window.I18n ? I18n.lang : 'en';
+  let STM = null, D = null, TAB = 'all', ACT = null, VIEW = [], LASTLANG = window.I18n ? I18n.lang : 'en';
   const SEL = new Set();
   if (window.I18n) I18n.onChange(() => { if (I18n.lang !== LASTLANG) { LASTLANG = I18n.lang; draw(); } });
   window.pageInit = async function () {
-    ACT = new bootstrap.Modal('#activityModal');
+    ACT = new bootstrap.Modal('#activityModal'); STM = new bootstrap.Modal('#stmtModal');
+    document.getElementById('stmtModal').addEventListener('hidden.bs.modal', () => { document.getElementById('stmtFrame').src = 'about:blank'; rpGo(); });   // what was submitted / approved in the popup shows in the table
     document.getElementById('activityModal').addEventListener('shown.bs.modal', () => Activity.renderInto('activityList', REPORT_KEY, applyActivity));
     const now = new Date(); let pm = now.getMonth(), py = now.getFullYear(); if (pm === 0) { pm = 12; py--; }
     document.getElementById('f_month').innerHTML = MONTHS.map((m, i) => `<option value="${i + 1}">${m}</option>`).join(''); document.getElementById('f_month').value = pm;
@@ -145,8 +149,11 @@
         <td class="no-export text-nowrap">${r.canApprove ? `<button class="btn btn-sm btn-success py-0" onclick="approveRow(${i})">${T('ed.approveBtn', 'Approve')}</button> ` : ''}${r.canReject ? `<button class="btn btn-sm btn-outline-danger py-0" onclick="rejectRow(${i})">${T('exp.reject', 'Reject')}</button>` : ''}</td></tr>`; }).join('')}</tbody></table>`;
     sfaDataTable('#dT', { order: [[3, 'asc']] }); selCount();
   }
-  // empCode click: the statement of that employee and month opens - to submit it when it is not submitted, to approve / change it when it is
-  function openStmt(i) { const r = VIEW[i]; location.href = Session.pageUrl('expense/expense-statement.html?empId=' + encodeURIComponent(r.empId) + '&month=' + q().month + '&year=' + q().year); }
+  // empCode click: the statement of that employee and month opens full screen in a popup, already chosen - to submit it when it is not submitted, to approve / change it when it is
+  function openStmt(i) {
+    const r = VIEW[i]; document.getElementById('stmtTitle').textContent = r.empName + ' (' + r.empCode + ') - ' + MONTHS[q().month - 1] + ' ' + q().year;
+    document.getElementById('stmtFrame').src = Session.pageUrl('expense/expense-statement.html?embed=1&empId=' + encodeURIComponent(r.empId) + '&empName=' + encodeURIComponent(r.empName) + '&month=' + q().month + '&year=' + q().year); STM.show();
+  }
   function sel(id, on) { on ? SEL.add(id) : SEL.delete(id); selCount(); }
   function selAll(on) { VIEW.forEach(r => { if (r.canApprove) on ? SEL.add(r.statementId) : SEL.delete(r.statementId); }); document.querySelectorAll('#dT tbody input[type=checkbox]').forEach(c => c.checked = on); selCount(); }
   const selCount = () => { const e = document.getElementById('selCnt'); if (e) e.textContent = SEL.size; };

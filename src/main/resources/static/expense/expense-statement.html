@@ -48,6 +48,10 @@
   .flow { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; font-size: .78rem; } .flow span { padding: .15rem .6rem; border-radius: 1rem; background: var(--bs-tertiary-bg); } .flow span.on { background: #198754; color: #fff; } .flow span.cur { background: #fd7e14; color: #fff; }
   tr.rp-click { cursor: pointer; }
 </style>
+<script>
+  // opened inside the popup of the Expense Dashboard (?embed=1): only the page content, no menu / header / footer
+  if (/[?&]embed=1/.test(location.search)) { var st = document.createElement('style'); st.textContent = '.sfa-sidebar,.sfa-backdrop,.sfa-main>:not(.sfa-content){display:none!important}.sfa-main{margin:0!important;padding:0!important;width:100%!important;max-width:none!important}.sfa-content{padding:.6rem!important}body{background:var(--bs-body-bg)}'; document.head.appendChild(st); }
+</script>
 </head>
 <body>
 <div id="app" data-page="expensestatement" data-title="Expense Statement"></div>
@@ -120,7 +124,7 @@
       document.getElementById('f_emp').innerHTML = FIL.employees.map(e => `<option value="${esc(e.id)}" ${e.id === ME ? 'selected' : ''}>${esc(e.name)}</option>`).join('');
       { const sp = new URLSearchParams(location.search);   // opened from the Expense Dashboard: that employee and month
         if (sp.get('month')) document.getElementById('f_month').value = sp.get('month'); if (sp.get('year')) { const y = document.getElementById('f_year'); if (![...y.options].some(o => o.value === sp.get('year'))) y.add(new Option(sp.get('year'), sp.get('year'))); y.value = sp.get('year'); }
-        if (sp.get('empId') && [...document.getElementById('f_emp').options].some(o => o.value === sp.get('empId'))) document.getElementById('f_emp').value = sp.get('empId'); }
+        if (sp.get('empId')) { const fe = document.getElementById('f_emp'); if (![...fe.options].some(o => o.value === sp.get('empId'))) fe.add(new Option(sp.get('empName') || sp.get('empId'), sp.get('empId'))); fe.value = sp.get('empId'); } }   // the employee of the dashboard row is always there, chosen for you
       await rpGo(); pending();
     } catch (e) { SFA.toast(e.message, false); }
   };
