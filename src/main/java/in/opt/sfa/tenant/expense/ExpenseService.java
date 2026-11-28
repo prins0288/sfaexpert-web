@@ -32,8 +32,10 @@ public class ExpenseService {
     private final ObjectMapper json = new ObjectMapper();
     private final in.opt.sfa.tenant.master.areatype.AreaTypeService areaTypes;
     private final in.opt.sfa.tenant.tp.service.HolidayService holidays;
+    private final in.opt.sfa.tenant.dcr.submit.service.DcrRuleService dcrRules;
+    private final in.opt.sfa.tenant.dcr.submit.service.DcrWorktypeService dcrWorktypes;
 
-    public ExpenseService(JdbcTemplate jdbc, TeamScope scope, in.opt.sfa.tenant.master.areatype.AreaTypeService areaTypes, in.opt.sfa.tenant.tp.service.HolidayService holidays) { this.jdbc = jdbc; this.scope = scope; this.areaTypes = areaTypes; this.holidays = holidays; }
+    public ExpenseService(JdbcTemplate jdbc, TeamScope scope, in.opt.sfa.tenant.master.areatype.AreaTypeService areaTypes, in.opt.sfa.tenant.tp.service.HolidayService holidays, in.opt.sfa.tenant.dcr.submit.service.DcrRuleService dcrRules, in.opt.sfa.tenant.dcr.submit.service.DcrWorktypeService dcrWorktypes) { this.dcrRules = dcrRules; this.dcrWorktypes = dcrWorktypes; this.jdbc = jdbc; this.scope = scope; this.areaTypes = areaTypes; this.holidays = holidays; }
 
     // ------------------------------------------------------------------ settings and rates (admin)
     public Map<String, String> settings() {
@@ -207,6 +209,11 @@ public class ExpenseService {
         LocalDate doj = null, lwd = null;   // days before the joining date / after the last working day are not checked
         for (Map<String, Object> r : jdbc.queryForList("SELECT date_of_joining AS doj, last_working_date AS lwd FROM emp_detail WHERE emp_id = ?", empId)) { if (r.get("doj") != null) doj = ((Date) r.get("doj")).toLocalDate(); if (r.get("lwd") != null) lwd = ((Date) r.get("lwd")).toLocalDate(); }
         Map<String, List<Map<String, Object>>> off = holidays.forEmployee(empId, from, to);
+        // when a DCR counts as submitted: the same rules as the attendance - a draft counts when the final submit is not required, a submitted one waits for approval only where the approval system is on
+        boolean finalReq = true, apprOn = true;
+        try { finalReq = in.opt.sfa.tenant.dcr.submit.service.DcrRuleService.bool(dcrRules.of(empId), "FINAL_SUBMIT_REQUIRED", true); apprOn = dcrRules.approvalOn(); } catch (org.springframework.dao.DataAccessException e) { /* rules not set up: strict */ }
+        final boolean fReq = finalReq, aOn = apprOn;
+        java.util.function.BiPredicate<Integer, String> counts = (st, wtc) -> st == 2 || (st == 1 && !(aOn && dcrWorktypes.needsApproval(empId, wtc))) || (st == 0 && !fReq);
         List<Map<String, Object>> days = new ArrayList<>();
         Area prevStay = null; boolean offSince = false;
         for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
@@ -218,11 +225,12 @@ public class ExpenseService {
                 days.add(row); continue;
             }
             String wt = p == null ? null : (String) p.get("work_type"); int status = p == null ? -1 : ((Number) p.get("status")).intValue();
-            boolean working = p != null && (status >= 1 || (d.equals(LocalDate.now()) && visitCount.getOrDefault(((Number) p.get("dcr_id")).longValue(), 0) > 0)) && wt != null && (fieldWork.contains(wt) || (!List.of("HOLIDAY", "WEEKLY_OFF", "LEAVE").contains(wt) && visitCount.getOrDefault(((Number) p.get("dcr_id")).longValue(), 0) > 0));   // a field work type, or any day that has client visits
+            boolean counted = p != null && wt != null && counts.test(status, wt);
+            boolean working = p != null && (counted || (d.equals(LocalDate.now()) && visitCount.getOrDefault(((Number) p.get("dcr_id")).longValue(), 0) > 0)) && wt != null && (fieldWork.contains(wt) || (!List.of("HOLIDAY", "WEEKLY_OFF", "LEAVE").contains(wt) && visitCount.getOrDefault(((Number) p.get("dcr_id")).longValue(), 0) > 0));   // a field work type, or any day that has client visits
             row.put("dcrId", p == null ? null : p.get("dcr_id")); row.put("dayType", wt == null ? "-" : wt); row.put("tpArea", tp.get(ds));
             if (!working) {
-                if (p == null || wt == null || List.of("HOLIDAY", "WEEKLY_OFF", "LEAVE").contains(wt) || status < 1) offSince = true;
-                boolean submitted = p != null && status >= 1;
+                if (p == null || wt == null || List.of("HOLIDAY", "WEEKLY_OFF", "LEAVE").contains(wt) || !counted) offSince = true;
+                boolean submitted = counted;
                 List<Map<String, Object>> offs = off.getOrDefault(ds, List.of());
                 String kind, label;
                 if (submitted && "LEAVE".equals(wt)) { kind = "LEAVE"; label = "Leave"; }
@@ -231,7 +239,7 @@ public class ExpenseService {
                 else if (submitted) { kind = "OTHER"; label = null; }   // a submitted DCR of a non-field work type (office work ...)
                 else if (!offs.isEmpty()) { kind = "OFF"; label = "WEEKLY_OFF".equals(offs.get(0).get("kind")) ? "Weekly off" : "Holiday"; }
                 else if (d.equals(LocalDate.now())) { kind = "TODAY"; label = null; }   // today's DCR can still come
-                else { kind = "ABSENT"; label = "Absent"; }   // no submitted DCR on a working day
+                else { kind = "ABSENT"; label = p == null ? "Absent" : status == 0 ? "Absent (DCR not final submitted)" : status == 1 ? "Absent (DCR waiting for approval)" : "Absent (DCR rejected)"; }   // no counted DCR on a working day
                 row.put("rowKind", kind); row.put("route", label); row.put("visits", 0);
                 row.put("km", BigDecimal.ZERO); row.put("fare", BigDecimal.ZERO); row.put("da", BigDecimal.ZERO); row.put("travelExp", BigDecimal.ZERO); row.put("heads", new LinkedHashMap<Long, BigDecimal>()); row.put("bills", 0); row.put("workWith", null); row.put("stayArea", null);
                 days.add(row); continue;
