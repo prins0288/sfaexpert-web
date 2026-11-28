@@ -144,6 +144,8 @@ public class MailSendService {
         MimeMessage msg;
         try { msg = MimeBuilder.build(Session.getInstance(new Properties()), outOf(acc, o)); }
         catch (Exception e) { return finish(id, "FAILED", "The mail could not be prepared: " + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()), 0); }
+        try { HostGuard.check(acc.smtp().host(), acc.smtp().port(), accounts.internalHosts()); }   // checked again at send time, not only when the account was saved
+        catch (IllegalArgumentException e) { return finish(id, "FAILED", e.getMessage(), 0); }
         SmtpSender.Outcome r = SmtpSender.send(acc.smtp(), acc.username(), acc.password(), msg);
         int attempts = ((Number) o.get("attempts")).intValue() + 1;
         return switch (r.result()) {
@@ -182,8 +184,7 @@ public class MailSendService {
                 MailAccountService.Account acc = accounts.loadById(((Number) o.get("account_id")).longValue()).orElse(null);
                 if (acc == null || !acc.enabled() || acc.password() == null) { jdbc.update("UPDATE mail_outbox SET copy_saved = 2 WHERE id = ?", id); continue; }
                 MimeMessage msg = MimeBuilder.build(Session.getInstance(new Properties()), outOf(acc, o)); msg.setFlag(Flags.Flag.SEEN, true);
-                try (Store st = MailSessions.imap(acc.imap()).getStore(MailSessions.protocol(acc.imap().security()))) {
-                    st.connect(acc.imap().host(), acc.imap().port(), acc.username(), acc.password());
+                try (Store st = ImapConnect.open(accounts, acc)) {
                     String sent = ImapFolders.discover(st).stream().filter(i -> "SENT".equals(i.role())).map(ImapFolders.Info::path).findFirst().orElse(null);
                     if (sent == null) { jdbc.update("UPDATE mail_outbox SET copy_saved = 2 WHERE id = ?", id); continue; }   // no Sent folder on this server
                     Folder f = st.getFolder(sent); f.open(Folder.READ_WRITE);
