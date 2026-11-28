@@ -15,8 +15,9 @@ import java.util.Map;
 public class MailReadController {
     private final MailReadService read;
     private final ImapSyncService sync;
+    private final MailActionService actions;
 
-    public MailReadController(MailReadService read, ImapSyncService sync) { this.read = read; this.sync = sync; }
+    public MailReadController(MailReadService read, ImapSyncService sync, MailActionService actions) { this.read = read; this.sync = sync; this.actions = actions; }
 
     @GetMapping("/folders") public Map<String, Object> folders() { return read.folders(); }
 
@@ -37,4 +38,9 @@ public class MailReadController {
 
     @PostMapping("/sync") public Map<String, Object> sync() { ImapSyncService.Result r = sync.syncMine(); return Map.of("newMails", r.newMails(), "folders", r.folders(), "error", r.error() == null ? "" : r.error()); }
     @PostMapping("/folders/{id}/more") public Map<String, Object> more(@PathVariable long id) { return sync.loadMore(id); }
+
+    @PostMapping("/messages/action") public Map<String, Object> action(@RequestBody Map<String, Object> b) throws Exception { return actions.act(b); }
+    @PostMapping("/drafts") public Map<String, Object> draft(@RequestBody Map<String, Object> b) throws Exception { return actions.saveDraft(b); }
+    @GetMapping("/messages/{id}/prepare") public Map<String, Object> prepare(@PathVariable long id, @RequestParam String mode) throws Exception { return actions.prepare(id, mode); }
+    @GetMapping("/contacts") public java.util.List<Map<String, Object>> contacts(@RequestParam(required = false) String q) { return actions.contacts(q); }
 }
