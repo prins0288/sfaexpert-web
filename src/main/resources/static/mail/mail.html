@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>/* reverse-proxy sub-path support: make relative css/js resolve under the deploy prefix (e.g. /sfaexpert), "" locally */
+  (function(){try{var p=location.pathname,m=p.match(/^(.*?)\/u\/\d+(\/|$)/),c=m?m[1]:p.replace(/\/[^\/]*$/,'');document.write('<base href="'+(c||'')+'/">');}catch(e){}})();</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StarSFA &middot; Mail</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet" />
+  <link href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css" rel="stylesheet" />
+  <link href="css/app.css" rel="stylesheet" />
+  <link href="css/app-ui.css" rel="stylesheet" />
+  <script>
+    /* Apply the saved theme (mode / layout / density / colours) BEFORE first
+       paint so there is no flash. theme.js re-applies from the server after. */
+    (function () {
+      try {
+        var d = document.documentElement, s = localStorage;
+        // theme is PER TENANT and several tenants can be signed in at once
+        // (/u/0, /u/1...), so these caches are scoped to the account slot —
+        // a shared key would paint the last-customised tenant's colours here.
+        var m = location.pathname.match(/\/u\/(\d+)(\/|$)/), q = '_u' + (m ? m[1] : '0');
+        d.setAttribute('data-theme', s.getItem('sfa_mode' + q) || 'light');
+        d.setAttribute('data-nav', s.getItem('sfa_nav' + q) || 'vertical');
+        d.setAttribute('data-density', s.getItem('sfa_density' + q) || 'comfortable');
+        var f = s.getItem('sfa_font' + q); if (f) d.style.setProperty('--sfa-font-scale', f);
+        var c = s.getItem('sfa_theme' + q);
+        if (c) { c = JSON.parse(c); var t = (c.resolved && c.resolved[c.mode]) || {};
+          for (var k in t) d.style.setProperty('--sfa-' + k, t[k]); }
+      } catch (e) {}
+    })();
+  </script>
+<style>
+  .rp-kpis { display: flex; flex-wrap: wrap; gap: .5rem; margin: 0 0 .6rem; } .rp-kpi { background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-left: 3px solid var(--bs-primary); border-radius: .4rem; padding: .35rem .8rem; min-width: 7.5rem; flex: 1 1 7.5rem; }
+  .rp-kpi small { color: var(--bs-secondary-color); display: block; font-size: .68rem; text-transform: uppercase; letter-spacing: .04em; } .rp-kpi b { font-size: 1.05rem; } .rp-kpi.ok { border-left-color: #198754; } .rp-kpi.warn { border-left-color: #fd7e14; }
+  .rp-filters .form-label { font-size: .72rem; font-weight: 600; color: var(--bs-secondary-color); margin-bottom: .1rem; }
+  .ex-wrap { max-height: calc(100vh - 330px); min-height: 280px; overflow: auto; border: 1px solid var(--bs-border-color); border-radius: .4rem; }
+  table.ex { border-collapse: separate; border-spacing: 0; font-size: .78rem; width: max-content; min-width: 100%; }
+  table.ex th, table.ex td { border-right: 1px solid var(--bs-border-color); border-bottom: 1px solid var(--bs-border-color); padding: .25rem .4rem; vertical-align: middle; }
+  table.ex thead th { background: #0a5a78; color: #fff; position: sticky; top: 0; z-index: 3; text-align: center; white-space: nowrap; }
+  table.ex td.n { text-align: right; font-variant-numeric: tabular-nums; } table.ex td.route { min-width: 260px; } table.ex input { width: 5.4rem; text-align: right; } table.ex input.rm { width: 9rem; text-align: left; } table.ex input.bl { width: 3.6rem; }
+  table.ex tr.lv-U td { background: #d6e9ff; } table.ex tr.lv-M td { background: #ffe2a8; } table.ex tr.lv-A td { background: #e6d0ff; } table.ex tr.k-abs td { background: #ffd0d0; color: #842029; font-weight: 600; } table.ex tr.k-lv td { background: #d3f2dd; color: #0f5132; } table.ex tr.off td { color: var(--bs-secondary-color); background: var(--bs-tertiary-bg); }
+  table.ex tfoot td { position: sticky; bottom: 0; background: #e7f0f4; font-weight: 700; z-index: 3; }
+  .lg { display: inline-flex; align-items: center; gap: .3rem; font-size: .75rem; margin-right: .8rem; } .lg i { width: 1rem; height: 1rem; display: inline-block; border: 1px solid #0003; border-radius: .2rem; }
+  .flow { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; font-size: .78rem; } .flow span { padding: .15rem .6rem; border-radius: 1rem; background: var(--bs-tertiary-bg); } .flow span.on { background: #198754; color: #fff; } .flow span.cur { background: #fd7e14; color: #fff; }
+  tr.rp-click { cursor: pointer; }
+</style>
+<style>
+  .mb { display: grid; grid-template-columns: 210px minmax(300px, 420px) 1fr; gap: .6rem; min-height: calc(100vh - 190px); }
+  .mb-col { background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: .5rem; overflow: auto; max-height: calc(100vh - 190px); }
+  .mb-fold { display: flex; align-items: center; gap: .5rem; padding: .45rem .75rem; cursor: pointer; border-left: 3px solid transparent; } .mb-fold:hover { background: var(--bs-tertiary-bg); }
+  .mb-fold.on { background: var(--bs-primary-bg-subtle); border-left-color: var(--bs-primary); font-weight: 600; } .mb-fold .cnt { margin-left: auto; }
+  .mb-row { display: grid; grid-template-columns: auto auto 1fr auto; gap: .5rem; padding: .5rem .6rem; border-bottom: 1px solid var(--bs-border-color); cursor: pointer; align-items: start; }
+  .mb-row:hover { background: var(--bs-tertiary-bg); } .mb-row.on { background: var(--bs-primary-bg-subtle); } .mb-row.unread .mb-from, .mb-row.unread .mb-subj { font-weight: 700; }
+  .mb-from { font-size: .85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .mb-subj { font-size: .82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .mb-snip { font-size: .75rem; color: var(--bs-secondary-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mb-date { font-size: .72rem; color: var(--bs-secondary-color); white-space: nowrap; } .mb-star { cursor: pointer; color: var(--bs-secondary-color); } .mb-star.on { color: #f5b301; }
+  .mb-view-h { padding: .8rem 1rem; border-bottom: 1px solid var(--bs-border-color); } .mb-frame { width: 100%; border: 0; min-height: 360px; background: #fff; }
+  .mb-empty { color: var(--bs-secondary-color); text-align: center; padding: 2.5rem 1rem; }
+  .mb-rte { min-height: 220px; border: 1px solid var(--bs-border-color); border-radius: .4rem; padding: .6rem; overflow: auto; background: var(--bs-body-bg); }
+  .mb-sug { position: absolute; z-index: 1056; background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: .4rem; box-shadow: 0 4px 14px #0003; min-width: 260px; max-height: 220px; overflow: auto; } .mb-sug div { padding: .3rem .6rem; cursor: pointer; font-size: .82rem; } .mb-sug div:hover { background: var(--bs-tertiary-bg); }
+  .mb-listcol { display: flex; flex-direction: column; }
+  .mb-back { display: none; }
+  @media (max-width: 991px) { .mb { grid-template-columns: 1fr; } .mb-col { max-height: none; } .mb-col.mb-folders { display: none; } .mb.show-folders .mb-folders { display: block; } .mb.show-folders .mb-listcol { display: none; } .mb.has-view .mb-listcol { display: none; } .mb:not(.has-view) .mb-viewcol { display: none; } .mb-back { display: inline-block; } }
+</style>
+</head>
+<body>
+<div id="app" data-page="mail" data-title="Mail"></div>
+<template id="pageContent">
+<div class="card mb-2"><div class="card-body py-2 d-flex flex-wrap align-items-center gap-2">
+  <ul class="nav nav-pills" id="modeTabs"><li class="nav-item"><button class="nav-link active" id="tabExt" onclick="modeTab('ext')"><i class="bi bi-envelope-at"></i> <span data-i18n="mb.external">Mail</span> <span class="badge bg-danger d-none" id="extBadge"></span></button></li></ul>
+  <button class="btn btn-sm btn-primary" onclick="compose()" id="composeBtn"><i class="bi bi-pencil-square"></i> <span data-i18n="mb.compose">Compose</span></button>
+  <button class="btn btn-sm btn-outline-secondary" onclick="refresh()" id="refreshBtn"><i class="bi bi-arrow-repeat"></i> <span data-i18n="mb.refresh">Refresh</span></button>
+  <button class="btn btn-sm btn-outline-secondary d-lg-none" onclick="toggleFolders()"><i class="bi bi-folder2"></i></button>
+  <small class="text-muted" id="syncInfo"></small>
+  <a class="ms-auto small" id="setLink" href="#" data-i18n="mb.settings">Mail settings</a></div></div>
+<div id="extPane">
+  <div id="setupBox" class="card d-none"><div class="card-body mb-empty"><i class="bi bi-envelope-plus fs-1 d-block mb-2"></i><div class="mb-2" data-i18n="mb.noAccount">Connect your mail account to read and send mail here.</div><a class="btn btn-primary" id="setLink2" href="#" data-i18n="mb.connect">Connect my account</a></div></div>
+  <div class="mb" id="mb">
+    <div class="mb-col mb-folders" id="folders"></div>
+    <div class="mb-col mb-listcol">
+      <div class="p-2 border-bottom"><div class="input-group input-group-sm"><input class="form-control" id="q" placeholder="Search" data-i18n-ph="mb.search" onkeydown="if(event.key==='Enter')go(0)"><button class="btn btn-outline-secondary" onclick="go(0)"><i class="bi bi-search"></i></button><button class="btn btn-outline-secondary" onclick="document.getElementById('flt').classList.toggle('d-none')" title="Filter"><i class="bi bi-funnel"></i></button></div>
+        <div class="d-none mt-2" id="flt"><div class="row g-1"><div class="col-6"><input class="form-control form-control-sm" id="f_from" placeholder="From"></div><div class="col-6"><input class="form-control form-control-sm" id="f_subj" placeholder="Subject"></div><div class="col-6"><input class="form-control form-control-sm" type="date" id="f_d1"></div><div class="col-6"><input class="form-control form-control-sm" type="date" id="f_d2"></div>
+          <div class="col-12 d-flex gap-3 small"><label><input type="checkbox" id="f_unread"> <span data-i18n="mb.unread">Unread</span></label><label><input type="checkbox" id="f_att"> <span data-i18n="mb.hasAtt">Attachment</span></label><label><input type="checkbox" id="f_star"> <span data-i18n="mb.starred">Starred</span></label><button class="btn btn-sm btn-primary ms-auto py-0" onclick="go(0)" data-i18n="rep.show">Show</button></div></div></div></div>
+      <div class="p-2 border-bottom d-flex flex-wrap gap-1 align-items-center small" id="bulk"></div>
+      <div class="flex-fill" id="list"></div>
+      <div class="p-2 border-top d-flex align-items-center gap-2 small" id="pager"></div></div>
+    <div class="mb-col mb-viewcol" id="view"><div class="mb-empty"><i class="bi bi-envelope-open fs-1 d-block mb-2"></i><span data-i18n="mb.pick">Choose a mail to read</span></div></div>
+  </div>
+</div>
+<div class="modal fade" id="composeModal" tabindex="-1" data-bs-backdrop="static"><div class="modal-dialog modal-xl modal-dialog-scrollable modal-fullscreen-lg-down"><div class="modal-content">
+  <div class="modal-header sfa-modal"><h5 class="modal-title"><i class="bi bi-pencil-square"></i> <span data-i18n="mb.compose">Compose</span> <small class="text-muted" id="draftInfo"></small></h5><button type="button" class="btn-close" onclick="closeCompose()"></button></div>
+  <div class="modal-body"><div class="row g-2">
+    <div class="col-12 position-relative"><label class="form-label small fw-semibold">To <a href="#" class="small ms-2" onclick="showCc();return false">Cc / Bcc</a></label><input class="form-control form-control-sm" id="c_to" autocomplete="off" oninput="suggest(this)"></div>
+    <div class="col-12 d-none position-relative" id="ccRow"><label class="form-label small fw-semibold">Cc</label><input class="form-control form-control-sm" id="c_cc" autocomplete="off" oninput="suggest(this)"></div>
+    <div class="col-12 d-none position-relative" id="bccRow"><label class="form-label small fw-semibold">Bcc</label><input class="form-control form-control-sm" id="c_bcc" autocomplete="off" oninput="suggest(this)"></div>
+    <div class="col-12"><label class="form-label small fw-semibold" data-i18n="mb.subject">Subject</label><input class="form-control form-control-sm" id="c_subj" maxlength="400"></div>
+    <div class="col-12"><div class="btn-group btn-group-sm mb-1"><button class="btn btn-outline-secondary" onclick="fmt('bold')"><i class="bi bi-type-bold"></i></button><button class="btn btn-outline-secondary" onclick="fmt('italic')"><i class="bi bi-type-italic"></i></button><button class="btn btn-outline-secondary" onclick="fmt('underline')"><i class="bi bi-type-underline"></i></button><button class="btn btn-outline-secondary" onclick="fmt('insertUnorderedList')"><i class="bi bi-list-ul"></i></button><button class="btn btn-outline-secondary" onclick="fmt('insertOrderedList')"><i class="bi bi-list-ol"></i></button><button class="btn btn-outline-secondary" onclick="addLink()"><i class="bi bi-link-45deg"></i></button><button class="btn btn-outline-secondary" onclick="fmt('removeFormat')"><i class="bi bi-eraser"></i></button></div>
+      <div class="mb-rte" id="c_body" contenteditable="true" oninput="dirty()"></div><div class="small text-muted mt-1" data-i18n="mb.sigNote">Your signature is added when the mail is sent.</div></div>
+    <div class="col-12"><label class="btn btn-sm btn-outline-secondary mb-1"><i class="bi bi-paperclip"></i> <span data-i18n="mb.attach">Attach files</span><input type="file" multiple hidden onchange="attach(this)"></label> <small class="text-muted" id="attHint"></small><div id="c_atts"></div></div>
+  </div></div>
+  <div class="modal-footer"><span class="small text-muted me-auto" id="saveInfo"></span><button class="btn btn-outline-secondary" onclick="saveDraft(true)"><i class="bi bi-save"></i> <span data-i18n="mb.saveDraft">Save draft</span></button><button class="btn btn-light" onclick="closeCompose()" data-i18n="common.close">Close</button><button class="btn btn-primary" id="sendBtn" onclick="sendMail()"><i class="bi bi-send"></i> <span data-i18n="mb.send">Send</span></button></div>
+</div></div></div>
+</template>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.colVis.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="js/core/session.js"></script>
+<script src="js/core/endpoints.js"></script>
+<script src="js/core/http.js"></script>
+<script src="js/core/theme.js"></script>
+<script src="js/core/settings.js"></script>
+<script src="js/core/i18n.js"></script>
+<script src="js/app.js"></script>
+<script src="js/core/uikit.js"></script>
+<script src="js/core/activity.js"></script>
+<script src="js/shell.js"></script>
+<script>
+  const T = (k, en) => (window.I18n ? I18n.t(k, en) : en);
+  const EP = '/api/mailbox', esc = (v) => SFA.esc(v == null ? '' : v), g = (i) => document.getElementById(i);
+  let F = null, CUR = null, PAGE = 0, ROWS = [], TOTAL = 0, SIZE = 25, SEL = new Set(), OPEN = null, CM = null, DRAFT = null, ATTS = [], DIRTY = false, SAVING = false, LASTUNREAD = null, LASTLANG = window.I18n ? I18n.lang : 'en', MODE = 'ext', CANMORE = false;
+  if (window.I18n) I18n.onChange(() => { if (I18n.lang !== LASTLANG) { LASTLANG = I18n.lang; drawFolders(); drawList(); } });
+  const when = (d) => { if (!d) return ''; const x = new Date(d), n = new Date(); const same = x.toDateString() === n.toDateString(); return same ? x.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : x.toLocaleDateString([], { day: '2-digit', month: 'short', year: x.getFullYear() === n.getFullYear() ? undefined : 'numeric' }); };
+  const ICON = { INBOX: 'inbox', SENT: 'send', DRAFTS: 'file-earmark', TRASH: 'trash', SPAM: 'exclamation-octagon', ARCHIVE: 'archive', CUSTOM: 'folder2' };
+  const NAME = { INBOX: ['mb.f.inbox', 'Inbox'], SENT: ['mb.f.sent', 'Sent'], DRAFTS: ['mb.f.drafts', 'Drafts'], TRASH: ['mb.f.trash', 'Trash'], SPAM: ['mb.f.spam', 'Spam'], ARCHIVE: ['mb.f.archive', 'Archive'] };
+  window.pageInit = async function () {
+    g('setLink').href = g('setLink2').href = Session.pageUrl('mail/mail-settings.html'); CM = new bootstrap.Modal('#composeModal');
+    await loadFolders(true); setInterval(poll, 60000); setInterval(autoSave, 30000);
+  };
+  window.addEventListener('beforeunload', (e) => { if (DIRTY) { e.preventDefault(); e.returnValue = ''; } });
+
+  // ---------------------------------------------------------------- folders
+  async function loadFolders(first) {
+    try {
+      F = await Api.get(EP + '/folders', { noLoader: !first });
+      g('setupBox').classList.toggle('d-none', F.account); g('mb').classList.toggle('d-none', !F.account); g('composeBtn').disabled = g('refreshBtn').disabled = !F.account;
+      if (!F.account) return;
+      if (first) { const inbox = F.folders.find(f => f.role === 'INBOX') || F.folders[0]; CUR = inbox ? inbox.id : null; await go(0); if (!F.folders.length) await refresh(true); }
+      drawFolders(); drawInfo();
+    } catch (e) { SFA.toast(e.message, false); }
+  }
+  function drawInfo() { const i = F.info; g('syncInfo').innerHTML = i.lastSyncError ? `<span class="text-danger"><i class="bi bi-exclamation-triangle"></i> ${esc(i.lastSyncError)}</span>` : (i.lastSyncAt ? T('mb.synced', 'Synced') + ' ' + esc(when(i.lastSyncAt)) : ''); }
+  function drawFolders() {
+    if (!F) return; const inbox = F.folders.find(f => f.role === 'INBOX'); const un = inbox ? inbox.unread : 0;
+    g('extBadge').textContent = un; g('extBadge').classList.toggle('d-none', !un); document.title = (un ? '(' + un + ') ' : '') + 'Mail';
+    g('folders').innerHTML = F.folders.map(f => { const nm = NAME[f.role] ? T(NAME[f.role][0], NAME[f.role][1]) : f.name; return `<div class="mb-fold ${CUR === f.id ? 'on' : ''}" onclick="openFolder(${f.id})"><i class="bi bi-${ICON[f.role] || 'folder2'}"></i><span>${esc(nm)}</span>${f.unread ? `<span class="badge bg-primary cnt">${f.unread}</span>` : ''}</div>`; }).join('')
+      + `<div class="mb-fold ${CUR === 'outbox' ? 'on' : ''}" onclick="openOutbox()"><i class="bi bi-hourglass-split"></i><span>${T('mb.outbox', 'Outbox')}</span>${F.outbox ? `<span class="badge bg-warning text-dark cnt">${F.outbox}</span>` : ''}</div>`
+      + `<div class="mb-fold ${CUR === 0 ? 'on' : ''}" onclick="openFolder(0)"><i class="bi bi-star"></i><span>${T('mb.starred', 'Starred')}</span></div>`;
+  }
+  function toggleFolders() { g('mb').classList.toggle('show-folders'); }
+  async function openFolder(id) { CUR = id; SEL.clear(); OPEN = null; g('mb').classList.remove('show-folders', 'has-view'); g('f_star').checked = id === 0; await go(0); drawFolders(); }
+
+  // ---------------------------------------------------------------- list
+  async function go(page) {
+    if (CUR === 'outbox') return openOutbox();
+    PAGE = page; const q = { page, size: SIZE }; if (CUR) q.folderId = CUR; if (g('q').value.trim()) q.q = g('q').value.trim(); if (g('f_from').value.trim()) q.from = g('f_from').value.trim(); if (g('f_subj').value.trim()) q.subject = g('f_subj').value.trim();
+    if (g('f_d1').value) q.dateFrom = g('f_d1').value; if (g('f_d2').value) q.dateTo = g('f_d2').value; if (g('f_unread').checked) q.unread = true; if (g('f_att').checked) q.attach = true; if (g('f_star').checked || CUR === 0) q.starred = true;
+    g('list').innerHTML = '<div class="mb-empty"><span class="spinner-border spinner-border-sm"></span></div>';
+    try { const r = await Api.get(EP + '/messages', { query: q, noLoader: true }); ROWS = r.rows; TOTAL = r.total; CANMORE = !!r.canLoadMore; drawList(); }
+    catch (e) { g('list').innerHTML = `<div class="mb-empty text-danger">${esc(e.message)}</div>`; }
+  }
+  function drawList() {
+    const folder = F && F.folders.find(f => f.id === CUR), sent = folder && ['SENT', 'DRAFTS'].includes(folder.role), inTrash = folder && folder.role === 'TRASH', purgeable = folder && ['TRASH', 'SPAM', 'DRAFTS'].includes(folder.role);
+    const b = (a, ic, t) => `<button class="btn btn-sm btn-outline-secondary py-0" title="${t}" onclick="bulk('${a}')"><i class="bi bi-${ic}"></i></button>`;
+    g('bulk').innerHTML = `<input type="checkbox" onchange="selAll(this.checked)" ${ROWS.length && ROWS.every(r => SEL.has(r.id)) ? 'checked' : ''}> <span class="text-muted">${SEL.size ? SEL.size + ' ' + T('mb.selected', 'selected') : ''}</span>` + (SEL.size ? b('READ', 'envelope-open', T('mb.markRead', 'Mark read')) + b('UNREAD', 'envelope', T('mb.markUnread', 'Mark unread')) + b('STAR', 'star', T('mb.star', 'Star')) + b('ARCHIVE', 'archive', T('mb.f.archive', 'Archive')) + b('SPAM', 'exclamation-octagon', T('mb.f.spam', 'Spam'))
+      + (inTrash ? b('RESTORE', 'arrow-counterclockwise', T('mb.restore', 'Restore')) : b('DELETE', 'trash', T('mb.delete', 'Delete'))) + (purgeable ? `<button class="btn btn-sm btn-outline-danger py-0" title="${T('mb.purge', 'Delete permanently')}" onclick="bulk('PURGE')"><i class="bi bi-x-octagon"></i></button>` : '')
+      + `<select class="form-select form-select-sm w-auto py-0" onchange="moveTo(this)"><option value="">${T('mb.moveTo', 'Move to')}…</option>${F.folders.filter(f => f.id !== CUR).map(f => `<option value="${f.id}">${esc(NAME[f.role] ? T(NAME[f.role][0], NAME[f.role][1]) : f.name)}</option>`).join('')}</select>` : '');
+    if (!ROWS.length) { g('list').innerHTML = `<div class="mb-empty"><i class="bi bi-inbox fs-1 d-block mb-2"></i>${T('mb.empty', 'No mail here')}</div>`; }
+    else g('list').innerHTML = ROWS.map(r => `<div class="mb-row ${r.isRead ? '' : 'unread'} ${OPEN === r.id ? 'on' : ''}" onclick="openMail(${r.id})"><input type="checkbox" ${SEL.has(r.id) ? 'checked' : ''} onclick="event.stopPropagation();pick(${r.id},this.checked)"><i class="bi bi-star${r.isStarred ? '-fill on' : ''} mb-star ${r.isStarred ? 'on' : ''}" onclick="event.stopPropagation();star(${r.id},${r.isStarred ? 0 : 1})"></i>
+      <div style="min-width:0"><div class="mb-from">${esc(sent ? (r.toAddrs || '(no recipient)') : (r.fromName || r.fromAddr || ''))}</div><div class="mb-subj">${esc(r.subject || T('mb.noSubject', '(no subject)'))}${r.hasAttach ? ' <i class="bi bi-paperclip"></i>' : ''}</div>${r.snippet ? `<div class="mb-snip">${esc(r.snippet)}</div>` : ''}</div><div class="mb-date">${esc(when(r.sentAt))}</div></div>`).join('');
+    const pages = Math.max(1, Math.ceil(TOTAL / SIZE));
+    g('pager').innerHTML = `<button class="btn btn-sm btn-outline-secondary py-0" ${PAGE <= 0 ? 'disabled' : ''} onclick="go(${PAGE - 1})"><i class="bi bi-chevron-left"></i></button><span>${TOTAL ? PAGE * SIZE + 1 : 0}-${Math.min(TOTAL, (PAGE + 1) * SIZE)} / ${TOTAL}</span><button class="btn btn-sm btn-outline-secondary py-0" ${PAGE + 1 >= pages ? 'disabled' : ''} onclick="go(${PAGE + 1})"><i class="bi bi-chevron-right"></i></button>`
+      + (CANMORE ? `<button class="btn btn-sm btn-outline-primary py-0 ms-auto" onclick="loadMore()">${T('mb.loadMore', 'Load older mail')}</button>` : '');
+  }
+  const pick = (id, on) => { on ? SEL.add(id) : SEL.delete(id); drawList(); };
+  const selAll = (on) => { ROWS.forEach(r => on ? SEL.add(r.id) : SEL.delete(r.id)); drawList(); };
+  async function loadMore() { try { const r = await Api.post(EP + '/folders/' + CUR + '/more', {}); SFA.toast(r.loaded + ' ' + T('mb.loaded', 'older mails loaded'), true); await loadFolders(); await go(PAGE); } catch (e) { SFA.toast(e.message, false); } }
+  async function star(id, on) { try { await Api.post(EP + '/messages/action', { ids: [id], action: on ? 'STAR' : 'UNSTAR' }, { noLoader: true }); const r = ROWS.find(x => x.id === id); if (r) r.isStarred = on; drawList(); if (OPEN === id) openMail(id, true); } catch (e) { SFA.toast(e.message, false); } }
+  async function bulk(action) {
+    if (action === 'PURGE' && !confirm(T('mb.confirmPurge', 'Delete these mails permanently? This cannot be undone.'))) return;
+    try { await Api.post(EP + '/messages/action', { ids: [...SEL], action }); SEL.clear(); await loadFolders(); await go(PAGE); if (OPEN && !ROWS.some(r => r.id === OPEN)) closeView(); } catch (e) { SFA.toast(e.message, false); }
+  }
+  async function moveTo(sel) { if (!sel.value) return; try { await Api.post(EP + '/messages/action', { ids: [...SEL], action: 'MOVE', targetFolderId: sel.value }); SEL.clear(); await loadFolders(); await go(PAGE); } catch (e) { SFA.toast(e.message, false); } }
+
+  // ---------------------------------------------------------------- view
+  const closeView = () => { OPEN = null; g('mb').classList.remove('has-view'); g('view').innerHTML = `<div class="mb-empty"><i class="bi bi-envelope-open fs-1 d-block mb-2"></i>${T('mb.pick', 'Choose a mail to read')}</div>`; };
+  let IMAGES = false;
+  async function openMail(id, keep) {
+    OPEN = id; if (!keep) IMAGES = false; g('mb').classList.add('has-view'); g('view').innerHTML = '<div class="mb-empty"><span class="spinner-border"></span></div>';
+    try {
+      const m = await Api.get(EP + '/messages/' + id, { query: { images: IMAGES }, noLoader: true });
+      if (!m.isRead) { Api.post(EP + '/messages/action', { ids: [id], action: 'READ' }, { noLoader: true }).then(() => { const r = ROWS.find(x => x.id === id); if (r) r.isRead = 1; loadFolders(); drawList(); }).catch(() => { }); }
+      drawView(m);
+    } catch (e) { g('view').innerHTML = `<div class="mb-empty text-danger">${esc(e.message)}</div>`; }
+  }
+  function drawView(m) {
+    const act = (mode, ic, t) => `<button class="btn btn-sm btn-outline-secondary" onclick="replyTo(${m.id},'${mode}')"><i class="bi bi-${ic}"></i> ${t}</button>`;
+    g('view').innerHTML = `<div class="mb-view-h"><button class="btn btn-sm btn-link mb-back px-0" onclick="closeView();drawList()"><i class="bi bi-arrow-left"></i> ${T('mb.back', 'Back')}</button>
+      <div class="d-flex align-items-start gap-2"><h5 class="mb-1 flex-fill">${esc(m.subject || T('mb.noSubject', '(no subject)'))}</h5><i class="bi bi-star${m.isStarred ? '-fill on' : ''} mb-star ${m.isStarred ? 'on' : ''} fs-5" onclick="star(${m.id},${m.isStarred ? 0 : 1})"></i></div>
+      <div class="small"><b>${esc(m.fromName || '')}</b> &lt;${esc(m.fromAddr || '')}&gt; · <span class="text-muted">${esc(String(m.sentAt || '').replace('T', ' ').substring(0, 16))}</span></div>
+      ${m.to ? `<div class="small text-muted">To: ${esc(m.to)}</div>` : ''}${m.cc ? `<div class="small text-muted">Cc: ${esc(m.cc)}</div>` : ''}${m.bcc ? `<div class="small text-muted">Bcc: ${esc(m.bcc)}</div>` : ''}
+      <div class="d-flex flex-wrap gap-1 mt-2">${m.folderRole === 'DRAFTS' ? `<button class="btn btn-sm btn-primary" onclick="editDraft(${m.id})"><i class="bi bi-pencil"></i> ${T('mb.edit', 'Edit')}</button>` : act('REPLY', 'reply', T('mb.reply', 'Reply')) + act('REPLYALL', 'reply-all', T('mb.replyAll', 'Reply all')) + act('FORWARD', 'forward', T('mb.forward', 'Forward'))}
+        <button class="btn btn-sm btn-outline-danger" onclick="one(${m.id},'${m.folderRole === 'TRASH' ? 'PURGE' : 'DELETE'}')"><i class="bi bi-trash"></i> ${m.folderRole === 'TRASH' ? T('mb.purge', 'Delete permanently') : T('mb.delete', 'Delete')}</button></div></div>
+      ${m.remoteImagesBlocked ? `<div class="alert alert-warning py-1 m-2 small d-flex align-items-center"><i class="bi bi-image me-2"></i>${T('mb.imagesBlocked', 'Pictures from the internet are blocked.')} <button class="btn btn-sm btn-outline-dark py-0 ms-auto" onclick="IMAGES=true;openMail(${m.id},true)">${T('mb.showImages', 'Show pictures')}</button></div>` : ''}
+      <div class="p-2">${m.html ? '<iframe class="mb-frame" id="fr" sandbox="allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer"></iframe>' : `<pre style="white-space:pre-wrap;font-family:inherit">${esc(m.text || '')}</pre>`}</div>
+      ${m.attachments.length ? `<div class="p-2 border-top"><div class="small fw-semibold mb-1"><i class="bi bi-paperclip"></i> ${T('mb.attachments', 'Attachments')}</div>${m.attachments.map(a => `<button class="btn btn-sm btn-outline-primary me-1 mb-1" onclick="dl(${m.id},${a.part},'${esc(a.name).replace(/'/g, '')}')"><i class="bi bi-download"></i> ${esc(a.name)} <small>${a.size ? Math.ceil(a.size / 1024) + ' KB' : ''}</small></button>`).join('')}</div>` : ''}`;
+    if (m.html) { const fr = g('fr'); fr.srcdoc = '<base target="_blank"><style>body{font-family:system-ui,sans-serif;font-size:14px;margin:8px;word-wrap:break-word}img{max-width:100%;height:auto}</style>' + m.html; fr.onload = () => { try { fr.style.height = (fr.contentDocument.documentElement.scrollHeight + 20) + 'px'; } catch (e) { /* sandboxed */ } }; }
+  }
+  async function dl(id, part, name) { try { await Api.download(EP + '/messages/' + id + '/attachments/' + part, name); } catch (e) { SFA.toast(e.message, false); } }
+  async function one(id, action) { if (action === 'PURGE' && !confirm(T('mb.confirmPurge', 'Delete these mails permanently? This cannot be undone.'))) return; try { await Api.post(EP + '/messages/action', { ids: [id], action }); closeView(); await loadFolders(); await go(PAGE); } catch (e) { SFA.toast(e.message, false); } }
+
+  // ---------------------------------------------------------------- refresh / poll
+  async function refresh(quiet) {
+    g('refreshBtn').disabled = true;
+    try { const r = await Api.post(EP + '/sync', {}); if (r.error) SFA.toast(r.error, false); else if (!quiet) SFA.toast(r.newMails + ' ' + T('mb.newMails', 'new mails'), true); await loadFolders(); if (r.newMails) await go(PAGE); }
+    catch (e) { SFA.toast(e.message, false); } finally { g('refreshBtn').disabled = false; }
+  }
+  async function poll() { if (MODE !== 'ext' || !F || !F.account) return; try { const before = (F.folders.find(f => f.role === 'INBOX') || {}).unread || 0; await loadFolders(); const now = (F.folders.find(f => f.role === 'INBOX') || {}).unread || 0; if (now > before) { SFA.toast(T('mb.newArrived', 'New mail arrived'), true); if (CUR === (F.folders.find(f => f.role === 'INBOX') || {}).id) go(PAGE); } } catch (e) { /* the next poll tries again */ } }
+
+  // ---------------------------------------------------------------- outbox
+  async function openOutbox() {
+    CUR = 'outbox'; drawFolders(); g('mb').classList.remove('show-folders'); g('bulk').innerHTML = ''; g('pager').innerHTML = ''; closeView();
+    try { const l = await Api.get(EP + '/outbox', { noLoader: true }); const st = { QUEUED: ['Queued', 'secondary'], SENDING: ['Sending', 'info'], FAILED: ['Failed', 'danger'], UNKNOWN: ['Not sure if sent', 'warning'] };
+      g('list').innerHTML = l.length ? l.map(o => { const s = st[o.status] || [o.status, 'secondary']; return `<div class="p-2 border-bottom"><div class="d-flex"><b class="small flex-fill">${esc(o.subject || T('mb.noSubject', '(no subject)'))}</b><span class="badge bg-${s[1]}">${T('mb.st.' + o.status, s[0])}</span></div><div class="small text-muted">${esc(o.toAddrs)}</div>${o.lastError ? `<div class="small text-danger">${esc(o.lastError)}</div>` : ''}
+        <div class="mt-1 d-flex gap-1">${['FAILED', 'UNKNOWN'].includes(o.status) ? `<button class="btn btn-sm btn-outline-primary py-0" onclick="ob(${o.id},'RETRY')">${o.status === 'UNKNOWN' ? T('mb.sendAgain', 'Send again') : T('mb.retry', 'Try again')}</button>` : ''}${o.status === 'UNKNOWN' ? `<button class="btn btn-sm btn-outline-success py-0" onclick="ob(${o.id},'SENT')">${T('mb.wasSent', 'It was sent')}</button>` : ''}<button class="btn btn-sm btn-outline-danger py-0" onclick="ob(${o.id},'DISCARD')">${T('mb.discard', 'Discard')}</button></div></div>`; }).join('') : `<div class="mb-empty">${T('mb.outboxEmpty', 'Nothing waiting to be sent')}</div>`; }
+    catch (e) { g('list').innerHTML = `<div class="mb-empty text-danger">${esc(e.message)}</div>`; }
+  }
+  async function ob(id, action) { if (action === 'RETRY' && !confirm(T('mb.confirmAgain', 'Send this mail again? If the first one reached the server, the person will get it twice.'))) return; try { await Api.post(EP + '/outbox/' + id + '/' + action, {}); await loadFolders(); await openOutbox(); } catch (e) { SFA.toast(e.message, false); } }
+
+  // ---------------------------------------------------------------- compose
+  const showCc = () => { g('ccRow').classList.remove('d-none'); g('bccRow').classList.remove('d-none'); };
+  const dirty = () => { DIRTY = true; g('saveInfo').textContent = ''; };
+  function resetCompose() { ['c_to', 'c_cc', 'c_bcc', 'c_subj'].forEach(i => g(i).value = ''); g('c_body').innerHTML = ''; ATTS = []; DRAFT = null; REPLYTO = null; DIRTY = false; g('ccRow').classList.add('d-none'); g('bccRow').classList.add('d-none'); drawAtts(); g('saveInfo').textContent = ''; g('draftInfo').textContent = ''; }
+  let REPLYTO = null;
+  function compose(pre) { resetCompose(); if (pre) { g('c_to').value = (pre.to || []).join(', '); if ((pre.cc || []).length) { showCc(); g('c_cc').value = pre.cc.join(', '); } g('c_subj').value = pre.subject || ''; g('c_body').innerHTML = pre.html || ''; REPLYTO = pre.replyTo || null; ATTS = (pre.attachments || []).map(a => ({ fwd: a.fwd, part: a.part, name: a.name, size: a.size })); drawAtts(); } CM.show(); setTimeout(() => (pre ? g('c_body') : g('c_to')).focus(), 300); }
+  async function replyTo(id, mode) { try { compose(await Api.get(EP + '/messages/' + id + '/prepare', { query: { mode } })); } catch (e) { SFA.toast(e.message, false); } }
+  async function editDraft(id) { try { const m = await Api.get(EP + '/messages/' + id, { noLoader: true }); compose({ to: (m.to || '').split(','), cc: m.cc ? m.cc.split(',') : [], subject: m.subject, html: m.html || '' }); DRAFT = id; g('c_to').value = (m.to || '').trim(); } catch (e) { SFA.toast(e.message, false); } }
+  const list = (id) => g(id).value.split(/[;,]/).map(s => s.trim()).filter(Boolean);
+  const payload = () => ({ to: list('c_to'), cc: list('c_cc'), bcc: list('c_bcc'), subject: g('c_subj').value, html: g('c_body').innerHTML, replyTo: REPLYTO, attachments: ATTS.map(a => a.fwd ? { fwd: a.fwd, part: a.part } : { path: a.path, name: a.name, size: a.size, type: a.type }), draftId: DRAFT });
+  const fmt = (c) => { document.execCommand(c); g('c_body').focus(); dirty(); };
+  function addLink() { const u = prompt('https://'); if (u && /^(https?:\/\/|mailto:)/i.test(u)) { document.execCommand('createLink', false, u); dirty(); } else if (u) SFA.toast(T('mb.badLink', 'Only http(s) and mailto links are allowed'), false); }
+  async function attach(inp) {
+    for (const f of inp.files) { try { const fd = new FormData(); fd.append('file', f); const r = await Api.post(EP + '/upload', fd); ATTS.push(r); } catch (e) { SFA.toast(f.name + ': ' + e.message, false); } }
+    inp.value = ''; drawAtts(); dirty();
+  }
+  function drawAtts() { g('c_atts').innerHTML = ATTS.map((a, i) => `<span class="badge text-bg-light border me-1"><i class="bi bi-paperclip"></i> ${esc(a.name)} <small>${a.size ? Math.ceil(a.size / 1024) + ' KB' : ''}</small> <a href="#" onclick="ATTS.splice(${i},1);drawAtts();dirty();return false">&times;</a></span>`).join(''); }
+  async function saveDraft(manual) {
+    if (SAVING) return; const p = payload(); if (!manual && !DIRTY) return; if (!p.to.length && !p.subject && !g('c_body').innerText.trim()) { if (manual) SFA.toast(T('mb.nothing', 'Nothing to save'), false); return; }
+    SAVING = true; try { const r = await Api.post(EP + '/drafts', p, { noLoader: true }); DRAFT = r.draftId || null; DIRTY = false; g('saveInfo').textContent = T('mb.draftSaved', 'Draft saved') + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); if (manual) SFA.toast(T('mb.draftSaved', 'Draft saved'), true); }
+    catch (e) { if (manual) SFA.toast(e.message, false); } finally { SAVING = false; }
+  }
+  const autoSave = () => { if (g('composeModal').classList.contains('show')) saveDraft(false); };
+  async function closeCompose() { if (DIRTY && !confirm(T('mb.discardDraft', 'Close without saving? Your changes will be lost.'))) return; DIRTY = false; CM.hide(); }
+  async function sendMail() {
+    const p = payload(); if (!p.to.length && !p.cc.length && !p.bcc.length) { SFA.toast(T('mb.needTo', 'Add at least one recipient'), false); return; }
+    if (!p.subject.trim() && !confirm(T('mb.noSubjectAsk', 'Send without a subject?'))) return;
+    g('sendBtn').disabled = true;
+    try { await Api.post(EP + '/send', p); if (DRAFT) { try { await Api.post(EP + '/messages/action', { ids: [DRAFT], action: 'PURGE' }, { noLoader: true }); } catch (e) { /* the draft stays */ } } DIRTY = false; CM.hide(); SFA.toast(T('mb.queued', 'Queued - it will be sent in a moment. See Outbox.'), true); await loadFolders(); }
+    catch (e) { SFA.toast(e.message, false); } finally { g('sendBtn').disabled = false; }
+  }
+  let SUGT = null;
+  function suggest(inp) {
+    clearTimeout(SUGT); const last = inp.value.split(/[;,]/).pop().trim(); document.querySelectorAll('.mb-sug').forEach(e => e.remove()); dirty(); if (last.length < 2) return;
+    SUGT = setTimeout(async () => { try { const l = await Api.get(EP + '/contacts', { query: { q: last }, noLoader: true }); if (!l.length) return; const box = document.createElement('div'); box.className = 'mb-sug';
+      box.innerHTML = l.map(c => `<div data-e="${esc(c.email)}" data-n="${esc(c.name)}">${esc(c.name ? c.name + ' ' : '')}<small class="text-muted">&lt;${esc(c.email)}&gt;</small></div>`).join(''); inp.parentElement.appendChild(box);
+      box.onclick = (ev) => { const d = ev.target.closest('div[data-e]'); if (!d) return; const parts = inp.value.split(/[;,]/); parts.pop(); parts.push(d.dataset.e); inp.value = parts.map(s => s.trim()).filter(Boolean).join(', ') + ', '; box.remove(); inp.focus(); }; } catch (e) { /* no suggestions */ } }, 250);
+  }
+  document.addEventListener('click', (e) => { if (!e.target.closest('.mb-sug')) document.querySelectorAll('.mb-sug').forEach(x => x.remove()); });
+  function modeTab() { }
+</script>
+</body>
+</html>
