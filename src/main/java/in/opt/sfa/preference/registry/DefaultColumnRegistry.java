@@ -61,6 +61,8 @@ public final class DefaultColumnRegistry {
                 col("group", null), col("employees", "entity.employees"), col("present", null), col("half", null), col("leave", null), col("off", null), col("absent", null), col("calls", null), col("hours", null), col("pct", null));
         register("EXPENSE_STATEMENTS",
                 col("employee", "entity.employee"), col("period", null), col("total", null), col("status", null), col("submitted", null), col("manager", null), col("admin", null));
+        register("EXPENSE_DASHBOARD",
+                col("code", null), col("name", null), col("doj", null), col("state", "entity.state"), col("hq", "entity.hq"), col("manager", null), col("status", null), col("workDays", null), col("visits", null), col("da", null), col("total", null));
         register("PARTY_INVENTORY",
                 col("employee", "entity.employee"), col("party", null), col("state", "entity.state"), col("period", null), col("items", null), col("closing", null), col("value", null), col("file", null), col("updated", null));
         register("SENIOR_CLIENT",

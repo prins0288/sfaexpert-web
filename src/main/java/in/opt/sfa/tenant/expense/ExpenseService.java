@@ -378,7 +378,7 @@ public class ExpenseService {
     private void canView(String owner) { if (!owner.equals(TeamScope.me())) scope.require(TeamScope.Scope.TEAM_SELF, owner, "This employee is not in your team"); }
 
     /** The level the user acts at on a statement in this status (U user / M manager / A admin) and what he may do. */
-    private Map<String, Object> perms(String owner, String status) {
+    Map<String, Object> perms(String owner, String status) {
         String me = TeamScope.me(); boolean admin = TeamScope.isAdmin() && !owner.equals(me), mgr = isMgrOf(owner), self = owner.equals(me);
         Map<String, Object> p = new LinkedHashMap<>();
         boolean draft = List.of("DRAFT", "REJECTED").contains(status);

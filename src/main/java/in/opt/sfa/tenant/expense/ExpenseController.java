@@ -13,7 +13,8 @@ public class ExpenseController {
     private final ExpenseService service;
     private final ExpenseMasterService master;
     private final in.opt.sfa.storage.FileUploadService uploads;
-    public ExpenseController(ExpenseService service, ExpenseMasterService master, in.opt.sfa.storage.FileUploadService uploads) { this.service = service; this.master = master; this.uploads = uploads; }
+    private final ExpenseDashboardService dash;
+    public ExpenseController(ExpenseService service, ExpenseMasterService master, in.opt.sfa.storage.FileUploadService uploads, ExpenseDashboardService dash) { this.dash = dash; this.service = service; this.master = master; this.uploads = uploads; }
 
     @GetMapping("/setup") public Map<String, Object> setup() { return service.setup(); }
     @PostMapping("/setup/settings") public Map<String, Object> settings(@RequestBody Map<String, Object> b) { service.saveSettings(b); return Map.of("saved", true); }
@@ -34,6 +35,8 @@ public class ExpenseController {
     @GetMapping("/var-assign") public List<Map<String, Object>> varList(@RequestParam(required = false) Long expenseId) { return master.varList(expenseId); }
     @PostMapping("/var-assign") public Map<String, Object> varAssign(@RequestBody Map<String, Object> b) { return master.varAssign(b); }
     @PostMapping("/var-assign/{id}/delete") public Map<String, Object> varDelete(@PathVariable long id) { master.varDelete(id); return Map.of("deleted", true); }
+    @GetMapping("/dashboard") public Map<String, Object> dashboard(@RequestParam int month, @RequestParam int year) { return dash.dashboard(month, year); }
+    @PostMapping("/dashboard/remind") @SuppressWarnings("unchecked") public Map<String, Object> remind(@RequestBody Map<String, Object> b) { return dash.remind(Integer.parseInt(String.valueOf(b.get("month"))), Integer.parseInt(String.valueOf(b.get("year"))), String.valueOf(b.getOrDefault("kind", "NOT_SUBMITTED")), (List<String>) b.get("empIds")); }
     @GetMapping("/day-started") public Map<String, Object> dayStarted(@RequestParam String empId, @RequestParam String date) { return master.dayStarted(empId, date); }
     @GetMapping("/entries") public Map<String, Object> entries(@RequestParam String empId, @RequestParam int month, @RequestParam int year) { return master.entries(empId, month, year); }
     @PostMapping("/entry") public Map<String, Object> saveEntry(@RequestBody Map<String, Object> b) { return master.saveEntry(b); }

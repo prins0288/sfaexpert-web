@@ -118,6 +118,9 @@
     try {
       ME = (await Api.get(API.profile.get)).empId; FIL = await Api.get(FEP + '/filters');
       document.getElementById('f_emp').innerHTML = FIL.employees.map(e => `<option value="${esc(e.id)}" ${e.id === ME ? 'selected' : ''}>${esc(e.name)}</option>`).join('');
+      { const sp = new URLSearchParams(location.search);   // opened from the Expense Dashboard: that employee and month
+        if (sp.get('month')) document.getElementById('f_month').value = sp.get('month'); if (sp.get('year')) { const y = document.getElementById('f_year'); if (![...y.options].some(o => o.value === sp.get('year'))) y.add(new Option(sp.get('year'), sp.get('year'))); y.value = sp.get('year'); }
+        if (sp.get('empId') && [...document.getElementById('f_emp').options].some(o => o.value === sp.get('empId'))) document.getElementById('f_emp').value = sp.get('empId'); }
       await rpGo(); pending();
     } catch (e) { SFA.toast(e.message, false); }
   };
