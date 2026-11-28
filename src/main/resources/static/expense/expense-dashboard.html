@@ -122,7 +122,9 @@
     await rpGo();
   };
   const q = () => ({ month: document.getElementById('f_month').value, year: document.getElementById('f_year').value });
-  function applyActivity(f) { document.getElementById('f_month').value = f.month; document.getElementById('f_year').value = f.year; rpGo(); if (ACT) ACT.hide(); }
+  let RESTORE = null;
+  // a recent search brings back every filter it had: month, year, state, manager and the search text
+  function applyActivity(f) { document.getElementById('f_month').value = f.month; document.getElementById('f_year').value = f.year; document.getElementById('f_q').value = f.q || ''; RESTORE = { state: f.state || '', mgr: f.mgr || '' }; rpGo(); if (ACT) ACT.hide(); }
   function rpFToggle(close) { const b = document.getElementById('rpFBody'), hide = close === true ? true : !b.classList.contains('d-none'); b.classList.toggle('d-none', hide); document.getElementById('rpFBtn').classList.toggle('active', !hide); if (!hide) window.scrollTo(0, 0); }
   async function rpGo() {
     SEL.clear();
@@ -130,8 +132,8 @@
       D = await Api.get(EP + '/dashboard', { query: q() });
       document.getElementById('rpSub').textContent = MONTHS[q().month - 1] + ' ' + q().year + ' · ' + D.employees + ' ' + T('ed.employees', 'employees');
       const keep = (id, first, list, cur) => { const e = document.getElementById(id); e.innerHTML = `<option value="">${first}</option>` + [...new Set(list.filter(Boolean))].sort().map(x => `<option>${esc(x)}</option>`).join(''); e.value = cur || ''; };
-      keep('f_state', T('common.all', 'All'), D.rows.map(r => r.state), document.getElementById('f_state').value); keep('f_mgr', T('common.all', 'All'), D.rows.map(r => r.manager), document.getElementById('f_mgr').value);
-      draw(); rpFToggle(true); window.scrollTo(0, 0); Activity.record(REPORT_KEY, REPORT_LABEL, q(), MONTHS[q().month - 1] + ' ' + q().year);
+      keep('f_state', T('common.all', 'All'), D.rows.map(r => r.state), RESTORE ? RESTORE.state : document.getElementById('f_state').value); keep('f_mgr', T('common.all', 'All'), D.rows.map(r => r.manager), RESTORE ? RESTORE.mgr : document.getElementById('f_mgr').value); RESTORE = null;
+      draw(); rpFToggle(true); window.scrollTo(0, 0); Activity.record(REPORT_KEY, REPORT_LABEL, Object.assign({}, q(), { state: document.getElementById('f_state').value, mgr: document.getElementById('f_mgr').value, q: document.getElementById('f_q').value.trim() }), Activity.describe());
     } catch (e) { SFA.toast(e.message, false); }
   }
   const inTab = (r) => TAB === 'all' || (TAB === 'pending' && ['SUBMITTED', 'MGR_APPROVED'].includes(r.status)) || (TAB === 'notsub' && ['NOT_STARTED', 'DRAFT', 'REJECTED'].includes(r.status)) || (TAB === 'approved' && r.status === 'APPROVED');

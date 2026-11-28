@@ -141,7 +141,7 @@
       r0 = r; D = r.exists ? r : null; SA = []; SUBERR = null;
       if (D && D.perms.canStay) { try { SA = await Api.get(EP + '/' + D.statement.id + '/stay-areas', { noLoader: true }); } catch (e) { SA = []; } }
       document.getElementById('rpSub').textContent = MONTHS[q().month - 1] + ' ' + q().year;
-      draw(); rpFToggle(true); window.scrollTo(0, 0); Activity.record(REPORT_KEY, REPORT_LABEL, { month: q().month, year: q().year, emp: q().empId }, MONTHS[q().month - 1] + ' ' + q().year);
+      draw(); rpFToggle(true); window.scrollTo(0, 0); Activity.record(REPORT_KEY, REPORT_LABEL, { month: q().month, year: q().year, emp: q().empId }, Activity.describe());
     } catch (e) { SFA.toast(e.message, false); }
   }
   async function build(refresh) {

@@ -157,7 +157,7 @@
       document.getElementById('rpSub').textContent = fmt(DATA.from) + ' ' + T('rep.period', 'to') + ' ' + fmt(DATA.to);
       kpis(); rpRender();
       rpFToggle(true); rpScrollTop();   // report loaded: the filter card folds away and the page goes to the top; the Filters button brings it back
-      Activity.record(REPORT_KEY, REPORT_LABEL, filterState(), summaryText());
+      Activity.record(REPORT_KEY, REPORT_LABEL, filterState(), Activity.describe() + ' → ' + summaryText());
     } catch (e) { SFA.toast(e.message, false); }
   }
   function rpFToggle(close) {

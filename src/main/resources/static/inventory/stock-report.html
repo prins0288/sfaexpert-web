@@ -159,7 +159,7 @@
       D = await Api.get(EP + '/report', { query: q() });
       const ms = [...picked.months].sort((a, b) => a - b); document.getElementById('rpSub').textContent = (ms.length && ms.length < 12 ? ms.map(m => MONTHS[m - 1]).join(', ') : T('inv.allMonths', 'All months')) + ' ' + document.getElementById('f_year').value;
       draw(); rpFToggle(true); window.scrollTo(0, 0);
-      Activity.record(REPORT_KEY, REPORT_LABEL, filterState(), (D.groups.length + ' / ' + D.items.length));
+      Activity.record(REPORT_KEY, REPORT_LABEL, filterState(), Activity.describe() + ' → ' + D.groups.length + ' / ' + D.items.length);
     } catch (e) { SFA.toast(e.message, false); }
   }
   function rpFToggle(close) { const b = document.getElementById('rpFBody'), hide = close === true ? true : !b.classList.contains('d-none'); b.classList.toggle('d-none', hide); document.getElementById('rpFBtn').classList.toggle('active', !hide); if (!hide) window.scrollTo(0, 0); }

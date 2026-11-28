@@ -155,7 +155,7 @@
       const one = DATA.employees.length ? query().empId : null;
       if (one) { try { DET = (await Api.get(EP + '/calendar-detail', { query: { empId: one, month: query().month } })).days; } catch (e) { DET = null; } }
       rpRender(); rpFToggle(true); rpScrollTop();   // loaded: the filter card folds away, the page goes to the top
-      Activity.record(REPORT_KEY, REPORT_LABEL, filterState(), summaryText());
+      Activity.record(REPORT_KEY, REPORT_LABEL, filterState(), Activity.describe() + ' → ' + summaryText());
     } catch (e) { SFA.toast(e.message, false); }
   }
   function rpFToggle(close) { const b = document.getElementById('rpFBody'), hide = close === true ? true : !b.classList.contains('d-none'); b.classList.toggle('d-none', hide); const btn = document.getElementById('rpFBtn'); if (btn) btn.classList.toggle('active', !hide); if (!hide) rpScrollTop(); }
