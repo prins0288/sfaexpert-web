@@ -11,7 +11,7 @@
     drawBadge(); setInterval(ipoll, 60000);
     // a user without a mail account of his own starts on the Intramail tab
     try { await Api.get('/api/mailbox/admin', { noLoader: true }); window.ME_ADMIN = true; } catch (e) { window.ME_ADMIN = false; }
-    if (typeof F !== "undefined" && F && !F.account) window.modeTab('intra');
+    if ((typeof F !== "undefined" && F && !F.account) || new URLSearchParams(location.search).get('tab') === 'intra') window.modeTab('intra');   // ?tab=intra comes from the Intramail menu
   };
   const drawBadge = () => { const b = g('intraBadge'); if (!b) return; b.textContent = IF.inbox; b.classList.toggle('d-none', !IF.inbox); };
 
