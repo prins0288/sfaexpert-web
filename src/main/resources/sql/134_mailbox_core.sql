@@ -1,4 +1,4 @@
--- 134: mail module core - mail_admin_setting, mail_account (password encrypted), mail_folder, mail_message (cache), mail_attachment, mail_outbox. Safe to re-run.
+-- 134: mail module core - mail_admin_setting, mail_account (password as typed), mail_folder, mail_message (cache), mail_attachment, mail_outbox. Safe to re-run.
 
 USE acme_db;
 CREATE TABLE IF NOT EXISTS mail_admin_setting (
@@ -10,8 +10,8 @@ CREATE TABLE IF NOT EXISTS mail_admin_setting (
   updated_by VARCHAR(40) NULL, updated_at DATETIME NULL, PRIMARY KEY (id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='mail module: company defaults and limits (one row)';
 CREATE TABLE IF NOT EXISTS mail_account (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, emp_id VARCHAR(40) NOT NULL, email VARCHAR(150) NOT NULL, display_name VARCHAR(100) NULL, username VARCHAR(150) NOT NULL,
-  auth_type VARCHAR(10) NOT NULL DEFAULT 'PASSWORD' COMMENT 'PASSWORD now; OAUTH2_GOOGLE / OAUTH2_MS later (oauth_enc)',
-  password_enc VARCHAR(700) NULL COMMENT 'AES-GCM, key from the environment (SFA_MAIL_KEY) - never the plain password', oauth_enc VARCHAR(2000) NULL,
+  auth_type VARCHAR(10) NOT NULL DEFAULT 'PASSWORD' COMMENT 'PASSWORD now; OAUTH2_GOOGLE / OAUTH2_MS later (oauth_token)',
+  password VARCHAR(300) NULL COMMENT 'stored as typed (plain text, by the company decision) - never sent to the screen and never logged', oauth_token VARCHAR(2000) NULL,
   smtp_host VARCHAR(150) NOT NULL, smtp_port INT NOT NULL DEFAULT 587, smtp_security VARCHAR(8) NOT NULL DEFAULT 'STARTTLS',
   imap_host VARCHAR(150) NOT NULL, imap_port INT NOT NULL DEFAULT 993, imap_security VARCHAR(8) NOT NULL DEFAULT 'SSL',
   signature TEXT NULL, is_enabled TINYINT(1) NOT NULL DEFAULT 1,
@@ -43,6 +43,11 @@ CREATE TABLE IF NOT EXISTS mail_outbox (
   PRIMARY KEY (id), UNIQUE KEY uq_mail_outbox_mid (account_id, message_id(150)), KEY ix_mail_outbox_st (status, next_attempt_at),
   CONSTRAINT fk_mail_outbox_acc FOREIGN KEY (account_id) REFERENCES mail_account (id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='mails to send: a worker sends them; the generated Message-ID makes a retry safe';
 INSERT IGNORE INTO mail_admin_setting (id) VALUES (1);
+SET @s := IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'mail_account' AND column_name = 'password_enc') > 0, 'ALTER TABLE mail_account CHANGE password_enc password VARCHAR(300) NULL', 'SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+SET @s := IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'mail_account' AND column_name = 'oauth_enc') > 0, 'ALTER TABLE mail_account CHANGE oauth_enc oauth_token VARCHAR(2000) NULL', 'SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+UPDATE mail_account SET password = NULL WHERE password LIKE 'v1:%';
 
 USE globex_db;
 CREATE TABLE IF NOT EXISTS mail_admin_setting (
@@ -54,8 +59,8 @@ CREATE TABLE IF NOT EXISTS mail_admin_setting (
   updated_by VARCHAR(40) NULL, updated_at DATETIME NULL, PRIMARY KEY (id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='mail module: company defaults and limits (one row)';
 CREATE TABLE IF NOT EXISTS mail_account (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, emp_id VARCHAR(40) NOT NULL, email VARCHAR(150) NOT NULL, display_name VARCHAR(100) NULL, username VARCHAR(150) NOT NULL,
-  auth_type VARCHAR(10) NOT NULL DEFAULT 'PASSWORD' COMMENT 'PASSWORD now; OAUTH2_GOOGLE / OAUTH2_MS later (oauth_enc)',
-  password_enc VARCHAR(700) NULL COMMENT 'AES-GCM, key from the environment (SFA_MAIL_KEY) - never the plain password', oauth_enc VARCHAR(2000) NULL,
+  auth_type VARCHAR(10) NOT NULL DEFAULT 'PASSWORD' COMMENT 'PASSWORD now; OAUTH2_GOOGLE / OAUTH2_MS later (oauth_token)',
+  password VARCHAR(300) NULL COMMENT 'stored as typed (plain text, by the company decision) - never sent to the screen and never logged', oauth_token VARCHAR(2000) NULL,
   smtp_host VARCHAR(150) NOT NULL, smtp_port INT NOT NULL DEFAULT 587, smtp_security VARCHAR(8) NOT NULL DEFAULT 'STARTTLS',
   imap_host VARCHAR(150) NOT NULL, imap_port INT NOT NULL DEFAULT 993, imap_security VARCHAR(8) NOT NULL DEFAULT 'SSL',
   signature TEXT NULL, is_enabled TINYINT(1) NOT NULL DEFAULT 1,
@@ -87,6 +92,11 @@ CREATE TABLE IF NOT EXISTS mail_outbox (
   PRIMARY KEY (id), UNIQUE KEY uq_mail_outbox_mid (account_id, message_id(150)), KEY ix_mail_outbox_st (status, next_attempt_at),
   CONSTRAINT fk_mail_outbox_acc FOREIGN KEY (account_id) REFERENCES mail_account (id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='mails to send: a worker sends them; the generated Message-ID makes a retry safe';
 INSERT IGNORE INTO mail_admin_setting (id) VALUES (1);
+SET @s := IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'mail_account' AND column_name = 'password_enc') > 0, 'ALTER TABLE mail_account CHANGE password_enc password VARCHAR(300) NULL', 'SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+SET @s := IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'mail_account' AND column_name = 'oauth_enc') > 0, 'ALTER TABLE mail_account CHANGE oauth_enc oauth_token VARCHAR(2000) NULL', 'SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+UPDATE mail_account SET password = NULL WHERE password LIKE 'v1:%';
 
 USE initech_db;
 CREATE TABLE IF NOT EXISTS mail_admin_setting (
@@ -98,8 +108,8 @@ CREATE TABLE IF NOT EXISTS mail_admin_setting (
   updated_by VARCHAR(40) NULL, updated_at DATETIME NULL, PRIMARY KEY (id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='mail module: company defaults and limits (one row)';
 CREATE TABLE IF NOT EXISTS mail_account (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, emp_id VARCHAR(40) NOT NULL, email VARCHAR(150) NOT NULL, display_name VARCHAR(100) NULL, username VARCHAR(150) NOT NULL,
-  auth_type VARCHAR(10) NOT NULL DEFAULT 'PASSWORD' COMMENT 'PASSWORD now; OAUTH2_GOOGLE / OAUTH2_MS later (oauth_enc)',
-  password_enc VARCHAR(700) NULL COMMENT 'AES-GCM, key from the environment (SFA_MAIL_KEY) - never the plain password', oauth_enc VARCHAR(2000) NULL,
+  auth_type VARCHAR(10) NOT NULL DEFAULT 'PASSWORD' COMMENT 'PASSWORD now; OAUTH2_GOOGLE / OAUTH2_MS later (oauth_token)',
+  password VARCHAR(300) NULL COMMENT 'stored as typed (plain text, by the company decision) - never sent to the screen and never logged', oauth_token VARCHAR(2000) NULL,
   smtp_host VARCHAR(150) NOT NULL, smtp_port INT NOT NULL DEFAULT 587, smtp_security VARCHAR(8) NOT NULL DEFAULT 'STARTTLS',
   imap_host VARCHAR(150) NOT NULL, imap_port INT NOT NULL DEFAULT 993, imap_security VARCHAR(8) NOT NULL DEFAULT 'SSL',
   signature TEXT NULL, is_enabled TINYINT(1) NOT NULL DEFAULT 1,
@@ -131,6 +141,11 @@ CREATE TABLE IF NOT EXISTS mail_outbox (
   PRIMARY KEY (id), UNIQUE KEY uq_mail_outbox_mid (account_id, message_id(150)), KEY ix_mail_outbox_st (status, next_attempt_at),
   CONSTRAINT fk_mail_outbox_acc FOREIGN KEY (account_id) REFERENCES mail_account (id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='mails to send: a worker sends them; the generated Message-ID makes a retry safe';
 INSERT IGNORE INTO mail_admin_setting (id) VALUES (1);
+SET @s := IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'mail_account' AND column_name = 'password_enc') > 0, 'ALTER TABLE mail_account CHANGE password_enc password VARCHAR(300) NULL', 'SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+SET @s := IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'mail_account' AND column_name = 'oauth_enc') > 0, 'ALTER TABLE mail_account CHANGE oauth_enc oauth_token VARCHAR(2000) NULL', 'SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+UPDATE mail_account SET password = NULL WHERE password LIKE 'v1:%';
 
 USE sfa_demo;
 CREATE TABLE IF NOT EXISTS mail_admin_setting (
@@ -142,8 +157,8 @@ CREATE TABLE IF NOT EXISTS mail_admin_setting (
   updated_by VARCHAR(40) NULL, updated_at DATETIME NULL, PRIMARY KEY (id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='mail module: company defaults and limits (one row)';
 CREATE TABLE IF NOT EXISTS mail_account (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, emp_id VARCHAR(40) NOT NULL, email VARCHAR(150) NOT NULL, display_name VARCHAR(100) NULL, username VARCHAR(150) NOT NULL,
-  auth_type VARCHAR(10) NOT NULL DEFAULT 'PASSWORD' COMMENT 'PASSWORD now; OAUTH2_GOOGLE / OAUTH2_MS later (oauth_enc)',
-  password_enc VARCHAR(700) NULL COMMENT 'AES-GCM, key from the environment (SFA_MAIL_KEY) - never the plain password', oauth_enc VARCHAR(2000) NULL,
+  auth_type VARCHAR(10) NOT NULL DEFAULT 'PASSWORD' COMMENT 'PASSWORD now; OAUTH2_GOOGLE / OAUTH2_MS later (oauth_token)',
+  password VARCHAR(300) NULL COMMENT 'stored as typed (plain text, by the company decision) - never sent to the screen and never logged', oauth_token VARCHAR(2000) NULL,
   smtp_host VARCHAR(150) NOT NULL, smtp_port INT NOT NULL DEFAULT 587, smtp_security VARCHAR(8) NOT NULL DEFAULT 'STARTTLS',
   imap_host VARCHAR(150) NOT NULL, imap_port INT NOT NULL DEFAULT 993, imap_security VARCHAR(8) NOT NULL DEFAULT 'SSL',
   signature TEXT NULL, is_enabled TINYINT(1) NOT NULL DEFAULT 1,
@@ -175,3 +190,8 @@ CREATE TABLE IF NOT EXISTS mail_outbox (
   PRIMARY KEY (id), UNIQUE KEY uq_mail_outbox_mid (account_id, message_id(150)), KEY ix_mail_outbox_st (status, next_attempt_at),
   CONSTRAINT fk_mail_outbox_acc FOREIGN KEY (account_id) REFERENCES mail_account (id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='mails to send: a worker sends them; the generated Message-ID makes a retry safe';
 INSERT IGNORE INTO mail_admin_setting (id) VALUES (1);
+SET @s := IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'mail_account' AND column_name = 'password_enc') > 0, 'ALTER TABLE mail_account CHANGE password_enc password VARCHAR(300) NULL', 'SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+SET @s := IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'mail_account' AND column_name = 'oauth_enc') > 0, 'ALTER TABLE mail_account CHANGE oauth_enc oauth_token VARCHAR(2000) NULL', 'SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+UPDATE mail_account SET password = NULL WHERE password LIKE 'v1:%';

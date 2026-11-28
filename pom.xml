@@ -143,7 +143,12 @@
             <artifactId>junit-jupiter</artifactId>
             <scope>test</scope>
         </dependency>
-            <!-- HTML mail is sanitized (no scripts, no remote images by default) before it is shown -->
+            <!-- the mail implementation is used directly (SMTP return codes), so it is a compile dependency -->
+        <dependency>
+            <groupId>org.eclipse.angus</groupId>
+            <artifactId>angus-mail</artifactId>
+        </dependency>
+        <!-- HTML mail is sanitized (no scripts, no remote images by default) before it is shown -->
         <dependency>
             <groupId>com.googlecode.owasp-java-html-sanitizer</groupId>
             <artifactId>owasp-java-html-sanitizer</artifactId>

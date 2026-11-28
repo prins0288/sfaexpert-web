@@ -16,7 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 
-/** The external mail account of the signed-in employee (SMTP + IMAP) and the company's mail defaults. The password is stored encrypted and is never sent back or logged. */
+/** The external mail account of the signed-in employee (SMTP + IMAP) and the company's mail defaults. The password is stored as typed (company decision) but is never sent back to the screen or logged. */
 @Service
 public class MailAccountService {
     private static final Logger log = LoggerFactory.getLogger(MailAccountService.class);
@@ -26,10 +26,9 @@ public class MailAccountService {
     public record Account(long id, String empId, String email, String displayName, String username, String password, MailSessions.Server smtp, MailSessions.Server imap, String signature, boolean enabled) { }
 
     private final JdbcTemplate jdbc;
-    private final MailCrypto crypto;
     private final RateLimiter limiter;
 
-    public MailAccountService(JdbcTemplate jdbc, MailCrypto crypto, RateLimiter limiter) { this.jdbc = jdbc; this.crypto = crypto; this.limiter = limiter; }
+    public MailAccountService(JdbcTemplate jdbc, RateLimiter limiter) { this.jdbc = jdbc; this.limiter = limiter; }
 
     // ------------------------------------------------------------------ company defaults (admin)
     private Map<String, Object> adminRow() {
@@ -46,7 +45,6 @@ public class MailAccountService {
         Authz.requireRole("ADMIN");
         Map<String, Object> r = adminRow(), m = new LinkedHashMap<>();
         for (String k : List.of("company_domain", "default_smtp_host", "default_smtp_port", "default_smtp_security", "default_imap_host", "default_imap_port", "default_imap_security", "internal_hosts", "sync_interval_min", "initial_sync_days", "max_attachment_mb", "intramail_for_all")) m.put(k, r.get(k));
-        m.put("keyReady", crypto.available());
         return m;
     }
 
@@ -84,15 +82,14 @@ public class MailAccountService {
     private static String sec(Object o, String what) { String v = secOrNull(o); if (v == null) throw new IllegalArgumentException(what + " security is required"); return v; }
     private static String noCrlf(String v, String what) { if (v != null && (v.indexOf('\r') >= 0 || v.indexOf('\n') >= 0)) throw new IllegalArgumentException(what + " has an invalid character"); return v; }
     private static String me() { String m = TeamScope.me(); if (m == null) throw new ForbiddenException("Sign in again"); return m; }
-    private static String ctx(String empId) { return "mailacct:" + empId; }
 
     @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
     public Map<String, Object> get() {
         Map<String, Object> out = new LinkedHashMap<>(); Map<String, Object> admin = adminRow();
-        out.put("keyReady", crypto.available()); out.put("presets", presets());
+        out.put("presets", presets());
         Map<String, Object> d = new LinkedHashMap<>(); d.put("domain", admin.get("company_domain")); d.put("smtpHost", admin.get("default_smtp_host")); d.put("smtpPort", admin.get("default_smtp_port")); d.put("smtpSecurity", admin.get("default_smtp_security")); d.put("imapHost", admin.get("default_imap_host")); d.put("imapPort", admin.get("default_imap_port")); d.put("imapSecurity", admin.get("default_imap_security"));
         out.put("defaults", d); out.put("intramailForAll", admin.get("intramail_for_all"));
-        List<Map<String, Object>> l = jdbc.queryForList("SELECT id, email, display_name AS displayName, username, auth_type AS authType, smtp_host AS smtpHost, smtp_port AS smtpPort, smtp_security AS smtpSecurity, imap_host AS imapHost, imap_port AS imapPort, imap_security AS imapSecurity, signature, is_enabled AS enabled, (password_enc IS NOT NULL) AS hasPassword, last_sync_at AS lastSyncAt, last_sync_error AS lastSyncError FROM mail_account WHERE emp_id = ?", me());
+        List<Map<String, Object>> l = jdbc.queryForList("SELECT id, email, display_name AS displayName, username, auth_type AS authType, smtp_host AS smtpHost, smtp_port AS smtpPort, smtp_security AS smtpSecurity, imap_host AS imapHost, imap_port AS imapPort, imap_security AS imapSecurity, signature, is_enabled AS enabled, (password IS NOT NULL) AS hasPassword, last_sync_at AS lastSyncAt, last_sync_error AS lastSyncError FROM mail_account WHERE emp_id = ?", me());
         out.put("account", l.isEmpty() ? null : l.get(0));
         return out;
     }
@@ -114,12 +111,11 @@ public class MailAccountService {
         String pw = b.get("password") == null || b.get("password").toString().isEmpty() ? null : b.get("password").toString();
         boolean exists = !jdbc.queryForList("SELECT id FROM mail_account WHERE emp_id = ?", emp).isEmpty();
         if (!exists && pw == null) throw new IllegalArgumentException("Enter the mail password");
-        String enc = pw == null ? null : crypto.encrypt(pw, ctx(emp));
         boolean enabled = !"false".equalsIgnoreCase(String.valueOf(b.getOrDefault("enabled", true)));
-        if (exists) jdbc.update("UPDATE mail_account SET email = ?, display_name = ?, username = ?, password_enc = COALESCE(?, password_enc), smtp_host = ?, smtp_port = ?, smtp_security = ?, imap_host = ?, imap_port = ?, imap_security = ?, signature = ?, is_enabled = ?, updated_at = NOW() WHERE emp_id = ?",
-                email, name, user, enc, sh.toLowerCase(), sp, ss, ih.toLowerCase(), ip, is, sig, enabled ? 1 : 0, emp);
-        else jdbc.update("INSERT INTO mail_account (emp_id, email, display_name, username, password_enc, smtp_host, smtp_port, smtp_security, imap_host, imap_port, imap_security, signature, is_enabled) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                emp, email, name, user, enc, sh.toLowerCase(), sp, ss, ih.toLowerCase(), ip, is, sig, enabled ? 1 : 0);
+        if (exists) jdbc.update("UPDATE mail_account SET email = ?, display_name = ?, username = ?, password = COALESCE(?, password), smtp_host = ?, smtp_port = ?, smtp_security = ?, imap_host = ?, imap_port = ?, imap_security = ?, signature = ?, is_enabled = ?, updated_at = NOW() WHERE emp_id = ?",
+                email, name, user, pw, sh.toLowerCase(), sp, ss, ih.toLowerCase(), ip, is, sig, enabled ? 1 : 0, emp);
+        else jdbc.update("INSERT INTO mail_account (emp_id, email, display_name, username, password, smtp_host, smtp_port, smtp_security, imap_host, imap_port, imap_security, signature, is_enabled) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                emp, email, name, user, pw, sh.toLowerCase(), sp, ss, ih.toLowerCase(), ip, is, sig, enabled ? 1 : 0);
         log.info("Mail account saved for employee {}", emp);   // never the password
         return Map.of("saved", true);
     }
@@ -141,8 +137,7 @@ public class MailAccountService {
         return l.isEmpty() ? Optional.empty() : Optional.of(toAccount(l.get(0)));
     }
     private Account toAccount(Map<String, Object> r) {
-        String emp = (String) r.get("emp_id"); String enc = (String) r.get("password_enc");
-        String pw = enc == null ? null : crypto.decrypt(enc, ctx(emp));
+        String emp = (String) r.get("emp_id"); String pw = (String) r.get("password");   // as typed
         return new Account(((Number) r.get("id")).longValue(), emp, (String) r.get("email"), (String) r.get("display_name"), (String) r.get("username"), pw,
                 new MailSessions.Server((String) r.get("smtp_host"), ((Number) r.get("smtp_port")).intValue(), (String) r.get("smtp_security")),
                 new MailSessions.Server((String) r.get("imap_host"), ((Number) r.get("imap_port")).intValue(), (String) r.get("imap_security")),
