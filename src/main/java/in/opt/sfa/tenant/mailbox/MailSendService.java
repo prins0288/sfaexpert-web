@@ -170,7 +170,7 @@ public class MailSendService {
 
     /** A forwarded attachment is fetched from the mail server at the moment of sending. */
     private MimeBuilder.Attachment forwarded(MailAccountService.Account acc, long localMsgId, int part) throws Exception {
-        return ImapAttachment.fetch(accounts, acc, localMsgId, part);
+        return ImapAttachment.fetch(accounts, acc, localMsgId, part, jdbc);
     }
 
     /** The mails that went out through a server that does not keep a copy: append the copy to the Sent folder (once; tried again later when it failed, for one day). */
