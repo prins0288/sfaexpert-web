@@ -147,7 +147,7 @@ public class MailSendService {
         try { HostGuard.check(acc.smtp().host(), acc.smtp().port(), accounts.internalHosts()); }   // checked again at send time, not only when the account was saved
         catch (IllegalArgumentException e) { return finish(id, "FAILED", e.getMessage(), 0); }
         SmtpSender.Outcome r = SmtpSender.send(acc.smtp(), acc.username(), acc.password(), msg);
-        int attempts = ((Number) o.get("attempts")).intValue() + 1;
+        int attempts = ((Number) o.get("attempts")).intValue();   // already counted when the mail was claimed
         return switch (r.result()) {
             case SENT -> { jdbc.update("UPDATE mail_outbox SET status = 'SENT', sent_at = NOW(), last_error = NULL, copy_saved = ? WHERE id = ?", MailSendService.sentCopyNeeded(acc) ? 0 : 2, id); yield "SENT"; }
             case RETRY -> attempts >= MAX_ATTEMPTS ? finish(id, "FAILED", r.message(), 0) : requeue(id, r.message(), BACKOFF_MIN[Math.min(attempts - 1, BACKOFF_MIN.length - 1)]);
