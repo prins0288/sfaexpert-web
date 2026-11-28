@@ -90,6 +90,8 @@ public class MailAccountService {
         if (o == null || o.toString().isBlank()) return dflt;
         try { int v = Integer.parseInt(o.toString().trim()); if (v < min || v > max) throw new NumberFormatException(); return v; } catch (NumberFormatException e) { throw new IllegalArgumentException(what + " must be a number from " + min + " to " + max); }
     }
+    /** The usual port of a security: SMTP SSL 465 / STARTTLS 587 / none 25; IMAP SSL 993 / otherwise 143. */
+    static int usualPort(boolean smtp, String security) { return smtp ? ("SSL".equals(security) ? 465 : "NONE".equals(security) ? 25 : 587) : ("SSL".equals(security) ? 993 : 143); }
     private static String secOrNull(Object o) { String v = s(o); if (v == null) return null; v = v.toUpperCase(); if (!SEC.contains(v)) throw new IllegalArgumentException("Security must be SSL, STARTTLS or NONE"); return v; }
     private static String sec(Object o, String what) { String v = secOrNull(o); if (v == null) throw new IllegalArgumentException(what + " security is required"); return v; }
     private static String noCrlf(String v, String what) { if (v != null && (v.indexOf('\r') >= 0 || v.indexOf('\n') >= 0)) throw new IllegalArgumentException(what + " has an invalid character"); return v; }
@@ -116,8 +118,8 @@ public class MailAccountService {
         if (user == null) user = email; if (user.length() > 150) throw new IllegalArgumentException("User name is too long");
         String auth = String.valueOf(b.getOrDefault("authType", "PASSWORD")).toUpperCase();
         if (!"PASSWORD".equals(auth)) throw new IllegalArgumentException("OAuth2 sign-in is not available yet - use a password (App Password for Gmail / Yahoo)");
-        String sh = s(b.get("smtpHost")), ih = s(b.get("imapHost")); int sp = intOf(b.get("smtpPort"), 587, 1, 65535, "SMTP port"), ip = intOf(b.get("imapPort"), 993, 1, 65535, "IMAP port");
-        String ss = sec(b.get("smtpSecurity"), "SMTP"), is = sec(b.get("imapSecurity"), "IMAP");
+        String sh = s(b.get("smtpHost")), ih = s(b.get("imapHost")); String ss = sec(b.get("smtpSecurity"), "SMTP"), is = sec(b.get("imapSecurity"), "IMAP");
+        int sp = intOf(b.get("smtpPort"), usualPort(true, ss), 1, 65535, "SMTP port"), ip = intOf(b.get("imapPort"), usualPort(false, is), 1, 65535, "IMAP port");
         HostGuard.check(sh, sp, hosts); HostGuard.check(ih, ip, hosts);
         String sig = b.get("signature") == null ? null : b.get("signature").toString(); if (sig != null && sig.length() > 4000) throw new IllegalArgumentException("Signature is too long (4000 characters)");
         String pw = b.get("password") == null || b.get("password").toString().isEmpty() ? null : b.get("password").toString();
@@ -163,8 +165,8 @@ public class MailAccountService {
         limiter.check("mailtest:" + emp, 6, 60_000, "Too many connection tests - wait a minute and try again");
         String hosts = internalHosts();
         String user = s(b.get("username")) != null ? s(b.get("username")) : s(b.get("email"));
-        String sh = s(b.get("smtpHost")), ih = s(b.get("imapHost")); int sp = intOf(b.get("smtpPort"), 587, 1, 65535, "SMTP port"), ip = intOf(b.get("imapPort"), 993, 1, 65535, "IMAP port");
-        String ss = sec(b.get("smtpSecurity"), "SMTP"), is = sec(b.get("imapSecurity"), "IMAP");
+        String sh = s(b.get("smtpHost")), ih = s(b.get("imapHost")); String ss = sec(b.get("smtpSecurity"), "SMTP"), is = sec(b.get("imapSecurity"), "IMAP");
+        int sp = intOf(b.get("smtpPort"), usualPort(true, ss), 1, 65535, "SMTP port"), ip = intOf(b.get("imapPort"), usualPort(false, is), 1, 65535, "IMAP port");
         String pw = b.get("password") == null || b.get("password").toString().isEmpty() ? null : b.get("password").toString();
         if (pw == null) pw = load(emp).map(Account::password).orElse(null);
         if (user == null) throw new IllegalArgumentException("Enter the user name or email");
