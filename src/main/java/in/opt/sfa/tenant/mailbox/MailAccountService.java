@@ -36,6 +36,13 @@ public class MailAccountService {
         catch (org.springframework.dao.DataAccessException e) { throw new IllegalStateException("The mail tables are missing - run migration 134_mailbox_core.sql"); }
     }
     String internalHosts() { Object o = adminRow().get("internal_hosts"); return o == null ? "" : o.toString(); }
+    /** The mail system of the company: INTRA, EXTERNAL or BOTH (default BOTH). Set by the super admin only; a user cannot change it. */
+    public String mode() { Object o = adminRowOrEmpty().get("mail_mode"); String m = o == null ? "BOTH" : o.toString(); return List.of("INTRA", "EXTERNAL", "BOTH").contains(m) ? m : "BOTH"; }
+    private Map<String, Object> adminRowOrEmpty() { try { return adminRow(); } catch (IllegalStateException e) { return new HashMap<>(); } }
+    /** Throws when the company does not use SMTP / IMAP mail. */
+    public void requireExternal() { if ("INTRA".equals(mode())) throw new IllegalStateException("Your company uses Intramail only - external mail is switched off by the administrator"); }
+    public boolean externalOn() { return !"INTRA".equals(mode()); }
+    public boolean intraOn() { return !"EXTERNAL".equals(mode()); }
     public int syncIntervalMin() { Object o = adminRow().get("sync_interval_min"); return o instanceof Number n ? Math.max(1, n.intValue()) : 10; }
     public int initialSyncDays() { Object o = adminRow().get("initial_sync_days"); return o instanceof Number n ? Math.max(1, n.intValue()) : 30; }
     public int maxAttachmentMb() { Object o = adminRow().get("max_attachment_mb"); return o instanceof Number n ? Math.max(1, n.intValue()) : 20; }
@@ -44,13 +51,18 @@ public class MailAccountService {
     public Map<String, Object> adminGet() {
         Authz.requireRole("ADMIN");
         Map<String, Object> r = adminRow(), m = new LinkedHashMap<>();
-        for (String k : List.of("company_domain", "default_smtp_host", "default_smtp_port", "default_smtp_security", "default_imap_host", "default_imap_port", "default_imap_security", "internal_hosts", "sync_interval_min", "initial_sync_days", "max_attachment_mb", "intramail_for_all")) m.put(k, r.get(k));
+        for (String k : List.of("mail_mode", "company_domain", "default_smtp_host", "default_smtp_port", "default_smtp_security", "default_imap_host", "default_imap_port", "default_imap_security", "internal_hosts", "sync_interval_min", "initial_sync_days", "max_attachment_mb", "intramail_for_all")) m.put(k, r.get(k));
         return m;
     }
 
     @Transactional(transactionManager = "tenantTransactionManager")
     public void adminSave(Map<String, Object> b) {
         Authz.requireRole("ADMIN"); adminRow();
+        if (b.get("mail_mode") != null && !b.get("mail_mode").toString().isBlank()) {   // which mail system the company uses: the super admin decides, nobody else
+            String nm = b.get("mail_mode").toString().trim().toUpperCase(); if (!List.of("INTRA", "EXTERNAL", "BOTH").contains(nm)) throw new IllegalArgumentException("Mail system must be INTRA, EXTERNAL or BOTH");
+            if (!nm.equals(mode()) && !"SUPER_ADMIN".equals(in.opt.sfa.security.UserContext.role())) throw new ForbiddenException("Only the super admin can change the mail system of the company");
+            jdbc.update("UPDATE mail_admin_setting SET mail_mode = ? WHERE id = 1", nm);
+        }
         String ih = s(b.get("internal_hosts")); List<String> hosts = HostGuard.allowedHosts(ih);
         for (String h : hosts) if (!h.matches("[a-z0-9]([a-z0-9.-]*[a-z0-9])?")) throw new IllegalArgumentException("Internal host is not valid: " + h);
         int sync = intOf(b.get("sync_interval_min"), 10, 1, 1440, "Sync interval (minutes)"), days = intOf(b.get("initial_sync_days"), 30, 1, 3650, "First sync (days)"), mb = intOf(b.get("max_attachment_mb"), 20, 1, 100, "Attachment limit (MB)");
@@ -86,7 +98,7 @@ public class MailAccountService {
     @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
     public Map<String, Object> get() {
         Map<String, Object> out = new LinkedHashMap<>(); Map<String, Object> admin = adminRow();
-        out.put("presets", presets());
+        out.put("presets", presets()); out.put("mode", mode());
         Map<String, Object> d = new LinkedHashMap<>(); d.put("domain", admin.get("company_domain")); d.put("smtpHost", admin.get("default_smtp_host")); d.put("smtpPort", admin.get("default_smtp_port")); d.put("smtpSecurity", admin.get("default_smtp_security")); d.put("imapHost", admin.get("default_imap_host")); d.put("imapPort", admin.get("default_imap_port")); d.put("imapSecurity", admin.get("default_imap_security"));
         out.put("defaults", d); out.put("intramailForAll", admin.get("intramail_for_all"));
         List<Map<String, Object>> l = jdbc.queryForList("SELECT id, email, display_name AS displayName, username, auth_type AS authType, smtp_host AS smtpHost, smtp_port AS smtpPort, smtp_security AS smtpSecurity, imap_host AS imapHost, imap_port AS imapPort, imap_security AS imapSecurity, signature, is_enabled AS enabled, (password IS NOT NULL) AS hasPassword, last_sync_at AS lastSyncAt, last_sync_error AS lastSyncError FROM mail_account WHERE emp_id = ?", me());
@@ -97,7 +109,7 @@ public class MailAccountService {
     /** Create or change my account. A blank password keeps the saved one. */
     @Transactional(transactionManager = "tenantTransactionManager")
     public Map<String, Object> save(Map<String, Object> b) {
-        String emp = me(); String hosts = internalHosts();
+        requireExternal(); String emp = me(); String hosts = internalHosts();
         String email = noCrlf(s(b.get("email")), "Email"), name = noCrlf(s(b.get("displayName")), "Display name"), user = noCrlf(s(b.get("username")), "User name");
         if (email == null || !email.matches("[^@\\s<>,;]+@[^@\\s<>,;]+\\.[^@\\s<>,;]+") || email.length() > 150) throw new IllegalArgumentException("Enter a valid email address");
         if (name != null && name.length() > 100) throw new IllegalArgumentException("Display name is too long");
@@ -121,7 +133,7 @@ public class MailAccountService {
     }
 
     @Transactional(transactionManager = "tenantTransactionManager")
-    public void setEnabled(boolean on) { jdbc.update("UPDATE mail_account SET is_enabled = ? WHERE emp_id = ?", on ? 1 : 0, me()); }
+    public void setEnabled(boolean on) { requireExternal(); jdbc.update("UPDATE mail_account SET is_enabled = ? WHERE emp_id = ?", on ? 1 : 0, me()); }
 
     /** Remove my mail account with every cached mail and queued mail (the mails stay on the server). */
     @Transactional(transactionManager = "tenantTransactionManager")
@@ -147,7 +159,7 @@ public class MailAccountService {
     // ------------------------------------------------------------------ test connection
     /** Test the SMTP and the IMAP login with the values on the screen (a blank password uses the saved one). Each result has a clear message. */
     public Map<String, Object> test(Map<String, Object> b) {
-        String emp = me();
+        requireExternal(); String emp = me();
         limiter.check("mailtest:" + emp, 6, 60_000, "Too many connection tests - wait a minute and try again");
         String hosts = internalHosts();
         String user = s(b.get("username")) != null ? s(b.get("username")) : s(b.get("email"));

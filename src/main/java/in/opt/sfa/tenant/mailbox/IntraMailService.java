@@ -28,7 +28,7 @@ public class IntraMailService {
 
     private static String me() { String m = TeamScope.me(); if (m == null) throw new ForbiddenException("Sign in again"); return m; }
     private static boolean canBroadcast() { return TeamScope.isAdmin() || TeamScope.isManager(); }
-    private void tables() { try { jdbc.queryForObject("SELECT COUNT(*) FROM intra_message WHERE 1 = 0", Integer.class); } catch (org.springframework.dao.DataAccessException e) { throw new IllegalStateException("The intramail tables are missing - run migration 136_intramail.sql"); } }
+    private void tables() { if (!accounts.intraOn()) throw new IllegalStateException("Your company uses external mail only - Intramail is switched off by the administrator");  try { jdbc.queryForObject("SELECT COUNT(*) FROM intra_message WHERE 1 = 0", Integer.class); } catch (org.springframework.dao.DataAccessException e) { throw new IllegalStateException("The intramail tables are missing - run migration 136_intramail.sql"); } }
 
     // ------------------------------------------------------------------ people and groups
     @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
@@ -162,6 +162,7 @@ public class IntraMailService {
     @Transactional(transactionManager = "tenantTransactionManager", readOnly = true)
     public Map<String, Object> folders() {
         String me = me(); Map<String, Object> o = new LinkedHashMap<>();
+        if (!accounts.intraOn()) { o.put("inbox", 0); o.put("drafts", 0); o.put("ready", false); o.put("off", true); return o; }
         try {
             o.put("inbox", jdbc.queryForObject("SELECT COUNT(*) FROM intra_recipient r JOIN intra_message m ON m.id = r.message_id WHERE r.emp_id = ? AND r.deleted = 0 AND r.is_read = 0 AND m.is_draft = 0", Integer.class, me));
             o.put("drafts", jdbc.queryForObject("SELECT COUNT(*) FROM intra_message WHERE sender_emp_id = ? AND is_draft = 1", Integer.class, me));

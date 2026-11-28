@@ -42,14 +42,16 @@ public class MailSendService {
     private final MailAttachmentStore files;
     private final RateLimiter limiter;
     private final TenantRunner tenants;
+    private final ImapSyncService syncer;
 
-    public MailSendService(JdbcTemplate jdbc, MailAccountService accounts, MailAttachmentStore files, RateLimiter limiter, TenantRunner tenants) { this.jdbc = jdbc; this.accounts = accounts; this.files = files; this.limiter = limiter; this.tenants = tenants; }
+    public MailSendService(JdbcTemplate jdbc, MailAccountService accounts, MailAttachmentStore files, RateLimiter limiter, TenantRunner tenants, ImapSyncService syncer) { this.jdbc = jdbc; this.accounts = accounts; this.files = files; this.limiter = limiter; this.tenants = tenants; this.syncer = syncer; }
 
     private static String me() { String m = TeamScope.me(); if (m == null) throw new ForbiddenException("Sign in again"); return m; }
     private static String csv(List<String> l) { return l == null || l.isEmpty() ? null : String.join(", ", l); }
     @SuppressWarnings("unchecked") private static List<String> list(Object o) { if (o instanceof List<?> l) return l.stream().map(String::valueOf).toList(); if (o instanceof String s && !s.isBlank()) return List.of(s); return List.of(); }
 
     private MailAccountService.Account myAccount() {
+        accounts.requireExternal();
         MailAccountService.Account a = accounts.load(me()).orElseThrow(() -> new IllegalStateException("Set up your mail account first (Mail Settings)"));
         if (!a.enabled()) throw new IllegalStateException("Your mail account is switched off"); if (a.password() == null) throw new IllegalStateException("Enter the mail password in Mail Settings");
         return a;
@@ -127,11 +129,15 @@ public class MailSendService {
     // ------------------------------------------------------------------ worker
     /** Called by the scheduler for every tenant. */
     public void processTenant() {
+        if (!accounts.externalOn()) return;   // the company switched external mail off
         // a mail that stayed SENDING for 10 minutes (the application stopped while sending): we cannot know if it went - UNKNOWN, never resent by itself
         jdbc.update("UPDATE mail_outbox SET status = 'UNKNOWN', last_error = 'The application stopped while this mail was being sent - check your Sent folder before sending again.' WHERE status = 'SENDING' AND claimed_at < NOW() - INTERVAL 10 MINUTE");
         List<Long> due = jdbc.queryForList("SELECT id FROM mail_outbox WHERE status = 'QUEUED' AND (next_attempt_at IS NULL OR next_attempt_at <= NOW()) ORDER BY id LIMIT 20", Long.class);
-        for (Long id : due) try { processOne(id); } catch (Exception e) { log.warn("Mail outbox {} failed: {}", id, e.getMessage()); }
+        Set<Long> sentFor = new LinkedHashSet<>();
+        for (Long id : due) try { if ("SENT".equals(processOne(id))) sentFor.add(jdbc.queryForObject("SELECT account_id FROM mail_outbox WHERE id = ?", Long.class, id)); } catch (Exception e) { log.warn("Mail outbox {} failed: {}", id, e.getMessage()); }
         saveSentCopies();
+        // the Sent folder (and the Inbox, for a mail to oneself) in the cache is brought up to date right after sending, not only at the next scheduled sync
+        if (syncer != null) for (Long accId : sentFor) try { accounts.loadById(accId).ifPresent(syncer::sync); } catch (Exception e) { log.warn("Sync after sending failed for account {}: {}", accId, e.getMessage()); }
     }
 
     /** Claim and send one mail. Returns the final status (or null when another worker had it). */

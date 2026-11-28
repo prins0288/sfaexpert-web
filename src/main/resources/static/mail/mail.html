@@ -153,14 +153,17 @@
 <script>
   const T = (k, en) => (window.I18n ? I18n.t(k, en) : en);
   const EP = '/api/mailbox', esc = (v) => SFA.esc(v == null ? '' : v), g = (i) => document.getElementById(i);
-  let F = null, CUR = null, PAGE = 0, ROWS = [], TOTAL = 0, SIZE = 25, SEL = new Set(), OPEN = null, CM = null, DRAFT = null, ATTS = [], DIRTY = false, SAVING = false, LASTUNREAD = null, LASTLANG = window.I18n ? I18n.lang : 'en', MODE = 'ext', CANMORE = false;
+  let MAILMODE = 'BOTH', F = null, CUR = null, PAGE = 0, ROWS = [], TOTAL = 0, SIZE = 25, SEL = new Set(), OPEN = null, CM = null, DRAFT = null, ATTS = [], DIRTY = false, SAVING = false, LASTUNREAD = null, LASTLANG = window.I18n ? I18n.lang : 'en', MODE = 'ext', CANMORE = false;
   if (window.I18n) I18n.onChange(() => { if (I18n.lang !== LASTLANG) { LASTLANG = I18n.lang; drawFolders(); drawList(); } });
   const when = (d) => { if (!d) return ''; const x = new Date(d), n = new Date(); const same = x.toDateString() === n.toDateString(); return same ? x.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : x.toLocaleDateString([], { day: '2-digit', month: 'short', year: x.getFullYear() === n.getFullYear() ? undefined : 'numeric' }); };
   const ICON = { INBOX: 'inbox', SENT: 'send', DRAFTS: 'file-earmark', TRASH: 'trash', SPAM: 'exclamation-octagon', ARCHIVE: 'archive', CUSTOM: 'folder2' };
   const NAME = { INBOX: ['mb.f.inbox', 'Inbox'], SENT: ['mb.f.sent', 'Sent'], DRAFTS: ['mb.f.drafts', 'Drafts'], TRASH: ['mb.f.trash', 'Trash'], SPAM: ['mb.f.spam', 'Spam'], ARCHIVE: ['mb.f.archive', 'Archive'] };
   window.pageInit = async function () {
     g('setLink').href = g('setLink2').href = Session.pageUrl('mail/mail-settings.html'); CM = new bootstrap.Modal('#composeModal');
-    await loadFolders(true); setInterval(poll, 60000); setInterval(autoSave, 30000); if (window.introInit) await introInit();
+    try { MAILMODE = (await Api.get(EP + '/mode', { noLoader: true })).mode; } catch (e) { MAILMODE = 'BOTH'; }   // the company's choice (set by the super admin): INTRA / EXTERNAL / BOTH
+    g('tabExt').parentElement.classList.toggle('d-none', MAILMODE === 'INTRA'); g('tabIntra').parentElement.classList.toggle('d-none', MAILMODE === 'EXTERNAL'); g('setLink').classList.toggle('d-none', MAILMODE === 'INTRA');
+    if (MAILMODE === 'INTRA') { g('extPane').classList.add('d-none'); g('setupBox').classList.add('d-none'); }
+    else await loadFolders(true); setInterval(poll, 60000); setInterval(autoSave, 30000); if (window.introInit) await introInit();
   };
   window.addEventListener('beforeunload', (e) => { if (DIRTY) { e.preventDefault(); e.returnValue = ''; } });
 
@@ -250,7 +253,26 @@
     try { const r = await Api.post(EP + '/sync', {}); if (r.error) SFA.toast(r.error, false); else if (!quiet) SFA.toast(r.newMails + ' ' + T('mb.newMails', 'new mails'), true); await loadFolders(); if (r.newMails) await go(PAGE); }
     catch (e) { SFA.toast(e.message, false); } finally { g('refreshBtn').disabled = false; }
   }
-  async function poll() { if (MODE !== 'ext' || !F || !F.account) return; try { const before = (F.folders.find(f => f.role === 'INBOX') || {}).unread || 0; await loadFolders(); const now = (F.folders.find(f => f.role === 'INBOX') || {}).unread || 0; if (now > before) { SFA.toast(T('mb.newArrived', 'New mail arrived'), true); if (CUR === (F.folders.find(f => f.role === 'INBOX') || {}).id) go(PAGE); } } catch (e) { /* the next poll tries again */ } }
+  // every minute: the counts are read again; when a sync has brought something new (or the outbox has just emptied) the open list is reloaded too - no need to press Refresh
+  async function poll() {
+    if (MODE !== 'ext' || !F || !F.account) return;
+    try {
+      const inb = () => (F.folders.find(f => f.role === 'INBOX') || {}), before = inb().unread || 0, syncBefore = F.info.lastSyncAt, outBefore = F.outbox;
+      await loadFolders(); const now = inb().unread || 0;
+      if (now > before) SFA.toast(T('mb.newArrived', 'New mail arrived'), true);
+      const changed = F.info.lastSyncAt !== syncBefore || (outBefore > 0 && F.outbox === 0);
+      if (changed && typeof CUR === 'number' && !g('composeModal').classList.contains('show')) await go(PAGE);
+    } catch (e) { /* the next poll tries again */ }
+  }
+  // after Send: look at the outbox every 5 seconds (up to 3 minutes); when the mail has left, the Sent folder and the list are reloaded
+  let WATCH = null;
+  function watchOutbox() {
+    clearInterval(WATCH); let n = 0;
+    WATCH = setInterval(async () => {
+      if (++n > 36 || MODE !== 'ext') { clearInterval(WATCH); return; }
+      try { const had = F.outbox; await loadFolders(); if (F.outbox === 0) { clearInterval(WATCH); if (typeof CUR === 'number') await go(PAGE); else if (CUR === 'outbox') await openOutbox(); } } catch (e) { /* try again */ }
+    }, 5000);
+  }
 
   // ---------------------------------------------------------------- outbox
   async function openOutbox() {
@@ -290,7 +312,7 @@
     const p = payload(); if (!p.to.length && !p.cc.length && !p.bcc.length) { SFA.toast(T('mb.needTo', 'Add at least one recipient'), false); return; }
     if (!p.subject.trim() && !confirm(T('mb.noSubjectAsk', 'Send without a subject?'))) return;
     g('sendBtn').disabled = true;
-    try { await Api.post(EP + '/send', p); if (DRAFT) { try { await Api.post(EP + '/messages/action', { ids: [DRAFT], action: 'PURGE' }, { noLoader: true }); } catch (e) { /* the draft stays */ } } DIRTY = false; CM.hide(); SFA.toast(T('mb.queued', 'Queued - it will be sent in a moment. See Outbox.'), true); await loadFolders(); }
+    try { await Api.post(EP + '/send', p); if (DRAFT) { try { await Api.post(EP + '/messages/action', { ids: [DRAFT], action: 'PURGE' }, { noLoader: true }); } catch (e) { /* the draft stays */ } } DIRTY = false; CM.hide(); SFA.toast(T('mb.queued', 'Queued - it will be sent in a moment. See Outbox.'), true); await loadFolders(); watchOutbox(); }
     catch (e) { SFA.toast(e.message, false); } finally { g('sendBtn').disabled = false; }
   }
   let SUGT = null;

@@ -33,7 +33,8 @@ public class MailActionService {
     public MailActionService(JdbcTemplate jdbc, MailAccountService accounts) { this.jdbc = jdbc; this.accounts = accounts; }
 
     private static String me() { String m = TeamScope.me(); if (m == null) throw new ForbiddenException("Sign in again"); return m; }
-    private MailAccountService.Account account() { return accounts.load(me()).orElseThrow(() -> new IllegalStateException("Set up your mail account first (Mail Settings)")); }
+    private MailAccountService.Account account() { accounts.requireExternal(); return accountRaw(); }
+    private MailAccountService.Account accountRaw() { return accounts.load(me()).orElseThrow(() -> new IllegalStateException("Set up your mail account first (Mail Settings)")); }
 
     private record Row(long id, long folderId, String path, String role, long uid) { }
 

@@ -52,7 +52,8 @@
 <body>
 <div id="app" data-page="mailsettings" data-title="Mail Settings"></div>
 <template id="pageContent">
-<div class="card mb-2"><div class="card-header d-flex align-items-center gap-2"><span><i class="bi bi-envelope-at"></i> <span data-i18n="ms.title">My mail account (SMTP + IMAP)</span></span><span class="ms-auto small text-muted" id="syncInfo"></span></div>
+<div class="alert alert-info py-2" id="modeNote"></div>
+<div class="card mb-2" id="accCard"><div class="card-header d-flex align-items-center gap-2"><span><i class="bi bi-envelope-at"></i> <span data-i18n="ms.title">My mail account (SMTP + IMAP)</span></span><span class="ms-auto small text-muted" id="syncInfo"></span></div>
   <div class="card-body"><div class="small text-muted mb-2" data-i18n="ms.help">Connect your own mail account to read and send external mail inside the app. Without an account you still get the Intramail (company messages). Your password is saved as you type it and is never shown again.</div>
     <div class="row g-2 mb-2"><div class="col-md-4"><label class="form-label small fw-semibold" data-i18n="ms.preset">Provider</label><select class="form-select form-select-sm" id="m_preset" onchange="usePreset()"></select></div>
       <div class="col-md-8 align-self-end"><div class="small text-muted" id="m_hint"></div></div></div>
@@ -75,6 +76,7 @@
     <div id="testRes" class="mt-2"></div></div></div>
 <div class="card mb-2 d-none" id="adminCard"><div class="card-header"><i class="bi bi-gear"></i> <span data-i18n="ms.adminTitle">Company mail defaults (admin)</span></div>
   <div class="card-body"><div class="row g-2">
+    <div class="col-md-4"><label class="form-label small fw-semibold" data-i18n="ms.mode">Mail system of the company (super admin only)</label><select class="form-select form-select-sm" id="a_mode"><option value="BOTH" data-i18n="ms.modeBoth">Both: Intramail and my own mail account</option><option value="INTRA" data-i18n="ms.modeIntra">Intramail only</option><option value="EXTERNAL" data-i18n="ms.modeExt">SMTP + IMAP mail only</option></select></div>
     <div class="col-md-3"><label class="form-label small fw-semibold" data-i18n="ms.domain">Company domain</label><input class="form-control form-control-sm" id="a_domain" placeholder="company.com"></div>
     <div class="col-md-3"><label class="form-label small fw-semibold">SMTP <span data-i18n="ms.host">host</span></label><input class="form-control form-control-sm" id="a_sh"></div>
     <div class="col-3 col-md-1"><label class="form-label small fw-semibold" data-i18n="ms.port">Port</label><input class="form-control form-control-sm" id="a_sp" type="number"></div>
@@ -116,7 +118,7 @@
   window.pageInit = async function () { await load(); try { const a = await Api.get(EP + '/admin'); g('adminCard').classList.remove('d-none'); fillAdmin(a); } catch (e) { /* not an admin */ } };
   async function load() {
     try {
-      S = await Api.get(EP + '/account'); 
+      S = await Api.get(EP + '/account'); const MN = { BOTH: T('ms.modeBoth', 'Both: Intramail and my own mail account'), INTRA: T('ms.modeIntra', 'Intramail only'), EXTERNAL: T('ms.modeExt', 'SMTP + IMAP mail only') }; g('modeNote').innerHTML = '<i class="bi bi-info-circle"></i> ' + T('ms.modeNote', 'Mail system of your company (set by the administrator)') + ': <b>' + esc(MN[S.mode] || S.mode) + '</b>'; g('accCard').classList.toggle('d-none', S.mode === 'INTRA'); 
       g('m_preset').innerHTML = '<option value="">' + T('ms.custom', 'Other / company server') + '</option>' + S.presets.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
       const a = S.account, d = S.defaults || {};
       g('m_email').value = a ? a.email : ''; g('m_name').value = a ? (a.displayName || '') : ''; g('m_user').value = a ? a.username : ''; g('m_pass').value = ''; g('m_pass').placeholder = a && a.hasPassword ? '••••••••  (' + T('ms.keep', 'leave blank to keep') + ')' : '';
@@ -135,8 +137,8 @@
     catch (e) { g('testRes').innerHTML = `<div class="small text-danger">${esc(e.message)}</div>`; }
   }
   async function delAcc() { if (!confirm(T('ms.confirmRemove', 'Remove your mail account and the mails cached in the app? The mails on your mail server stay.'))) return; try { await Api.post(EP + '/account/delete', {}); SFA.toast(T('exp.done', 'Done'), true); await load(); } catch (e) { SFA.toast(e.message, false); } }
-  function fillAdmin(a) { g('a_domain').value = a.company_domain || ''; g('a_sh').value = a.default_smtp_host || ''; g('a_sp').value = a.default_smtp_port || ''; g('a_ss').value = a.default_smtp_security || ''; g('a_ih').value = a.default_imap_host || ''; g('a_ip').value = a.default_imap_port || ''; g('a_is').value = a.default_imap_security || ''; g('a_int').value = a.internal_hosts || ''; g('a_sync').value = a.sync_interval_min; g('a_days').value = a.initial_sync_days; g('a_mb').value = a.max_attachment_mb; }
-  async function saveAdmin() { try { await Api.post(EP + '/admin', { company_domain: g('a_domain').value, default_smtp_host: g('a_sh').value, default_smtp_port: g('a_sp').value, default_smtp_security: g('a_ss').value, default_imap_host: g('a_ih').value, default_imap_port: g('a_ip').value, default_imap_security: g('a_is').value, internal_hosts: g('a_int').value, sync_interval_min: g('a_sync').value, initial_sync_days: g('a_days').value, max_attachment_mb: g('a_mb').value }); SFA.toast(T('inv.saved', 'Saved'), true); } catch (e) { SFA.toast(e.message, false); } }
+  function fillAdmin(a) { g('a_mode').value = a.mail_mode || 'BOTH'; g('a_domain').value = a.company_domain || ''; g('a_sh').value = a.default_smtp_host || ''; g('a_sp').value = a.default_smtp_port || ''; g('a_ss').value = a.default_smtp_security || ''; g('a_ih').value = a.default_imap_host || ''; g('a_ip').value = a.default_imap_port || ''; g('a_is').value = a.default_imap_security || ''; g('a_int').value = a.internal_hosts || ''; g('a_sync').value = a.sync_interval_min; g('a_days').value = a.initial_sync_days; g('a_mb').value = a.max_attachment_mb; }
+  async function saveAdmin() { try { await Api.post(EP + '/admin', { mail_mode: g('a_mode').value, company_domain: g('a_domain').value, default_smtp_host: g('a_sh').value, default_smtp_port: g('a_sp').value, default_smtp_security: g('a_ss').value, default_imap_host: g('a_ih').value, default_imap_port: g('a_ip').value, default_imap_security: g('a_is').value, internal_hosts: g('a_int').value, sync_interval_min: g('a_sync').value, initial_sync_days: g('a_days').value, max_attachment_mb: g('a_mb').value }); SFA.toast(T('inv.saved', 'Saved'), true); await load(); } catch (e) { SFA.toast(e.message, false); } }
 </script>
 </body>
 </html>

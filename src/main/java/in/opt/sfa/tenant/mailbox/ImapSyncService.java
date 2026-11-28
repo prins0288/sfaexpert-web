@@ -38,7 +38,7 @@ public class ImapSyncService {
     // ------------------------------------------------------------------ entry points
     /** The refresh button: my account now (not more than once in 15 seconds). */
     public Result syncMine() {
-        String me = TeamScope.me(); if (me == null) throw new ForbiddenException("Sign in again");
+        accounts.requireExternal(); String me = TeamScope.me(); if (me == null) throw new ForbiddenException("Sign in again");
         limiter.check("mailsync:" + me, 1, 15_000, "Wait a few seconds before refreshing again");
         MailAccountService.Account acc = accounts.load(me).orElseThrow(() -> new IllegalStateException("Set up your mail account first (Mail Settings)"));
         return sync(acc);
@@ -48,6 +48,7 @@ public class ImapSyncService {
     public void syncDueAllTenants() { tenants.forEachTenant(t -> syncDue()); }
 
     void syncDue() {
+        if (!accounts.externalOn()) return;
         int interval = accounts.syncIntervalMin();
         List<Long> due = jdbc.queryForList("SELECT id FROM mail_account WHERE is_enabled = 1 AND password IS NOT NULL AND (last_sync_at IS NULL OR last_sync_at < NOW() - INTERVAL ? MINUTE) AND (last_seen_at IS NULL OR last_seen_at > NOW() - INTERVAL 3 DAY) AND sync_state = 'IDLE' ORDER BY COALESCE(last_sync_at, '2000-01-01') LIMIT 25", Long.class, interval);
         for (Long id : due) { try { accounts.loadById(id).ifPresent(this::sync); } catch (Exception e) { log.warn("Mail sync of account {} failed: {}", id, e.getMessage()); } }

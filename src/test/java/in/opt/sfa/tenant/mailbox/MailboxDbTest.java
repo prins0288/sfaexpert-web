@@ -48,7 +48,7 @@ class MailboxDbTest {
         jdbc.update("UPDATE mail_admin_setting SET internal_hosts = '127.0.0.1', initial_sync_days = 30");
         gm = new GreenMail(new ServerSetup[]{new ServerSetup(SMTP, "127.0.0.1", "smtp"), new ServerSetup(IMAP, "127.0.0.1", "imap")}); gm.setUser("a@t.local", "a@t.local", "pw"); gm.setUser("b@t.local", "b@t.local", "pw"); gm.start();
         RateLimiter rl = new RateLimiter(); accounts = new MailAccountService(jdbc, rl); sync = new ImapSyncService(jdbc, accounts, rl, null);
-        Path tmp = Files.createTempDirectory("mailtest"); send = new MailSendService(jdbc, accounts, new MailAttachmentStore(new FileStorageService(tmp.toString())), rl, null);
+        Path tmp = Files.createTempDirectory("mailtest"); send = new MailSendService(jdbc, accounts, new MailAttachmentStore(new FileStorageService(tmp.toString())), rl, null, sync);
         read = new MailReadService(jdbc, accounts, new MailBodyService(jdbc, accounts)); actions = new MailActionService(jdbc, accounts);
         accA = addAccount("EMP-A", "a@t.local"); accB = addAccount("EMP-B", "b@t.local");
     }

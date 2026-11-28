@@ -6,12 +6,13 @@
   const FOLD = [['inbox', 'inbox', 'mb.f.inbox', 'Inbox'], ['sent', 'send', 'mb.f.sent', 'Sent'], ['drafts', 'file-earmark', 'mb.f.drafts', 'Drafts'], ['starred', 'star', 'mb.starred', 'Starred'], ['trash', 'trash', 'mb.f.trash', 'Trash']];
 
   window.introInit = async function () {
+    if (typeof MAILMODE !== 'undefined' && MAILMODE === 'EXTERNAL') return;   // the company does not use intramail
     ICM = new bootstrap.Modal('#icomposeModal'); IGM = new bootstrap.Modal('#groupsModal');
     try { IF = await Api.get(IEP + '/folders', { noLoader: true }); } catch (e) { IF = { inbox: 0, drafts: 0, ready: false }; }
     drawBadge(); setInterval(ipoll, 60000);
     // a user without a mail account of his own starts on the Intramail tab
     try { await Api.get('/api/mailbox/admin', { noLoader: true }); window.ME_ADMIN = true; } catch (e) { window.ME_ADMIN = false; }
-    if ((typeof F !== "undefined" && F && !F.account) || new URLSearchParams(location.search).get('tab') === 'intra') window.modeTab('intra');   // ?tab=intra comes from the Intramail menu
+    if ((typeof MAILMODE !== 'undefined' && MAILMODE === 'INTRA') || (typeof F !== "undefined" && F && !F.account) || new URLSearchParams(location.search).get('tab') === 'intra') window.modeTab('intra');   // ?tab=intra comes from the Intramail menu
   };
   const drawBadge = () => { const b = g('intraBadge'); if (!b) return; b.textContent = IF.inbox; b.classList.toggle('d-none', !IF.inbox); };
 

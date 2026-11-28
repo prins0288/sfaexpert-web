@@ -39,11 +39,14 @@ public class MailReadService {
     public MailReadService(JdbcTemplate jdbc, MailAccountService accounts, MailBodyService bodies) { this.jdbc = jdbc; this.accounts = accounts; this.bodies = bodies; }
 
     private static String me() { String m = TeamScope.me(); if (m == null) throw new ForbiddenException("Sign in again"); return m; }
-    private Long accountId() { return jdbc.queryForList("SELECT id FROM mail_account WHERE emp_id = ?", Long.class, me()).stream().findFirst().orElse(null); }
+    private Long accountId() { accounts.requireExternal(); return accountIdRaw(); }
+    private Long accountIdRaw() { return jdbc.queryForList("SELECT id FROM mail_account WHERE emp_id = ?", Long.class, me()).stream().findFirst().orElse(null); }
     private void seen(long accId) { jdbc.update("UPDATE mail_account SET last_seen_at = NOW() WHERE id = ?", accId); }
 
     public Map<String, Object> folders() {
-        Long acc = accountId(); Map<String, Object> out = new LinkedHashMap<>();
+        Map<String, Object> out = new LinkedHashMap<>(); out.put("mode", accounts.mode());
+        if (!accounts.externalOn()) { out.put("account", false); out.put("folders", List.of()); return out; }
+        Long acc = accountId();
         if (acc == null) { out.put("account", false); out.put("folders", List.of()); return out; }
         seen(acc);
         out.put("account", true);

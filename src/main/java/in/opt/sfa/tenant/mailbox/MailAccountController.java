@@ -11,6 +11,7 @@ public class MailAccountController {
     private final MailAccountService accounts;
     public MailAccountController(MailAccountService accounts) { this.accounts = accounts; }
 
+    @GetMapping("/mode") public Map<String, Object> mode() { return Map.of("mode", accounts.mode()); }
     @GetMapping("/account") public Map<String, Object> get() { return accounts.get(); }
     @PostMapping("/account") public Map<String, Object> save(@RequestBody Map<String, Object> b) { return accounts.save(b); }
     @PostMapping("/account/enabled") public Map<String, Object> enabled(@RequestBody Map<String, Object> b) { accounts.setEnabled(Boolean.parseBoolean(String.valueOf(b.get("enabled")))); return Map.of("saved", true); }
